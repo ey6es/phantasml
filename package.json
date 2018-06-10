@@ -1,0 +1,27 @@
+{
+  "name": "phantasml",
+  "version": "1.0.0",
+  "description": "Playground for exercises in machine learning.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ey6es/phantasml.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/ey6es/phantasml/issues"
+  },
+  "homepage": "https://github.com/ey6es/phantasml#readme",
+  "devDependencies": {
+    "babel-core": "^6.26.3",
+    "babel-preset-env": "^1.7.0",
+    "grunt": "^1.0.3",
+    "grunt-babel": "^7.0.0",
+    "load-grunt-tasks": "^4.0.0"
+  }
+}
