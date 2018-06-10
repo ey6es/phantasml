@@ -20,8 +20,21 @@
   "devDependencies": {
     "babel-core": "^6.26.3",
     "babel-preset-env": "^1.7.0",
+    "babel-preset-react": "^6.24.1",
+    "browserify-shim": "^3.8.14",
     "grunt": "^1.0.3",
     "grunt-babel": "^7.0.0",
-    "load-grunt-tasks": "^4.0.0"
+    "grunt-browserify": "^5.3.0",
+    "grunt-replace": "^1.0.1",
+    "load-grunt-tasks": "^4.0.0",
+    "uglifyify": "^5.0.0"
+  },
+  "dependencies": {
+    "react": "^16.4.0",
+    "react-dom": "^16.4.0"
+  },
+  "browserify-shim": {
+    "react": "global:React",
+    "react-dom": "global:ReactDOM"
   }
 }
