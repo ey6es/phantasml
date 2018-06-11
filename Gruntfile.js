@@ -1,56 +1,71 @@
-const path = require('path');
+const path = require("path");
 
 module.exports = function(grunt) {
+  require("load-grunt-tasks")(grunt); // npm install --save-dev load-grunt-tasks
 
-  require('load-grunt-tasks')(grunt); // npm install --save-dev load-grunt-tasks
-  
   // Project configuration.
   grunt.initConfig({
-    pkg: grunt.file.readJSON('package.json'),
+    pkg: grunt.file.readJSON("package.json"),
     babel: {
       dist: {
         options: {
-          presets: ['env', 'react'],
+          presets: ["env", "react"]
         },
-        files: [{
-          expand: true,
-          cwd: 'src',
-          src: '**/*.js',
-          dest: 'build/',
-        }],
+        files: [
+          {
+            expand: true,
+            cwd: "src",
+            src: "**/*.js",
+            dest: "build/"
+          }
+        ]
       }
     },
     browserify: {
       dist: {
         options: {
-           transform: ['browserify-shim', 'uglifyify'],
-        },        
-        files: [{
-          expand: true,
-          cwd: 'build/client',
-          src: 'exercises/*.js',
-          dest: 'dist/',
-          ext: '.min.js',
-        }],
+          transform: ["browserify-shim", "uglifyify"]
+        },
+        files: [
+          {
+            expand: true,
+            cwd: "build/client",
+            src: "exercises/*.js",
+            dest: "dist/",
+            ext: ".min.js"
+          }
+        ]
       }
     },
-    replace: function() {
+    replace: (function() {
       var config = {};
-      for (var name of grunt.file.expand({cwd: 'src/client/exercises'}, ['*.js'])) {
-        var basename = path.basename(name, '.js');
+      for (var name of grunt.file.expand({ cwd: "src/client/exercises" }, [
+        "*.js"
+      ])) {
+        var basename = path.basename(name, ".js");
         config[basename] = {
           options: {
-            patterns: [{match: 'path', replacement: `${basename}.min.js`}],
+            patterns: [{ match: "path", replacement: `${basename}.min.js` }]
           },
-          src: 'src/client/exercises/template.html',
-          dest: `dist/exercises/${basename}.html`,
+          src: "src/client/exercises/template.html",
+          dest: `dist/exercises/${basename}.html`
         };
       }
       return config;
-    }(),
+    })(),
+    rsync: {
+      dist: {
+        options: {
+          src: "dist/",
+          dest: "/usr/share/wordpress/phantasml",
+          host: "www.fungibleinsight.com",
+          delete: true,
+          recursive: true
+        }
+      }
+    }
   });
 
   // Default task(s).
-  grunt.registerTask('default', ['babel', 'browserify', 'replace']);
-
+  grunt.registerTask("default", ["babel", "browserify", "replace"]);
 };
