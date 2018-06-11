@@ -42,5 +42,11 @@
   "browserify-shim": {
     "react": "global:React",
     "react-dom": "global:ReactDOM"
+  },
+  "prettier": {
+    "singleQuote": true,
+    "trailingComma": "all",
+    "bracketSpacing": false,
+    "jsxBracketSameLine": true
   }
 }
