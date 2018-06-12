@@ -10,6 +10,7 @@ module.exports = function(grunt) {
       dist: {
         options: {
           presets: ['env', 'react'],
+          plugins: ['transform-class-properties'],
         },
         files: [
           {
@@ -54,6 +55,26 @@ module.exports = function(grunt) {
       }
       return config;
     })(),
+    less: {
+      dist: {
+        files: [
+          {
+            expand: true,
+            cwd: 'src/client',
+            src: '**/*.less',
+            dest: 'dist/',
+            ext: '.css',
+          },
+        ],
+      },
+    },
+    watch: {
+      dist: {
+        files: 'src/**',
+        tasks: 'default',
+        options: {livereload: true},
+      },
+    },
     rsync: {
       dist: {
         options: {
@@ -68,5 +89,5 @@ module.exports = function(grunt) {
   });
 
   // Default task(s).
-  grunt.registerTask('default', ['babel', 'browserify', 'replace']);
+  grunt.registerTask('default', ['babel', 'browserify', 'replace', 'less']);
 };
