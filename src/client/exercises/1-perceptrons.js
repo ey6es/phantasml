@@ -78,11 +78,7 @@ class Exercise extends React.Component<{}, {trainingData: boolean[]}> {
                 Presets
               </option>
               {Presets.map(([name, data]) => (
-                <option
-                  value={data.toString()}
-                  onClick={() => this.setState({trainingData: data.slice()})}>
-                  {name}
-                </option>
+                <option value={data.toString()}>{name}</option>
               ))}
             </select>
           }
