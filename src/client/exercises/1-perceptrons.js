@@ -65,27 +65,26 @@ class Exercise extends React.Component<{}, {trainingData: boolean[]}> {
             />
           )}
           footer={
-            <div class="dropdown">
-              <button
-                class="btn btn-success dropdown-toggle"
-                type="button"
-                data-toggle="dropdown">
-                Presets <span class="caret" />
-              </button>
-              <ul class="dropdown-menu">
-                {Presets.map(([name, data]) => (
-                  <li>
-                    <a
-                      class="link-button"
-                      onClick={() =>
-                        this.setState({trainingData: data.slice()})
-                      }>
-                      {name}
-                    </a>
-                  </li>
-                ))}
-              </ul>
-            </div>
+            <select
+              value=""
+              onChange={event =>
+                this.setState({
+                  trainingData: event.target.value
+                    .split(',')
+                    .map(string => string === 'true'),
+                })
+              }>
+              <option class="hidden" value="">
+                Presets
+              </option>
+              {Presets.map(([name, data]) => (
+                <option
+                  value={data.toString()}
+                  onClick={() => this.setState({trainingData: data.slice()})}>
+                  {name}
+                </option>
+              ))}
+            </select>
           }
         />
         <div class="titled-table">
@@ -99,14 +98,14 @@ class Exercise extends React.Component<{}, {trainingData: boolean[]}> {
               </tr>
             </thead>
             <tbody>
-              <tr>{weights.map(weight => <td>{weight.toPrecision(1)}</td>)}</tr>
+              <tr>{weights.map(weight => <td>{weight.toString()}</td>)}</tr>
             </tbody>
           </table>
-          <h4>
+          <div>
             {iterations < MAX_ITERATIONS
               ? `Converged in ${iterations} iteration(s).`
               : 'No convergence.'}
-          </h4>
+          </div>
         </div>
         <TruthTable
           title="Test Results"
