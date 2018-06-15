@@ -88,7 +88,7 @@ class BackpropagationExercise extends BinaryExercise {
           </tbody>
         </table>
         <h4>Output Weights</h4>
-        <table className="table table-bordered table-condensed weight-table">
+        <table className="table table-bordered table-condensed output-weight-table">
           <thead>
             <tr>
               <th>1</th>
