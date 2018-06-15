@@ -6,7 +6,7 @@ import {BinaryExercise} from './shared';
 
 const MAX_ITERATIONS = 100000;
 const LEARNING_RATE = 1.0;
-const TOLERANCE = 0.45;
+const TOLERANCE = 0.1;
 
 class BackpropagationExercise extends BinaryExercise {
   _internalWeights: number[][];
@@ -16,7 +16,7 @@ class BackpropagationExercise extends BinaryExercise {
   _iterations: number;
 
   _train() {
-    // initialize weights and values to zero
+    // initialize weights and values
     this._internalWeights = [
       createInitialWeights(3),
       createInitialWeights(3),
@@ -132,7 +132,7 @@ class BackpropagationExercise extends BinaryExercise {
 function createInitialWeights(count: number): number[] {
   var weights = [];
   for (var ii = 0; ii < count; ii++) {
-    weights.push(Math.random() - 0.5);
+    weights.push(Math.random() * 2.0 - 1.0);
   }
   return weights;
 }
@@ -143,12 +143,6 @@ function computeOutput(values: number[], weights: number[]): number {
     sum += values[ii] * weights[ii];
   }
   return 1.0 / (1.0 + Math.exp(-sum));
-}
-
-function addToArray(dest: number[], src: number[]) {
-  for (var ii = 0; ii < dest.length; ii++) {
-    dest[ii] += src[ii];
-  }
 }
 
 ReactDOM.render(<BackpropagationExercise />, (document.body: any));
