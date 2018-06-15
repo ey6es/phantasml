@@ -31,7 +31,7 @@ module.exports = function(grunt) {
           {
             expand: true,
             cwd: 'build/client',
-            src: 'exercises/*.js',
+            src: 'exercises/+([0-9])-*.js',
             dest: 'dist/',
             ext: '.min.js',
           },
@@ -41,7 +41,7 @@ module.exports = function(grunt) {
     replace: (function() {
       var config = {};
       var filenames = grunt.file.expand({cwd: 'src/client/exercises'}, [
-        '*.js',
+        '+([0-9])-*.js',
       ]);
       for (var name of filenames) {
         var basename = path.basename(name, '.js');
