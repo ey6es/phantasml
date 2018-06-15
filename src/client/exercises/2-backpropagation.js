@@ -18,13 +18,13 @@ class BackpropagationExercise extends BinaryExercise {
   _train() {
     // initialize weights and values to zero
     this._internalWeights = [
-      createInitialWeights(),
-      createInitialWeights(),
-      createInitialWeights(),
+      createInitialWeights(3),
+      createInitialWeights(3),
+      createInitialWeights(3),
     ];
-    this._outputWeights = createInitialWeights();
-    this._inputValues = [1, 0, 0];
-    this._intermediateValues = [0, 0, 0];
+    this._outputWeights = createInitialWeights(4);
+    this._inputValues = [0, 0, 1];
+    this._intermediateValues = [0, 0, 0, 1];
 
     // iterate repeatedly over training data
     this._iterations = 1;
@@ -76,9 +76,9 @@ class BackpropagationExercise extends BinaryExercise {
         <table className="table table-bordered table-condensed weight-table">
           <thead>
             <tr>
-              <th>Fixed</th>
               <th>A</th>
               <th>B</th>
+              <th>Bias</th>
             </tr>
           </thead>
           <tbody>
@@ -89,6 +89,14 @@ class BackpropagationExercise extends BinaryExercise {
         </table>
         <h4>Output Weights</h4>
         <table className="table table-bordered table-condensed weight-table">
+          <thead>
+            <tr>
+              <th>1</th>
+              <th>2</th>
+              <th>3</th>
+              <th>Bias</th>
+            </tr>
+          </thead>
           <tbody>
             <tr>
               {this._outputWeights.map(weight => <td>{weight.toFixed(3)}</td>)}
@@ -109,9 +117,9 @@ class BackpropagationExercise extends BinaryExercise {
   }
 
   _computeOutput(index: number): number {
-    this._inputValues[1] = index & 2 ? 1.0 : 0.0;
-    this._inputValues[2] = index & 1 ? 1.0 : 0.0;
-    for (var ii = 0; ii < this._intermediateValues.length; ii++) {
+    this._inputValues[0] = index & 2 ? 1.0 : 0.0;
+    this._inputValues[1] = index & 1 ? 1.0 : 0.0;
+    for (var ii = 0; ii < this._internalWeights.length; ii++) {
       this._intermediateValues[ii] = computeOutput(
         this._inputValues,
         this._internalWeights[ii],
@@ -121,8 +129,12 @@ class BackpropagationExercise extends BinaryExercise {
   }
 }
 
-function createInitialWeights(): number[] {
-  return [Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5];
+function createInitialWeights(count: number): number[] {
+  var weights = [];
+  for (var ii = 0; ii < count; ii++) {
+    weights.push(Math.random() - 0.5);
+  }
+  return weights;
 }
 
 function computeOutput(values: number[], weights: number[]): number {
