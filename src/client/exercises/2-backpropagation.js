@@ -4,7 +4,7 @@ import * as React from 'react';
 import * as ReactDOM from 'react-dom';
 import {BinaryExercise} from './shared';
 
-const MAX_ITERATIONS = 100000;
+const MAX_ITERATIONS = 10000;
 const LEARNING_RATE = 1.0;
 const TOLERANCE = 0.1;
 

@@ -6,7 +6,7 @@ import {BinaryExercise} from './shared';
 
 const MAX_ITERATIONS = 10;
 
-class PerceptronsExercise extends BinaryExercise {
+class PerceptronExercise extends BinaryExercise {
   _weights: number[];
   _iterations: number;
 
@@ -68,4 +68,4 @@ class PerceptronsExercise extends BinaryExercise {
   }
 }
 
-ReactDOM.render(<PerceptronsExercise />, (document.body: any));
+ReactDOM.render(<PerceptronExercise />, (document.body: any));

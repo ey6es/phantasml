@@ -94,16 +94,6 @@ function TruthTable(props: {
   generateResult: number => React.Element<any> | string,
   footer?: React.Element<any>,
 }) {
-  var rows = [];
-  for (var ii = 0; ii < 4; ii++) {
-    rows.push(
-      <tr>
-        <td>{Boolean(ii & 2).toString()}</td>
-        <td>{Boolean(ii & 1).toString()}</td>
-        <td className="output-cell">{props.generateResult(ii)}</td>
-      </tr>,
-    );
-  }
   return (
     <div class="titled-table">
       <h4>{props.title}</h4>
@@ -112,12 +102,34 @@ function TruthTable(props: {
           <tr>
             <th>Input A</th>
             <th>Input B</th>
-            <th className="output-cell">Output</th>
+            <th className="first-output-cell">Output</th>
           </tr>
         </thead>
-        <tbody>{rows}</tbody>
+        <tbody>
+          {createRangeArray(0, 4, index => (
+            <tr>
+              <td>{Boolean(index & 2).toString()}</td>
+              <td>{Boolean(index & 1).toString()}</td>
+              <td className="first-output-cell">
+                {props.generateResult(index)}
+              </td>
+            </tr>
+          ))}
+        </tbody>
       </table>
       {props.footer}
     </div>
   );
+}
+
+export function createRangeArray<T>(
+  start: number,
+  end: number,
+  fn: number => T,
+): T[] {
+  var array = [];
+  for (var ii = start; ii < end; ii++) {
+    array.push(fn(ii));
+  }
+  return array;
 }
