@@ -4,13 +4,32 @@ import * as React from 'react';
 import * as ReactDOM from 'react-dom';
 import {createRangeArray} from './shared';
 
+type TestResult = {
+  id: number,
+  input: boolean,
+  trainingOutput: boolean,
+  modelOutput: boolean,
+};
+
+const ITERATION_DELAY = 10;
+const ITERATION_DISPLAY_COUNT = 5;
+
 class RecurrentExercise extends React.Component<
   {},
-  {trainingData: boolean[][]},
+  {trainingData: boolean[][], testResults: TestResult[], running: boolean},
 > {
   state = {
-    trainingData: [[false, false, false, false], [false, false, false, false]],
+    trainingData: [[false, true, true, false], [false, true, true, false]],
+    testResults: [],
+    running: false,
   };
+  _intervalId: ?IntervalID;
+  _iterationId: number;
+  _trainingState: boolean;
+
+  componentWillUnmount() {
+    this._intervalId && clearInterval(this._intervalId);
+  }
 
   render() {
     return (
@@ -59,10 +78,90 @@ class RecurrentExercise extends React.Component<
               ))}
             </tbody>
           </table>
+          <button class="btn btn-success" onClick={() => this._toggleRunning()}>
+            {this.state.running ? (
+              <span>
+                Stop <span class="glyphicon glyphicon-stop" />
+              </span>
+            ) : (
+              <span>
+                Start <span class="glyphicon glyphicon-play" />
+              </span>
+            )}
+          </button>
+        </div>
+        <div class="titled-table">
+          <h4>Test Results</h4>
+          <table className="table table-bordered table-condensed recurrent-results">
+            <thead>
+              <tr>
+                <th>Iteration</th>
+                <th>Input</th>
+                <th className="first-output-cell">Training</th>
+                <th className="output-cell">Model</th>
+              </tr>
+            </thead>
+            <tbody>
+              {this.state.testResults.map(result => (
+                <tr>
+                  <td>{result.id.toString()}</td>
+                  <td>{result.input.toString()}</td>
+                  <td class="first-output-cell">
+                    {result.trainingOutput.toString()}
+                  </td>
+                  <td
+                    class={
+                      'output-cell' +
+                      (result.trainingOutput === result.modelOutput
+                        ? ''
+                        : ' error')
+                    }>
+                    {result.modelOutput.toString()}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       </div>
     );
   }
+
+  _toggleRunning() {
+    if (this._intervalId) {
+      clearInterval(this._intervalId);
+      delete this._intervalId;
+      this.setState({running: false});
+    } else {
+      this._iterationId = 0;
+      this._trainingState = randomBoolean();
+      this._intervalId = setInterval(() => this._iterate(), ITERATION_DELAY);
+      this.setState({running: true});
+    }
+  }
+
+  _iterate() {
+    var testResults = this.state.testResults.slice();
+    var input = randomBoolean();
+    var index = (Number(this._trainingState) << 1) | Number(input);
+    this._trainingState = this.state.trainingData[0][index];
+    var trainingOutput = this.state.trainingData[1][index];
+    var modelOutput = false;
+    testResults.push({
+      id: this._iterationId++,
+      input,
+      trainingOutput,
+      modelOutput,
+    });
+    while (testResults.length > ITERATION_DISPLAY_COUNT) {
+      testResults.shift();
+    }
+    this.setState({testResults});
+  }
+}
+
+function randomBoolean(): boolean {
+  return Math.random() < 0.5;
 }
 
 ReactDOM.render(<RecurrentExercise />, (document.body: any));
