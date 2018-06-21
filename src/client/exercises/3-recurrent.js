@@ -2,7 +2,11 @@
 
 import * as React from 'react';
 import * as ReactDOM from 'react-dom';
-import {createRangeArray} from './shared';
+import {
+  computeLogisticOutput,
+  createRangeArray,
+  createRandomWeights,
+} from './shared';
 
 type TestResult = {
   id: number,
@@ -26,6 +30,9 @@ class RecurrentExercise extends React.Component<
   _intervalId: ?IntervalID;
   _iterationId: number;
   _trainingState: boolean;
+  _internalWeights = [[0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0]];
+  _outputWeights = [0.0, 0.0, 0.0];
+  _hiddenOutputs: number[];
 
   componentWillUnmount() {
     this._intervalId && clearInterval(this._intervalId);
@@ -91,6 +98,45 @@ class RecurrentExercise extends React.Component<
           </button>
         </div>
         <div class="titled-table">
+          <h4>Internal Weights</h4>
+          <table className="table table-bordered table-condensed recurrent-weight-table">
+            <thead>
+              <tr>
+                <th>
+                  A<sub>t-1</sub>
+                </th>
+                <th>
+                  B<sub>t-1</sub>
+                </th>
+                <th>Input</th>
+                <th>Bias</th>
+              </tr>
+            </thead>
+            <tbody>
+              {this._internalWeights.map(weights => (
+                <tr>{weights.map(weight => <td>{weight.toFixed(3)}</td>)}</tr>
+              ))}
+            </tbody>
+          </table>
+          <h4>Output Weights</h4>
+          <table className="table table-bordered table-condensed weight-table">
+            <thead>
+              <tr>
+                <th>A</th>
+                <th>B</th>
+                <th>Bias</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                {this._outputWeights.map(weight => (
+                  <td>{weight.toFixed(3)}</td>
+                ))}
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="titled-table">
           <h4>Test Results</h4>
           <table className="table table-bordered table-condensed recurrent-results">
             <thead>
@@ -135,6 +181,9 @@ class RecurrentExercise extends React.Component<
     } else {
       this._iterationId = 0;
       this._trainingState = randomBoolean();
+      this._internalWeights = [createRandomWeights(4), createRandomWeights(4)];
+      this._outputWeights = createRandomWeights(3);
+      this._hiddenOutputs = [0.0, 0.0];
       this._intervalId = setInterval(() => this._iterate(), ITERATION_DELAY);
       this.setState({running: true});
     }
@@ -146,7 +195,7 @@ class RecurrentExercise extends React.Component<
     var index = (Number(this._trainingState) << 1) | Number(input);
     this._trainingState = this.state.trainingData[0][index];
     var trainingOutput = this.state.trainingData[1][index];
-    var modelOutput = false;
+    var modelOutput = this._computeOutputAndTrain(input, trainingOutput);
     testResults.push({
       id: this._iterationId++,
       input,
@@ -157,6 +206,21 @@ class RecurrentExercise extends React.Component<
       testResults.shift();
     }
     this.setState({testResults});
+  }
+
+  _computeOutputAndTrain(input: boolean, trainingOutput: boolean): boolean {
+    var inputs = this._hiddenOutputs.concat([Number(input), 1.0]);
+    var hiddenOutputs = [
+      computeLogisticOutput(inputs, this._internalWeights[0]),
+      computeLogisticOutput(inputs, this._internalWeights[1]),
+    ];
+    var intermediateOutputs = hiddenOutputs.concat([1.0]);
+    var output = computeLogisticOutput(
+      intermediateOutputs,
+      this._outputWeights,
+    );
+    this._hiddenOutputs = hiddenOutputs;
+    return output > 0.5;
   }
 }
 

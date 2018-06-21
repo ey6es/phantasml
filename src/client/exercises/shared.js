@@ -26,6 +26,10 @@ const BINARY_PRESETS: [string, boolean[]][] = BINARY_FUNCTIONS.map(
   },
 );
 
+/**
+ * Base class for simple exercises trained on a truth table of two inputs and
+ * one output.
+ */
 export class BinaryExercise extends React.Component<
   {},
   {trainingData: boolean[]},
@@ -122,6 +126,14 @@ function TruthTable(props: {
   );
 }
 
+/**
+ * Creates an array by applying the given function to an integer range.
+ *
+ * @param start the number at which to start the range (inclusive).
+ * @param end the number at which to end the range (exclusive).
+ * @param fn the function to apply to each number in the range.
+ * @return the newly created array with the results.
+ */
 export function createRangeArray<T>(
   start: number,
   end: number,
@@ -132,4 +144,38 @@ export function createRangeArray<T>(
     array.push(fn(ii));
   }
   return array;
+}
+
+/**
+ * Creates an array of random weights in the range [-1, +1).
+ *
+ * @param count the length of the weight array.
+ * @return the newly created array.
+ */
+
+export function createRandomWeights(count: number): number[] {
+  var weights = [];
+  for (var ii = 0; ii < count; ii++) {
+    weights.push(Math.random() * 2.0 - 1.0);
+  }
+  return weights;
+}
+
+/**
+ * Computes the output of a node with a logistic activation function.
+ *
+ * @param inputs the input values, including 1.0 for any fixed bias.
+ * @param weights the weights to apply to the input values (and bias).
+ * @return the result of applying the logistic activation function to the sum
+ * of the weighted inputs.
+ */
+export function computeLogisticOutput(
+  inputs: number[],
+  weights: number[],
+): number {
+  var sum = 0.0;
+  for (var ii = 0; ii < inputs.length; ii++) {
+    sum += inputs[ii] * weights[ii];
+  }
+  return 1.0 / (1.0 + Math.exp(-sum));
 }

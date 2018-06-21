@@ -2,7 +2,11 @@
 
 import * as React from 'react';
 import * as ReactDOM from 'react-dom';
-import {BinaryExercise} from './shared';
+import {
+  BinaryExercise,
+  computeLogisticOutput,
+  createRandomWeights,
+} from './shared';
 
 const MAX_ITERATIONS = 10000;
 const LEARNING_RATE = 1.0;
@@ -18,11 +22,11 @@ class BackpropagationExercise extends BinaryExercise {
   _train() {
     // initialize weights and values
     this._internalWeights = [
-      createInitialWeights(3),
-      createInitialWeights(3),
-      createInitialWeights(3),
+      createRandomWeights(3),
+      createRandomWeights(3),
+      createRandomWeights(3),
     ];
-    this._outputWeights = createInitialWeights(4);
+    this._outputWeights = createRandomWeights(4);
     this._inputValues = [0, 0, 1];
     this._intermediateValues = [0, 0, 0, 1];
 
@@ -34,12 +38,9 @@ class BackpropagationExercise extends BinaryExercise {
         // see if the output of the model matches the training data
         var observed = this._computeOutput(ii);
         var error = observed - Number(this.state.trainingData[ii]);
-        if (Math.abs(error) < TOLERANCE) {
-          continue;
+        if (Math.abs(error) > TOLERANCE) {
+          converged = false;
         }
-        // if not, backpropagate
-        converged = false;
-
         // we update the internal weights first because they depend on the
         // output weights
         var outputDelta = error * observed * (1.0 - observed);
@@ -120,29 +121,13 @@ class BackpropagationExercise extends BinaryExercise {
     this._inputValues[0] = index & 2 ? 1.0 : 0.0;
     this._inputValues[1] = index & 1 ? 1.0 : 0.0;
     for (var ii = 0; ii < this._internalWeights.length; ii++) {
-      this._intermediateValues[ii] = computeOutput(
+      this._intermediateValues[ii] = computeLogisticOutput(
         this._inputValues,
         this._internalWeights[ii],
       );
     }
-    return computeOutput(this._intermediateValues, this._outputWeights);
+    return computeLogisticOutput(this._intermediateValues, this._outputWeights);
   }
-}
-
-function createInitialWeights(count: number): number[] {
-  var weights = [];
-  for (var ii = 0; ii < count; ii++) {
-    weights.push(Math.random() * 2.0 - 1.0);
-  }
-  return weights;
-}
-
-function computeOutput(values: number[], weights: number[]): number {
-  var sum = 0.0;
-  for (var ii = 0; ii < values.length; ii++) {
-    sum += values[ii] * weights[ii];
-  }
-  return 1.0 / (1.0 + Math.exp(-sum));
 }
 
 ReactDOM.render(<BackpropagationExercise />, (document.body: any));
