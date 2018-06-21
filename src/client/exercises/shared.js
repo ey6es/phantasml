@@ -152,7 +152,6 @@ export function createRangeArray<T>(
  * @param count the length of the weight array.
  * @return the newly created array.
  */
-
 export function createRandomWeights(count: number): number[] {
   var weights = [];
   for (var ii = 0; ii < count; ii++) {

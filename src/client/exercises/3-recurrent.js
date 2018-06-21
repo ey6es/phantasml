@@ -17,6 +17,7 @@ type TestResult = {
 
 const ITERATION_DELAY = 10;
 const ITERATION_DISPLAY_COUNT = 5;
+const LEARNING_RATE = 1.0;
 
 class RecurrentExercise extends React.Component<
   {},
@@ -219,6 +220,30 @@ class RecurrentExercise extends React.Component<
       intermediateOutputs,
       this._outputWeights,
     );
+    var error = output - Number(trainingOutput);
+
+    // we update the internal weights first because they depend on the
+    // output weights
+    var outputDelta = error * output * (1.0 - output);
+    for (var ii = 0; ii < this._internalWeights.length; ii++) {
+      var weights = this._internalWeights[ii];
+      var intermediateOutput = intermediateOutputs[ii];
+      var intermediateDelta =
+        this._outputWeights[ii] *
+        outputDelta *
+        intermediateOutput *
+        (1.0 - intermediateOutput);
+      for (var jj = 0; jj < weights.length; jj++) {
+        weights[jj] -= LEARNING_RATE * intermediateDelta * inputs[jj];
+      }
+    }
+
+    // now update the output weights
+    for (var ii = 0; ii < this._outputWeights.length; ii++) {
+      this._outputWeights[ii] -=
+        LEARNING_RATE * outputDelta * intermediateOutputs[ii];
+    }
+
     this._hiddenOutputs = hiddenOutputs;
     return output > 0.5;
   }
