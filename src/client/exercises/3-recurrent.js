@@ -15,9 +15,16 @@ type TestResult = {
   modelOutput: boolean,
 };
 
+type HistoryEntry = {
+  inputs: number[],
+  trainingOutput: number,
+  modelOutput: number,
+};
+
 const ITERATION_DELAY = 10;
 const ITERATION_DISPLAY_COUNT = 5;
 const LEARNING_RATE = 1.0;
+const UNFOLD_LENGTH = 10;
 
 class RecurrentExercise extends React.Component<
   {},
@@ -34,6 +41,7 @@ class RecurrentExercise extends React.Component<
   _internalWeights = [[0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0]];
   _outputWeights = [0.0, 0.0, 0.0];
   _hiddenOutputs: number[];
+  _history: HistoryEntry[];
 
   componentWillUnmount() {
     this._intervalId && clearInterval(this._intervalId);
@@ -185,6 +193,7 @@ class RecurrentExercise extends React.Component<
       this._internalWeights = [createRandomWeights(4), createRandomWeights(4)];
       this._outputWeights = createRandomWeights(3);
       this._hiddenOutputs = [0.0, 0.0];
+      this._history = [];
       this._intervalId = setInterval(() => this._iterate(), ITERATION_DELAY);
       this.setState({running: true});
     }
@@ -210,11 +219,19 @@ class RecurrentExercise extends React.Component<
   }
 
   _computeOutputAndTrain(input: boolean, trainingOutput: boolean): boolean {
-    var inputs = this._hiddenOutputs.concat([Number(input), 1.0]);
-    var hiddenOutputs = [
-      computeLogisticOutput(inputs, this._internalWeights[0]),
-      computeLogisticOutput(inputs, this._internalWeights[1]),
-    ];
+    // add latest input to history along with current state
+    var latestInputs = this._hiddenOutputs.concat([Number(input), 1.0]);
+    this._history.push({
+      inputs: latestInputs,
+      trainingOutput: Number(trainingOutput),
+      modelOutput: 0.0,
+    });
+    while (this._history.length > UNFOLD_LENGTH) {
+      this._history.shift();
+    }
+
+    // evaluate unfolded model
+    var hiddenOutputs = this._computeHiddenOutputs();
     var intermediateOutputs = hiddenOutputs.concat([1.0]);
     var output = computeLogisticOutput(
       intermediateOutputs,
@@ -222,35 +239,105 @@ class RecurrentExercise extends React.Component<
     );
     var error = output - Number(trainingOutput);
 
-    // we update the internal weights first because they depend on the
-    // output weights
+    // backpropagate error, accumulating weight offsets; start with output
     var outputDelta = error * output * (1.0 - output);
-    for (var ii = 0; ii < this._internalWeights.length; ii++) {
-      var weights = this._internalWeights[ii];
+    var outputWeightOffsets = [0.0, 0.0, 0.0];
+    for (var ii = 0; ii < outputWeightOffsets.length; ii++) {
+      outputWeightOffsets[ii] -=
+        LEARNING_RATE * outputDelta * intermediateOutputs[ii];
+    }
+
+    // proceed to first internal weights
+    var internalWeightOffsets = [[0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0]];
+    var intermediateDeltas: number[] = [];
+    for (var ii = 0; ii < internalWeightOffsets.length; ii++) {
+      var offsets = internalWeightOffsets[ii];
       var intermediateOutput = intermediateOutputs[ii];
       var intermediateDelta =
         this._outputWeights[ii] *
         outputDelta *
         intermediateOutput *
         (1.0 - intermediateOutput);
-      for (var jj = 0; jj < weights.length; jj++) {
-        weights[jj] -= LEARNING_RATE * intermediateDelta * inputs[jj];
+      intermediateDeltas[ii] = intermediateDelta;
+      for (var jj = 0; jj < offsets.length; jj++) {
+        offsets[jj] -= LEARNING_RATE * intermediateDelta * latestInputs[jj];
       }
     }
 
-    // now update the output weights
-    for (var ii = 0; ii < this._outputWeights.length; ii++) {
-      this._outputWeights[ii] -=
-        LEARNING_RATE * outputDelta * intermediateOutputs[ii];
+    // step back through history
+    for (var ii = this._history.length - 2; ii >= 0; ii--) {
+      // update output offsets
+      var entry = this._history[ii];
+      var inputs = entry.inputs;
+      var intermediateInputs = [inputs[0], inputs[1], 1.0];
+      var intermediateError = entry.modelOutput - entry.trainingOutput;
+      var intermediateOutputDelta =
+        intermediateError * entry.modelOutput * (1.0 - entry.modelOutput);
+      for (var jj = 0; jj < outputWeightOffsets.length; jj++) {
+        outputWeightOffsets[jj] -=
+          LEARNING_RATE * intermediateOutputDelta * intermediateInputs[jj];
+      }
+
+      // then internal ones
+      var outputs = this._history[ii + 1].inputs;
+      var nextIntermediateDeltas: number[] = [];
+      for (var jj = 0; jj < internalWeightOffsets.length; jj++) {
+        var weights = this._internalWeights[jj];
+        var offsets = internalWeightOffsets[jj];
+        var intermediateOutput = outputs[jj];
+        var intermediateDelta =
+          (weights[0] * intermediateDeltas[0] +
+            weights[1] * intermediateDeltas[1]) *
+          intermediateOutput *
+          (1.0 - intermediateOutput);
+        nextIntermediateDeltas[jj] = intermediateDelta;
+        for (var kk = 0; kk < offsets.length; kk++) {
+          offsets[kk] -= LEARNING_RATE * intermediateDelta * inputs[jj];
+        }
+      }
+      intermediateDeltas = nextIntermediateDeltas;
     }
 
-    this._hiddenOutputs = hiddenOutputs;
+    // apply weight offsets we accumulated
+    for (var ii = 0; ii < internalWeightOffsets.length; ii++) {
+      addToArray(this._internalWeights[ii], internalWeightOffsets[ii]);
+    }
+    addToArray(this._outputWeights, outputWeightOffsets);
+
+    // reevaluate for state
+    this._hiddenOutputs = this._computeHiddenOutputs();
+
     return output > 0.5;
+  }
+
+  _computeHiddenOutputs(): number[] {
+    for (var ii = 1; ii < this._history.length; ii++) {
+      var entry = this._history[ii - 1];
+      var inputs = entry.inputs;
+      var outputs = this._history[ii].inputs;
+      outputs[0] = computeLogisticOutput(inputs, this._internalWeights[0]);
+      outputs[1] = computeLogisticOutput(inputs, this._internalWeights[1]);
+      entry.modelOutput = computeLogisticOutput(
+        [outputs[0], outputs[1], 1.0],
+        this._outputWeights,
+      );
+    }
+    var latestInputs = this._history[this._history.length - 1].inputs;
+    return [
+      computeLogisticOutput(latestInputs, this._internalWeights[0]),
+      computeLogisticOutput(latestInputs, this._internalWeights[1]),
+    ];
   }
 }
 
 function randomBoolean(): boolean {
   return Math.random() < 0.5;
+}
+
+function addToArray(dest: number[], src: number[]) {
+  for (var ii = 0; ii < dest.length; ii++) {
+    dest[ii] += src[ii];
+  }
 }
 
 ReactDOM.render(<RecurrentExercise />, (document.body: any));
