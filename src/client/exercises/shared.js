@@ -18,8 +18,8 @@ const BINARY_FUNCTIONS: [string, (boolean, boolean) => boolean][] = [
 ];
 const BINARY_PRESETS: [string, boolean[]][] = BINARY_FUNCTIONS.map(
   ([name, fn]) => {
-    var data = [];
-    for (var ii = 0; ii < 4; ii++) {
+    let data = [];
+    for (let ii = 0; ii < 4; ii++) {
       data.push(fn(!!(ii & 2), !!(ii & 1)));
     }
     return [name, data];
@@ -47,7 +47,7 @@ export class BinaryExercise extends React.Component<
               type="checkbox"
               checked={this.state.trainingData[index]}
               onChange={event => {
-                var checked = event.target.checked;
+                let checked = event.target.checked;
                 this.setState(state => (state.trainingData[index] = checked));
               }}
             />
@@ -139,8 +139,8 @@ export function createRangeArray<T>(
   end: number,
   fn: number => T,
 ): T[] {
-  var array = [];
-  for (var ii = start; ii < end; ii++) {
+  let array = [];
+  for (let ii = start; ii < end; ii++) {
     array.push(fn(ii));
   }
   return array;
@@ -153,8 +153,8 @@ export function createRangeArray<T>(
  * @return the newly created array.
  */
 export function createRandomWeights(count: number): number[] {
-  var weights = [];
-  for (var ii = 0; ii < count; ii++) {
+  let weights = [];
+  for (let ii = 0; ii < count; ii++) {
     weights.push(Math.random() * 2.0 - 1.0);
   }
   return weights;
@@ -172,8 +172,8 @@ export function computeLogisticOutput(
   inputs: number[],
   weights: number[],
 ): number {
-  var sum = 0.0;
-  for (var ii = 0; ii < inputs.length; ii++) {
+  let sum = 0.0;
+  for (let ii = 0; ii < inputs.length; ii++) {
     sum += inputs[ii] * weights[ii];
   }
   return 1.0 / (1.0 + Math.exp(-sum));

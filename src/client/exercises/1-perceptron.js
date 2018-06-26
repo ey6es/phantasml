@@ -15,15 +15,15 @@ class PerceptronExercise extends BinaryExercise {
     this._weights = [0.0, 0.0, 0.0];
     this._iterations = 1;
     for (; this._iterations <= MAX_ITERATIONS; this._iterations++) {
-      var converged = true;
-      for (var ii = 0; ii < this.state.trainingData.length; ii++) {
-        var observed = Number(this._test(ii));
-        var expected = Number(this.state.trainingData[ii]);
+      let converged = true;
+      for (let ii = 0; ii < this.state.trainingData.length; ii++) {
+        let observed = Number(this._test(ii));
+        let expected = Number(this.state.trainingData[ii]);
         if (observed === expected) {
           continue;
         }
         converged = false;
-        var diff = expected - observed;
+        let diff = expected - observed;
         this._weights[0] += diff;
         ii & 2 && (this._weights[1] += diff);
         ii & 1 && (this._weights[2] += diff);
@@ -60,7 +60,7 @@ class PerceptronExercise extends BinaryExercise {
   }
 
   _test(index: number): boolean {
-    var level =
+    let level =
       this._weights[0] +
       (index & 2 ? this._weights[1] : 0.0) +
       (index & 1 ? this._weights[2] : 0.0);

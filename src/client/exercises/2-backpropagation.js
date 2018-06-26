@@ -33,33 +33,33 @@ class BackpropagationExercise extends BinaryExercise {
     // iterate repeatedly over training data
     this._iterations = 1;
     for (; this._iterations <= MAX_ITERATIONS; this._iterations++) {
-      var converged = true;
-      for (var ii = 0; ii < this.state.trainingData.length; ii++) {
+      let converged = true;
+      for (let ii = 0; ii < this.state.trainingData.length; ii++) {
         // see if the output of the model matches the training data
-        var observed = this._computeOutput(ii);
-        var error = observed - Number(this.state.trainingData[ii]);
+        let observed = this._computeOutput(ii);
+        let error = observed - Number(this.state.trainingData[ii]);
         if (Math.abs(error) > TOLERANCE) {
           converged = false;
         }
         // we update the internal weights first because they depend on the
         // output weights
-        var outputDelta = error * observed * (1.0 - observed);
-        for (var jj = 0; jj < this._internalWeights.length; jj++) {
-          var weights = this._internalWeights[jj];
-          var intermediateValue = this._intermediateValues[jj];
-          var intermediateDelta =
+        let outputDelta = error * observed * (1.0 - observed);
+        for (let jj = 0; jj < this._internalWeights.length; jj++) {
+          let weights = this._internalWeights[jj];
+          let intermediateValue = this._intermediateValues[jj];
+          let intermediateDelta =
             this._outputWeights[jj] *
             outputDelta *
             intermediateValue *
             (1.0 - intermediateValue);
-          for (var kk = 0; kk < weights.length; kk++) {
+          for (let kk = 0; kk < weights.length; kk++) {
             weights[kk] -=
               LEARNING_RATE * intermediateDelta * this._inputValues[kk];
           }
         }
 
         // now update the output weights
-        for (var jj = 0; jj < this._outputWeights.length; jj++) {
+        for (let jj = 0; jj < this._outputWeights.length; jj++) {
           this._outputWeights[jj] -=
             LEARNING_RATE * outputDelta * this._intermediateValues[jj];
         }
@@ -120,7 +120,7 @@ class BackpropagationExercise extends BinaryExercise {
   _computeOutput(index: number): number {
     this._inputValues[0] = index & 2 ? 1.0 : 0.0;
     this._inputValues[1] = index & 1 ? 1.0 : 0.0;
-    for (var ii = 0; ii < this._internalWeights.length; ii++) {
+    for (let ii = 0; ii < this._internalWeights.length; ii++) {
       this._intermediateValues[ii] = computeLogisticOutput(
         this._inputValues,
         this._internalWeights[ii],
