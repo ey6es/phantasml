@@ -24,7 +24,7 @@ type HistoryEntry = {
 const STEP_DELAY = 10;
 const STEP_DISPLAY_COUNT = 5;
 const MAX_ITERATIONS = 100000;
-const LEARNING_RATE = 0.05;
+const LEARNING_RATE = 0.0001;
 const TOLERANCE = 0.1;
 const UNFOLD_LENGTH = 2;
 
@@ -33,7 +33,7 @@ class RecurrentExercise extends React.Component<
   {trainingData: boolean[][], testResults: TestResult[], running: boolean},
 > {
   state = {
-    trainingData: [[false, true, true, false], [false, true, true, false]],
+    trainingData: [[false, true, true, false], [false, false, false, true]],
     testResults: [],
     running: false,
   };
@@ -267,13 +267,12 @@ class RecurrentExercise extends React.Component<
         // then internal ones
         let nextDeltas: number[] = [];
         for (let jj = 0; jj < internalWeightOffsets.length; jj++) {
-          let weights = this._internalWeights[jj];
           let offsets = internalWeightOffsets[jj];
           let intermediateOutput = inputs[jj];
           let delta =
             (this._outputWeights[jj] * outputDelta +
-              weights[0] * deltas[0] +
-              weights[1] * deltas[1]) *
+              this._internalWeights[0][jj] * deltas[0] +
+              this._internalWeights[1][jj] * deltas[1]) *
             intermediateOutput *
             (1.0 - intermediateOutput);
           nextDeltas[jj] = delta;
@@ -295,7 +294,6 @@ class RecurrentExercise extends React.Component<
         break;
       }
     }
-    console.log(iterations + 1);
 
     // return the first result we got to show how the model is doing
     return initialResult;
