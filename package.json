@@ -19,6 +19,7 @@
   },
   "homepage": "https://github.com/ey6es/phantasml#readme",
   "devDependencies": {
+    "@tensorflow/tfjs": "^0.12.0",
     "babel-core": "^6.26.3",
     "babel-plugin-transform-class-properties": "^6.24.1",
     "babel-preset-env": "^1.7.0",
@@ -34,17 +35,18 @@
     "grunt-rsync": "^2.0.1",
     "husky": "^0.14.3",
     "load-grunt-tasks": "^4.0.0",
-    "prettier": "^1.13.5",
+    "prettier": "^1.13.7",
     "pretty-quick": "^1.6.0",
-    "uglifyify": "^5.0.0"
+    "uglifyify": "^5.0.1"
   },
   "dependencies": {
-    "react": "^16.4.0",
-    "react-dom": "^16.4.0"
+    "react": "^16.4.1",
+    "react-dom": "^16.4.1"
   },
   "browserify-shim": {
     "react": "global:React",
-    "react-dom": "global:ReactDOM"
+    "react-dom": "global:ReactDOM",
+    "@tensorflow/tfjs": "global:tf"
   },
   "prettier": {
     "singleQuote": true,
