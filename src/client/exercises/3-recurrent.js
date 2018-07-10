@@ -52,7 +52,7 @@ class RecurrentExercise extends React.Component<
   render() {
     return (
       <div className="top">
-        <div class="titled-table">
+        <div className="titled-table">
           <h4>Training Data</h4>
           <table className="table table-bordered table-condensed truth-table">
             <thead>
@@ -96,19 +96,21 @@ class RecurrentExercise extends React.Component<
               ))}
             </tbody>
           </table>
-          <button class="btn btn-success" onClick={() => this._toggleRunning()}>
+          <button
+            className="btn btn-success"
+            onClick={() => this._toggleRunning()}>
             {this.state.running ? (
               <span>
-                Stop <span class="glyphicon glyphicon-stop" />
+                Stop <span className="glyphicon glyphicon-stop" />
               </span>
             ) : (
               <span>
-                Start <span class="glyphicon glyphicon-play" />
+                Start <span className="glyphicon glyphicon-play" />
               </span>
             )}
           </button>
         </div>
-        <div class="titled-table">
+        <div className="titled-table">
           <h4>Internal Weights</h4>
           <table className="table table-bordered table-condensed recurrent-weight-table">
             <thead>
@@ -147,7 +149,7 @@ class RecurrentExercise extends React.Component<
             </tbody>
           </table>
         </div>
-        <div class="titled-table">
+        <div className="titled-table">
           <h4>Test Results</h4>
           <table className="table table-bordered table-condensed recurrent-results">
             <thead>
@@ -163,11 +165,11 @@ class RecurrentExercise extends React.Component<
                 <tr>
                   <td>{result.id.toString()}</td>
                   <td>{result.input.toString()}</td>
-                  <td class="first-output-cell">
+                  <td className="first-output-cell">
                     {result.trainingOutput.toString()}
                   </td>
                   <td
-                    class={
+                    className={
                       'output-cell' +
                       (result.trainingOutput === result.modelOutput
                         ? ''

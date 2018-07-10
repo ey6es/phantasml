@@ -62,7 +62,7 @@ export class BinaryExercise extends React.Component<
                     .map(string => string === 'true'),
                 })
               }>
-              <option class="hidden" value="">
+              <option className="hidden" value="">
                 Presets
               </option>
               {BINARY_PRESETS.map(([name, data]) => (
@@ -99,7 +99,7 @@ function TruthTable(props: {
   footer?: React.Element<any>,
 }) {
   return (
-    <div class="titled-table">
+    <div className="titled-table">
       <h4>{props.title}</h4>
       <table className="table table-bordered table-condensed truth-table">
         <thead>
