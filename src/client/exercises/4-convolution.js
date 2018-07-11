@@ -6,41 +6,44 @@ import * as tf from '@tensorflow/tfjs';
 import {createRangeArray} from './shared';
 
 const IMAGE_SIZE = 16;
+const HALF_IMAGE_SIZE = IMAGE_SIZE / 2;
+const WIDENED_SIZE = IMAGE_SIZE * 2;
+
+const Training = {
+  UNSTARTED: 0,
+  STARTED: 1,
+  FINISHED: 2,
+};
+
+type TrainingState = 'unstarted' | 'started' | 'finished';
 
 class ConvolutionExercise extends React.Component<
   {},
   {
     patternA: boolean[],
     patternB: boolean[],
+    trainingState: TrainingState,
+    lastLoss: ?number,
     testPattern: boolean[],
-    prediction?: boolean,
+    prediction: ?boolean,
   },
 > {
   state = {
     patternA: createRandomPattern(),
     patternB: createRandomPattern(),
+    trainingState: 'unstarted',
+    lastLoss: null,
     testPattern: createRandomPattern(),
+    prediction: null,
   };
-  _model = tf.sequential({
-    layers: [
-      tf.layers.dense({
-        inputShape: [IMAGE_SIZE],
-        units: 1,
-        activation: 'sigmoid',
-      }),
-    ],
-  });
+  _model: ?tf.Model;
   _testPatternPresets = {
     Random: () => createRandomPattern(),
     'Pattern A': () => this.state.patternA.slice(),
     'Pattern B': () => this.state.patternB.slice(),
+    'Pattern A (Rotated)': () => rotatePatternRandomly(this.state.patternA),
+    'Pattern B (Rotated)': () => rotatePatternRandomly(this.state.patternB),
   };
-
-  constructor() {
-    super();
-    this._model.compile({optimizer: 'sgd', loss: 'meanSquaredError'});
-    this._train();
-  }
 
   render() {
     return (
@@ -49,16 +52,43 @@ class ConvolutionExercise extends React.Component<
           <PatternEditor
             title="Pattern A"
             pattern={this.state.patternA}
-            setPattern={pattern => this.setState({patternA: pattern})}
+            setPattern={pattern =>
+              this.setState({
+                patternA: pattern,
+                trainingState: 'unstarted',
+                lastLoss: null,
+                prediction: null,
+              })
+            }
           />
           <PatternEditor
             title="Pattern B"
             pattern={this.state.patternB}
-            setPattern={pattern => this.setState({patternB: pattern})}
+            setPattern={pattern =>
+              this.setState({
+                patternB: pattern,
+                trainingState: 'unstarted',
+                lastLoss: null,
+                prediction: null,
+              })
+            }
           />
-          <button className="btn btn-success" onClick={() => this._train()}>
-            Train
-          </button>
+          {this.state.trainingState === 'started' ? (
+            <button
+              className="btn btn-success"
+              onClick={() => this.setState({trainingState: 'finished'})}>
+              Stop Training
+              <span className="glyphicon glyphicon-stop spaced-icon" />
+            </button>
+          ) : (
+            <button className="btn btn-success" onClick={() => this._train()}>
+              {this.state.trainingState === 'finished' ? 'Retrain' : 'Train'}
+              <span className="glyphicon glyphicon-play spaced-icon" />
+            </button>
+          )}
+          {this.state.lastLoss == null ? null : (
+            <span className="loss">Loss: {this.state.lastLoss.toFixed(4)}</span>
+          )}
         </div>
         <div className="titled-table">
           <PatternEditor
@@ -80,7 +110,7 @@ class ConvolutionExercise extends React.Component<
               <option value={key}>{key}</option>
             ))}
           </select>
-          {this.state.prediction === undefined ? null : (
+          {this.state.prediction === null ? null : (
             <h4 class="prediction">
               {`Prediction: ${this.state.prediction ? 'B' : 'A'}`}
             </h4>
@@ -91,31 +121,120 @@ class ConvolutionExercise extends React.Component<
   }
 
   async _train() {
-    let inputs = this.state.patternA.concat(this.state.patternB);
-    let outputs = [false, true];
-    await this._model.fit(
-      tf.tensor2d(inputs, [2, IMAGE_SIZE]),
-      tf.tensor2d(outputs, [2, 1]),
-      {epochs: 1000},
-    );
-    this._predict(this.state.testPattern);
+    // train on all rotations of a and b
+    const inputs: boolean[] = [];
+    const outputs: boolean[] = [];
+    for (let rotation = 0; rotation < IMAGE_SIZE; rotation++) {
+      inputs.splice(
+        inputs.length,
+        0,
+        ...widenPattern(rotatePattern(this.state.patternA, rotation)),
+      );
+      outputs.push(false);
+
+      inputs.splice(
+        inputs.length,
+        0,
+        ...widenPattern(rotatePattern(this.state.patternB, rotation)),
+      );
+      outputs.push(true);
+    }
+    const x = tf.tensor4d(inputs, [IMAGE_SIZE * 2, 1, WIDENED_SIZE, 1]);
+    const y = tf.tensor2d(outputs, [IMAGE_SIZE * 2, 1]);
+
+    this.setState({
+      trainingState: 'started',
+      lastLoss: null,
+      prediction: null,
+    });
+
+    const model = (this._model = createModel());
+    model.compile({optimizer: 'sgd', loss: 'meanSquaredError'});
+    while (true) {
+      const result = await model.fit(x, y, {epochs: 10});
+      this.setState({
+        lastLoss: result.history.loss[result.history.loss.length - 1],
+      });
+      this._predict(this.state.testPattern);
+      if (this.state.trainingState !== 'started') {
+        break;
+      }
+      await tf.nextFrame();
+    }
+    x.dispose();
+    y.dispose();
   }
 
   _setTestPattern(pattern: boolean[]) {
-    this.setState({testPattern: pattern});
-    this._predict(pattern);
+    this.setState({testPattern: pattern, prediction: null});
+    this.state.trainingState !== 'unstarted' && this._predict(pattern);
   }
 
   async _predict(pattern: boolean[]) {
-    let result = await this._model
-      .predict(tf.tensor2d(pattern, [1, IMAGE_SIZE]))
-      .data();
-    this.setState({prediction: result[0] > 0.5});
+    const model = this._model;
+    if (!model) {
+      throw new Error('No model available for prediction.');
+    }
+    const y = tf.tidy(() =>
+      model.predict(
+        tf.tensor4d(widenPattern(pattern), [1, 1, WIDENED_SIZE, 1]),
+      ),
+    );
+    const output = await y.data();
+    y.dispose();
+    this.setState({prediction: output[0] > 0.5});
   }
 }
 
+function createModel(): tf.Model {
+  return tf.sequential({
+    layers: [
+      tf.layers.conv2d({
+        inputShape: [1, WIDENED_SIZE, 1],
+        kernelSize: [1, IMAGE_SIZE],
+        pad: 'same',
+        filters: 2,
+      }),
+      tf.layers.cropping2D({cropping: [0, HALF_IMAGE_SIZE]}),
+      tf.layers.flatten(),
+      tf.layers.dense({units: 1, activation: 'sigmoid'}),
+    ],
+  });
+}
+
 function createRandomPattern(): boolean[] {
-  return createRangeArray(0, IMAGE_SIZE, () => Math.random() < 0.5);
+  // create a pattern that's half off, half on (so we don't train on count)
+  const pattern = createRangeArray(0, IMAGE_SIZE, index => !(index & 1));
+
+  // then shuffle it up
+  for (let ii = pattern.length - 1; ii > 0; ii--) {
+    const newIndex = Math.floor(Math.random() * (ii + 1));
+    const tmp = pattern[newIndex];
+    pattern[newIndex] = pattern[ii];
+    pattern[ii] = tmp;
+  }
+
+  return pattern;
+}
+
+function rotatePatternRandomly(pattern: boolean[]): boolean[] {
+  return rotatePattern(pattern, Math.floor(Math.random() * pattern.length));
+}
+
+function rotatePattern(pattern: boolean[], rotation: number): boolean[] {
+  const rotated: boolean[] = [];
+  for (let ii = 0; ii < pattern.length; ii++) {
+    rotated.push(pattern[(ii + rotation) % pattern.length]);
+  }
+  return rotated;
+}
+
+function widenPattern(pattern: boolean[]): boolean[] {
+  const widened: boolean[] = [];
+  for (let ii = 0; ii < WIDENED_SIZE; ii++) {
+    widened.push(pattern[(ii + HALF_IMAGE_SIZE) % IMAGE_SIZE]);
+  }
+  return widened;
 }
 
 function PatternEditor(props: {
