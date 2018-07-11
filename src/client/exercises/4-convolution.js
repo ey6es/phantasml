@@ -23,18 +23,23 @@ class ConvolutionExercise extends React.Component<
   };
   _model = tf.sequential({
     layers: [
-      tf.layers.conv1d({
-        inputShape: [IMAGE_SIZE, 1],
-        kernelSize: IMAGE_SIZE,
-        filters: 1,
+      tf.layers.dense({
+        inputShape: [IMAGE_SIZE],
+        units: 1,
+        activation: 'sigmoid',
       }),
-      tf.layers.dense({units: 1, activation: 'sigmoid'}),
     ],
   });
+  _testPatternPresets = {
+    Random: () => createRandomPattern(),
+    'Pattern A': () => this.state.patternA.slice(),
+    'Pattern B': () => this.state.patternB.slice(),
+  };
 
   constructor() {
     super();
     this._model.compile({optimizer: 'sgd', loss: 'meanSquaredError'});
+    this._train();
   }
 
   render() {
@@ -59,13 +64,26 @@ class ConvolutionExercise extends React.Component<
           <PatternEditor
             title="Test Pattern"
             pattern={this.state.testPattern}
-            setPattern={pattern => {
-              this.setState({testPattern: pattern});
-              this._predict(pattern);
-            }}
+            setPattern={pattern => this._setTestPattern(pattern)}
           />
+          <select
+            value=""
+            onChange={event =>
+              this._setTestPattern(
+                this._testPatternPresets[event.target.value](),
+              )
+            }>
+            <option className="hidden" value="">
+              Presets
+            </option>
+            {Object.keys(this._testPatternPresets).map(key => (
+              <option value={key}>{key}</option>
+            ))}
+          </select>
           {this.state.prediction === undefined ? null : (
-            <h4>{`Prediction: ${this.state.prediction ? 'B' : 'A'}`}</h4>
+            <h4 class="prediction">
+              {`Prediction: ${this.state.prediction ? 'B' : 'A'}`}
+            </h4>
           )}
         </div>
       </div>
@@ -76,16 +94,21 @@ class ConvolutionExercise extends React.Component<
     let inputs = this.state.patternA.concat(this.state.patternB);
     let outputs = [false, true];
     await this._model.fit(
-      tf.tensor3d(inputs, [2, IMAGE_SIZE, 1]),
-      tf.tensor3d(outputs, [2, 1, 1]),
-      {epochs: 10},
+      tf.tensor2d(inputs, [2, IMAGE_SIZE]),
+      tf.tensor2d(outputs, [2, 1]),
+      {epochs: 1000},
     );
     this._predict(this.state.testPattern);
   }
 
+  _setTestPattern(pattern: boolean[]) {
+    this.setState({testPattern: pattern});
+    this._predict(pattern);
+  }
+
   async _predict(pattern: boolean[]) {
     let result = await this._model
-      .predict(tf.tensor3d(pattern, [1, IMAGE_SIZE, 1]))
+      .predict(tf.tensor2d(pattern, [1, IMAGE_SIZE]))
       .data();
     this.setState({prediction: result[0] > 0.5});
   }
