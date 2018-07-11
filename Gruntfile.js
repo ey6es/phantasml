@@ -10,7 +10,7 @@ module.exports = function(grunt) {
       dist: {
         options: {
           presets: ['env', 'react'],
-          plugins: ['transform-class-properties'],
+          plugins: ['transform-class-properties', 'transform-runtime'],
         },
         files: [
           {

@@ -12,16 +12,30 @@ class ConvolutionExercise extends React.Component<
   {
     patternA: boolean[],
     patternB: boolean[],
-    trained: boolean,
     testPattern: boolean[],
+    prediction?: boolean,
   },
 > {
   state = {
     patternA: createRandomPattern(),
     patternB: createRandomPattern(),
-    trained: false,
     testPattern: createRandomPattern(),
   };
+  _model = tf.sequential({
+    layers: [
+      tf.layers.conv1d({
+        inputShape: [IMAGE_SIZE, 1],
+        kernelSize: IMAGE_SIZE,
+        filters: 1,
+      }),
+      tf.layers.dense({units: 1, activation: 'sigmoid'}),
+    ],
+  });
+
+  constructor() {
+    super();
+    this._model.compile({optimizer: 'sgd', loss: 'meanSquaredError'});
+  }
 
   render() {
     return (
@@ -37,17 +51,43 @@ class ConvolutionExercise extends React.Component<
             pattern={this.state.patternB}
             setPattern={pattern => this.setState({patternB: pattern})}
           />
-          <button className="btn btn-success">Train</button>
+          <button className="btn btn-success" onClick={() => this._train()}>
+            Train
+          </button>
         </div>
         <div className="titled-table">
           <PatternEditor
             title="Test Pattern"
             pattern={this.state.testPattern}
-            setPattern={pattern => this.setState({testPattern: pattern})}
+            setPattern={pattern => {
+              this.setState({testPattern: pattern});
+              this._predict(pattern);
+            }}
           />
+          {this.state.prediction === undefined ? null : (
+            <h4>{`Prediction: ${this.state.prediction ? 'B' : 'A'}`}</h4>
+          )}
         </div>
       </div>
     );
+  }
+
+  async _train() {
+    let inputs = this.state.patternA.concat(this.state.patternB);
+    let outputs = [false, true];
+    await this._model.fit(
+      tf.tensor3d(inputs, [2, IMAGE_SIZE, 1]),
+      tf.tensor3d(outputs, [2, 1, 1]),
+      {epochs: 10},
+    );
+    this._predict(this.state.testPattern);
+  }
+
+  async _predict(pattern: boolean[]) {
+    let result = await this._model
+      .predict(tf.tensor3d(pattern, [1, IMAGE_SIZE, 1]))
+      .data();
+    this.setState({prediction: result[0] > 0.5});
   }
 }
 
