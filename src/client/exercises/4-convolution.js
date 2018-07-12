@@ -124,7 +124,8 @@ class ConvolutionExercise extends React.Component<
     // train on all rotations of a and b
     const inputs: boolean[] = [];
     const outputs: boolean[] = [];
-    for (let rotation = 0; rotation < IMAGE_SIZE; rotation++) {
+    const TOTAL_ROTATIONS = IMAGE_SIZE;
+    for (let rotation = 0; rotation < TOTAL_ROTATIONS; rotation++) {
       inputs.splice(
         inputs.length,
         0,
@@ -139,8 +140,8 @@ class ConvolutionExercise extends React.Component<
       );
       outputs.push(true);
     }
-    const x = tf.tensor4d(inputs, [IMAGE_SIZE * 2, 1, WIDENED_SIZE, 1]);
-    const y = tf.tensor2d(outputs, [IMAGE_SIZE * 2, 1]);
+    const x = tf.tensor4d(inputs, [TOTAL_ROTATIONS * 2, 1, WIDENED_SIZE, 1]);
+    const y = tf.tensor2d(outputs, [TOTAL_ROTATIONS * 2, 1]);
 
     this.setState({
       trainingState: 'started',
@@ -151,11 +152,15 @@ class ConvolutionExercise extends React.Component<
     const model = (this._model = createModel());
     model.compile({optimizer: 'sgd', loss: 'meanSquaredError'});
     while (true) {
-      const result = await model.fit(x, y, {epochs: 10});
-      this.setState({
-        lastLoss: result.history.loss[result.history.loss.length - 1],
-      });
+      const result = await model.fit(x, y, {shuffle: true, epochs: 10});
       this._predict(this.state.testPattern);
+      const lastLoss = result.history.loss[result.history.loss.length - 1];
+      const LOSS_THRESHOLD = 0.01;
+      if (lastLoss < LOSS_THRESHOLD) {
+        this.setState({trainingState: 'finished', lastLoss: null});
+        break;
+      }
+      this.setState({lastLoss});
       if (this.state.trainingState !== 'started') {
         break;
       }
@@ -191,11 +196,20 @@ function createModel(): tf.Model {
     layers: [
       tf.layers.conv2d({
         inputShape: [1, WIDENED_SIZE, 1],
-        kernelSize: [1, IMAGE_SIZE],
-        pad: 'same',
-        filters: 2,
+        kernelSize: [1, 3],
+        filters: 4,
       }),
-      tf.layers.cropping2D({cropping: [0, HALF_IMAGE_SIZE]}),
+      tf.layers.maxPooling2d({poolSize: [1, 2]}),
+      tf.layers.conv2d({
+        kernelSize: [1, 3],
+        filters: 4,
+      }),
+      tf.layers.maxPooling2d({poolSize: [1, 2]}),
+      tf.layers.conv2d({
+        kernelSize: [1, 3],
+        filters: 4,
+      }),
+      tf.layers.maxPooling2d({poolSize: [1, 2]}),
       tf.layers.flatten(),
       tf.layers.dense({units: 1, activation: 'sigmoid'}),
     ],
