@@ -6,8 +6,6 @@ import * as tf from '@tensorflow/tfjs';
 import {createRangeArray} from './shared';
 
 const IMAGE_SIZE = 16;
-const HALF_IMAGE_SIZE = IMAGE_SIZE / 2;
-const WIDENED_SIZE = IMAGE_SIZE * 2;
 
 const Training = {
   UNSTARTED: 0,
@@ -129,18 +127,18 @@ class ConvolutionExercise extends React.Component<
       inputs.splice(
         inputs.length,
         0,
-        ...widenPattern(rotatePattern(this.state.patternA, rotation)),
+        ...rotatePattern(this.state.patternA, rotation),
       );
       outputs.push(false);
 
       inputs.splice(
         inputs.length,
         0,
-        ...widenPattern(rotatePattern(this.state.patternB, rotation)),
+        ...rotatePattern(this.state.patternB, rotation),
       );
       outputs.push(true);
     }
-    const x = tf.tensor4d(inputs, [TOTAL_ROTATIONS * 2, 1, WIDENED_SIZE, 1]);
+    const x = tf.tensor4d(inputs, [TOTAL_ROTATIONS * 2, 1, IMAGE_SIZE, 1]);
     const y = tf.tensor2d(outputs, [TOTAL_ROTATIONS * 2, 1]);
 
     this.setState({
@@ -152,7 +150,7 @@ class ConvolutionExercise extends React.Component<
     const model = (this._model = createModel());
     model.compile({optimizer: 'sgd', loss: 'meanSquaredError'});
     while (true) {
-      const result = await model.fit(x, y, {shuffle: true, epochs: 10});
+      const result = await model.fit(x, y, {epochs: 10});
       this._predict(this.state.testPattern);
       const lastLoss = result.history.loss[result.history.loss.length - 1];
       const LOSS_THRESHOLD = 0.01;
@@ -181,9 +179,7 @@ class ConvolutionExercise extends React.Component<
       throw new Error('No model available for prediction.');
     }
     const y = tf.tidy(() =>
-      model.predict(
-        tf.tensor4d(widenPattern(pattern), [1, 1, WIDENED_SIZE, 1]),
-      ),
+      model.predict(tf.tensor4d(pattern, [1, 1, IMAGE_SIZE, 1])),
     );
     const output = await y.data();
     y.dispose();
@@ -195,23 +191,18 @@ function createModel(): tf.Model {
   return tf.sequential({
     layers: [
       tf.layers.conv2d({
-        inputShape: [1, WIDENED_SIZE, 1],
+        inputShape: [1, IMAGE_SIZE, 1],
         kernelSize: [1, 3],
-        filters: 4,
+        filters: 8,
       }),
       tf.layers.maxPooling2d({poolSize: [1, 2]}),
       tf.layers.conv2d({
         kernelSize: [1, 3],
-        filters: 4,
-      }),
-      tf.layers.maxPooling2d({poolSize: [1, 2]}),
-      tf.layers.conv2d({
-        kernelSize: [1, 3],
-        filters: 4,
+        filters: 8,
       }),
       tf.layers.maxPooling2d({poolSize: [1, 2]}),
       tf.layers.flatten(),
-      tf.layers.dense({units: 1, activation: 'sigmoid'}),
+      tf.layers.dense({units: 1, activation: 'tanh'}),
     ],
   });
 }
@@ -241,14 +232,6 @@ function rotatePattern(pattern: boolean[], rotation: number): boolean[] {
     rotated.push(pattern[(ii + rotation) % pattern.length]);
   }
   return rotated;
-}
-
-function widenPattern(pattern: boolean[]): boolean[] {
-  const widened: boolean[] = [];
-  for (let ii = 0; ii < WIDENED_SIZE; ii++) {
-    widened.push(pattern[(ii + HALF_IMAGE_SIZE) % IMAGE_SIZE]);
-  }
-  return widened;
 }
 
 function PatternEditor(props: {
