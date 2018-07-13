@@ -23,19 +23,40 @@ module.exports = function(grunt) {
       },
     },
     browserify: {
-      dist: {
+      exercises: {
         options: {
           transform: ['browserify-shim', 'uglifyify'],
         },
         files: [
           {
             expand: true,
-            cwd: 'build/client',
-            src: 'exercises/+([0-9])-*.js',
-            dest: 'dist/',
+            src: 'build/client/exercises/+([0-9])-*.js',
             ext: '.min.js',
           },
         ],
+      },
+      app: {
+        options: {
+          transform: ['uglifyify'],
+        },
+        src: 'build/client/app.js',
+        dest: 'build/client/app.min.js',
+      },
+    },
+    uglify: {
+      exercises: {
+        files: [
+          {
+            expand: true,
+            cwd: 'build/client',
+            src: 'exercises/+([0-9])-*.min.js',
+            dest: 'dist/',
+          },
+        ],
+      },
+      app: {
+        src: 'build/client/app.min.js',
+        dest: 'dist/app.min.js',
       },
     },
     replace: (function() {
@@ -55,6 +76,12 @@ module.exports = function(grunt) {
       }
       return config;
     })(),
+    copy: {
+      dist: {
+        src: 'src/client/index.html',
+        dest: 'dist/index.html',
+      },
+    },
     less: {
       dist: {
         files: [
@@ -89,5 +116,12 @@ module.exports = function(grunt) {
   });
 
   // Default task(s).
-  grunt.registerTask('default', ['babel', 'browserify', 'replace', 'less']);
+  grunt.registerTask('default', [
+    'babel',
+    'browserify',
+    'uglify',
+    'replace',
+    'copy',
+    'less',
+  ]);
 };
