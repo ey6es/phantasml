@@ -3,6 +3,8 @@ const path = require('path');
 module.exports = function(grunt) {
   require('load-grunt-tasks')(grunt); // npm install --save-dev load-grunt-tasks
 
+  const awsCredentials = grunt.file.readJSON('etc/aws-credentials.json');
+
   // Project configuration.
   grunt.initConfig({
     pkg: grunt.file.readJSON('package.json'),
@@ -111,6 +113,13 @@ module.exports = function(grunt) {
           delete: true,
           recursive: true,
         },
+      },
+    },
+    s3: {
+      options: Object.assign({bucket: 'phantasml'}, awsCredentials),
+      dist: {
+        cwd: 'dist',
+        src: ['index.html', 'app.min.js'],
       },
     },
   });
