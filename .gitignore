@@ -1,4 +1,4 @@
 node_modules
 build
 dist
-etc/aws-credentials.json
+etc/build-config.json

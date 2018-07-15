@@ -31,7 +31,6 @@
     "grunt-aws": "^0.6.2",
     "grunt-babel": "^7.0.0",
     "grunt-browserify": "^5.3.0",
-    "grunt-contrib-copy": "^1.0.0",
     "grunt-contrib-less": "^2.0.0",
     "grunt-contrib-uglify": "^3.3.0",
     "grunt-contrib-watch": "^1.1.0",
@@ -40,8 +39,7 @@
     "husky": "^0.14.3",
     "load-grunt-tasks": "^4.0.0",
     "prettier": "^1.13.7",
-    "pretty-quick": "^1.6.0",
-    "uglifyify": "^5.0.1"
+    "pretty-quick": "^1.6.0"
   },
   "dependencies": {
     "react": "^16.4.1",

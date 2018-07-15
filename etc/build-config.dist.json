@@ -1,0 +1,17 @@
+{
+  "awsCredentials": {
+    "accessKeyId": "...",
+    "secretAccessKey": "..."
+  },
+  "distributions": {
+    "local": {
+      "beautify": true,
+      "apiEndpoint": "http://localhost:3000"
+    },
+    "production": {
+      "beautify": false,
+      "apiEndpoint": "https://www.phantasml.com/api",
+      "bucket": "phantasml"
+    }
+  }
+}

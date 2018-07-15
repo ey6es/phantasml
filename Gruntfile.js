@@ -3,7 +3,9 @@ const path = require('path');
 module.exports = function(grunt) {
   require('load-grunt-tasks')(grunt); // npm install --save-dev load-grunt-tasks
 
-  const awsCredentials = grunt.file.readJSON('etc/aws-credentials.json');
+  // load our build configuration
+  const config = grunt.file.readJSON('etc/build-config.json');
+  const exerciseNames = [];
 
   // Project configuration.
   grunt.initConfig({
@@ -27,48 +29,52 @@ module.exports = function(grunt) {
     browserify: {
       exercises: {
         options: {
-          transform: ['browserify-shim', 'uglifyify'],
+          transform: ['browserify-shim'],
         },
         files: [
           {
             expand: true,
-            src: 'build/client/exercises/+([0-9])-*.js',
+            src: 'build/client/exercises/+([0-9])-+([a-z-]).js',
             ext: '.min.js',
           },
         ],
       },
       app: {
-        options: {
-          transform: ['uglifyify'],
-        },
         src: 'build/client/app.js',
         dest: 'build/client/app.min.js',
       },
     },
-    uglify: {
-      exercises: {
-        files: [
-          {
-            expand: true,
-            cwd: 'build/client',
-            src: 'exercises/+([0-9])-*.min.js',
-            dest: 'dist/',
-          },
-        ],
-      },
-      app: {
-        src: 'build/client/app.min.js',
-        dest: 'dist/app.min.js',
-      },
-    },
+    uglify: (function() {
+      const taskConfig = {
+        exercises: {
+          files: [
+            {
+              expand: true,
+              cwd: 'build/client',
+              src: 'exercises/+([0-9])-*.min.js',
+              dest: 'dist/',
+            },
+          ],
+        },
+      };
+      for (const key in config.distributions) {
+        taskConfig[key] = {
+          options: {beautify: config.distributions[key].beautify},
+          src: 'build/client/app.min.js',
+          dest: `dist/${key}/app.min.js`,
+        };
+      }
+      return taskConfig;
+    })(),
     replace: (function() {
-      var config = {};
-      var filenames = grunt.file.expand({cwd: 'src/client/exercises'}, [
+      const taskConfig = {};
+      const filenames = grunt.file.expand({cwd: 'src/client/exercises'}, [
         '+([0-9])-*.js',
       ]);
-      for (var name of filenames) {
-        var basename = path.basename(name, '.js');
-        config[basename] = {
+      for (const name of filenames) {
+        const basename = path.basename(name, '.js');
+        exerciseNames.push(basename);
+        taskConfig[basename] = {
           options: {
             patterns: [{match: 'path', replacement: `${basename}.min.js`}],
           },
@@ -76,61 +82,107 @@ module.exports = function(grunt) {
           dest: `dist/exercises/${basename}.html`,
         };
       }
-      return config;
-    })(),
-    copy: {
-      dist: {
-        src: 'src/client/index.html',
-        dest: 'dist/index.html',
-      },
-    },
-    less: {
-      dist: {
-        files: [
-          {
-            expand: true,
-            cwd: 'src/client',
-            src: '**/*.less',
-            dest: 'dist/',
-            ext: '.css',
+      for (const key in config.distributions) {
+        taskConfig[key] = {
+          options: {
+            patterns: [
+              {
+                match: 'api-endpoint',
+                replacement: config.distributions[key].apiEndpoint,
+              },
+            ],
           },
-        ],
-      },
-    },
+          src: 'src/client/index.template.html',
+          dest: `dist/${key}/index.html`,
+        };
+      }
+      return taskConfig;
+    })(),
+    less: (function() {
+      const taskConfig = {
+        exercises: {
+          src: ['src/client/exercises/style.less'],
+          dest: 'dist/exercises/style.css',
+        },
+      };
+      for (const key in config.distributions) {
+        taskConfig[key] = {
+          src: ['src/client/style.less'],
+          dest: `dist/${key}/style.css`,
+        };
+      }
+      return taskConfig;
+    })(),
     watch: {
-      dist: {
+      exercises: {
+        files: 'src/exercises/**',
+        tasks: 'build-exercises',
+        options: {livereload: true},
+      },
+      local: {
         files: 'src/**',
-        tasks: 'default',
+        tasks: 'build-local',
         options: {livereload: true},
       },
     },
     rsync: {
-      dist: {
+      exercises: {
         options: {
-          src: 'dist/',
-          dest: '/usr/share/wordpress/phantasml',
+          src: 'dist/exercises/',
+          dest: '/usr/share/wordpress/phantasml/exercises',
           host: 'www.fungibleinsight.com',
           delete: true,
           recursive: true,
         },
       },
     },
-    s3: {
-      options: Object.assign({bucket: 'phantasml'}, awsCredentials),
-      dist: {
-        cwd: 'dist',
-        src: ['index.html', 'app.min.js'],
-      },
-    },
+    s3: (function() {
+      const taskConfig = {options: config.awsCredentials};
+      for (const key in config.distributions) {
+        const bucket = config.distributions[key].bucket;
+        if (bucket) {
+          taskConfig[key] = {
+            options: {bucket},
+            cwd: `dist/${key}`,
+            src: ['index.html', 'app.min.js', 'style.css'],
+          };
+        }
+      }
+      return taskConfig;
+    })(),
   });
 
-  // Default task(s).
-  grunt.registerTask('default', [
+  // distribution tasks
+  for (const key in config.distributions) {
+    grunt.registerTask(`build-${key}`, `Builds the ${key} distribution.`, [
+      'babel',
+      'browserify:app',
+      `uglify:${key}`,
+      `replace:${key}`,
+      `less:${key}`,
+    ]);
+    if (config.distributions[key].bucket) {
+      grunt.registerTask(
+        `publish-${key}`,
+        `Publishes the ${key} distribution.`,
+        [`build-${key}`, `s3:${key}`],
+      );
+    }
+  }
+
+  // exercises tasks
+  grunt.registerTask('build-exercises', 'Builds the exercises.', [
     'babel',
-    'browserify',
-    'uglify',
-    'replace',
-    'copy',
-    'less',
+    'browserify:exercises',
+    'uglify:exercises',
+    ...exerciseNames.map(name => `replace:${name}`),
+    'less:exercises',
   ]);
+  grunt.registerTask('publish-exercises', 'Publishes the exercises.', [
+    'build-exercises',
+    'rsync:exercises',
+  ]);
+
+  // Default task(s).
+  grunt.registerTask('default', ['build-local']);
 };
