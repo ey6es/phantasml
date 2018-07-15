@@ -166,6 +166,11 @@ module.exports = function(grunt) {
               `--stack-name ${bucket} --s3-bucket ${bucket} ` +
               `--capabilities CAPABILITY_IAM`,
           };
+          taskConfig[`s3-${key}`] = {
+            cmd:
+              `aws s3 sync dist/${key} s3://${bucket} ` +
+              '--acl public-read --delete',
+          };
         }
       }
       return taskConfig;
@@ -191,20 +196,6 @@ module.exports = function(grunt) {
         },
       },
     },
-    s3: (function() {
-      const taskConfig = {options: config.awsCredentials};
-      for (const key in config.distributions) {
-        const bucket = config.distributions[key].bucket;
-        if (bucket) {
-          taskConfig[key] = {
-            options: {bucket},
-            cwd: `dist/${key}`,
-            src: ['index.html', 'app.min.js', 'style.css'],
-          };
-        }
-      }
-      return taskConfig;
-    })(),
   });
 
   // distribution tasks
@@ -223,9 +214,9 @@ module.exports = function(grunt) {
         `Publishes the ${key} distribution.`,
         [
           `build-${key}`,
-          `s3:${key}`,
           `exec:package-${key}`,
           `exec:deploy-${key}`,
+          `exec:s3-${key}`,
         ],
       );
     }

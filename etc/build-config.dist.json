@@ -1,8 +1,4 @@
 {
-  "awsCredentials": {
-    "accessKeyId": "...",
-    "secretAccessKey": "..."
-  },
   "distributions": {
     "local": {
       "beautify": true,
