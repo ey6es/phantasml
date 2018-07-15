@@ -7,12 +7,6 @@ import {createRangeArray} from './shared';
 
 const IMAGE_SIZE = 16;
 
-const Training = {
-  UNSTARTED: 0,
-  STARTED: 1,
-  FINISHED: 2,
-};
-
 type TrainingState = 'unstarted' | 'started' | 'finished';
 
 class ConvolutionExercise extends React.Component<

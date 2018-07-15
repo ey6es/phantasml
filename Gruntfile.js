@@ -44,6 +44,12 @@ module.exports = function(grunt) {
         dest: 'build/client/app.min.js',
       },
     },
+    copy: {
+      app: {
+        src: 'src/server/template.yaml',
+        dest: 'build/server/template.yaml',
+      },
+    },
     uglify: (function() {
       const taskConfig = {
         exercises: {
@@ -83,12 +89,19 @@ module.exports = function(grunt) {
         };
       }
       for (const key in config.distributions) {
+        const distributionConfig = config.distributions[key];
         taskConfig[key] = {
           options: {
             patterns: [
               {
                 match: 'api-endpoint',
-                replacement: config.distributions[key].apiEndpoint,
+                replacement: distributionConfig.apiEndpoint,
+              },
+              {
+                match: 'live-reload-tag',
+                replacement: distributionConfig.liveReload
+                  ? '<script src="http://localhost:35729/livereload.js"></script>'
+                  : '',
               },
             ],
           },
@@ -125,6 +138,22 @@ module.exports = function(grunt) {
         options: {livereload: true},
       },
     },
+    exec: {
+      local: {
+        cmd: 'sam local start-api --skip-pull-image -s ../../dist/local',
+        cwd: 'build/server',
+      },
+    },
+    open: {
+      local: {
+        path: 'http://localhost:3000/index.html',
+        delay: 1.0,
+      },
+    },
+    concurrent: {
+      options: {logConcurrentOutput: true},
+      local: ['watch:local', 'exec:local', 'open:local'],
+    },
     rsync: {
       exercises: {
         options: {
@@ -157,6 +186,7 @@ module.exports = function(grunt) {
     grunt.registerTask(`build-${key}`, `Builds the ${key} distribution.`, [
       'babel',
       'browserify:app',
+      'copy:app',
       `uglify:${key}`,
       `replace:${key}`,
       `less:${key}`,
@@ -183,6 +213,9 @@ module.exports = function(grunt) {
     'rsync:exercises',
   ]);
 
+  // builds local distribution and watches for changes
+  grunt.registerTask('start-local', ['build-local', 'concurrent:local']);
+
   // Default task(s).
-  grunt.registerTask('default', ['build-local']);
+  grunt.registerTask('default', ['start-local']);
 };

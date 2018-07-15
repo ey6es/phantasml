@@ -6,10 +6,10 @@
   "distributions": {
     "local": {
       "beautify": true,
-      "apiEndpoint": "http://localhost:3000"
+      "apiEndpoint": "http://localhost:3000/api",
+      "liveReload": true
     },
     "production": {
-      "beautify": false,
       "apiEndpoint": "https://www.phantasml.com/api",
       "bucket": "phantasml"
     }
