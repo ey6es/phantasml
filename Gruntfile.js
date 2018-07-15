@@ -46,8 +46,14 @@ module.exports = function(grunt) {
     },
     copy: {
       app: {
-        src: 'src/server/template.yaml',
-        dest: 'build/server/template.yaml',
+        files: [
+          {
+            expand: true,
+            cwd: 'src/server',
+            src: ['template.yaml', 'package.json'],
+            dest: 'build/server/',
+          },
+        ],
       },
     },
     uglify: (function() {
@@ -138,21 +144,42 @@ module.exports = function(grunt) {
         options: {livereload: true},
       },
     },
-    exec: {
-      local: {
-        cmd: 'sam local start-api --skip-pull-image -s ../../dist/local',
-        cwd: 'build/server',
-      },
-    },
+    exec: (function() {
+      const taskConfig = {
+        localApi: {
+          cmd: 'sam local start-api --skip-pull-image -s ../../dist/local',
+          cwd: 'build/server',
+        },
+      };
+      for (const key in config.distributions) {
+        const bucket = config.distributions[key].bucket;
+        if (bucket) {
+          taskConfig[`package-${key}`] = {
+            cmd:
+              'sam package --template-file template.yaml ' +
+              `--output-template-file ${key}.yaml --s3-bucket ${bucket}`,
+            cwd: 'build/server',
+          };
+          taskConfig[`deploy-${key}`] = {
+            cmd:
+              `sam deploy --template-file ${key}.yaml ` +
+              `--stack-name ${bucket} --s3-bucket ${bucket} ` +
+              `--capabilities CAPABILITY_IAM`,
+            cwd: 'build/server',
+          };
+        }
+      }
+      return taskConfig;
+    })(),
     open: {
       local: {
         path: 'http://localhost:3000/index.html',
-        delay: 1.0,
+        delay: 2.0,
       },
     },
     concurrent: {
       options: {logConcurrentOutput: true},
-      local: ['watch:local', 'exec:local', 'open:local'],
+      local: ['watch:local', 'exec:localApi', 'open:local'],
     },
     rsync: {
       exercises: {
@@ -195,7 +222,12 @@ module.exports = function(grunt) {
       grunt.registerTask(
         `publish-${key}`,
         `Publishes the ${key} distribution.`,
-        [`build-${key}`, `s3:${key}`],
+        [
+          `build-${key}`,
+          `s3:${key}`,
+          `exec:package-${key}`,
+          `exec:deploy-${key}`,
+        ],
       );
     }
   }
@@ -214,7 +246,11 @@ module.exports = function(grunt) {
   ]);
 
   // builds local distribution and watches for changes
-  grunt.registerTask('start-local', ['build-local', 'concurrent:local']);
+  grunt.registerTask(
+    'start-local',
+    'Builds the local distribution, starts it, and watches for changes.',
+    ['build-local', 'concurrent:local'],
+  );
 
   // Default task(s).
   grunt.registerTask('default', ['start-local']);

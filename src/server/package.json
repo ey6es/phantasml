@@ -1,0 +1,6 @@
+{
+  "name": "phantasml-api",
+  "version": "1.0.0",
+  "description": "API implementation for Phantasml.",
+  "private": "true"
+}

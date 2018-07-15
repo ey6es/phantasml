@@ -7,7 +7,7 @@ Resources:
   Products:
     Type: AWS::Serverless::Function
     Properties:
-      Handler: api.handler
+      Handler: index.handler
       Runtime: nodejs8.10
       Events:
         Product:
