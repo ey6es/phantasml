@@ -50,7 +50,7 @@ module.exports = function(grunt) {
           {
             expand: true,
             cwd: 'src/server',
-            src: ['template.yaml', 'package.json'],
+            src: ['package.json'],
             dest: 'build/server/',
           },
         ],
@@ -147,8 +147,9 @@ module.exports = function(grunt) {
     exec: (function() {
       const taskConfig = {
         localApi: {
-          cmd: 'sam local start-api --skip-pull-image -s ../../dist/local',
-          cwd: 'build/server',
+          cmd:
+            'sam local start-api --skip-pull-image -s ../../dist/local ' +
+            '-t src/server/template.yaml',
         },
       };
       for (const key in config.distributions) {
@@ -156,16 +157,14 @@ module.exports = function(grunt) {
         if (bucket) {
           taskConfig[`package-${key}`] = {
             cmd:
-              'sam package --template-file template.yaml ' +
-              `--output-template-file ${key}.yaml --s3-bucket ${bucket}`,
-            cwd: 'build/server',
+              'sam package --template-file src/server/template.yaml ' +
+              `--output-template-file build/${key}.yaml --s3-bucket ${bucket}`,
           };
           taskConfig[`deploy-${key}`] = {
             cmd:
-              `sam deploy --template-file ${key}.yaml ` +
+              `sam deploy --template-file build/${key}.yaml ` +
               `--stack-name ${bucket} --s3-bucket ${bucket} ` +
               `--capabilities CAPABILITY_IAM`,
-            cwd: 'build/server',
           };
         }
       }
@@ -174,7 +173,7 @@ module.exports = function(grunt) {
     open: {
       local: {
         path: 'http://localhost:3000/index.html',
-        delay: 2.0,
+        delay: 2000,
       },
     },
     concurrent: {
@@ -232,7 +231,7 @@ module.exports = function(grunt) {
     }
   }
 
-  // exercises tasks
+  // exercise tasks
   grunt.registerTask('build-exercises', 'Builds the exercises.', [
     'babel',
     'browserify:exercises',

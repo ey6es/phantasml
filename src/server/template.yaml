@@ -4,14 +4,15 @@ Description: Phantasml API.
 
 Resources:
 
-  Products:
+  Sessions:
     Type: AWS::Serverless::Function
     Properties:
-      Handler: index.handler
+      Handler: sessions.handler
       Runtime: nodejs8.10
+      CodeUri: ../../build/server
       Events:
         Product:
           Type: Api
           Properties:
-            Path: /api
+            Path: /api/session
             Method: any
