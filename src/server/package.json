@@ -2,5 +2,7 @@
   "name": "phantasml-api",
   "version": "1.0.0",
   "description": "API implementation for Phantasml.",
-  "private": "true"
+  "private": "true",
+  "dependencies": {},
+  "//": "Note: to add a new dependency, use npm install --save-prod --package-lock-only"
 }

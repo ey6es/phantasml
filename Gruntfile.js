@@ -35,13 +35,13 @@ module.exports = function(grunt) {
           {
             expand: true,
             src: 'build/client/exercises/+([0-9])-+([a-z-]).js',
-            ext: '.min.js',
+            ext: '.bundle.js',
           },
         ],
       },
       app: {
         src: 'build/client/app.js',
-        dest: 'build/client/app.min.js',
+        dest: 'build/client/app.bundle.js',
       },
     },
     copy: {
@@ -50,7 +50,7 @@ module.exports = function(grunt) {
           {
             expand: true,
             cwd: 'src/server',
-            src: ['package.json'],
+            src: ['package.json', 'package-lock.json'],
             dest: 'build/server/',
           },
         ],
@@ -63,8 +63,9 @@ module.exports = function(grunt) {
             {
               expand: true,
               cwd: 'build/client',
-              src: 'exercises/+([0-9])-*.min.js',
+              src: 'exercises/+([0-9])-*.bundle.js',
               dest: 'dist/',
+              ext: '.min.js',
             },
           ],
         },
@@ -72,7 +73,7 @@ module.exports = function(grunt) {
       for (const key in config.distributions) {
         taskConfig[key] = {
           options: {beautify: config.distributions[key].beautify},
-          src: 'build/client/app.min.js',
+          src: 'build/client/app.bundle.js',
           dest: `dist/${key}/app.min.js`,
         };
       }
@@ -146,6 +147,7 @@ module.exports = function(grunt) {
     },
     exec: (function() {
       const taskConfig = {
+        npm: {cmd: 'npm install', cwd: 'build/server'},
         localApi: {
           cmd:
             'sam local start-api --skip-pull-image -s ../../dist/local ' +
@@ -214,6 +216,7 @@ module.exports = function(grunt) {
         `Publishes the ${key} distribution.`,
         [
           `build-${key}`,
+          `exec:npm`,
           `exec:package-${key}`,
           `exec:deploy-${key}`,
           `exec:s3-${key}`,
@@ -239,7 +242,7 @@ module.exports = function(grunt) {
   grunt.registerTask(
     'start-local',
     'Builds the local distribution, starts it, and watches for changes.',
-    ['build-local', 'concurrent:local'],
+    ['build-local', 'exec:npm', 'concurrent:local'],
   );
 
   // Default task(s).
