@@ -7,4 +7,4 @@ function App(props: {}) {
   return <div>Testing...</div>;
 }
 
-ReactDOM.render(<App />, (document.body: any));
+ReactDOM.render(<App />, (document.getElementById('app'): any));

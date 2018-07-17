@@ -26,24 +26,41 @@ module.exports = function(grunt) {
         ],
       },
     },
-    browserify: {
-      exercises: {
-        options: {
-          transform: ['browserify-shim'],
-        },
-        files: [
-          {
-            expand: true,
-            src: 'build/client/exercises/+([0-9])-+([a-z-]).js',
-            ext: '.bundle.js',
+    env: (function() {
+      const taskConfig = {};
+      for (const key in config.distributions) {
+        taskConfig[key] = {
+          NODE_ENV: config.distributions[key].nodeEnv || 'development',
+        };
+      }
+      return taskConfig;
+    })(),
+    browserify: (function() {
+      const taskConfig = {
+        exercises: {
+          options: {
+            transform: ['browserify-shim'],
           },
-        ],
-      },
-      app: {
-        src: 'build/client/app.js',
-        dest: 'build/client/app.bundle.js',
-      },
-    },
+          files: [
+            {
+              expand: true,
+              src: 'build/client/exercises/+([0-9])-+([a-z-]).js',
+              ext: '.bundle.js',
+            },
+          ],
+        },
+      };
+      for (const key in config.distributions) {
+        taskConfig[key] = {
+          options: {
+            browserifyOptions: {debug: config.distributions[key].beautify},
+          },
+          src: 'build/client/app.js',
+          dest: 'build/client/app.bundle.js',
+        };
+      }
+      return taskConfig;
+    })(),
     copy: {
       app: {
         files: [
@@ -120,6 +137,9 @@ module.exports = function(grunt) {
     })(),
     less: (function() {
       const taskConfig = {
+        options: {
+          paths: sourcePath => [sourcePath, 'node_modules'],
+        },
         exercises: {
           src: ['src/client/exercises/style.less'],
           dest: 'dist/exercises/style.css',
@@ -127,6 +147,9 @@ module.exports = function(grunt) {
       };
       for (const key in config.distributions) {
         taskConfig[key] = {
+          options: {
+            compress: !config.distributions[key].beautify,
+          },
           src: ['src/client/style.less'],
           dest: `dist/${key}/style.css`,
         };
@@ -155,7 +178,8 @@ module.exports = function(grunt) {
         },
       };
       for (const key in config.distributions) {
-        const bucket = config.distributions[key].bucket;
+        const distributionConfig = config.distributions[key];
+        const bucket = distributionConfig.bucket;
         if (bucket) {
           taskConfig[`package-${key}`] = {
             cmd:
@@ -172,6 +196,11 @@ module.exports = function(grunt) {
             cmd:
               `aws s3 sync dist/${key} s3://${bucket} ` +
               '--acl public-read --delete',
+          };
+          taskConfig[`invalidate-${key}`] = {
+            cmd:
+              'aws cloudfront create-invalidation --distribution-id ' +
+              `${distributionConfig.cloudfrontId} --paths '/*'`,
           };
         }
       }
@@ -204,7 +233,8 @@ module.exports = function(grunt) {
   for (const key in config.distributions) {
     grunt.registerTask(`build-${key}`, `Builds the ${key} distribution.`, [
       'babel',
-      'browserify:app',
+      `env:${key}`,
+      `browserify:${key}`,
       'copy:app',
       `uglify:${key}`,
       `replace:${key}`,
@@ -220,6 +250,7 @@ module.exports = function(grunt) {
           `exec:package-${key}`,
           `exec:deploy-${key}`,
           `exec:s3-${key}`,
+          `exec:invalidate-${key}`,
         ],
       );
     }

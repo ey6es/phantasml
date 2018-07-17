@@ -6,8 +6,10 @@
       "liveReload": true
     },
     "production": {
+      "nodeEnv": "production",
       "apiEndpoint": "https://www.phantasml.com/api",
-      "bucket": "phantasml"
+      "bucket": "phantasml",
+      "cloudfrontId": "EMZD3XPF3PNDC"
     }
   }
 }
