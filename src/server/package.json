@@ -4,7 +4,8 @@
   "description": "API implementation for Phantasml.",
   "private": "true",
   "dependencies": {
-    "babel-runtime": "^6.26.0"
+    "babel-runtime": "^6.26.0",
+    "flow-runtime": "^0.17.0"
   },
   "//": "Note: to add a new dependency, use npm install --save-prod --package-lock-only"
 }

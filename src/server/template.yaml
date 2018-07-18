@@ -4,15 +4,41 @@ Description: Phantasml API.
 
 Resources:
 
-  Sessions:
+  GetUserStatus:
     Type: AWS::Serverless::Function
     Properties:
-      Handler: sessions.handler
+      Handler: user.getStatus
       Runtime: nodejs8.10
       CodeUri: ../../build/server
       Events:
-        Product:
+        Request:
           Type: Api
           Properties:
-            Path: /api/session
-            Method: any
+            Path: /api/user/status
+            Method: get
+   
+  LoginUser:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: user.login
+      Runtime: nodejs8.10
+      CodeUri: ../../build/server
+      Events:
+        Request:
+          Type: Api
+          Properties:
+            Path: /api/user/login
+            Method: post
+
+  LogoutUser:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: user.logout
+      Runtime: nodejs8.10
+      CodeUri: ../../build/server
+      Events:
+        Request:
+          Type: Api
+          Properties:
+            Path: /api/user/logout
+            Method: post

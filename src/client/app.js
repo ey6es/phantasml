@@ -3,8 +3,8 @@
 import * as React from 'react';
 import * as ReactDOM from 'react-dom';
 import {IntlProvider} from 'react-intl';
-import {postToApi} from './util/api';
-import type {SessionRequest, SessionResponse} from '../shared/api';
+import {getFromApi} from './util/api';
+import type {UserStatusResponse} from '../server/api';
 
 function App(props: {}) {
   return <div>Testing...</div>;
@@ -19,9 +19,10 @@ function App(props: {}) {
 
 // contact api to determine session information
 (async function() {
-  const request: SessionRequest = {};
   try {
-    const response: SessionResponse = await postToApi('/session', request);
+    const response: UserStatusResponse = await getFromApi('/user/status', {
+      test: 1,
+    });
     console.log(response);
   } catch (error) {
     console.warn(error);
