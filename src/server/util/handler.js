@@ -44,7 +44,10 @@ export function getBodyRequest<T: Object>(
 export function createOkResult<T: Object>(body: T): ProxyResult {
   return {
     statusCode: 200,
-    headers: {'Content-Type': 'application/json'},
+    headers: {
+      'Content-Type': 'application/json',
+      'Access-Control-Allow-Origin': '*',
+    },
     body: JSON.stringify(body),
   };
 }

@@ -211,7 +211,7 @@ module.exports = function(grunt) {
     })(),
     open: {
       local: {
-        url: 'http://localhost:3000/index.html',
+        url: 'dist/local/index.html',
       },
     },
     concurrent: {

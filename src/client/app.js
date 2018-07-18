@@ -20,9 +20,7 @@ function App(props: {}) {
 // contact api to determine session information
 (async function() {
   try {
-    const response: UserStatusResponse = await getFromApi('/user/status', {
-      test: 1,
-    });
+    const response: UserStatusResponse = await getFromApi('/user/status');
     console.log(response);
   } catch (error) {
     console.warn(error);
