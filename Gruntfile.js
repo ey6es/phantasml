@@ -1,5 +1,3 @@
-const path = require('path');
-
 module.exports = function(grunt) {
   require('load-grunt-tasks')(grunt); // npm install --save-dev load-grunt-tasks
 
@@ -101,6 +99,7 @@ module.exports = function(grunt) {
       const filenames = grunt.file.expand({cwd: 'src/client/exercises'}, [
         '+([0-9])-*.js',
       ]);
+      const path = require('path');
       for (const name of filenames) {
         const basename = path.basename(name, '.js');
         exerciseNames.push(basename);
@@ -208,8 +207,7 @@ module.exports = function(grunt) {
     })(),
     open: {
       local: {
-        path: 'http://localhost:3000/index.html',
-        delay: 2000,
+        url: 'http://localhost:3000/index.html',
       },
     },
     concurrent: {
@@ -227,6 +225,14 @@ module.exports = function(grunt) {
         },
       },
     },
+  });
+
+  grunt.registerMultiTask('open', 'Opens the app URL.', function() {
+    const done = this.async();
+    setTimeout(() => {
+      require('opn')(this.data.url);
+      done(true);
+    }, 1000);
   });
 
   // distribution tasks
