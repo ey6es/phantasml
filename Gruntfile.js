@@ -214,6 +214,13 @@ module.exports = function(grunt) {
         url: 'dist/local/index.html',
       },
     },
+    migrate: (function() {
+      const taskConfig = {};
+      for (const key in config.distributions) {
+        taskConfig[key] = {};
+      }
+      return taskConfig;
+    })(),
     concurrent: {
       options: {logConcurrentOutput: true},
       local: ['watch:local', 'exec:localApi', 'open:local'],
@@ -231,12 +238,24 @@ module.exports = function(grunt) {
     },
   });
 
+  // task to open an URL
   grunt.registerMultiTask('open', 'Opens the app URL.', function() {
     const done = this.async();
     setTimeout(() => {
       require('opn')(this.data.url);
       done(true);
     }, 1000);
+  });
+
+  // database migration task
+  grunt.registerMultiTask('migrate', 'Migrate database.', async function() {
+    const done = this.async();
+    try {
+      await require('./build/tools/migrate').default();
+      done(true);
+    } catch (error) {
+      done(error);
+    }
   });
 
   // distribution tasks
@@ -257,6 +276,7 @@ module.exports = function(grunt) {
         [
           `build-${key}`,
           `exec:npm`,
+          `migrate:${key}`,
           `exec:package-${key}`,
           `exec:deploy-${key}`,
           `exec:s3-${key}`,
@@ -283,7 +303,7 @@ module.exports = function(grunt) {
   grunt.registerTask(
     'start-local',
     'Builds the local distribution, starts it, and watches for changes.',
-    ['build-local', 'exec:npm', 'concurrent:local'],
+    ['build-local', 'exec:npm', 'migrate:local', 'concurrent:local'],
   );
 
   // Default task(s).
