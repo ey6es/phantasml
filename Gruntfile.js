@@ -251,7 +251,7 @@ module.exports = function(grunt) {
   grunt.registerMultiTask('migrate', 'Migrate database.', async function() {
     const done = this.async();
     try {
-      await require('./build/tools/migrate').default();
+      await require('./build/tools/migrate').default(config.firstAdminEmail);
       done(true);
     } catch (error) {
       done(error);

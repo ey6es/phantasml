@@ -1,4 +1,5 @@
 {
+  "firstAdminEmail": "drzej.k@gmail.com",
   "distributions": {
     "local": {
       "beautify": true,
