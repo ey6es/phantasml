@@ -33,6 +33,7 @@ module.exports = function(grunt) {
       for (const key in config.distributions) {
         taskConfig[key] = {
           NODE_ENV: config.distributions[key].nodeEnv || 'development',
+          AWS_SDK_LOAD_CONFIG: true,
         };
       }
       return taskConfig;
@@ -177,7 +178,7 @@ module.exports = function(grunt) {
         localApi: {
           cmd:
             'sam local start-api --skip-pull-image -s ../../dist/local ' +
-            '-t src/server/template.yaml',
+            '-t src/server/template.yaml -n build/environment.json',
         },
       };
       for (const key in config.distributions) {
@@ -193,7 +194,9 @@ module.exports = function(grunt) {
             cmd:
               `sam deploy --template-file build/${key}.yaml ` +
               `--stack-name ${bucket} --s3-bucket ${bucket} ` +
-              `--capabilities CAPABILITY_IAM`,
+              `--capabilities CAPABILITY_IAM --parameter-overrides ` +
+              `FromEmail=${config.fromEmail} ` +
+              `SiteUrl=${distributionConfig.siteUrl}`,
           };
           taskConfig[`s3-${key}`] = {
             cmd:
@@ -209,18 +212,32 @@ module.exports = function(grunt) {
       }
       return taskConfig;
     })(),
-    open: {
-      local: {
-        url: 'dist/local/index.html',
-      },
-    },
-    migrate: (function() {
+    open: (function() {
       const taskConfig = {};
       for (const key in config.distributions) {
-        taskConfig[key] = {};
+        taskConfig[key] = {
+          url: config.distributions[key].siteUrl,
+          delay: 1000,
+        };
       }
       return taskConfig;
     })(),
+    migrate: (function() {
+      const taskConfig = {};
+      for (const key in config.distributions) {
+        taskConfig[key] = {siteUrl: config.distributions[key].siteUrl};
+      }
+      return taskConfig;
+    })(),
+    json_generator: {
+      local: {
+        dest: 'build/environment.json',
+        options: {
+          FROM_EMAIL: config.fromEmail,
+          SITE_URL: config.distributions.local.siteUrl,
+        },
+      },
+    },
     concurrent: {
       options: {logConcurrentOutput: true},
       local: ['watch:local', 'exec:localApi', 'open:local'],
@@ -244,14 +261,18 @@ module.exports = function(grunt) {
     setTimeout(() => {
       require('opn')(this.data.url);
       done(true);
-    }, 1000);
+    }, this.data.delay);
   });
 
   // database migration task
   grunt.registerMultiTask('migrate', 'Migrate database.', async function() {
     const done = this.async();
     try {
-      await require('./build/tools/migrate').default(config.firstAdminEmail);
+      await require('./build/tools/migrate').default(
+        config.firstAdminEmail,
+        config.fromEmail,
+        this.data.siteUrl,
+      );
       done(true);
     } catch (error) {
       done(error);
@@ -303,7 +324,13 @@ module.exports = function(grunt) {
   grunt.registerTask(
     'start-local',
     'Builds the local distribution, starts it, and watches for changes.',
-    ['build-local', 'exec:npm', 'migrate:local', 'concurrent:local'],
+    [
+      'build-local',
+      'exec:npm',
+      'migrate:local',
+      'json_generator:local',
+      'concurrent:local',
+    ],
   );
 
   // Default task(s).

@@ -2,6 +2,14 @@ AWSTemplateFormatVersion : '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
 Description: Phantasml API.
 
+Parameters:
+  
+  FromEmail:
+    Type: String
+  
+  SiteUrl:
+    Type: String
+  
 Resources:
 
   GetUserStatus:
@@ -10,6 +18,10 @@ Resources:
       Handler: user.getStatus
       Runtime: nodejs8.10
       CodeUri: ../../build/server
+      Environment:
+        Variables:
+          FROM_EMAIL: !Ref FromEmail
+          SITE_URL: !Ref SiteUrl
       Events:
         Request:
           Type: Api

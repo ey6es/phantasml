@@ -1,9 +1,13 @@
 // @flow
 
+import {URL} from 'url';
 import {randomBytes} from 'crypto';
 import {DynamoDB, SES} from 'aws-sdk';
 import uuid from 'uuid/v1';
-import {defineMessages} from 'react-intl';
+import React from 'react';
+import type {Element} from 'react';
+import ReactDOMServer from 'react-dom/server';
+import {IntlProvider, FormattedMessage} from 'react-intl';
 import type {APIGatewayEvent, Context, ProxyResult} from 'flow-aws-lambda';
 import {getQueryRequest, getBodyRequest, createOkResult} from './util/handler';
 import type {
@@ -33,12 +37,37 @@ function createToken(): string {
 }
 
 /**
+ * Creates and returns a base64 UUID with URL-safe characters.
+ *
+ * @return the newly created UUID.
+ */
+function createUuid() {
+  const base = uuid({}, Buffer.alloc(16), 0).toString('base64');
+  // only 22 characters will be valid; the final two will be ==
+  return base
+    .substring(0, 22)
+    .replace(/[+/]/g, char => (char === '+' ? '-' : '_'));
+}
+
+/**
  * Sends an email invitation to the provided address.
  *
  * @param email the email to send to.
+ * @param [locale='en'] the locale in which to send the email.
  * @param [admin=false] if true, invite the user as an admin.
+ * @param [fromEmail] the email to send from (if not specified, will be
+ * retrieved from environment variables).
+ * @param [siteUrl] the site URL, which may be a path relative to the current
+ * working directory (if not specified, will be retrieved from environment
+ * variables).
  */
-export async function inviteEmail(email: string, admin: boolean = false) {
+export async function inviteEmail(
+  email: string,
+  locale: string = 'en',
+  admin: boolean = false,
+  fromEmail: string = process.env.FROM_EMAIL || 'noreply@phantasml.com',
+  siteUrl: string = process.env.SITE_URL || 'https://www.phantasml.com',
+) {
   // see if they already have an account
   const users = await dynamodb
     .query({
@@ -50,14 +79,14 @@ export async function inviteEmail(email: string, admin: boolean = false) {
       },
       ProjectionExpression: 'id',
     })
-    .toPromise();
+    .promise();
 
   // create the user item if necessary
   let userId: string;
   if (users.Items.length > 0) {
-    userId = users.Items[0].id;
+    userId = users.Items[0].id.S;
   } else {
-    userId = uuid();
+    userId = createUuid();
     await dynamodb
       .putItem({
         Item: {
@@ -67,7 +96,7 @@ export async function inviteEmail(email: string, admin: boolean = false) {
         },
         TableName: 'Users',
       })
-      .toPromise();
+      .promise();
   }
 
   // create the invite session
@@ -81,9 +110,13 @@ export async function inviteEmail(email: string, admin: boolean = false) {
       },
       TableName: 'Sessions',
     })
-    .toPromise();
+    .promise();
 
   // send the email
+  const url = new URL(
+    siteUrl + `?t=${encodeURIComponent(token)}`,
+    `file://${process.cwd()}/`,
+  ).toString();
   await ses
     .sendEmail({
       Destination: {
@@ -92,19 +125,55 @@ export async function inviteEmail(email: string, admin: boolean = false) {
       Message: {
         Body: {
           Html: {
-            Data: '',
+            Data: renderHtml(
+              <FormattedMessage
+                id="invite.body.html"
+                defaultMessage="Visit {url} to join me."
+                values={{url: <a href={url}>{url}</a>}}
+              />,
+              locale,
+            ),
           },
           Text: {
-            Data: '',
+            Data: renderText(
+              <FormattedMessage
+                id="invite.body.text"
+                defaultMessage="Visit {url} to join me."
+                values={{url}}
+              />,
+              locale,
+            ),
           },
         },
         Subject: {
-          Data: '',
+          Data: renderText(
+            <FormattedMessage
+              id="invite.subject"
+              defaultMessage="Come join me in Phantasml!"
+            />,
+            locale,
+          ),
         },
       },
-      Source: '',
+      Source: fromEmail,
     })
-    .toPromise();
+    .promise();
+}
+
+function renderHtml(element: Element<*>, locale: string): string {
+  return ReactDOMServer.renderToStaticMarkup(
+    <IntlProvider locale={locale}>{element}</IntlProvider>,
+  );
+}
+
+function renderText(element: Element<*>, locale: string): string {
+  return ReactDOMServer.renderToStaticMarkup(
+    <IntlProvider
+      locale={locale}
+      textComponent={(props: {children: string}) => props.children}>
+      {element}
+    </IntlProvider>,
+  );
 }
 
 export async function getStatus(

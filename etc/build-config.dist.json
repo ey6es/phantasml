@@ -1,13 +1,16 @@
 {
+  "fromEmail": "noreply@phantasml.com",
   "firstAdminEmail": "drzej.k@gmail.com",
   "distributions": {
     "local": {
       "beautify": true,
+      "siteUrl": "dist/local/index.html",
       "apiEndpoint": "http://localhost:3000/api",
       "liveReload": true
     },
     "production": {
       "nodeEnv": "production",
+      "siteUrl": "https://www.phantasml.com",
       "apiEndpoint": "https://www.phantasml.com/api",
       "bucket": "phantasml",
       "cloudfrontId": "EMZD3XPF3PNDC"
