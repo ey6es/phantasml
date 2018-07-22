@@ -10,10 +10,12 @@ export type UserStatusRequest = ApiRequest;
 export const UserStatusRequestType = (reify: Type<UserStatusRequest>);
 
 type AnonymousResponse = {type: 'anonymous'};
-type LoginRequiredResponse = {type: 'login-required'};
+type LoginRequiredResponse = {type: 'login-required', canCreate: boolean};
+type AcceptInviteResponse = {type: 'accept-invite'};
 type LoggedInResponse = {
   type: 'logged-in',
   displayName: string,
+  resetPassword?: boolean,
 };
 export type UserStatusResponse =
   | AnonymousResponse

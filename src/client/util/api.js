@@ -12,15 +12,37 @@ for (const element of document.getElementsByTagName('META')) {
   }
 }
 
-const AUTH_TOKEN_COOKIE = 'authToken=';
-
+// check for, remove auth token parameter
 let authToken: ?string;
+if (location.search.startsWith('?')) {
+  const AUTH_TOKEN_PARAM = 't=';
+  const params = location.search.substring(1).split('&');
+  for (let ii = 0; ii < params.length; ii++) {
+    const param = params[ii];
+    if (param.startsWith(AUTH_TOKEN_PARAM)) {
+      authToken = decodeURIComponent(param.substring(AUTH_TOKEN_PARAM.length));
+      params.splice(ii, 1);
+      const search = params.length === 0 ? '' : '?' + params.join('&');
+      history.replaceState(
+        {},
+        document.title,
+        location.pathname + search + location.hash,
+      );
+      break;
+    }
+  }
+}
 
 // check cookies for an auth token
-for (const cookie of document.cookie.split(';')) {
-  if (cookie.startsWith(AUTH_TOKEN_COOKIE)) {
-    authToken = cookie.substring(AUTH_TOKEN_COOKIE.length);
-    break;
+if (!authToken) {
+  const AUTH_TOKEN_COOKIE = 'authToken=';
+  for (const cookie of document.cookie.split(';')) {
+    if (cookie.startsWith(AUTH_TOKEN_COOKIE)) {
+      authToken = decodeURIComponent(
+        cookie.substring(AUTH_TOKEN_COOKIE.length),
+      );
+      break;
+    }
   }
 }
 

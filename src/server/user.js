@@ -185,9 +185,36 @@ export async function getStatus(
     UserStatusRequestType,
   );
   if (request.authToken) {
+    const session = await getSession(request.authToken);
+    if (session) {
+      if (session.invite && session.invite.BOOL) {
+        return createOkResult({type: 'accept-invite'});
+      }
+      const user = await getUser(session.userId.S);
+      if (user) {
+        return createOkResult({
+          type: 'logged-in',
+          displayName: user.displayName.S,
+          resetPassword: session.passwordReset && session.passwordReset.BOOL,
+        });
+      }
+    }
   }
-  const response: UserStatusResponse = {type: 'anonymous'};
-  return createOkResult(response);
+  return createOkResult({type: 'anonymous'});
+}
+
+async function getSession(token: string): Promise<?Object> {
+  const result = await dynamodb
+    .getItem({Key: {token: {S: token}}, TableName: 'Sessions'})
+    .promise();
+  return result.Item;
+}
+
+async function getUser(id: string): Promise<?Object> {
+  const result = await dynamodb
+    .getItem({Key: {id: {S: id}}, TableName: 'Users'})
+    .promise();
+  return result.Item;
 }
 
 export async function login(
