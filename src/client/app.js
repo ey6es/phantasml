@@ -10,19 +10,19 @@ function App(props: {}) {
   return <div>Testing...</div>;
 }
 
-/* ReactDOM.render(
-  <IntlProvider locale={navigator.language}>
-    <App />
-  </IntlProvider>,
-  (document.getElementById('app'): any),
-); */
-
 // contact api to determine session information
 (async function() {
+  let errorMessage: ?string;
   try {
     const response: UserStatusResponse = await getFromApi('/user/status');
-    console.log(response);
   } catch (error) {
-    console.warn(error);
+    errorMessage = error.message;
   }
+
+  ReactDOM.render(
+    <IntlProvider locale={navigator.language}>
+      <App />
+    </IntlProvider>,
+    (document.getElementById('app'): any),
+  );
 })();

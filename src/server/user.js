@@ -9,7 +9,7 @@ import type {Element} from 'react';
 import ReactDOMServer from 'react-dom/server';
 import {IntlProvider, FormattedMessage} from 'react-intl';
 import type {APIGatewayEvent, Context, ProxyResult} from 'flow-aws-lambda';
-import {getQueryRequest, getBodyRequest, createOkResult} from './util/handler';
+import {handleQueryRequest, handleBodyRequest} from './util/handler';
 import type {
   UserStatusRequest,
   UserStatusResponse,
@@ -180,27 +180,30 @@ export async function getStatus(
   event: APIGatewayEvent,
   context: Context,
 ): Promise<ProxyResult> {
-  const request: UserStatusRequest = getQueryRequest(
+  return handleQueryRequest(
     event,
     UserStatusRequestType,
+    (async request => {
+      if (request.authToken) {
+        const session = await getSession(request.authToken);
+        if (session) {
+          if (session.invite && session.invite.BOOL) {
+            return {type: 'accept-invite'};
+          }
+          const user = await getUser(session.userId.S);
+          if (user) {
+            return {
+              type: 'logged-in',
+              displayName: user.displayName.S,
+              resetPassword:
+                session.passwordReset && session.passwordReset.BOOL,
+            };
+          }
+        }
+      }
+      return {type: 'anonymous'};
+    }: UserStatusRequest => Promise<UserStatusResponse>),
   );
-  if (request.authToken) {
-    const session = await getSession(request.authToken);
-    if (session) {
-      if (session.invite && session.invite.BOOL) {
-        return createOkResult({type: 'accept-invite'});
-      }
-      const user = await getUser(session.userId.S);
-      if (user) {
-        return createOkResult({
-          type: 'logged-in',
-          displayName: user.displayName.S,
-          resetPassword: session.passwordReset && session.passwordReset.BOOL,
-        });
-      }
-    }
-  }
-  return createOkResult({type: 'anonymous'});
 }
 
 async function getSession(token: string): Promise<?Object> {
@@ -221,17 +224,16 @@ export async function login(
   event: APIGatewayEvent,
   context: Context,
 ): Promise<ProxyResult> {
-  const request: UserLoginRequest = getBodyRequest(event, UserLoginRequestType);
-  return createOkResult({});
+  return handleBodyRequest(event, UserLogoutRequestType, async request => {
+    return {};
+  });
 }
 
 export async function logout(
   event: APIGatewayEvent,
   context: Context,
 ): Promise<ProxyResult> {
-  const request: UserLogoutRequest = getBodyRequest(
-    event,
-    UserLogoutRequestType,
-  );
-  return createOkResult({});
+  return handleBodyRequest(event, UserLogoutRequestType, async request => {
+    return {};
+  });
 }

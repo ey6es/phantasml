@@ -20,6 +20,7 @@ type LoggedInResponse = {
 export type UserStatusResponse =
   | AnonymousResponse
   | LoginRequiredResponse
+  | AcceptInviteResponse
   | LoggedInResponse;
 
 type PasswordLoginRequest = ApiRequest & {

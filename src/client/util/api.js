@@ -66,6 +66,9 @@ export async function getFromApi<RequestType: Object, ResponseType: Object>(
   }
   const response = await fetch(apiEndpoint + path + query);
   const data = await response.json();
+  if (data.error) {
+    throw new Error(data.error);
+  }
   return data;
 }
 
