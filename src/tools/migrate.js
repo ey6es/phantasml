@@ -66,6 +66,25 @@ const TABLES = [
       WriteCapacityUnits: 5,
     },
   },
+  {
+    TableName: 'Settings',
+    AttributeDefinitions: [
+      {
+        AttributeName: 'id',
+        AttributeType: 'S',
+      },
+    ],
+    KeySchema: [
+      {
+        AttributeName: 'id',
+        KeyType: 'HASH',
+      },
+    ],
+    ProvisionedThroughput: {
+      ReadCapacityUnits: 5,
+      WriteCapacityUnits: 5,
+    },
+  },
 ];
 
 /**

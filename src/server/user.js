@@ -187,21 +187,26 @@ export async function getStatus(
       if (request.authToken) {
         const session = await getSession(request.authToken);
         if (session) {
-          if (session.invite && session.invite.BOOL) {
-            return {type: 'accept-invite'};
-          }
           const user = await getUser(session.userId.S);
           if (user) {
             return {
               type: 'logged-in',
-              displayName: user.displayName.S,
-              resetPassword:
+              displayName: user.displayName && user.displayName.S,
+              invite: session.invite && session.invite.BOOL,
+              passwordReset:
                 session.passwordReset && session.passwordReset.BOOL,
             };
           }
         }
       }
-      return {type: 'anonymous'};
+      const settings = await getSettings();
+      return {
+        type: 'anonymous',
+        allowAnonymous:
+          settings && settings.allowAnonymous && settings.allowAnonymous.BOOL,
+        canCreateUser:
+          settings && settings.canCreateUser && settings.canCreateUser.BOOL,
+      };
     }: UserStatusRequest => Promise<UserStatusResponse>),
   );
 }
@@ -214,6 +219,13 @@ async function getSession(token: string): Promise<?Object> {
 }
 
 async function getUser(id: string): Promise<?Object> {
+  const result = await dynamodb
+    .getItem({Key: {id: {S: id}}, TableName: 'Users'})
+    .promise();
+  return result.Item;
+}
+
+async function getSettings(id: string = 'site'): Promise<?Object> {
   const result = await dynamodb
     .getItem({Key: {id: {S: id}}, TableName: 'Users'})
     .promise();

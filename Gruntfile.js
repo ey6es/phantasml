@@ -16,6 +16,7 @@ module.exports = function(grunt) {
             'transform-class-properties',
             'transform-runtime',
             ['flow-runtime', {optInOnly: true}],
+            ['react-intl', {messagesDir: 'build/messages'}],
           ],
         },
         files: [

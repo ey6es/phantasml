@@ -9,19 +9,18 @@ type ApiRequest = {authToken?: string};
 export type UserStatusRequest = ApiRequest;
 export const UserStatusRequestType = (reify: Type<UserStatusRequest>);
 
-type AnonymousResponse = {type: 'anonymous'};
-type LoginRequiredResponse = {type: 'login-required', canCreate: boolean};
-type AcceptInviteResponse = {type: 'accept-invite'};
+type AnonymousResponse = {
+  type: 'anonymous',
+  allowAnonymous: ?boolean,
+  canCreateUser: ?boolean,
+};
 type LoggedInResponse = {
   type: 'logged-in',
-  displayName: string,
-  resetPassword?: boolean,
+  displayName: ?string,
+  invite: ?boolean,
+  passwordReset: ?boolean,
 };
-export type UserStatusResponse =
-  | AnonymousResponse
-  | LoginRequiredResponse
-  | AcceptInviteResponse
-  | LoggedInResponse;
+export type UserStatusResponse = AnonymousResponse | LoggedInResponse;
 
 type PasswordLoginRequest = ApiRequest & {
   type: 'password',
@@ -41,4 +40,4 @@ export type UserLoginResponse = LoggedInResponse | InvalidLoginResponse;
 export type UserLogoutRequest = ApiRequest;
 export const UserLogoutRequestType = (reify: Type<UserLogoutRequest>);
 
-export type UserLogoutResponse = AnonymousResponse | LoginRequiredResponse;
+export type UserLogoutResponse = AnonymousResponse;
