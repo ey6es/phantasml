@@ -1,4 +1,9 @@
-// @flow
+/**
+ * Request handlers related to user management.
+ *
+ * @module server/user
+ * @flow
+ */
 
 import {URL} from 'url';
 import {randomBytes} from 'crypto';

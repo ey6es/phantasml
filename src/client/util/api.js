@@ -1,4 +1,9 @@
-// @flow
+/**
+ * API utility functions.
+ *
+ * @module client/util/api
+ * @flow
+ */
 
 const DEFAULT_API_ENDPOINT = '/api';
 

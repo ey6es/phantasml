@@ -1,5 +1,10 @@
-// @flow
-// @flow-runtime enable
+/**
+ * API types shared between client and server.
+ *
+ * @module server/api
+ * @flow
+ * @flow-runtime enable
+ */
 
 import t, {reify} from 'flow-runtime';
 import type {Type} from 'flow-runtime';

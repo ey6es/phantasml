@@ -254,6 +254,12 @@ module.exports = function(grunt) {
         },
       },
     },
+    documentation: {
+      dist: {
+        options: {destination: 'docs/api'},
+        files: [{expand: true, cwd: 'src', src: '**/*.js'}],
+      },
+    },
   });
 
   // task to open an URL

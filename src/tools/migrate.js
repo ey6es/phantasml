@@ -1,4 +1,9 @@
-// @flow
+/**
+ * Database setup/migration script.
+ *
+ * @module tools/migrate
+ * @flow
+ */
 
 import {DynamoDB} from 'aws-sdk';
 import {inviteEmail} from '../server/user';

@@ -1,9 +1,15 @@
-// @flow
+/**
+ * Client entry point.
+ *
+ * @module client/app
+ * @flow
+ */
 
 import * as React from 'react';
 import * as ReactDOM from 'react-dom';
 import {IntlProvider, FormattedMessage} from 'react-intl';
 import {Modal, ModalHeader, ModalBody, ModalFooter, Button} from 'reactstrap';
+import {LoginDialog, AcceptInviteDialog, PasswordResetDialog} from './user';
 import {getFromApi} from './util/api';
 import type {UserStatusResponse} from '../server/api';
 
@@ -91,18 +97,6 @@ class ErrorDialog extends React.Component<
       </Modal>
     );
   }
-}
-
-function LoginDialog(props: {canCreateUser: ?boolean}) {
-  return <Modal />;
-}
-
-function AcceptInviteDialog(props: {}) {
-  return <Modal />;
-}
-
-function PasswordResetDialog(props: {}) {
-  return <Modal />;
 }
 
 function UserInterface(props: {}) {

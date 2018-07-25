@@ -1,4 +1,9 @@
-// @flow
+/**
+ * Request handler utility functions.
+ *
+ * @module server/util/handler
+ * @flow
+ */
 
 import type {APIGatewayEvent, ProxyResult} from 'flow-aws-lambda';
 import type {Type} from 'flow-runtime';
