@@ -242,7 +242,7 @@ export async function login(
   context: Context,
 ): Promise<ProxyResult> {
   return handleBodyRequest(event, UserLogoutRequestType, async request => {
-    return {};
+    throw new Error('testing');
   });
 }
 

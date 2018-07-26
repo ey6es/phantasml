@@ -11,7 +11,7 @@
   <meta name="pml-api-endpoint" content="@@api-endpoint">
   <style>
     /* loading spinner from https://loading.io/css/ */
-    .lds-dual-ring {
+    .loading {
       display: inline-block;
       width: 64px;
       height: 64px;
@@ -20,7 +20,7 @@
       top: 50%;
       transform: translate(-50%, -50%);
     }
-    .lds-dual-ring:after {
+    .loading:after {
       content: " ";
       display: block;
       width: 46px;
@@ -29,9 +29,9 @@
       border-radius: 50%;
       border: 5px solid #fff;
       border-color: #fff transparent #fff transparent;
-      animation: lds-dual-ring 1.2s linear infinite, lds-fade 1.2s ease-in;
+      animation: loading 1.2s linear infinite, lds-fade 1.2s ease-in;
     }
-    @keyframes lds-dual-ring {
+    @keyframes loading {
       0% { transform: rotate(0deg); }
       100% { transform: rotate(360deg); }
     }
@@ -54,7 +54,7 @@
 </head>
 <body>
   <div id="app">
-    <div class="lds-dual-ring"></div>
+    <div class="loading"></div>
   </div>
   @@live-reload-tag
   <script src="app.min.js"></script>

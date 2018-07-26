@@ -86,5 +86,8 @@ export async function postToApi<RequestType: Object, ResponseType: Object>(
     body: JSON.stringify(Object.assign({authToken}, request)),
   });
   const data = await response.json();
+  if (data.error) {
+    throw new Error(data.error);
+  }
   return data;
 }

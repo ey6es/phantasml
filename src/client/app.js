@@ -12,6 +12,7 @@ import {Modal, ModalHeader, ModalBody, ModalFooter, Button} from 'reactstrap';
 import {Interface} from './interface';
 import {LoginDialog, AcceptInviteDialog, PasswordResetDialog} from './user';
 import {getFromApi} from './util/api';
+import {ServerErrorMessage} from './util/ui';
 import type {UserStatusResponse} from '../server/api';
 
 type UserStatus = UserStatusResponse | Error;
@@ -102,10 +103,7 @@ class ErrorDialog extends React.Component<
           <FormattedMessage id="error.title" defaultMessage="Error" />
         </ModalHeader>
         <ModalBody>
-          <FormattedMessage
-            id="error.message"
-            defaultMessage="Sorry, an error occurred connecting to the server."
-          />
+          <ServerErrorMessage />
         </ModalBody>
         <ModalFooter>
           <Button color="primary" onClick={this._close}>

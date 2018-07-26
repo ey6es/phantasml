@@ -7,7 +7,14 @@
 
 import * as React from 'react';
 import {FormattedMessage} from 'react-intl';
-import {Modal, ModalHeader, ModalBody, ModalFooter, Button} from 'reactstrap';
+import {
+  Modal,
+  ModalHeader,
+  ModalBody,
+  ModalFooter,
+  Button,
+  UncontrolledAlert,
+} from 'reactstrap';
 
 /**
  * Base for dialogs that make requests to the server.
@@ -17,6 +24,8 @@ export class RequestDialog<T> extends React.Component<
     header: mixed,
     children?: mixed,
     makeRequest: () => Promise<T>,
+    invalid?: boolean,
+    getErrorMessage?: Error => ?React.Element<FormattedMessage>,
     onClosed: T => void,
     cancelable?: boolean,
   },
@@ -29,10 +38,10 @@ export class RequestDialog<T> extends React.Component<
   _cancel = this.props.cancelable ? () => this.setState({open: false}) : null;
 
   _submit = async () => {
-    this.setState({loading: true});
+    this.setState({loading: true, error: null});
     try {
       this._result = await this.props.makeRequest();
-      this.setState({open: false, loading: false, error: null});
+      this.setState({open: false, loading: false});
     } catch (error) {
       this.setState({loading: false, error});
     }
@@ -52,19 +61,40 @@ export class RequestDialog<T> extends React.Component<
         <ModalHeader toggle={this.state.loading ? null : this._cancel}>
           {this.props.header}
         </ModalHeader>
-        <ModalBody>{this.props.children}</ModalBody>
+        <ModalBody>
+          {this.props.children}
+          {this.state.error ? (
+            <UncontrolledAlert color="info">
+              {(this.props.getErrorMessage &&
+                this.props.getErrorMessage(this.state.error)) || (
+                <ServerErrorMessage />
+              )}
+            </UncontrolledAlert>
+          ) : null}
+        </ModalBody>
         <ModalFooter>
+          {this.state.loading ? <LoadingSpinner /> : null}
           {this._cancel ? (
             <CancelButton
               disabled={this.state.loading}
               onClick={this._cancel}
             />
           ) : null}
-          <OkButton disabled={this.state.loading} onClick={this._submit} />
+          <OkButton
+            disabled={this.state.loading || this.props.invalid}
+            onClick={this._submit}
+          />
         </ModalFooter>
       </Modal>
     );
   }
+}
+
+/**
+ * A small loading spinner.
+ */
+export function LoadingSpinner() {
+  return <div className="loading loading-small" />;
 }
 
 /**
@@ -90,5 +120,17 @@ export function OkButton(props: Object) {
     <Button color="primary" {...props}>
       <FormattedMessage id="ok" defaultMessage="OK" />
     </Button>
+  );
+}
+
+/**
+ * A generic server error message.
+ */
+export function ServerErrorMessage() {
+  return (
+    <FormattedMessage
+      id="error.server"
+      defaultMessage="Sorry, an error occurred connecting to the server."
+    />
   );
 }
