@@ -9,12 +9,16 @@ import * as React from 'react';
 import * as ReactDOM from 'react-dom';
 import {IntlProvider, FormattedMessage} from 'react-intl';
 import {Modal, ModalHeader, ModalBody, ModalFooter, Button} from 'reactstrap';
+import {Interface} from './interface';
 import {LoginDialog, AcceptInviteDialog, PasswordResetDialog} from './user';
 import {getFromApi} from './util/api';
 import type {UserStatusResponse} from '../server/api';
 
 type UserStatus = UserStatusResponse | Error;
 
+/**
+ * Application root component.
+ */
 class App extends React.Component<
   {initialUserStatus: UserStatus},
   {loading: boolean, locale: string, userStatus: UserStatus},
@@ -25,12 +29,16 @@ class App extends React.Component<
     userStatus: this.props.initialUserStatus,
   };
 
-  fetchUserStatus = async () => {
+  _fetchUserStatus = async () => {
     this.setState({loading: true});
     this.setState({
       loading: false,
       userStatus: await getUserStatus(),
     });
+  };
+
+  _setUserStatus = (status: UserStatus) => {
+    this.setState({userStatus: status});
   };
 
   render() {
@@ -41,12 +49,17 @@ class App extends React.Component<
     let ui: ?React.Element<any>;
     const userStatus = this.state.userStatus;
     if (userStatus instanceof Error) {
-      dialog = <ErrorDialog error={userStatus} retry={this.fetchUserStatus} />;
+      dialog = <ErrorDialog error={userStatus} retry={this._fetchUserStatus} />;
     } else if (userStatus.type === 'anonymous') {
       if (userStatus.allowAnonymous) {
-        ui = <UserInterface />;
+        ui = <Interface userStatus={userStatus} />;
       } else {
-        dialog = <LoginDialog canCreateUser={userStatus.canCreateUser} />;
+        dialog = (
+          <LoginDialog
+            canCreateUser={userStatus.canCreateUser}
+            setUserStatus={this._setUserStatus}
+          />
+        );
       }
     } else {
       // userStatus.type === 'logged-in'
@@ -55,7 +68,7 @@ class App extends React.Component<
       } else if (userStatus.passwordReset) {
         dialog = <PasswordResetDialog />;
       }
-      ui = <UserInterface />;
+      ui = <Interface userStatus={userStatus} />;
     }
     return (
       <IntlProvider locale={this.state.locale} defaultLocale="en-US">
@@ -68,11 +81,16 @@ class App extends React.Component<
   }
 }
 
+/**
+ * Error dialog for initial connection.
+ */
 class ErrorDialog extends React.Component<
   {error: Error, retry: () => mixed},
   {open: boolean},
 > {
   state = {open: true};
+
+  _close = () => this.setState({open: false});
 
   render() {
     return (
@@ -90,17 +108,13 @@ class ErrorDialog extends React.Component<
           />
         </ModalBody>
         <ModalFooter>
-          <Button color="primary" onClick={() => this.setState({open: false})}>
+          <Button color="primary" onClick={this._close}>
             <FormattedMessage id="error.retry" defaultMessage="Retry" />
           </Button>
         </ModalFooter>
       </Modal>
     );
   }
-}
-
-function UserInterface(props: {}) {
-  return <div />;
 }
 
 async function getUserStatus(): Promise<UserStatus> {

@@ -3,8 +3,10 @@
  *
  * @module server/api
  * @flow
- * @flow-runtime enable
  */
+
+// flow-runtime doesn't recognize this in the module comment
+// @flow-runtime enable
 
 import t, {reify} from 'flow-runtime';
 import type {Type} from 'flow-runtime';
@@ -19,7 +21,7 @@ type AnonymousResponse = {
   allowAnonymous: ?boolean,
   canCreateUser: ?boolean,
 };
-type LoggedInResponse = {
+export type LoggedInResponse = {
   type: 'logged-in',
   displayName: ?string,
   invite: ?boolean,
