@@ -44,7 +44,7 @@ class App extends React.Component<
 
   render() {
     if (this.state.loading) {
-      return <div className="lds-dual-ring" />;
+      return <div className="loading" />;
     }
     let dialog: ?React.Element<any>;
     let ui: ?React.Element<any>;
