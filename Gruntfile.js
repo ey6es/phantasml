@@ -127,6 +127,14 @@ module.exports = function(grunt) {
                 replacement: distributionConfig.apiEndpoint,
               },
               {
+                match: 'google-client-id',
+                replacement: config.googleClientId,
+              },
+              {
+                match: 'facebook-app-id',
+                replacement: config.facebookAppId,
+              },
+              {
                 match: 'live-reload-tag',
                 replacement: distributionConfig.liveReload
                   ? '<script src="http://localhost:35729/livereload.js"></script>'

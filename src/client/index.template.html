@@ -8,7 +8,9 @@
     content="A laboratory for experiments in artificial life and machine learning.">
   <meta name="keywords" content="ALife, ML, neural networks">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="pml-api-endpoint" content="@@api-endpoint">
+  <meta name="phantasml-api-endpoint" content="@@api-endpoint">
+  <meta name="google-signin-client_id" content="@@google-client-id">
+  <meta name="facebook-app-id" content="@@facebook-app-id">
   <style>
     /* loading spinner from https://loading.io/css/ */
     .loading {
@@ -57,6 +59,8 @@
     <div class="loading"></div>
   </div>
   @@live-reload-tag
+  <script src="https://apis.google.com/js/platform.js"></script>
+  <script src="https://connect.facebook.net/en-US/sdk.js"></script>
   <script src="app.min.js"></script>
 </body>
 </html>

@@ -5,17 +5,16 @@
  * @flow
  */
 
-const DEFAULT_API_ENDPOINT = '/api';
+// extract the metatag content
+export const metatags: Map<?string, ?string> = new Map(
+  Array.from(document.getElementsByTagName('META'), element => [
+    element.getAttribute('name'),
+    element.getAttribute('content'),
+  ]),
+);
 
-let apiEndpoint = DEFAULT_API_ENDPOINT;
-
-// get the API endpoint from the meta tags
-for (const element of document.getElementsByTagName('META')) {
-  if (element.getAttribute('name') === 'pml-api-endpoint') {
-    apiEndpoint = element.getAttribute('content') || DEFAULT_API_ENDPOINT;
-    break;
-  }
-}
+// get the api endpoint
+const apiEndpoint = metatags.get('phantasml-api-endpoint') || '/api';
 
 // check for, remove auth token parameter
 let authToken: ?string;

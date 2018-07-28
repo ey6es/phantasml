@@ -7,8 +7,18 @@
 
 import * as React from 'react';
 import {FormattedMessage, injectIntl} from 'react-intl';
-import {Form, FormGroup, Label, Input, CustomInput, Modal} from 'reactstrap';
-import {postToApi} from './util/api';
+import {
+  Form,
+  FormGroup,
+  Label,
+  Input,
+  CustomInput,
+  Container,
+  Row,
+  Col,
+  Modal,
+} from 'reactstrap';
+import {metatags, postToApi} from './util/api';
 import {RequestDialog} from './util/ui';
 import type {UserLoginRequest, LoggedInResponse} from '../server/api';
 import {
@@ -17,6 +27,14 @@ import {
   isEmailValid,
   isPasswordValid,
 } from '../server/constants';
+
+declare var gapi: any;
+declare var FB: any;
+
+FB.init({
+  appId: metatags.get('facebook-app-id'),
+  version: 'v3.1',
+});
 
 /**
  * A dialog used for logging in.
@@ -109,9 +127,37 @@ export class LoginDialog extends React.Component<
             />
           </FormGroup>
         </Form>
+        <Container>
+          <Row noGutters className="justify-content-between">
+            <Col md="auto">
+              <div ref={this._renderGoogleButton} />
+            </Col>
+            <Col md="auto">
+              <div
+                ref={this._renderFacebookButton}
+                className="fb-login-button"
+                data-size="large"
+                data-button-type="login_with"
+              />
+            </Col>
+          </Row>
+        </Container>
       </RequestDialog>
     );
   }
+
+  _renderGoogleButton = (element: ?HTMLDivElement) => {
+    element &&
+      gapi.signin2.render(element, {
+        longtitle: true,
+        theme: 'dark',
+        height: 40,
+      });
+  };
+
+  _renderFacebookButton = (element: ?HTMLDivElement) => {
+    element && FB.XFBML.parse(element.parentElement);
+  };
 }
 
 const LabeledCheckbox = injectIntl((props: Object) => {
