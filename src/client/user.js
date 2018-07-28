@@ -6,8 +6,8 @@
  */
 
 import * as React from 'react';
-import {FormattedMessage} from 'react-intl';
-import {Form, FormGroup, Label, Input, Modal} from 'reactstrap';
+import {FormattedMessage, injectIntl} from 'react-intl';
+import {Form, FormGroup, Label, Input, CustomInput, Modal} from 'reactstrap';
 import {postToApi} from './util/api';
 import {RequestDialog} from './util/ui';
 import type {UserLoginRequest, LoggedInResponse} from '../server/api';
@@ -27,15 +27,16 @@ export class LoginDialog extends React.Component<
     setUserStatus: LoggedInResponse => void,
     cancelable?: boolean,
   },
-  {email: string, password: string},
+  {email: string, password: string, stayLoggedIn: boolean},
 > {
-  state = {email: '', password: ''};
+  state = {email: '', password: '', stayLoggedIn: false};
 
   _makeRequest = async () => {
     const request: UserLoginRequest = {
       type: 'password',
       email: this.state.email,
       password: this.state.password,
+      stayLoggedIn: this.state.stayLoggedIn,
     };
     return await postToApi('/user/login', request);
   };
@@ -91,11 +92,40 @@ export class LoginDialog extends React.Component<
               onInput={event => this.setState({password: event.target.value})}
             />
           </FormGroup>
+          <FormGroup>
+            <LabeledCheckbox
+              className="text-center"
+              id="stayLoggedIn"
+              checked={this.state.stayLoggedIn}
+              onChange={event =>
+                this.setState({stayLoggedIn: event.target.checked})
+              }
+              label={
+                <FormattedMessage
+                  id="login.stay_logged_in"
+                  defaultMessage="Stay logged in"
+                />
+              }
+            />
+          </FormGroup>
         </Form>
       </RequestDialog>
     );
   }
 }
+
+const LabeledCheckbox = injectIntl((props: Object) => {
+  return (
+    <CustomInput
+      type="checkbox"
+      {...props}
+      label={props.intl.formatMessage(
+        props.label.props,
+        props.label.props.values,
+      )}
+    />
+  );
+});
 
 export function AcceptInviteDialog(props: {}) {
   return <Modal />;

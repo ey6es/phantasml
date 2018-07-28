@@ -6,7 +6,7 @@
  */
 
 import {URL} from 'url';
-import {randomBytes} from 'crypto';
+import {randomBytes, createHash} from 'crypto';
 import {DynamoDB, SES} from 'aws-sdk';
 import uuid from 'uuid/v1';
 import React from 'react';
@@ -241,9 +241,50 @@ export async function login(
   event: APIGatewayEvent,
   context: Context,
 ): Promise<ProxyResult> {
-  return handleBodyRequest(event, UserLogoutRequestType, async request => {
-    throw new Error('testing');
-  });
+  return handleBodyRequest(
+    event,
+    UserLoginRequestType,
+    (async request => {
+      if (request.type === 'password') {
+        const users = await dynamodb
+          .query({
+            TableName: 'Users',
+            IndexName: 'ExternalId',
+            KeyConditionExpression: 'externalId = :v1',
+            ExpressionAttributeValues: {
+              ':v1': {S: request.email},
+            },
+          })
+          .promise();
+        if (users.Items.length === 0) {
+          throw new Error('error.password');
+        }
+        const user = users.Items[0];
+        if (
+          !(
+            user.passwordSalt &&
+            user.passwordHash &&
+            getPasswordHash(user.passwordSalt.B, request.password) ===
+              user.passwordHash.S
+          )
+        ) {
+          throw new Error('error.password');
+        }
+        return {
+          type: 'logged-in',
+          displayName: user.displayName && user.displayName.S,
+        };
+      }
+      throw new Error('Unknown login type.');
+    }: UserLoginRequest => Promise<UserLoginResponse>),
+  );
+}
+
+function getPasswordHash(salt: Buffer, password: string): string {
+  const hash = createHash('sha256');
+  hash.update(salt);
+  hash.update(password);
+  return hash.digest('base64');
 }
 
 export async function logout(

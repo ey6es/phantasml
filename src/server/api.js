@@ -24,8 +24,8 @@ type AnonymousResponse = {
 export type LoggedInResponse = {
   type: 'logged-in',
   displayName: ?string,
-  invite: ?boolean,
-  passwordReset: ?boolean,
+  invite?: ?boolean,
+  passwordReset?: ?boolean,
 };
 export type UserStatusResponse = AnonymousResponse | LoggedInResponse;
 
@@ -33,6 +33,7 @@ type PasswordLoginRequest = ApiRequest & {
   type: 'password',
   email: string,
   password: string,
+  stayLoggedIn: boolean,
 };
 type FacebookLoginRequest = ApiRequest & {
   type: 'facebook',
@@ -41,8 +42,7 @@ type FacebookLoginRequest = ApiRequest & {
 export type UserLoginRequest = PasswordLoginRequest | FacebookLoginRequest;
 export const UserLoginRequestType = (reify: Type<UserLoginRequest>);
 
-type InvalidLoginResponse = {type: 'invalid-login'};
-export type UserLoginResponse = LoggedInResponse | InvalidLoginResponse;
+export type UserLoginResponse = LoggedInResponse;
 
 export type UserLogoutRequest = ApiRequest;
 export const UserLogoutRequestType = (reify: Type<UserLogoutRequest>);
