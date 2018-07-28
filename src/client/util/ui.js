@@ -7,14 +7,7 @@
 
 import * as React from 'react';
 import {FormattedMessage} from 'react-intl';
-import {
-  Modal,
-  ModalHeader,
-  ModalBody,
-  ModalFooter,
-  Button,
-  UncontrolledAlert,
-} from 'reactstrap';
+import {Modal, ModalHeader, ModalBody, ModalFooter, Button} from 'reactstrap';
 
 /**
  * Base for dialogs that make requests to the server.
@@ -64,12 +57,12 @@ export class RequestDialog<T> extends React.Component<
         <ModalBody>
           {this.props.children}
           {this.state.error ? (
-            <UncontrolledAlert color="info">
+            <div className="text-warning text-center">
               {(this.props.getErrorMessage &&
                 this.props.getErrorMessage(this.state.error)) || (
                 <ServerErrorMessage />
               )}
-            </UncontrolledAlert>
+            </div>
           ) : null}
         </ModalBody>
         <ModalFooter>
