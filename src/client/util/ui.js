@@ -6,8 +6,17 @@
  */
 
 import * as React from 'react';
-import {FormattedMessage} from 'react-intl';
-import {Modal, ModalHeader, ModalBody, ModalFooter, Button} from 'reactstrap';
+import {FormattedMessage, injectIntl} from 'react-intl';
+import {
+  Modal,
+  ModalHeader,
+  ModalBody,
+  ModalFooter,
+  Button,
+  CustomInput,
+  NavItem,
+  NavLink,
+} from 'reactstrap';
 
 /**
  * Base for dialogs that make requests to the server.
@@ -19,6 +28,7 @@ export class RequestDialog<T> extends React.Component<
     makeRequest: () => Promise<T>,
     invalid?: boolean,
     getErrorMessage?: Error => ?React.Element<FormattedMessage>,
+    seenError?: ?Error,
     onClosed: T => void,
     cancelable?: boolean,
   },
@@ -28,23 +38,9 @@ export class RequestDialog<T> extends React.Component<
 
   _result: T;
 
-  _cancel = this.props.cancelable ? () => this.setState({open: false}) : null;
-
-  _submit = async () => {
-    this.setState({loading: true, error: null});
-    try {
-      this._result = await this.props.makeRequest();
-      this.setState({open: false, loading: false});
-    } catch (error) {
-      this.setState({loading: false, error});
-    }
-  };
-
-  _onClosed = () => {
-    this.props.onClosed(this._result);
-  };
-
   render() {
+    const displayError =
+      this.state.error === this.props.seenError ? null : this.state.error;
     return (
       <Modal
         isOpen={this.state.open}
@@ -56,10 +52,10 @@ export class RequestDialog<T> extends React.Component<
         </ModalHeader>
         <ModalBody>
           {this.props.children}
-          {this.state.error ? (
-            <div className="text-warning text-center">
+          {displayError ? (
+            <div className="text-warning text-center request-error">
               {(this.props.getErrorMessage &&
-                this.props.getErrorMessage(this.state.error)) || (
+                this.props.getErrorMessage(displayError)) || (
                 <ServerErrorMessage />
               )}
             </div>
@@ -81,6 +77,22 @@ export class RequestDialog<T> extends React.Component<
       </Modal>
     );
   }
+
+  _cancel = this.props.cancelable ? () => this.setState({open: false}) : null;
+
+  _submit = async () => {
+    this.setState({loading: true, error: null});
+    try {
+      this._result = await this.props.makeRequest();
+      this.setState({open: false, loading: false});
+    } catch (error) {
+      this.setState({loading: false, error});
+    }
+  };
+
+  _onClosed = () => {
+    this.props.onClosed(this._result);
+  };
 }
 
 /**
@@ -127,3 +139,23 @@ export function ServerErrorMessage() {
     />
   );
 }
+
+/**
+ * A checkbox with a translatable label.
+ *
+ * @param props properties to pass to the input component.
+ * @param props.label the label to apply to the checkbox (must be a
+ * FormattedMessage).
+ */
+export const LabeledCheckbox = injectIntl((props: Object) => {
+  return (
+    <CustomInput
+      type="checkbox"
+      {...props}
+      label={props.intl.formatMessage(
+        props.label.props,
+        props.label.props.values,
+      )}
+    />
+  );
+});
