@@ -59,6 +59,7 @@ export class LoginDialog extends React.Component<
   {
     canCreateUser: ?boolean,
     setUserStatus: LoggedInResponse => void,
+    locale: string,
     cancelable?: boolean,
   },
   {
@@ -111,7 +112,7 @@ export class LoginDialog extends React.Component<
           <Tab id="sign_in">
             <FormattedMessage id="login.sign_in" defaultMessage="Sign in" />
           </Tab>
-          {/* this.props.canCreateUser */ true ? (
+          {this.props.canCreateUser ? (
             <Tab id="create_user">
               <FormattedMessage
                 id="login.create_user"
@@ -171,11 +172,17 @@ export class LoginDialog extends React.Component<
           return await postToApi('/user/login', request);
         }
         case 'create_user': {
-          const request: UserCreateRequest = {email: this.state.email};
+          const request: UserCreateRequest = {
+            email: this.state.email,
+            locale: this.props.locale,
+          };
           return [await postToApi('/user/create', request), true];
         }
         case 'forgot_password': {
-          const request: UserPasswordRequest = {email: this.state.email};
+          const request: UserPasswordRequest = {
+            email: this.state.email,
+            locale: this.props.locale,
+          };
           return [await postToApi('/user/password', request), true];
         }
         default:

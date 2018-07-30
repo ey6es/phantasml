@@ -65,7 +65,7 @@ function createUuid() {
  * Sends an email invitation to the provided address.
  *
  * @param email the email to send to.
- * @param [locale='en'] the locale in which to send the email.
+ * @param [locale='en-US'] the locale in which to send the email.
  * @param [admin=false] if true, invite the user as an admin.
  * @param [fromEmail] the email to send from (if not specified, will be
  * retrieved from environment variables).
@@ -75,29 +75,59 @@ function createUuid() {
  */
 export async function inviteEmail(
   email: string,
-  locale: string = 'en',
+  locale: string = 'en-US',
+  admin?: boolean,
+  fromEmail?: string,
+  siteUrl?: string,
+) {
+  await sendLinkEmail(
+    email,
+    locale,
+    <FormattedMessage
+      id="invite.subject"
+      defaultMessage="Come join me in Phantasml!"
+    />,
+    url => (
+      <FormattedMessage
+        id="invite.body.text"
+        defaultMessage="Visit {url} to join me."
+        values={{url}}
+      />
+    ),
+    url => (
+      <FormattedMessage
+        id="invite.body.html"
+        defaultMessage="Visit {url} to join me."
+        values={{url: <a href={url}>{url}</a>}}
+      />
+    ),
+    false,
+    admin,
+    fromEmail,
+    siteUrl,
+  );
+}
+
+async function sendLinkEmail(
+  email: string,
+  locale: string,
+  subject: Element<FormattedMessage>,
+  textBody: (url: string) => Element<FormattedMessage>,
+  htmlBody: (url: string) => Element<FormattedMessage>,
+  passwordReset: boolean = false,
   admin: boolean = false,
   fromEmail: string = process.env.FROM_EMAIL || 'noreply@phantasml.com',
   siteUrl: string = process.env.SITE_URL || 'https://www.phantasml.com',
 ) {
   // see if they already have an account
-  const users = await dynamodb
-    .query({
-      TableName: 'Users',
-      IndexName: 'ExternalId',
-      KeyConditionExpression: 'externalId = :v1',
-      ExpressionAttributeValues: {
-        ':v1': {S: email},
-      },
-      ProjectionExpression: 'id',
-    })
-    .promise();
+  const user = await getUserByExternalId(email);
 
   // create the user item if necessary
   let userId: string;
-  if (users.Items.length > 0) {
-    userId = users.Items[0].id.S;
+  if (user) {
+    userId = user.id.S;
   } else {
+    passwordReset = false;
     userId = createUuid();
     await dynamodb
       .putItem({
@@ -118,7 +148,8 @@ export async function inviteEmail(
       Item: {
         token: {S: token},
         userId: {S: userId},
-        invite: {BOOL: true},
+        invite: {BOOL: !passwordReset},
+        passwordReset: {BOOL: passwordReset},
       },
       TableName: 'Sessions',
     })
@@ -137,34 +168,14 @@ export async function inviteEmail(
       Message: {
         Body: {
           Html: {
-            Data: renderHtml(
-              <FormattedMessage
-                id="invite.body.html"
-                defaultMessage="Visit {url} to join me."
-                values={{url: <a href={url}>{url}</a>}}
-              />,
-              locale,
-            ),
+            Data: renderHtml(htmlBody(url), locale),
           },
           Text: {
-            Data: renderText(
-              <FormattedMessage
-                id="invite.body.text"
-                defaultMessage="Visit {url} to join me."
-                values={{url}}
-              />,
-              locale,
-            ),
+            Data: renderText(textBody(url), locale),
           },
         },
         Subject: {
-          Data: renderText(
-            <FormattedMessage
-              id="invite.subject"
-              defaultMessage="Come join me in Phantasml!"
-            />,
-            locale,
-          ),
+          Data: renderText(subject, locale),
         },
       },
       Source: fromEmail,
@@ -174,7 +185,9 @@ export async function inviteEmail(
 
 function renderHtml(element: Element<*>, locale: string): string {
   return ReactDOMServer.renderToStaticMarkup(
-    <IntlProvider locale={locale}>{element}</IntlProvider>,
+    <IntlProvider locale={locale} defaultLocale="en-US">
+      {element}
+    </IntlProvider>,
   );
 }
 
@@ -182,6 +195,7 @@ function renderText(element: Element<*>, locale: string): string {
   return ReactDOMServer.renderToStaticMarkup(
     <IntlProvider
       locale={locale}
+      defaultLocale="en-US"
       textComponent={(props: {children: string}) => props.children}>
       {element}
     </IntlProvider>,
@@ -257,22 +271,10 @@ export async function login(
     UserLoginRequestType,
     (async request => {
       if (request.type === 'password') {
-        const users = await dynamodb
-          .query({
-            TableName: 'Users',
-            IndexName: 'ExternalId',
-            KeyConditionExpression: 'externalId = :v1',
-            ExpressionAttributeValues: {
-              ':v1': {S: request.email},
-            },
-          })
-          .promise();
-        if (users.Items.length === 0) {
-          throw new Error('error.password');
-        }
-        const user = users.Items[0];
+        const user = await getUserByExternalId(request.email);
         if (
           !(
+            user &&
             user.passwordSalt &&
             user.passwordHash &&
             getPasswordHash(user.passwordSalt.B, request.password) ===
@@ -289,6 +291,20 @@ export async function login(
       throw new Error('Unknown login type.');
     }: UserLoginRequest => Promise<UserLoginResponse>),
   );
+}
+
+async function getUserByExternalId(externalId: string): Promise<?Object> {
+  const users = await dynamodb
+    .query({
+      TableName: 'Users',
+      IndexName: 'ExternalId',
+      KeyConditionExpression: 'externalId = :v1',
+      ExpressionAttributeValues: {
+        ':v1': {S: externalId},
+      },
+    })
+    .promise();
+  return users.Items[0];
 }
 
 function getPasswordHash(salt: Buffer, password: string): string {
@@ -319,6 +335,28 @@ export async function create(
     event,
     UserCreateRequestType,
     (async request => {
+      await sendLinkEmail(
+        request.email,
+        request.locale,
+        <FormattedMessage
+          id="create_user.subject"
+          defaultMessage="Welcome to Phantasml!"
+        />,
+        url => (
+          <FormattedMessage
+            id="create_user.body.text"
+            defaultMessage="Visit {url} to continue the creation process."
+            values={{url}}
+          />
+        ),
+        url => (
+          <FormattedMessage
+            id="create_user.body.html"
+            defaultMessage="Visit {url} to continue the creation process."
+            values={{url: <a href={url}>{url}</a>}}
+          />
+        ),
+      );
       return {};
     }: UserCreateRequest => Promise<UserCreateResponse>),
   );
@@ -332,6 +370,29 @@ export async function password(
     event,
     UserPasswordRequestType,
     (async request => {
+      await sendLinkEmail(
+        request.email,
+        request.locale,
+        <FormattedMessage
+          id="password_reset.subject"
+          defaultMessage="Phantasml password reset"
+        />,
+        url => (
+          <FormattedMessage
+            id="password_reset.body.text"
+            defaultMessage="Visit {url} to reset your password."
+            values={{url}}
+          />
+        ),
+        url => (
+          <FormattedMessage
+            id="password_reset.body.html"
+            defaultMessage="Visit {url} to reset your password."
+            values={{url: <a href={url}>{url}</a>}}
+          />
+        ),
+        true,
+      );
       return {};
     }: UserPasswordRequest => Promise<UserPasswordResponse>),
   );

@@ -59,6 +59,7 @@ class App extends React.Component<
           <LoginDialog
             canCreateUser={userStatus.canCreateUser}
             setUserStatus={this._setUserStatus}
+            locale={this.state.locale}
           />
         );
       }

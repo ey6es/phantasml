@@ -46,10 +46,10 @@ export type UserLogoutRequest = ApiRequest;
 export const UserLogoutRequestType = (reify: Type<UserLogoutRequest>);
 export type UserLogoutResponse = AnonymousResponse;
 
-export type UserCreateRequest = ApiRequest & {email: string};
+export type UserCreateRequest = ApiRequest & {email: string, locale: string};
 export const UserCreateRequestType = (reify: Type<UserCreateRequest>);
 export type UserCreateResponse = {};
 
-export type UserPasswordRequest = ApiRequest & {email: string};
+export type UserPasswordRequest = ApiRequest & {email: string, locale: string};
 export const UserPasswordRequestType = (reify: Type<UserPasswordRequest>);
 export type UserPasswordResponse = {};
