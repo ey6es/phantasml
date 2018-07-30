@@ -20,13 +20,20 @@ import type {
   UserStatusResponse,
   UserLoginRequest,
   UserLoginResponse,
+  AnonymousResponse,
   UserLogoutRequest,
   UserLogoutResponse,
+  UserCreateRequest,
+  UserCreateResponse,
+  UserPasswordRequest,
+  UserPasswordResponse,
 } from './api';
 import {
   UserStatusRequestType,
   UserLoginRequestType,
   UserLogoutRequestType,
+  UserCreateRequestType,
+  UserPasswordRequestType,
 } from './api';
 
 const dynamodb = new DynamoDB();
@@ -204,16 +211,20 @@ export async function getStatus(
           }
         }
       }
-      const settings = await getSettings();
-      return {
-        type: 'anonymous',
-        allowAnonymous:
-          settings && settings.allowAnonymous && settings.allowAnonymous.BOOL,
-        canCreateUser:
-          settings && settings.canCreateUser && settings.canCreateUser.BOOL,
-      };
+      return await getAnonymousResponse();
     }: UserStatusRequest => Promise<UserStatusResponse>),
   );
+}
+
+async function getAnonymousResponse(): Promise<AnonymousResponse> {
+  const settings = await getSettings();
+  return {
+    type: 'anonymous',
+    allowAnonymous:
+      settings && settings.allowAnonymous && settings.allowAnonymous.BOOL,
+    canCreateUser:
+      settings && settings.canCreateUser && settings.canCreateUser.BOOL,
+  };
 }
 
 async function getSession(token: string): Promise<?Object> {
@@ -291,7 +302,37 @@ export async function logout(
   event: APIGatewayEvent,
   context: Context,
 ): Promise<ProxyResult> {
-  return handleBodyRequest(event, UserLogoutRequestType, async request => {
-    return {};
-  });
+  return handleBodyRequest(
+    event,
+    UserLogoutRequestType,
+    (async request => {
+      return await getAnonymousResponse();
+    }: UserLogoutRequest => Promise<UserLogoutResponse>),
+  );
+}
+
+export async function create(
+  event: APIGatewayEvent,
+  context: Context,
+): Promise<ProxyResult> {
+  return handleBodyRequest(
+    event,
+    UserCreateRequestType,
+    (async request => {
+      return {};
+    }: UserCreateRequest => Promise<UserCreateResponse>),
+  );
+}
+
+export async function password(
+  event: APIGatewayEvent,
+  context: Context,
+): Promise<ProxyResult> {
+  return handleBodyRequest(
+    event,
+    UserPasswordRequestType,
+    (async request => {
+      return {};
+    }: UserPasswordRequest => Promise<UserPasswordResponse>),
+  );
 }

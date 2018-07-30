@@ -15,8 +15,7 @@ type ApiRequest = {authToken?: string};
 
 export type UserStatusRequest = ApiRequest;
 export const UserStatusRequestType = (reify: Type<UserStatusRequest>);
-
-type AnonymousResponse = {
+export type AnonymousResponse = {
   type: 'anonymous',
   allowAnonymous: ?boolean,
   canCreateUser: ?boolean,
@@ -41,10 +40,16 @@ type FacebookLoginRequest = ApiRequest & {
 };
 export type UserLoginRequest = PasswordLoginRequest | FacebookLoginRequest;
 export const UserLoginRequestType = (reify: Type<UserLoginRequest>);
-
 export type UserLoginResponse = LoggedInResponse;
 
 export type UserLogoutRequest = ApiRequest;
 export const UserLogoutRequestType = (reify: Type<UserLogoutRequest>);
-
 export type UserLogoutResponse = AnonymousResponse;
+
+export type UserCreateRequest = ApiRequest & {email: string};
+export const UserCreateRequestType = (reify: Type<UserCreateRequest>);
+export type UserCreateResponse = {};
+
+export type UserPasswordRequest = ApiRequest & {email: string};
+export const UserPasswordRequestType = (reify: Type<UserPasswordRequest>);
+export type UserPasswordResponse = {};

@@ -24,7 +24,12 @@ import {
 } from 'reactstrap';
 import {metatags, postToApi} from './util/api';
 import {RequestDialog, LabeledCheckbox} from './util/ui';
-import type {UserLoginRequest, LoggedInResponse} from '../server/api';
+import type {
+  UserLoginRequest,
+  LoggedInResponse,
+  UserCreateRequest,
+  UserPasswordRequest,
+} from '../server/api';
 import {
   MAX_EMAIL_LENGTH,
   MAX_PASSWORD_LENGTH,
@@ -43,7 +48,12 @@ FB.init({
 type LoginDialogTab = 'sign_in' | 'create_user' | 'forgot_password';
 
 /**
- * A dialog used for logging in.
+ * A dialog used for logging in or requesting user creation or password reset.
+ *
+ * @param props.canCreateUser whether we currently allow creating new users.
+ * @param props.setUserStatus the function used to set the user properties in
+ * the containing context.
+ * @param cancelable whether the user can close the dialog without logging in.
  */
 export class LoginDialog extends React.Component<
   {
@@ -56,7 +66,8 @@ export class LoginDialog extends React.Component<
     email: string,
     password: string,
     stayLoggedIn: boolean,
-    seenError: ?Error,
+    loading: boolean,
+    seenResult: ?Object,
   },
 > {
   state = {
@@ -64,17 +75,19 @@ export class LoginDialog extends React.Component<
     email: '',
     password: '',
     stayLoggedIn: false,
-    seenError: null,
+    loading: false,
+    seenResult: null,
   };
 
-  _lastError: ?Error;
+  _lastResult: ?Object;
 
   render() {
     const Tab = (props: {id: LoginDialogTab, children: mixed}) => (
       <NavItem>
         <NavLink
           active={props.id === this.state.activeTab}
-          onClick={() => this._setInputState({activeTab: props.id})}>
+          onClick={() => this._setInputState({activeTab: props.id})}
+          disabled={this.state.loading}>
           {props.children}
         </NavLink>
       </NavItem>
@@ -90,8 +103,8 @@ export class LoginDialog extends React.Component<
               isPasswordValid(this.state.password))
           )
         }
-        getErrorMessage={this._getErrorMessage}
-        seenError={this.state.seenError}
+        getFeedback={this._getFeedback}
+        seenResult={this.state.seenResult}
         onClosed={this._onClosed}
         cancelable={this.props.cancelable}>
         <Nav tabs>
@@ -141,33 +154,78 @@ export class LoginDialog extends React.Component<
   }
 
   _setInputState(state: Object) {
-    this.setState(Object.assign({seenError: this._lastError}, state));
+    this.setState(Object.assign({seenResult: this._lastResult}, state));
   }
 
   _makeRequest = async () => {
-    const request: UserLoginRequest = {
-      type: 'password',
-      email: this.state.email,
-      password: this.state.password,
-      stayLoggedIn: this.state.stayLoggedIn,
-    };
-    return await postToApi('/user/login', request);
-  };
-
-  _getErrorMessage = (error: Error) => {
-    this._lastError = error;
-    if (error.message === 'error.password') {
-      return (
-        <FormattedMessage
-          id="error.password"
-          defaultMessage="The email/password combination entered is invalid."
-        />
-      );
+    this.setState({loading: true});
+    try {
+      switch (this.state.activeTab) {
+        case 'sign_in': {
+          const request: UserLoginRequest = {
+            type: 'password',
+            email: this.state.email,
+            password: this.state.password,
+            stayLoggedIn: this.state.stayLoggedIn,
+          };
+          return await postToApi('/user/login', request);
+        }
+        case 'create_user': {
+          const request: UserCreateRequest = {email: this.state.email};
+          return [await postToApi('/user/create', request), true];
+        }
+        case 'forgot_password': {
+          const request: UserPasswordRequest = {email: this.state.email};
+          return [await postToApi('/user/password', request), true];
+        }
+        default:
+          throw new Error('Unknown tab');
+      }
+    } finally {
+      this.setState({loading: false});
     }
   };
 
-  _onClosed = (response: ?LoggedInResponse) => {
-    response && this.props.setUserStatus(response);
+  _getFeedback = (result: Object) => {
+    // store for rendering
+    this._lastResult = result;
+
+    if (result instanceof Error) {
+      return result.message === 'error.password' ? (
+        <FormattedMessage
+          id="login.error.password"
+          defaultMessage="The email/password combination entered is invalid."
+        />
+      ) : null;
+    }
+    if (this.state.activeTab === 'sign_in') {
+      return;
+    }
+    return (
+      <span className="text-success">
+        {this.state.activeTab === 'create_user' ? (
+          <FormattedMessage
+            id="login.create_user.feedback"
+            defaultMessage={`
+              Thanks!  Check your email for the link to continue the process.
+            `}
+          />
+        ) : (
+          <FormattedMessage
+            id="login.forgot_password.feedback"
+            defaultMessage={`
+              Submitted.  Check your email for the link to reset your password.
+            `}
+          />
+        )}
+      </span>
+    );
+  };
+
+  _onClosed = (response: any) => {
+    response &&
+      response.type === 'logged-in' &&
+      this.props.setUserStatus(response);
   };
 
   _renderSignInPane() {

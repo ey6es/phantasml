@@ -54,3 +54,29 @@ Resources:
           Properties:
             Path: /api/user/logout
             Method: post
+
+  CreateUser:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: user.create
+      Runtime: nodejs8.10
+      CodeUri: ../../build/server
+      Events:
+        Request:
+          Type: Api
+          Properties:
+            Path: /api/user/create
+            Method: post
+
+  UserPassword:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: user.password
+      Runtime: nodejs8.10
+      CodeUri: ../../build/server
+      Events:
+        Request:
+          Type: Api
+          Properties:
+            Path: /api/user/password
+            Method: post

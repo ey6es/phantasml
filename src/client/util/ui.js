@@ -20,27 +20,40 @@ import {
 
 /**
  * Base for dialogs that make requests to the server.
+ *
+ * @param props.header the contents of the dialog header.
+ * @param props.children the contents of the dialog body.
+ * @param props.makeRequest the function to use to make the request.  Return
+ * [result, true] to keep the dialog open even if the request succeeds.
+ * @param props.invalid if true, the input is invalid and the request cannot
+ * be made.
+ * @param props.getFeedback an optional function to generate custom feedback
+ * for result/errors.
+ * @param props.seenResult the last result seen.  If this is equal to the
+ * current result, that result's feedback (if any) will not be rendered.
+ * @param props.onClosed an optional function to invoke with the result (if
+ * any) when the dialog is completely closed.
+ * @param props.cancelable if true, the dialog can be closed without making the
+ * request.
  */
-export class RequestDialog<T> extends React.Component<
+export class RequestDialog<T: Object> extends React.Component<
   {
     header: mixed,
     children?: mixed,
-    makeRequest: () => Promise<T>,
+    makeRequest: () => Promise<T | [T, boolean]>,
     invalid?: boolean,
-    getErrorMessage?: Error => ?React.Element<FormattedMessage>,
-    seenError?: ?Error,
-    onClosed: T => void,
+    getFeedback?: (T | Error) => ?React.Element<any>,
+    seenResult?: ?T | Error,
+    onClosed?: (?T) => void,
     cancelable?: boolean,
   },
-  {open: boolean, loading: boolean, error: ?Error},
+  {open: boolean, loading: boolean, result: ?T | Error},
 > {
-  state = {open: true, loading: false, error: null};
-
-  _result: T;
+  state = {open: true, loading: false, result: null};
 
   render() {
-    const displayError =
-      this.state.error === this.props.seenError ? null : this.state.error;
+    const displayResult =
+      this.state.result === this.props.seenResult ? null : this.state.result;
     return (
       <Modal
         isOpen={this.state.open}
@@ -52,12 +65,13 @@ export class RequestDialog<T> extends React.Component<
         </ModalHeader>
         <ModalBody>
           {this.props.children}
-          {displayError ? (
+          {displayResult ? (
             <div className="text-warning text-center request-error">
-              {(this.props.getErrorMessage &&
-                this.props.getErrorMessage(displayError)) || (
-                <ServerErrorMessage />
-              )}
+              {(this.props.getFeedback &&
+                this.props.getFeedback(displayResult)) ||
+                (displayResult instanceof Error ? (
+                  <ServerErrorMessage />
+                ) : null)}
             </div>
           ) : null}
         </ModalBody>
@@ -81,17 +95,23 @@ export class RequestDialog<T> extends React.Component<
   _cancel = this.props.cancelable ? () => this.setState({open: false}) : null;
 
   _submit = async () => {
-    this.setState({loading: true, error: null});
+    this.setState({loading: true, result: null});
     try {
-      this._result = await this.props.makeRequest();
-      this.setState({open: false, loading: false});
+      const response = await this.props.makeRequest();
+      const [result, open] = Array.isArray(response)
+        ? (response: any)
+        : [response, false];
+      this.setState({open, loading: false, result});
     } catch (error) {
-      this.setState({loading: false, error});
+      this.setState({loading: false, result: error});
     }
   };
 
   _onClosed = () => {
-    this.props.onClosed(this._result);
+    this.props.onClosed &&
+      this.props.onClosed(
+        this.state.result instanceof Error ? null : this.state.result,
+      );
   };
 }
 
