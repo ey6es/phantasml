@@ -25,6 +25,8 @@ import {
  * @param props.children the contents of the dialog body.
  * @param props.makeRequest the function to use to make the request.  Return
  * [result, true] to keep the dialog open even if the request succeeds.
+ * @param props.autoRequest if true, start the request process automatically
+ * (don't wait for the user to click OK).
  * @param props.invalid if true, the input is invalid and the request cannot
  * be made.
  * @param props.getFeedback an optional function to generate custom feedback
@@ -41,6 +43,7 @@ export class RequestDialog<T: Object> extends React.Component<
     header: mixed,
     children?: mixed,
     makeRequest: () => Promise<T | [T, boolean]>,
+    autoRequest?: boolean,
     invalid?: boolean,
     getFeedback?: (T | Error) => ?React.Element<any>,
     seenResult?: ?T | Error,
@@ -90,6 +93,12 @@ export class RequestDialog<T: Object> extends React.Component<
         </ModalFooter>
       </Modal>
     );
+  }
+
+  componentDidUpdate() {
+    if (this.props.autoRequest && !this.state.loading) {
+      this._submit();
+    }
   }
 
   _cancel = this.props.cancelable ? () => this.setState({open: false}) : null;

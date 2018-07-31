@@ -10,6 +10,9 @@ Parameters:
   SiteUrl:
     Type: String
   
+  GoogleClientId:
+    Type: String
+  
 Resources:
 
   GetUserStatus:
@@ -18,10 +21,6 @@ Resources:
       Handler: user.getStatus
       Runtime: nodejs8.10
       CodeUri: ../../build/server
-      Environment:
-        Variables:
-          FROM_EMAIL: !Ref FromEmail
-          SITE_URL: !Ref SiteUrl
       Events:
         Request:
           Type: Api
@@ -35,6 +34,9 @@ Resources:
       Handler: user.login
       Runtime: nodejs8.10
       CodeUri: ../../build/server
+      Environment:
+        Variables:
+          GOOGLE_CLIENT_ID: !Ref GoogleClientId
       Events:
         Request:
           Type: Api
@@ -61,6 +63,10 @@ Resources:
       Handler: user.create
       Runtime: nodejs8.10
       CodeUri: ../../build/server
+      Environment:
+        Variables:
+          FROM_EMAIL: !Ref FromEmail
+          SITE_URL: !Ref SiteUrl
       Events:
         Request:
           Type: Api
@@ -74,6 +80,10 @@ Resources:
       Handler: user.password
       Runtime: nodejs8.10
       CodeUri: ../../build/server
+      Environment:
+        Variables:
+          FROM_EMAIL: !Ref FromEmail
+          SITE_URL: !Ref SiteUrl
       Events:
         Request:
           Type: Api

@@ -14,6 +14,8 @@ import type {Element} from 'react';
 import ReactDOMServer from 'react-dom/server';
 import {IntlProvider, FormattedMessage} from 'react-intl';
 import type {APIGatewayEvent, Context, ProxyResult} from 'flow-aws-lambda';
+import FB from 'fb';
+import {OAuth2Client} from 'google-auth-library';
 import {handleQueryRequest, handleBodyRequest} from './util/handler';
 import type {
   UserStatusRequest,
@@ -38,6 +40,9 @@ import {
 
 const dynamodb = new DynamoDB();
 const ses = new SES();
+
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
+const googleClient = new OAuth2Client(GOOGLE_CLIENT_ID);
 
 /**
  * Creates and returns a random auth token.
@@ -102,6 +107,7 @@ export async function inviteEmail(
       />
     ),
     false,
+    true,
     admin,
     fromEmail,
     siteUrl,
@@ -115,6 +121,7 @@ async function sendLinkEmail(
   textBody: (url: string) => Element<FormattedMessage>,
   htmlBody: (url: string) => Element<FormattedMessage>,
   passwordReset: boolean = false,
+  forceCreateUser: boolean = false,
   admin: boolean = false,
   fromEmail: string = process.env.FROM_EMAIL || 'noreply@phantasml.com',
   siteUrl: string = process.env.SITE_URL || 'https://www.phantasml.com',
@@ -127,6 +134,14 @@ async function sendLinkEmail(
   if (user) {
     userId = user.id.S;
   } else {
+    if (!forceCreateUser) {
+      const settings = await getSettings();
+      if (
+        !(settings && settings.canCreateUser && settings.canCreateUser.BOOL)
+      ) {
+        return;
+      }
+    }
     passwordReset = false;
     userId = createUuid();
     await dynamodb
@@ -287,6 +302,15 @@ export async function login(
           type: 'logged-in',
           displayName: user.displayName && user.displayName.S,
         };
+      }
+      if (request.type === 'facebook') {
+        const user = await FB.api('/me', {access_token: request.accessToken});
+      }
+      if (request.type === 'google') {
+        const ticket = await googleClient.verifyIdToken({
+          idToken: request.idToken,
+          audience: GOOGLE_CLIENT_ID,
+        });
       }
       throw new Error('Unknown login type.');
     }: UserLoginRequest => Promise<UserLoginResponse>),

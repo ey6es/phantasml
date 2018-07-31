@@ -67,6 +67,8 @@ export class LoginDialog extends React.Component<
     email: string,
     password: string,
     stayLoggedIn: boolean,
+    facebookToken: ?string,
+    googleToken: ?string,
     loading: boolean,
     seenResult: ?Object,
   },
@@ -76,6 +78,8 @@ export class LoginDialog extends React.Component<
     email: '',
     password: '',
     stayLoggedIn: false,
+    facebookToken: null,
+    googleToken: null,
     loading: false,
     seenResult: null,
   };
@@ -97,6 +101,7 @@ export class LoginDialog extends React.Component<
       <RequestDialog
         header={<FormattedMessage id="login.title" defaultMessage="Login" />}
         makeRequest={this._makeRequest}
+        autoRequest={!!(this.state.facebookToken || this.state.googleToken)}
         invalid={
           !(
             isEmailValid(this.state.email) &&
@@ -154,6 +159,18 @@ export class LoginDialog extends React.Component<
     );
   }
 
+  componentDidMount() {
+    FB.Event.subscribe('auth.authResponseChange', this._setFBAuthResponse);
+  }
+
+  componentWillUnmount() {
+    FB.Event.unsubscribe('auth.authResponseChange', this._setFBAuthResponse);
+  }
+
+  _setFBAuthResponse = (response: Object) => {
+    response && this.setState({facebookToken: response.accessToken});
+  };
+
   _setInputState(state: Object) {
     this.setState(Object.assign({seenResult: this._lastResult}, state));
   }
@@ -161,6 +178,20 @@ export class LoginDialog extends React.Component<
   _makeRequest = async () => {
     this.setState({loading: true});
     try {
+      if (this.state.facebookToken) {
+        const request: UserLoginRequest = {
+          type: 'facebook',
+          accessToken: this.state.facebookToken,
+        };
+        return await postToApi('/user/login', request);
+      }
+      if (this.state.googleToken) {
+        const request: UserLoginRequest = {
+          type: 'google',
+          idToken: this.state.googleToken,
+        };
+        return await postToApi('/user/login', request);
+      }
       switch (this.state.activeTab) {
         case 'sign_in': {
           const request: UserLoginRequest = {
@@ -189,7 +220,7 @@ export class LoginDialog extends React.Component<
           throw new Error('Unknown tab');
       }
     } finally {
-      this.setState({loading: false});
+      this.setState({loading: false, facebookToken: null, googleToken: null});
     }
   };
 
@@ -334,6 +365,9 @@ export class LoginDialog extends React.Component<
         longtitle: true,
         theme: 'dark',
         height: 40,
+        onsuccess: user => {
+          this.setState({googleToken: user.getAuthResponse(true).id_token});
+        },
       });
   };
 

@@ -205,7 +205,8 @@ module.exports = function(grunt) {
               `--stack-name ${bucket} --s3-bucket ${bucket} ` +
               `--capabilities CAPABILITY_IAM --parameter-overrides ` +
               `FromEmail=${config.fromEmail} ` +
-              `SiteUrl=${distributionConfig.siteUrl}`,
+              `SiteUrl=${distributionConfig.siteUrl} ` +
+              `GoogleClientId=${config.googleClientId}`,
           };
           taskConfig[`s3-${key}`] = {
             cmd:
@@ -244,6 +245,7 @@ module.exports = function(grunt) {
         options: {
           FROM_EMAIL: config.fromEmail,
           SITE_URL: config.distributions.local.siteUrl,
+          GOOGLE_CLIENT_ID: config.googleClientId,
         },
       },
     },

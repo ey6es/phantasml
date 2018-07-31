@@ -34,11 +34,18 @@ type PasswordLoginRequest = ApiRequest & {
   password: string,
   stayLoggedIn: boolean,
 };
+type GoogleLoginRequest = ApiRequest & {
+  type: 'google',
+  idToken: string,
+};
 type FacebookLoginRequest = ApiRequest & {
   type: 'facebook',
   accessToken: string,
 };
-export type UserLoginRequest = PasswordLoginRequest | FacebookLoginRequest;
+export type UserLoginRequest =
+  | PasswordLoginRequest
+  | GoogleLoginRequest
+  | FacebookLoginRequest;
 export const UserLoginRequestType = (reify: Type<UserLoginRequest>);
 export type UserLoginResponse = LoggedInResponse;
 
