@@ -74,16 +74,42 @@ Resources:
             Path: /api/user/create
             Method: post
 
-  UserPassword:
+  SetupUser:
     Type: AWS::Serverless::Function
     Properties:
-      Handler: user.password
+      Handler: user.setup
+      Runtime: nodejs8.10
+      CodeUri: ../../build/server
+      Events:
+        Request:
+          Type: Api
+          Properties:
+            Path: /api/user/setup
+            Method: post
+            
+  UserPasswordReset:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: user.passwordReset
       Runtime: nodejs8.10
       CodeUri: ../../build/server
       Environment:
         Variables:
           FROM_EMAIL: !Ref FromEmail
           SITE_URL: !Ref SiteUrl
+      Events:
+        Request:
+          Type: Api
+          Properties:
+            Path: /api/user/password_reset
+            Method: post
+
+  UserPassword:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: user.password
+      Runtime: nodejs8.10
+      CodeUri: ../../build/server
       Events:
         Request:
           Type: Api

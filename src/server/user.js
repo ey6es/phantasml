@@ -27,6 +27,10 @@ import type {
   UserLogoutResponse,
   UserCreateRequest,
   UserCreateResponse,
+  UserSetupRequest,
+  UserSetupResponse,
+  UserPasswordResetRequest,
+  UserPasswordResetResponse,
   UserPasswordRequest,
   UserPasswordResponse,
 } from './api';
@@ -35,6 +39,8 @@ import {
   UserLoginRequestType,
   UserLogoutRequestType,
   UserCreateRequestType,
+  UserSetupRequestType,
+  UserPasswordResetRequestType,
   UserPasswordRequestType,
 } from './api';
 
@@ -106,7 +112,6 @@ export async function inviteEmail(
         values={{url: <a href={url}>{url}</a>}}
       />
     ),
-    false,
     true,
     admin,
     fromEmail,
@@ -120,7 +125,6 @@ async function sendLinkEmail(
   subject: Element<FormattedMessage>,
   textBody: (url: string) => Element<FormattedMessage>,
   htmlBody: (url: string) => Element<FormattedMessage>,
-  passwordReset: boolean = false,
   forceCreateUser: boolean = false,
   admin: boolean = false,
   fromEmail: string = process.env.FROM_EMAIL || 'noreply@phantasml.com',
@@ -131,8 +135,12 @@ async function sendLinkEmail(
 
   // create the user item if necessary
   let userId: string;
+  let passwordReset = false;
   if (user) {
     userId = user.id.S;
+    if (user.displayName && user.displayName.S) {
+      passwordReset = true;
+    }
   } else {
     if (!forceCreateUser) {
       const settings = await getSettings();
@@ -142,7 +150,6 @@ async function sendLinkEmail(
         return;
       }
     }
-    passwordReset = false;
     userId = createUuid();
     await dynamodb
       .putItem({
@@ -163,7 +170,6 @@ async function sendLinkEmail(
       Item: {
         token: {S: token},
         userId: {S: userId},
-        invite: {BOOL: !passwordReset},
         passwordReset: {BOOL: passwordReset},
       },
       TableName: 'Sessions',
@@ -233,7 +239,6 @@ export async function getStatus(
             return {
               type: 'logged-in',
               displayName: user.displayName && user.displayName.S,
-              invite: session.invite && session.invite.BOOL,
               passwordReset:
                 session.passwordReset && session.passwordReset.BOOL,
             };
@@ -386,13 +391,29 @@ export async function create(
   );
 }
 
-export async function password(
+export async function setup(
   event: APIGatewayEvent,
   context: Context,
 ): Promise<ProxyResult> {
   return handleBodyRequest(
     event,
-    UserPasswordRequestType,
+    UserSetupRequestType,
+    (async request => {
+      return {
+        type: 'logged-in',
+        displayName: '...',
+      };
+    }: UserSetupRequest => Promise<UserSetupResponse>),
+  );
+}
+
+export async function passwordReset(
+  event: APIGatewayEvent,
+  context: Context,
+): Promise<ProxyResult> {
+  return handleBodyRequest(
+    event,
+    UserPasswordResetRequestType,
     (async request => {
       await sendLinkEmail(
         request.email,
@@ -415,8 +436,20 @@ export async function password(
             values={{url: <a href={url}>{url}</a>}}
           />
         ),
-        true,
       );
+      return {};
+    }: UserPasswordResetRequest => Promise<UserPasswordResetResponse>),
+  );
+}
+
+export async function password(
+  event: APIGatewayEvent,
+  context: Context,
+): Promise<ProxyResult> {
+  return handleBodyRequest(
+    event,
+    UserPasswordRequestType,
+    (async request => {
       return {};
     }: UserPasswordRequest => Promise<UserPasswordResponse>),
   );

@@ -239,16 +239,26 @@ module.exports = function(grunt) {
       }
       return taskConfig;
     })(),
-    json_generator: {
-      local: {
-        dest: 'build/environment.json',
-        options: {
+    json_generator: (function() {
+      const taskConfig = {
+        local: {dest: 'build/environment.json', options: {}},
+      };
+      const yaml = require('js-yaml');
+      const template = yaml.safeLoad(
+        require('fs').readFileSync('src/server/template.yaml'),
+        {
+          schema: yaml.Schema.create([new yaml.Type('!Ref', {kind: 'scalar'})]),
+        },
+      );
+      for (const resource in template.Resources) {
+        taskConfig.local.options[resource] = {
           FROM_EMAIL: config.fromEmail,
           SITE_URL: config.distributions.local.siteUrl,
           GOOGLE_CLIENT_ID: config.googleClientId,
-        },
-      },
-    },
+        };
+      }
+      return taskConfig;
+    })(),
     concurrent: {
       options: {logConcurrentOutput: true},
       local: ['watch:local', 'exec:localApi', 'open:local'],

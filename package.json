@@ -50,6 +50,7 @@
     "grunt-replace": "^1.0.1",
     "grunt-rsync": "^2.0.1",
     "husky": "^0.14.3",
+    "js-yaml": "^3.12.0",
     "load-grunt-tasks": "^4.0.0",
     "opn": "^5.3.0",
     "prettier": "^1.13.7",

@@ -23,7 +23,6 @@ export type AnonymousResponse = {
 export type LoggedInResponse = {
   type: 'logged-in',
   displayName: ?string,
-  invite?: ?boolean,
   passwordReset?: ?boolean,
 };
 export type UserStatusResponse = AnonymousResponse | LoggedInResponse;
@@ -57,6 +56,27 @@ export type UserCreateRequest = ApiRequest & {email: string, locale: string};
 export const UserCreateRequestType = (reify: Type<UserCreateRequest>);
 export type UserCreateResponse = {};
 
-export type UserPasswordRequest = ApiRequest & {email: string, locale: string};
+type PasswordSetupRequest = ApiRequest & {
+  type: 'password',
+  displayName: string,
+  password: string,
+};
+export type UserSetupRequest =
+  | PasswordSetupRequest
+  | GoogleLoginRequest
+  | FacebookLoginRequest;
+export const UserSetupRequestType = (reify: Type<UserSetupRequest>);
+export type UserSetupResponse = LoggedInResponse;
+
+export type UserPasswordResetRequest = ApiRequest & {
+  email: string,
+  locale: string,
+};
+export const UserPasswordResetRequestType = (reify: Type<
+  UserPasswordResetRequest,
+>);
+export type UserPasswordResetResponse = {};
+
+export type UserPasswordRequest = ApiRequest & {password: string};
 export const UserPasswordRequestType = (reify: Type<UserPasswordRequest>);
 export type UserPasswordResponse = {};

@@ -10,12 +10,12 @@ import {FormattedMessage} from 'react-intl';
 import {
   Form,
   FormGroup,
+  FormText,
   Label,
   Input,
   Container,
   Row,
   Col,
-  Modal,
   Nav,
   NavItem,
   NavLink,
@@ -28,13 +28,16 @@ import type {
   UserLoginRequest,
   LoggedInResponse,
   UserCreateRequest,
+  UserPasswordResetRequest,
   UserPasswordRequest,
 } from '../server/api';
 import {
   MAX_EMAIL_LENGTH,
   MAX_PASSWORD_LENGTH,
+  MAX_DISPLAY_NAME_LENGTH,
   isEmailValid,
   isPasswordValid,
+  isDisplayNameValid,
 } from '../server/constants';
 
 declare var gapi: any;
@@ -137,39 +140,13 @@ export class LoginDialog extends React.Component<
           {this._renderCreateUserPane()}
           {this._renderForgotPasswordPane()}
         </TabContent>
-        <Container>
-          <div className="text-center login-or">
-            — <FormattedMessage id="login.or" defaultMessage="or" /> —
-          </div>
-          <Row noGutters className="justify-content-between">
-            <Col md="auto">
-              <div ref={this._renderGoogleButton} />
-            </Col>
-            <Col md="auto">
-              <div
-                ref={this._renderFacebookButton}
-                className="fb-login-button"
-                data-size="large"
-                data-button-type="login_with"
-              />
-            </Col>
-          </Row>
-        </Container>
+        <ExternalButtons
+          setGoogleToken={googleToken => this.setState({googleToken})}
+          setFacebookToken={facebookToken => this.setState({facebookToken})}
+        />
       </RequestDialog>
     );
   }
-
-  componentDidMount() {
-    FB.Event.subscribe('auth.authResponseChange', this._setFBAuthResponse);
-  }
-
-  componentWillUnmount() {
-    FB.Event.unsubscribe('auth.authResponseChange', this._setFBAuthResponse);
-  }
-
-  _setFBAuthResponse = (response: Object) => {
-    response && this.setState({facebookToken: response.accessToken});
-  };
 
   _setInputState(state: Object) {
     this.setState(Object.assign({seenResult: this._lastResult}, state));
@@ -210,11 +187,11 @@ export class LoginDialog extends React.Component<
           return [await postToApi('/user/create', request), true];
         }
         case 'forgot_password': {
-          const request: UserPasswordRequest = {
+          const request: UserPasswordResetRequest = {
             email: this.state.email,
             locale: this.props.locale,
           };
-          return [await postToApi('/user/password', request), true];
+          return [await postToApi('/user/password_reset', request), true];
         }
         default:
           throw new Error('Unknown tab');
@@ -271,20 +248,10 @@ export class LoginDialog extends React.Component<
       <TabPane tabId="sign_in">
         <Form>
           {this._renderEmail()}
-          <FormGroup>
-            <Label for="password">
-              <FormattedMessage id="login.password" defaultMessage="Password" />
-            </Label>
-            <Input
-              type="password"
-              id="password"
-              value={this.state.password}
-              valid={isPasswordValid(this.state.password)}
-              onInput={event =>
-                this._setInputState({password: event.target.value})
-              }
-            />
-          </FormGroup>
+          <PasswordGroup
+            value={this.state.password}
+            setValue={value => this._setInputState({password: value})}
+          />
           <LabeledCheckbox
             className="text-center"
             id="stayLoggedIn"
@@ -353,11 +320,155 @@ export class LoginDialog extends React.Component<
           id="email"
           value={this.state.email}
           valid={isEmailValid(this.state.email)}
+          maxLength={MAX_EMAIL_LENGTH}
           onInput={event => this._setInputState({email: event.target.value})}
         />
       </FormGroup>
     );
   }
+}
+
+/**
+ * A dialog used to perform initial user setup.
+ *
+ * @param props.setUserStatus the function used to set the user status in the
+ * containing context.
+ */
+export class UserSetupDialog extends React.Component<
+  {setUserStatus: LoggedInResponse => void},
+  {
+    displayName: string,
+    password: string,
+    reenterPassword: string,
+    facebookToken: ?string,
+    googleToken: ?string,
+  },
+> {
+  state = {
+    displayName: '',
+    password: '',
+    reenterPassword: '',
+    facebookToken: null,
+    googleToken: null,
+  };
+
+  render() {
+    return (
+      <RequestDialog
+        header={
+          <FormattedMessage id="user_setup.title" defaultMessage="Welcome!" />
+        }
+        makeRequest={this._makeRequest}
+        autoRequest={!!(this.state.facebookToken || this.state.googleToken)}
+        invalid={
+          !(
+            isDisplayNameValid(this.state.displayName) &&
+            isPasswordValid(this.state.password) &&
+            this.state.reenterPassword === this.state.password
+          )
+        }
+        onClosed={this._onClosed}>
+        <Form>
+          <FormGroup className="text-center">
+            <FormattedMessage
+              id="user_setup.text"
+              defaultMessage={`
+                Welcome to Phantasml.  Please take a moment to configure
+                your display name and password before continuing.
+              `}
+            />
+          </FormGroup>
+          <FormGroup>
+            <Label for="display-name">
+              <FormattedMessage
+                id="user.display_name"
+                defaultMessage="Display Name"
+              />
+            </Label>
+            <Input
+              id="display-name"
+              value={this.state.displayName}
+              valid={isDisplayNameValid(this.state.displayName)}
+              maxLength={MAX_DISPLAY_NAME_LENGTH}
+              onInput={event =>
+                this.setState({displayName: event.target.value})
+              }
+            />
+            <FormText>
+              <FormattedMessage
+                id="user.display_name.text"
+                defaultMessage="This is how you will be identified to other users."
+              />
+            </FormText>
+          </FormGroup>
+          <VerifiedPasswordGroups
+            password={this.state.password}
+            setPassword={password => this.setState({password})}
+            reenterPassword={this.state.reenterPassword}
+            setReenterPassword={reenterPassword =>
+              this.setState({reenterPassword})
+            }
+          />
+        </Form>
+        <ExternalButtons
+          setGoogleToken={googleToken => this.setState({googleToken})}
+          setFacebookToken={facebookToken => this.setState({facebookToken})}
+        />
+      </RequestDialog>
+    );
+  }
+
+  _makeRequest = async () => {
+    return {};
+  };
+
+  _onClosed = (response: any) => {};
+}
+
+/**
+ * Renders the Google/Facebook login buttons.
+ *
+ * @param props.setGoogleToken the setter for the Google id token.
+ * @param props.setFacebookToken the setter for the Facebook access token.
+ */
+class ExternalButtons extends React.Component<
+  {setGoogleToken: string => void, setFacebookToken: string => void},
+  {},
+> {
+  render() {
+    return (
+      <Container>
+        <div className="text-center login-or">
+          — <FormattedMessage id="login.or" defaultMessage="or" /> —
+        </div>
+        <Row noGutters className="justify-content-between">
+          <Col md="auto">
+            <div ref={this._renderGoogleButton} />
+          </Col>
+          <Col md="auto">
+            <div
+              ref={this._renderFacebookButton}
+              className="fb-login-button"
+              data-size="large"
+              data-button-type="login_with"
+            />
+          </Col>
+        </Row>
+      </Container>
+    );
+  }
+
+  componentDidMount() {
+    FB.Event.subscribe('auth.authResponseChange', this._setFBAuthResponse);
+  }
+
+  componentWillUnmount() {
+    FB.Event.unsubscribe('auth.authResponseChange', this._setFBAuthResponse);
+  }
+
+  _setFBAuthResponse = (response: ?Object) => {
+    response && this.props.setFacebookToken(response.accessToken);
+  };
 
   _renderGoogleButton = (element: ?HTMLDivElement) => {
     element &&
@@ -366,20 +477,133 @@ export class LoginDialog extends React.Component<
         theme: 'dark',
         height: 40,
         onsuccess: user => {
-          this.setState({googleToken: user.getAuthResponse(true).id_token});
+          this.props.setGoogleToken(user.getAuthResponse(true).id_token);
         },
       });
   };
 
-  _renderFacebookButton = (element: ?HTMLDivElement) => {
+  _renderFacebookButton(element: ?HTMLDivElement) {
     element && FB.XFBML.parse(element.parentElement);
+  }
+}
+
+/**
+ * A dialog used to reset the user's password from an email.
+ *
+ * @param props.setUserStatus the function used to set the user status in the
+ * containing context.
+ */
+export class PasswordResetDialog extends React.Component<
+  {setUserStatus: LoggedInResponse => void},
+  {password: string, reenterPassword: string},
+> {
+  state = {password: '', reenterPassword: ''};
+
+  render() {
+    return (
+      <RequestDialog
+        header={
+          <FormattedMessage
+            id="password_reset.title"
+            defaultMessage="Reset Password"
+          />
+        }
+        makeRequest={this._makeRequest}
+        invalid={
+          !(
+            isPasswordValid(this.state.password) &&
+            this.state.reenterPassword === this.state.password
+          )
+        }
+        onClosed={this._onClosed}>
+        <Form>
+          <FormGroup className="text-center">
+            <FormattedMessage
+              id="password_reset.text"
+              defaultMessage={`
+                Please enter and verify the password you
+                would like to use to log in.
+              `}
+            />
+          </FormGroup>
+          <VerifiedPasswordGroups
+            password={this.state.password}
+            setPassword={password => this.setState({password})}
+            reenterPassword={this.state.reenterPassword}
+            setReenterPassword={reenterPassword =>
+              this.setState({reenterPassword})
+            }
+          />
+        </Form>
+      </RequestDialog>
+    );
+  }
+
+  _makeRequest = async () => {
+    return {};
   };
+
+  _onClosed = (response: any) => {};
 }
 
-export function AcceptInviteDialog(props: {}) {
-  return <Modal />;
+/**
+ * Form groups for entering a password and reentering it for verification.
+ *
+ * @param props.password the value of the password field.
+ * @param props.setPassword the function to set the password field.
+ * @param props.reenterPassword the value of the reentered field.
+ * @param props.setReenterPassword the function to set the reentered field.
+ */
+function VerifiedPasswordGroups(props: {
+  password: string,
+  setPassword: string => void,
+  reenterPassword: string,
+  setReenterPassword: string => void,
+}) {
+  return [
+    <PasswordGroup value={props.password} setValue={props.setPassword} />,
+    <FormGroup>
+      <Label for="reenter-password">
+        <FormattedMessage
+          id="user.reenter_password"
+          defaultMessage="Reenter Password"
+        />
+      </Label>
+      <Input
+        type="password"
+        id="reenter-password"
+        value={props.reenterPassword}
+        valid={
+          isPasswordValid(props.password) &&
+          props.reenterPassword === props.password
+        }
+        maxLength={MAX_PASSWORD_LENGTH}
+        onInput={event => props.setReenterPassword(event.target.value)}
+      />
+    </FormGroup>,
+  ];
 }
 
-export function PasswordResetDialog(props: {}) {
-  return <Modal />;
+/**
+ * A form group for entering a password.
+ *
+ * @param props.value the value of the field.
+ * @param props.setValue the function to set the value.
+ */
+function PasswordGroup(props: {value: string, setValue: string => void}) {
+  return (
+    <FormGroup>
+      <Label for="password">
+        <FormattedMessage id="user.password" defaultMessage="Password" />
+      </Label>
+      <Input
+        type="password"
+        id="password"
+        value={props.value}
+        valid={isPasswordValid(props.value)}
+        maxLength={MAX_PASSWORD_LENGTH}
+        onInput={event => props.setValue(event.target.value)}
+      />
+    </FormGroup>
+  );
 }

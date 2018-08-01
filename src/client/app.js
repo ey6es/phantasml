@@ -10,7 +10,7 @@ import * as ReactDOM from 'react-dom';
 import {IntlProvider, FormattedMessage} from 'react-intl';
 import {Modal, ModalHeader, ModalBody, ModalFooter, Button} from 'reactstrap';
 import {Interface} from './interface';
-import {LoginDialog, AcceptInviteDialog, PasswordResetDialog} from './user';
+import {LoginDialog, UserSetupDialog, PasswordResetDialog} from './user';
 import {getFromApi} from './util/api';
 import {ServerErrorMessage} from './util/ui';
 import type {UserStatusResponse} from '../server/api';
@@ -65,10 +65,10 @@ class App extends React.Component<
       }
     } else {
       // userStatus.type === 'logged-in'
-      if (userStatus.invite) {
-        dialog = <AcceptInviteDialog />;
+      if (!userStatus.displayName) {
+        dialog = <UserSetupDialog setUserStatus={this._setUserStatus} />;
       } else if (userStatus.passwordReset) {
-        dialog = <PasswordResetDialog />;
+        dialog = <PasswordResetDialog setUserStatus={this._setUserStatus} />;
       }
       ui = <Interface userStatus={userStatus} />;
     }
