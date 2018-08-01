@@ -9,6 +9,21 @@ import type {APIGatewayEvent, ProxyResult} from 'flow-aws-lambda';
 import type {Type} from 'flow-runtime';
 
 /**
+ * Marker class for errors that will be communicated to the client.
+ *
+ * @param id the translation id of the error.
+ * @param [statusCode=400] the error status code.
+ */
+export class FriendlyError extends Error {
+  statusCode: number;
+
+  constructor(id: string, statusCode: number = 400) {
+    super(id);
+    this.statusCode = statusCode;
+  }
+}
+
+/**
  * Wraps a handler function for a query request, returning an OK result if it
  * returns successfully or an error result if it throws an exception.
  *
@@ -101,13 +116,18 @@ function createOkResult<T: Object>(body: T): ProxyResult {
 }
 
 /**
- * Creates and returns a simple internal error result.
+ * Creates and returns a simple error result.
  *
- * @param message the error message;
+ * @param error the error object.
  * @return the error result.
  */
 function createErrorResult(error: Error): ProxyResult {
-  return createResult(500, {error: error.message});
+  if (error instanceof FriendlyError) {
+    return createResult(error.statusCode, {error: error.message});
+  } else {
+    console.warn(error);
+    return createResult(500, {error: 'error.server'});
+  }
 }
 
 /**

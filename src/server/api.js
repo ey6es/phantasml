@@ -22,6 +22,7 @@ export type AnonymousResponse = {
 };
 export type LoggedInResponse = {
   type: 'logged-in',
+  externalId: string,
   displayName: ?string,
   passwordReset?: ?boolean,
 };

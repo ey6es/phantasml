@@ -335,7 +335,7 @@ export class LoginDialog extends React.Component<
  * containing context.
  */
 export class UserSetupDialog extends React.Component<
-  {setUserStatus: LoggedInResponse => void},
+  {userStatus: LoggedInResponse, setUserStatus: LoggedInResponse => void},
   {
     displayName: string,
     password: string,
@@ -373,9 +373,16 @@ export class UserSetupDialog extends React.Component<
             <FormattedMessage
               id="user_setup.text"
               defaultMessage={`
-                Welcome to Phantasml.  Please take a moment to configure
-                your display name and password before continuing.
+                Welcome to Phantasml.  If you wish to log in as {email}, please
+                take a moment to configure your display name and password.
               `}
+              values={{
+                email: (
+                  <span className="text-info">
+                    {this.props.userStatus.externalId}
+                  </span>
+                ),
+              }}
             />
           </FormGroup>
           <FormGroup>

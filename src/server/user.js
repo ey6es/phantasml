@@ -16,7 +16,11 @@ import {IntlProvider, FormattedMessage} from 'react-intl';
 import type {APIGatewayEvent, Context, ProxyResult} from 'flow-aws-lambda';
 import FB from 'fb';
 import {OAuth2Client} from 'google-auth-library';
-import {handleQueryRequest, handleBodyRequest} from './util/handler';
+import {
+  FriendlyError,
+  handleQueryRequest,
+  handleBodyRequest,
+} from './util/handler';
 import type {
   UserStatusRequest,
   UserStatusResponse,
@@ -164,17 +168,7 @@ async function sendLinkEmail(
   }
 
   // create the invite session
-  const token = createToken();
-  await dynamodb
-    .putItem({
-      Item: {
-        token: {S: token},
-        userId: {S: userId},
-        passwordReset: {BOOL: passwordReset},
-      },
-      TableName: 'Sessions',
-    })
-    .promise();
+  const token = await createSession(userId, passwordReset);
 
   // send the email
   const url = new URL(
@@ -202,6 +196,32 @@ async function sendLinkEmail(
       Source: fromEmail,
     })
     .promise();
+}
+
+async function createSession(
+  userId: string,
+  passwordReset: boolean = false,
+  daysUntilExpiration: number = 365,
+): Promise<string> {
+  const token = createToken();
+  await dynamodb
+    .putItem({
+      Item: {
+        token: {S: token},
+        userId: {S: userId},
+        passwordReset: {BOOL: passwordReset},
+        expirationTime: {
+          N: String(nowInSeconds() + daysUntilExpiration * 24 * 60 * 60),
+        },
+      },
+      TableName: 'Sessions',
+    })
+    .promise();
+  return token;
+}
+
+function nowInSeconds(): number {
+  return Math.round(Date.now() / 1000);
 }
 
 function renderHtml(element: Element<*>, locale: string): string {
@@ -238,6 +258,7 @@ export async function getStatus(
           if (user) {
             return {
               type: 'logged-in',
+              externalId: user.externalId.S,
               displayName: user.displayName && user.displayName.S,
               passwordReset:
                 session.passwordReset && session.passwordReset.BOOL,
@@ -301,10 +322,11 @@ export async function login(
               user.passwordHash.S
           )
         ) {
-          throw new Error('error.password');
+          throw new FriendlyError('error.password');
         }
         return {
           type: 'logged-in',
+          externalId: user.externalId.S,
           displayName: user.displayName && user.displayName.S,
         };
       }
@@ -401,6 +423,7 @@ export async function setup(
     (async request => {
       return {
         type: 'logged-in',
+        externalId: '...',
         displayName: '...',
       };
     }: UserSetupRequest => Promise<UserSetupResponse>),

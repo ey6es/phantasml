@@ -66,7 +66,12 @@ class App extends React.Component<
     } else {
       // userStatus.type === 'logged-in'
       if (!userStatus.displayName) {
-        dialog = <UserSetupDialog setUserStatus={this._setUserStatus} />;
+        dialog = (
+          <UserSetupDialog
+            userStatus={userStatus}
+            setUserStatus={this._setUserStatus}
+          />
+        );
       } else if (userStatus.passwordReset) {
         dialog = <PasswordResetDialog setUserStatus={this._setUserStatus} />;
       }

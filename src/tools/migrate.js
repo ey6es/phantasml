@@ -92,6 +92,8 @@ const TABLES = [
   },
 ];
 
+const TABLE_TTL_ATTRIBUTES: {[string]: string} = {Sessions: 'expirationTime'};
+
 /**
  * Performs all necessary migrations, including creating and seeding tables.
  *
@@ -110,20 +112,38 @@ export default async function migrate(
   const tableList = await dynamodb.listTables().promise();
   const tableNames = new Set(tableList.TableNames);
 
-  // create missing tables, update existing ones
   for (const table of TABLES) {
-    if (!tableNames.has(table.TableName)) {
-      console.log(`Creating table ${table.TableName}`);
+    // create table if it doesn't exist
+    const TableName = table.TableName;
+    if (!tableNames.has(TableName)) {
+      console.log(`Creating table ${TableName}`);
       await dynamodb.createTable(table).promise();
-      await dynamodb
-        .waitFor('tableExists', {TableName: table.TableName})
-        .promise();
+      await dynamodb.waitFor('tableExists', {TableName}).promise();
 
       // seed table if appropriate
-      if (table.TableName === 'Users') {
+      if (TableName === 'Users') {
         console.log('Creating and sending initial admin invite');
-        await inviteEmail(firstAdminEmail, 'en', true, fromEmail, siteUrl);
+        await inviteEmail(firstAdminEmail, 'en-US', true, fromEmail, siteUrl);
       }
+    }
+
+    // enable/disable/configure TTL
+    const ttl = await dynamodb.describeTimeToLive({TableName}).promise();
+    const ttlDesc = ttl.TimeToLiveDescription;
+    const ttlEnabled =
+      ttlDesc.TimeToLiveStatus === 'ENABLED' ||
+      ttlDesc.TimeToLiveStatus === 'ENABLING';
+    const ttlAttribute = ttlEnabled ? ttlDesc.AttributeName : undefined;
+    const AttributeName = TABLE_TTL_ATTRIBUTES[TableName];
+    const Enabled = !!AttributeName;
+    if (ttlEnabled !== Enabled || ttlAttribute !== AttributeName) {
+      console.log(`Updating TTL on ${TableName}`);
+      await dynamodb
+        .updateTimeToLive({
+          TableName,
+          TimeToLiveSpecification: {Enabled, AttributeName},
+        })
+        .promise();
     }
   }
 }
