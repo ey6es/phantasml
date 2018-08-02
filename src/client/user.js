@@ -206,12 +206,26 @@ export class LoginDialog extends React.Component<
     this._lastResult = result;
 
     if (result instanceof Error) {
-      return result.message === 'error.password' ? (
-        <FormattedMessage
-          id="login.error.password"
-          defaultMessage="The email/password combination entered is invalid."
-        />
-      ) : null;
+      switch (result.message) {
+        case 'error.password':
+          return (
+            <FormattedMessage
+              id="login.error.password"
+              defaultMessage={
+                'The email/password combination entered is invalid.'
+              }
+            />
+          );
+        case 'error.create_user':
+          return (
+            <FormattedMessage
+              id="login.error.create_user"
+              defaultMessage="Sorry, the site is currently invite-only."
+            />
+          );
+        default:
+          return;
+      }
     }
     if (this.state.activeTab === 'sign_in') {
       return;

@@ -147,24 +147,11 @@ async function sendLinkEmail(
     }
   } else {
     if (!forceCreateUser) {
-      const settings = await getSettings();
-      if (
-        !(settings && settings.canCreateUser && settings.canCreateUser.BOOL)
-      ) {
+      if (!(await getCanCreateUser())) {
         return;
       }
     }
-    userId = createUuid();
-    await dynamodb
-      .putItem({
-        Item: {
-          id: {S: userId},
-          externalId: {S: email},
-          admin: {BOOL: admin},
-        },
-        TableName: 'Users',
-      })
-      .promise();
+    userId = await createUser(email, '', getGravatarUrl(email), admin);
   }
 
   // create the invite session
@@ -198,30 +185,10 @@ async function sendLinkEmail(
     .promise();
 }
 
-async function createSession(
-  userId: string,
-  passwordReset: boolean = false,
-  daysUntilExpiration: number = 365,
-): Promise<string> {
-  const token = createToken();
-  await dynamodb
-    .putItem({
-      Item: {
-        token: {S: token},
-        userId: {S: userId},
-        passwordReset: {BOOL: passwordReset},
-        expirationTime: {
-          N: String(nowInSeconds() + daysUntilExpiration * 24 * 60 * 60),
-        },
-      },
-      TableName: 'Sessions',
-    })
-    .promise();
-  return token;
-}
-
-function nowInSeconds(): number {
-  return Math.round(Date.now() / 1000);
+function getGravatarUrl(email: string) {
+  const hash = createHash('md5');
+  hash.update(email.trim().toLowerCase());
+  return `https://www.gravatar.com/avatar/${hash.digest('hex')}?d=retro`;
 }
 
 function renderHtml(element: Element<*>, locale: string): string {
@@ -260,6 +227,7 @@ export async function getStatus(
               type: 'logged-in',
               externalId: user.externalId.S,
               displayName: user.displayName && user.displayName.S,
+              imageUrl: user.imageUrl && user.imageUrl.S,
               passwordReset:
                 session.passwordReset && session.passwordReset.BOOL,
             };
@@ -296,6 +264,11 @@ async function getUser(id: string): Promise<?Object> {
   return result.Item;
 }
 
+async function getCanCreateUser(): Promise<?boolean> {
+  const settings = await getSettings();
+  return settings && settings.canCreateUser && settings.canCreateUser.BOOL;
+}
+
 async function getSettings(id: string = 'site'): Promise<?Object> {
   const result = await dynamodb
     .getItem({Key: {id: {S: id}}, TableName: 'Users'})
@@ -324,22 +297,72 @@ export async function login(
         ) {
           throw new FriendlyError('error.password');
         }
+        const imageUrl = user.imageUrl && user.imageUrl.S;
+        const gravatarUrl = getGravatarUrl(request.email);
+        if (imageUrl !== gravatarUrl) {
+          updateUser(user.id.S, {imageUrl: {S: gravatarUrl}});
+        }
+        const token = await createSession(
+          user.id.S,
+          false,
+          request.stayLoggedIn ? 365 : 7,
+        );
         return {
           type: 'logged-in',
           externalId: user.externalId.S,
+          authToken: token,
+          persistAuthToken: request.stayLoggedIn,
           displayName: user.displayName && user.displayName.S,
+          imageUrl: gravatarUrl,
         };
       }
+      let externalId: string;
+      let displayName: string;
+      let imageUrl: string;
       if (request.type === 'facebook') {
         const user = await FB.api('/me', {access_token: request.accessToken});
-      }
-      if (request.type === 'google') {
+        externalId = `facebook:${user.id}`;
+        displayName = user.first_name;
+        imageUrl = user.profile_pic;
+      } else if (request.type === 'google') {
         const ticket = await googleClient.verifyIdToken({
           idToken: request.idToken,
           audience: GOOGLE_CLIENT_ID,
         });
+        const payload = ticket.getPayload();
+        externalId = `google:${payload.sub}`;
+        displayName = payload.given_name;
+        imageUrl = payload.picture;
+      } else {
+        throw new Error('Unknown login type.');
       }
-      throw new Error('Unknown login type.');
+      let userId: string;
+      let user = await getUserByExternalId(externalId);
+      if (user) {
+        userId = user.id.S;
+        if (
+          user.displayName.S !== displayName ||
+          user.imageUrl.S !== imageUrl
+        ) {
+          updateUser(userId, {
+            displayName: {S: displayName},
+            imageUrl: {S: imageUrl},
+          });
+        }
+      } else {
+        if (!(await getCanCreateUser())) {
+          throw new FriendlyError('error.create_user');
+        }
+        userId = await createUser(externalId, displayName, imageUrl);
+      }
+      const token = await createSession(userId, false, 7);
+      return {
+        type: 'logged-in',
+        externalId,
+        authToken: token,
+        displayName,
+        imageUrl,
+      };
     }: UserLoginRequest => Promise<UserLoginResponse>),
   );
 }
@@ -356,6 +379,57 @@ async function getUserByExternalId(externalId: string): Promise<?Object> {
     })
     .promise();
   return users.Items[0];
+}
+
+async function createUser(
+  externalId: string,
+  displayName: string = '',
+  imageUrl: string = '',
+  admin: boolean = false,
+): Promise<string> {
+  const userId = createUuid();
+  await dynamodb
+    .putItem({
+      Item: {
+        id: {S: userId},
+        externalId: {S: externalId},
+        displayName: {S: displayName},
+        imageUrl: {S: imageUrl},
+        admin: {BOOL: admin},
+      },
+      TableName: 'Users',
+    })
+    .promise();
+  return userId;
+}
+
+async function updateUser(userId: string, attributes: Object) {
+  await updateItem('Users', {id: {S: userId}}, attributes);
+}
+
+async function updateItem(TableName: string, Key: Object, attributes: Object) {
+  let ExpressionAttributeNames = {};
+  let ExpressionAttributeValues = {};
+  let UpdateExpression = '';
+  for (const key in attributes) {
+    ExpressionAttributeNames['#' + key] = key;
+    ExpressionAttributeValues[':' + key] = attributes[key];
+    if (UpdateExpression) {
+      UpdateExpression += ',';
+    } else {
+      UpdateExpression = 'SET';
+    }
+    UpdateExpression += ` #${key} = :${key}`;
+  }
+  await dynamodb
+    .updateItem({
+      ExpressionAttributeNames,
+      ExpressionAttributeValues,
+      Key,
+      TableName,
+      UpdateExpression,
+    })
+    .promise();
 }
 
 function getPasswordHash(salt: Buffer, password: string): string {
@@ -423,11 +497,40 @@ export async function setup(
     (async request => {
       return {
         type: 'logged-in',
+        authToken: '...',
+        persistAuthToken: false,
         externalId: '...',
         displayName: '...',
+        imageUrl: '...',
       };
     }: UserSetupRequest => Promise<UserSetupResponse>),
   );
+}
+
+async function createSession(
+  userId: string,
+  passwordReset: boolean = false,
+  daysUntilExpiration: number = 365,
+): Promise<string> {
+  const token = createToken();
+  await dynamodb
+    .putItem({
+      Item: {
+        token: {S: token},
+        userId: {S: userId},
+        passwordReset: {BOOL: passwordReset},
+        expirationTime: {
+          N: String(nowInSeconds() + daysUntilExpiration * 24 * 60 * 60),
+        },
+      },
+      TableName: 'Sessions',
+    })
+    .promise();
+  return token;
+}
+
+function nowInSeconds(): number {
+  return Math.round(Date.now() / 1000);
 }
 
 export async function passwordReset(

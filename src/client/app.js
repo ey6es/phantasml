@@ -11,7 +11,7 @@ import {IntlProvider, FormattedMessage} from 'react-intl';
 import {Modal, ModalHeader, ModalBody, ModalFooter, Button} from 'reactstrap';
 import {Interface} from './interface';
 import {LoginDialog, UserSetupDialog, PasswordResetDialog} from './user';
-import {getFromApi} from './util/api';
+import {setAuthToken, clearAuthToken, getFromApi} from './util/api';
 import {ServerErrorMessage} from './util/ui';
 import type {UserStatusResponse} from '../server/api';
 
@@ -39,6 +39,14 @@ class App extends React.Component<
   };
 
   _setUserStatus = (status: UserStatus) => {
+    // store or clear the auth token if appropriate
+    if (!(status instanceof Error)) {
+      if (status.type === 'anonymous') {
+        clearAuthToken();
+      } else if (status.authToken) {
+        setAuthToken(status.authToken, status.persistAuthToken);
+      }
+    }
     this.setState({userStatus: status});
   };
 
