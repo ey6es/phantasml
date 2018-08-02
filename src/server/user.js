@@ -24,6 +24,7 @@ import {
 import type {
   UserStatusRequest,
   UserStatusResponse,
+  ExternalLoginRequest,
   UserLoginRequest,
   UserLoginResponse,
   AnonymousResponse,
@@ -47,6 +48,7 @@ import {
   UserPasswordResetRequestType,
   UserPasswordRequestType,
 } from './api';
+import {isDisplayNameValid} from './constants';
 
 const dynamodb = new DynamoDB();
 const ses = new SES();
@@ -155,7 +157,7 @@ async function sendLinkEmail(
   }
 
   // create the invite session
-  const token = await createSession(userId, passwordReset);
+  const token = await createSession(userId, true, passwordReset);
 
   // send the email
   const url = new URL(
@@ -250,20 +252,6 @@ async function getAnonymousResponse(): Promise<AnonymousResponse> {
   };
 }
 
-async function getSession(token: string): Promise<?Object> {
-  const result = await dynamodb
-    .getItem({Key: {token: {S: token}}, TableName: 'Sessions'})
-    .promise();
-  return result.Item;
-}
-
-async function getUser(id: string): Promise<?Object> {
-  const result = await dynamodb
-    .getItem({Key: {id: {S: id}}, TableName: 'Users'})
-    .promise();
-  return result.Item;
-}
-
 async function getCanCreateUser(): Promise<?boolean> {
   const settings = await getSettings();
   return settings && settings.canCreateUser && settings.canCreateUser.BOOL;
@@ -302,11 +290,7 @@ export async function login(
         if (imageUrl !== gravatarUrl) {
           updateUser(user.id.S, {imageUrl: {S: gravatarUrl}});
         }
-        const token = await createSession(
-          user.id.S,
-          false,
-          request.stayLoggedIn ? 365 : 7,
-        );
+        const token = await createSession(user.id.S, request.stayLoggedIn);
         return {
           type: 'logged-in',
           externalId: user.externalId.S,
@@ -316,26 +300,9 @@ export async function login(
           imageUrl: gravatarUrl,
         };
       }
-      let externalId: string;
-      let displayName: string;
-      let imageUrl: string;
-      if (request.type === 'facebook') {
-        const user = await FB.api('/me', {access_token: request.accessToken});
-        externalId = `facebook:${user.id}`;
-        displayName = user.first_name;
-        imageUrl = user.profile_pic;
-      } else if (request.type === 'google') {
-        const ticket = await googleClient.verifyIdToken({
-          idToken: request.idToken,
-          audience: GOOGLE_CLIENT_ID,
-        });
-        const payload = ticket.getPayload();
-        externalId = `google:${payload.sub}`;
-        displayName = payload.given_name;
-        imageUrl = payload.picture;
-      } else {
-        throw new Error('Unknown login type.');
-      }
+      const [externalId, displayName, imageUrl] = await getExternalLogin(
+        request,
+      );
       let userId: string;
       let user = await getUserByExternalId(externalId);
       if (user) {
@@ -355,7 +322,7 @@ export async function login(
         }
         userId = await createUser(externalId, displayName, imageUrl);
       }
-      const token = await createSession(userId, false, 7);
+      const token = await createSession(userId);
       return {
         type: 'logged-in',
         externalId,
@@ -432,13 +399,6 @@ async function updateItem(TableName: string, Key: Object, attributes: Object) {
     .promise();
 }
 
-function getPasswordHash(salt: Buffer, password: string): string {
-  const hash = createHash('sha256');
-  hash.update(salt);
-  hash.update(password);
-  return hash.digest('base64');
-}
-
 export async function logout(
   event: APIGatewayEvent,
   context: Context,
@@ -495,42 +455,65 @@ export async function setup(
     event,
     UserSetupRequestType,
     (async request => {
+      const session = await requireSession(request.authToken);
+      const userId = session.userId.S;
+      let externalId: string;
+      let displayName: string;
+      let imageUrl: string;
+      let persistAuthToken = false;
+      if (request.type === 'password') {
+        if (!isDisplayNameValid(request.displayName)) {
+          throw new Error('Invalid display name: ' + request.displayName);
+        }
+        const user = await requireUser(userId);
+        const email = user.externalId.S;
+        [externalId, displayName, imageUrl, persistAuthToken] = [
+          email,
+          request.displayName,
+          getGravatarUrl(email),
+          request.stayLoggedIn,
+        ];
+        await updateUser(userId, {
+          displayName: {S: displayName},
+          imageUrl: {S: imageUrl},
+          ...getPasswordAttributes(request.password),
+        });
+      } else {
+        [externalId, displayName, imageUrl] = await getExternalLogin(request);
+        await updateUser(userId, {
+          externalId: {S: externalId},
+          displayName: {S: displayName},
+          imageUrl: {S: imageUrl},
+        });
+      }
+      const token = await createSession(userId, persistAuthToken);
       return {
         type: 'logged-in',
-        authToken: '...',
-        persistAuthToken: false,
-        externalId: '...',
-        displayName: '...',
-        imageUrl: '...',
+        authToken: token,
+        persistAuthToken,
+        externalId,
+        displayName,
+        imageUrl,
       };
     }: UserSetupRequest => Promise<UserSetupResponse>),
   );
 }
 
-async function createSession(
-  userId: string,
-  passwordReset: boolean = false,
-  daysUntilExpiration: number = 365,
-): Promise<string> {
-  const token = createToken();
-  await dynamodb
-    .putItem({
-      Item: {
-        token: {S: token},
-        userId: {S: userId},
-        passwordReset: {BOOL: passwordReset},
-        expirationTime: {
-          N: String(nowInSeconds() + daysUntilExpiration * 24 * 60 * 60),
-        },
-      },
-      TableName: 'Sessions',
-    })
-    .promise();
-  return token;
-}
-
-function nowInSeconds(): number {
-  return Math.round(Date.now() / 1000);
+async function getExternalLogin(
+  request: ExternalLoginRequest,
+): Promise<[string, string, string]> {
+  if (request.type === 'facebook') {
+    const user = await FB.api('/me', {access_token: request.accessToken});
+    return [`facebook:${user.id}`, user.first_name, user.profile_pic];
+  } else {
+    // request.type === 'google'
+    const ticket = await googleClient.verifyIdToken({
+      idToken: request.idToken,
+      audience: GOOGLE_CLIENT_ID,
+    });
+    const payload = ticket.getPayload();
+    return [`google:${payload.sub}`, payload.given_name, payload.picture];
+  }
 }
 
 export async function passwordReset(
@@ -576,7 +559,96 @@ export async function password(
     event,
     UserPasswordRequestType,
     (async request => {
-      return {};
+      const session = await requireSession(request.authToken);
+      const userId = session.userId.S;
+      const [user, result, token] = await Promise.all([
+        requireUser(userId),
+        updateUser(userId, getPasswordAttributes(request.password)),
+        createSession(userId, request.stayLoggedIn),
+      ]);
+      return {
+        type: 'logged-in',
+        authToken: token,
+        persistAuthToken: request.stayLoggedIn,
+        externalId: user.externalId.S,
+        displayName: user.displayName.S,
+        imageUrl: getGravatarUrl(user.externalId.S),
+      };
     }: UserPasswordRequest => Promise<UserPasswordResponse>),
   );
+}
+
+async function requireSession(token: ?string): Promise<Object> {
+  if (!token) {
+    throw new Error('Missing token.');
+  }
+  const session = await getSession(token);
+  if (!session) {
+    throw new FriendlyError('error.expired');
+  }
+  return session;
+}
+
+async function getSession(token: string): Promise<?Object> {
+  const result = await dynamodb
+    .getItem({Key: {token: {S: token}}, TableName: 'Sessions'})
+    .promise();
+  return result.Item;
+}
+
+async function requireUser(id: string): Promise<Object> {
+  const user = await getUser(id);
+  if (!user) {
+    throw new Error('Missing user: ' + id);
+  }
+  return user;
+}
+
+async function getUser(id: string): Promise<?Object> {
+  const result = await dynamodb
+    .getItem({Key: {id: {S: id}}, TableName: 'Users'})
+    .promise();
+  return result.Item;
+}
+
+async function createSession(
+  userId: string,
+  persistent: boolean = false,
+  passwordReset: boolean = false,
+): Promise<string> {
+  const token = createToken();
+  const daysUntilExpiration = persistent ? 365 : 7;
+  await dynamodb
+    .putItem({
+      Item: {
+        token: {S: token},
+        userId: {S: userId},
+        passwordReset: {BOOL: passwordReset},
+        expirationTime: {
+          N: String(nowInSeconds() + daysUntilExpiration * 24 * 60 * 60),
+        },
+      },
+      TableName: 'Sessions',
+    })
+    .promise();
+  return token;
+}
+
+function nowInSeconds(): number {
+  return Math.round(Date.now() / 1000);
+}
+
+function getPasswordAttributes(password: string): Object {
+  const salt = randomBytes(16);
+  return {
+    passwordSalt: {B: salt},
+    passwordHash: {S: getPasswordHash(salt, password)},
+  };
+}
+
+function getPasswordHash(salt: Buffer, password: string): string {
+  const hash = createHash('sha256');
+  hash.update(salt);
+  hash.update(password);
+  return hash.digest('base64');
 }

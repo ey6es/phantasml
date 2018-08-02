@@ -73,7 +73,7 @@ export class RequestDialog<T: Object> extends React.Component<
               {(this.props.getFeedback &&
                 this.props.getFeedback(displayResult)) ||
                 (displayResult instanceof Error ? (
-                  <ServerErrorMessage />
+                  <ErrorMessage error={displayResult} />
                 ) : null)}
             </div>
           ) : null}
@@ -155,6 +155,22 @@ export function OkButton(props: Object) {
       <FormattedMessage id="ok" defaultMessage="OK" />
     </Button>
   );
+}
+
+function ErrorMessage(props: {error: Error}) {
+  switch (props.error.message) {
+    case 'error.expired':
+      return (
+        <FormattedMessage
+          id="error.expired"
+          defaultMessage={
+            'Sorry, your session has expired.  Please reload the page.'
+          }
+        />
+      );
+    default:
+      return <ServerErrorMessage />;
+  }
 }
 
 /**

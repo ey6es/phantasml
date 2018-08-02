@@ -45,10 +45,8 @@ type FacebookLoginRequest = ApiRequest & {
   type: 'facebook',
   accessToken: string,
 };
-export type UserLoginRequest =
-  | PasswordLoginRequest
-  | GoogleLoginRequest
-  | FacebookLoginRequest;
+export type ExternalLoginRequest = GoogleLoginRequest | FacebookLoginRequest;
+export type UserLoginRequest = PasswordLoginRequest | ExternalLoginRequest;
 export const UserLoginRequestType = (reify: Type<UserLoginRequest>);
 export type UserLoginResponse = LoggedInResponse;
 
@@ -64,11 +62,9 @@ type PasswordSetupRequest = ApiRequest & {
   type: 'password',
   displayName: string,
   password: string,
+  stayLoggedIn: boolean,
 };
-export type UserSetupRequest =
-  | PasswordSetupRequest
-  | GoogleLoginRequest
-  | FacebookLoginRequest;
+export type UserSetupRequest = PasswordSetupRequest | ExternalLoginRequest;
 export const UserSetupRequestType = (reify: Type<UserSetupRequest>);
 export type UserSetupResponse = LoggedInResponse;
 
@@ -81,6 +77,9 @@ export const UserPasswordResetRequestType = (reify: Type<
 >);
 export type UserPasswordResetResponse = {};
 
-export type UserPasswordRequest = ApiRequest & {password: string};
+export type UserPasswordRequest = ApiRequest & {
+  password: string,
+  stayLoggedIn: boolean,
+};
 export const UserPasswordRequestType = (reify: Type<UserPasswordRequest>);
-export type UserPasswordResponse = {};
+export type UserPasswordResponse = LoggedInResponse;

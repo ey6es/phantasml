@@ -14,6 +14,7 @@ module.exports = function(grunt) {
           presets: ['env', 'react'],
           plugins: [
             'transform-class-properties',
+            'transform-object-rest-spread',
             'transform-runtime',
             ['flow-runtime', {optInOnly: true}],
             ['react-intl', {messagesDir: 'build/messages'}],

@@ -30,6 +30,7 @@ import type {
   UserCreateRequest,
   UserPasswordResetRequest,
   UserPasswordRequest,
+  UserSetupRequest,
 } from '../server/api';
 import {
   MAX_EMAIL_LENGTH,
@@ -266,19 +267,9 @@ export class LoginDialog extends React.Component<
             value={this.state.password}
             setValue={value => this._setInputState({password: value})}
           />
-          <LabeledCheckbox
-            className="text-center"
-            id="stayLoggedIn"
-            checked={this.state.stayLoggedIn}
-            onChange={event =>
-              this._setInputState({stayLoggedIn: event.target.checked})
-            }
-            label={
-              <FormattedMessage
-                id="login.stay_logged_in"
-                defaultMessage="Stay logged in"
-              />
-            }
+          <StayLoggedInCheckbox
+            value={this.state.stayLoggedIn}
+            setValue={value => this._setInputState({stayLoggedIn: value})}
           />
         </Form>
       </TabPane>
@@ -354,6 +345,7 @@ export class UserSetupDialog extends React.Component<
     displayName: string,
     password: string,
     reenterPassword: string,
+    stayLoggedIn: boolean,
     facebookToken: ?string,
     googleToken: ?string,
   },
@@ -362,6 +354,7 @@ export class UserSetupDialog extends React.Component<
     displayName: '',
     password: '',
     reenterPassword: '',
+    stayLoggedIn: false,
     facebookToken: null,
     googleToken: null,
   };
@@ -430,6 +423,10 @@ export class UserSetupDialog extends React.Component<
               this.setState({reenterPassword})
             }
           />
+          <StayLoggedInCheckbox
+            value={this.state.stayLoggedIn}
+            setValue={value => this.setState({stayLoggedIn: value})}
+          />
         </Form>
         <ExternalButtons
           setGoogleToken={googleToken => this.setState({googleToken})}
@@ -440,10 +437,36 @@ export class UserSetupDialog extends React.Component<
   }
 
   _makeRequest = async () => {
-    return {};
+    try {
+      if (this.state.facebookToken) {
+        const request: UserSetupRequest = {
+          type: 'facebook',
+          accessToken: this.state.facebookToken,
+        };
+        return await postToApi('/user/setup', request);
+      }
+      if (this.state.googleToken) {
+        const request: UserSetupRequest = {
+          type: 'google',
+          idToken: this.state.googleToken,
+        };
+        return await postToApi('/user/setup', request);
+      }
+      const request: UserSetupRequest = {
+        type: 'password',
+        displayName: this.state.displayName,
+        password: this.state.password,
+        stayLoggedIn: this.state.stayLoggedIn,
+      };
+      return await postToApi('/user/setup', request);
+    } finally {
+      this.setState({facebookToken: null, googleToken: null});
+    }
   };
 
-  _onClosed = (response: any) => {};
+  _onClosed = (response: any) => {
+    response && this.props.setUserStatus(response);
+  };
 }
 
 /**
@@ -516,9 +539,9 @@ class ExternalButtons extends React.Component<
  */
 export class PasswordResetDialog extends React.Component<
   {setUserStatus: LoggedInResponse => void},
-  {password: string, reenterPassword: string},
+  {password: string, reenterPassword: string, stayLoggedIn: boolean},
 > {
-  state = {password: '', reenterPassword: ''};
+  state = {password: '', reenterPassword: '', stayLoggedIn: false};
 
   render() {
     return (
@@ -555,16 +578,26 @@ export class PasswordResetDialog extends React.Component<
               this.setState({reenterPassword})
             }
           />
+          <StayLoggedInCheckbox
+            value={this.state.stayLoggedIn}
+            setValue={value => this.setState({stayLoggedIn: value})}
+          />
         </Form>
       </RequestDialog>
     );
   }
 
   _makeRequest = async () => {
-    return {};
+    const request: UserPasswordRequest = {
+      password: this.state.password,
+      stayLoggedIn: this.state.stayLoggedIn,
+    };
+    return await postToApi('/user/password', request);
   };
 
-  _onClosed = (response: any) => {};
+  _onClosed = (response: any) => {
+    response && this.props.setUserStatus(response);
+  };
 }
 
 /**
@@ -626,5 +659,32 @@ function PasswordGroup(props: {value: string, setValue: string => void}) {
         onInput={event => props.setValue(event.target.value)}
       />
     </FormGroup>
+  );
+}
+
+/**
+ * A labeled checkbox providing the option to stay logged in (that is, to
+ * create a persistent session).
+ *
+ * @param props.value the value of the checkbox.
+ * @param props.setValue the function to set the value.
+ */
+function StayLoggedInCheckbox(props: {
+  value: boolean,
+  setValue: boolean => void,
+}) {
+  return (
+    <LabeledCheckbox
+      className="text-center"
+      id="stayLoggedIn"
+      checked={props.value}
+      onChange={event => props.setValue(event.target.checked)}
+      label={
+        <FormattedMessage
+          id="user.stay_logged_in"
+          defaultMessage="Stay logged in"
+        />
+      }
+    />
   );
 }
