@@ -4,6 +4,9 @@ Description: Phantasml API.
 
 Parameters:
   
+  Role:
+    Type: String
+    
   FromEmail:
     Type: String
   
@@ -19,6 +22,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       Handler: user.getStatus
+      Role: !Ref Role
       Runtime: nodejs8.10
       CodeUri: ../../build/server
       Events:
@@ -32,6 +36,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       Handler: user.login
+      Role: !Ref Role
       Runtime: nodejs8.10
       CodeUri: ../../build/server
       Environment:
@@ -48,6 +53,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       Handler: user.logout
+      Role: !Ref Role
       Runtime: nodejs8.10
       CodeUri: ../../build/server
       Events:
@@ -61,6 +67,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       Handler: user.create
+      Role: !Ref Role
       Runtime: nodejs8.10
       CodeUri: ../../build/server
       Environment:
@@ -78,6 +85,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       Handler: user.setup
+      Role: !Ref Role
       Runtime: nodejs8.10
       CodeUri: ../../build/server
       Events:
@@ -91,6 +99,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       Handler: user.passwordReset
+      Role: !Ref Role
       Runtime: nodejs8.10
       CodeUri: ../../build/server
       Environment:
@@ -108,6 +117,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       Handler: user.password
+      Role: !Ref Role
       Runtime: nodejs8.10
       CodeUri: ../../build/server
       Events:

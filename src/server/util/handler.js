@@ -14,14 +14,12 @@ import type {Type} from 'flow-runtime';
  * @param id the translation id of the error.
  * @param [statusCode=400] the error status code.
  */
-export class FriendlyError extends Error {
-  statusCode: number;
-
-  constructor(id: string, statusCode: number = 400) {
-    super(id);
-    this.statusCode = statusCode;
-  }
+export function FriendlyError(id: string, statusCode: number = 400) {
+  this.message = id;
+  this.statusCode = statusCode;
+  this.stack = new Error().stack;
 }
+(FriendlyError: Object).prototype = new Error();
 
 /**
  * Wraps a handler function for a query request, returning an OK result if it

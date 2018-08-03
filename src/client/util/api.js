@@ -41,9 +41,10 @@ if (location.search.startsWith('?')) {
 const AUTH_TOKEN_COOKIE = 'authToken=';
 if (!authToken) {
   for (const cookie of document.cookie.split(';')) {
-    if (cookie.startsWith(AUTH_TOKEN_COOKIE)) {
+    const trimmedCookie = cookie.trim();
+    if (trimmedCookie.startsWith(AUTH_TOKEN_COOKIE)) {
       authToken = decodeURIComponent(
-        cookie.substring(AUTH_TOKEN_COOKIE.length),
+        trimmedCookie.substring(AUTH_TOKEN_COOKIE.length),
       );
       break;
     }

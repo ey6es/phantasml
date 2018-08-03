@@ -16,6 +16,7 @@
       "siteUrl": "https://www.phantasml.com",
       "apiEndpoint": "https://www.phantasml.com/api",
       "bucket": "phantasml",
+      "role": "arn:aws:iam::856032110029:role/phantasml_api",
       "cloudfrontId": "EMZD3XPF3PNDC"
     }
   }

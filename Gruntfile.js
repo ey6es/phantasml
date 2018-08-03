@@ -66,18 +66,27 @@ module.exports = function(grunt) {
       }
       return taskConfig;
     })(),
-    copy: {
-      app: {
-        files: [
-          {
-            expand: true,
-            cwd: 'src/server',
-            src: ['package.json', 'package-lock.json'],
-            dest: 'build/server/',
-          },
-        ],
-      },
-    },
+    copy: (function() {
+      const taskConfig = {
+        server: {
+          files: [
+            {
+              expand: true,
+              cwd: 'src/server',
+              src: ['package.json', 'package-lock.json'],
+              dest: 'build/server/',
+            },
+          ],
+        },
+      };
+      for (const key in config.distributions) {
+        taskConfig[key] = {
+          src: 'build/client/app.bundle.js',
+          dest: `dist/${key}/app.min.js`,
+        };
+      }
+      return taskConfig;
+    })(),
     uglify: (function() {
       const taskConfig = {
         exercises: {
@@ -94,7 +103,6 @@ module.exports = function(grunt) {
       };
       for (const key in config.distributions) {
         taskConfig[key] = {
-          options: {beautify: config.distributions[key].beautify},
           src: 'build/client/app.bundle.js',
           dest: `dist/${key}/app.min.js`,
         };
@@ -205,6 +213,7 @@ module.exports = function(grunt) {
               `sam deploy --template-file build/${key}.yaml ` +
               `--stack-name ${bucket} --s3-bucket ${bucket} ` +
               `--capabilities CAPABILITY_IAM --parameter-overrides ` +
+              `Role=${distributionConfig.role} ` +
               `FromEmail=${config.fromEmail} ` +
               `SiteUrl=${distributionConfig.siteUrl} ` +
               `GoogleClientId=${config.googleClientId}`,
@@ -309,16 +318,17 @@ module.exports = function(grunt) {
 
   // distribution tasks
   for (const key in config.distributions) {
+    const distributionConfig = config.distributions[key];
     grunt.registerTask(`build-${key}`, `Builds the ${key} distribution.`, [
       'babel',
       `env:${key}`,
       `browserify:${key}`,
-      'copy:app',
-      `uglify:${key}`,
+      'copy:server',
+      `${distributionConfig.beautify ? 'copy' : 'uglify'}:${key}`,
       `replace:${key}`,
       `less:${key}`,
     ]);
-    if (config.distributions[key].bucket) {
+    if (distributionConfig.bucket) {
       grunt.registerTask(
         `publish-${key}`,
         `Publishes the ${key} distribution.`,
