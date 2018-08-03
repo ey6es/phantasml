@@ -1,11 +1,12 @@
 @import (less) 'bootswatch/dist/darkly/bootstrap.css';
 
 .loading-small {
-  flex: 1;
   width: 24px;
   height: 24px;
   position: static;
-  transform: translate(-25%, -25%) scale(0.5, 0.5);
+  align-self: center;
+  margin-right: 10px;
+  transform: scale(0.5, 0.5) translate(-50%, -50%);
 }
 
 // fixes for Bootstrap/theme
@@ -26,4 +27,16 @@ a.nav-link {
 
 .request-error {
   padding-top: 15px;
+}
+
+.interface {
+  position: absolute;
+  left: 0px;
+  right: 0px;
+  top: 0px;
+  bottom: 0px;
+}
+
+.user-icon {
+  margin-right: 10px;
 }

@@ -64,14 +64,14 @@ export function setAuthToken(token: string, persist: ?boolean) {
     const oneYearLater = Date.now() + 365 * 24 * 60 * 60 * 1000;
     expires = `; expires=${new Date(oneYearLater).toUTCString()}`;
   }
-  document.cookie = `${AUTH_TOKEN_COOKIE}${token}${expires}; secure`;
+  document.cookie = `${AUTH_TOKEN_COOKIE}${token}${expires}`;
 }
 
 /**
  * Clears the auth token and associated cookie.
  */
 export function clearAuthToken() {
-  authToken = null;
+  authToken = undefined;
   document.cookie = `${AUTH_TOKEN_COOKIE}; expires=${new Date().toUTCString()}`;
 }
 
@@ -119,7 +119,7 @@ export async function getFromApi<RequestType: Object, ResponseType: Object>(
  */
 export async function postToApi<RequestType: Object, ResponseType: Object>(
   path: string,
-  request: RequestType,
+  request: RequestType = ({}: any),
 ): Promise<ResponseType> {
   const response = await fetch(apiEndpoint + path, {
     method: 'POST',

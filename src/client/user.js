@@ -8,6 +8,11 @@
 import * as React from 'react';
 import {FormattedMessage} from 'react-intl';
 import {
+  Button,
+  UncontrolledDropdown,
+  DropdownToggle,
+  DropdownMenu,
+  DropdownItem,
   Form,
   FormGroup,
   FormText,
@@ -23,10 +28,11 @@ import {
   TabPane,
 } from 'reactstrap';
 import {metatags, postToApi} from './util/api';
-import {RequestDialog, LabeledCheckbox} from './util/ui';
+import {RequestDialog, LabeledCheckbox, LoadingSpinner} from './util/ui';
 import type {
   UserLoginRequest,
   LoggedInResponse,
+  UserStatusResponse,
   UserCreateRequest,
   UserPasswordResetRequest,
   UserPasswordRequest,
@@ -103,7 +109,7 @@ export class LoginDialog extends React.Component<
     );
     return (
       <RequestDialog
-        header={<FormattedMessage id="login.title" defaultMessage="Login" />}
+        header={<FormattedMessage id="login.title" defaultMessage="Log In" />}
         makeRequest={this._makeRequest}
         autoRequest={!!(this.state.facebookToken || this.state.googleToken)}
         invalid={
@@ -687,4 +693,46 @@ function StayLoggedInCheckbox(props: {
       }
     />
   );
+}
+
+export class UserDropdown extends React.Component<
+  {userStatus: UserStatusResponse, setUserStatus: UserStatusResponse => void},
+  {loading: boolean},
+> {
+  state = {loading: false};
+
+  render() {
+    return [
+      this.state.loading ? <LoadingSpinner /> : null,
+      this.props.userStatus.type === 'anonymous' ? (
+        <Button disabled={this.state.loading} color="info">
+          <FormattedMessage id="user.login" defaultMessage="Log In" />
+        </Button>
+      ) : (
+        <UncontrolledDropdown nav>
+          <DropdownToggle disabled={this.state.loading} nav caret>
+            <img
+              className="user-icon"
+              src={this.props.userStatus.imageUrl}
+              width={24}
+              height={24}
+            />
+            {this.props.userStatus.displayName}
+          </DropdownToggle>
+          <DropdownMenu>
+            <DropdownItem onClick={this._logout}>Log Out</DropdownItem>
+          </DropdownMenu>
+        </UncontrolledDropdown>
+      ),
+    ];
+  }
+
+  _logout = async () => {
+    this.setState({loading: true});
+    try {
+      this.props.setUserStatus(await postToApi('/user/logout'));
+    } finally {
+      this.setState({loading: false});
+    }
+  };
 }

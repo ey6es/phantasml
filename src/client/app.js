@@ -61,7 +61,12 @@ class App extends React.Component<
       dialog = <ErrorDialog error={userStatus} retry={this._fetchUserStatus} />;
     } else if (userStatus.type === 'anonymous') {
       if (userStatus.allowAnonymous) {
-        ui = <Interface userStatus={userStatus} />;
+        ui = (
+          <Interface
+            userStatus={userStatus}
+            setUserStatus={this._setUserStatus}
+          />
+        );
       } else {
         dialog = (
           <LoginDialog
@@ -83,7 +88,12 @@ class App extends React.Component<
       } else if (userStatus.passwordReset) {
         dialog = <PasswordResetDialog setUserStatus={this._setUserStatus} />;
       }
-      ui = <Interface userStatus={userStatus} />;
+      ui = (
+        <Interface
+          userStatus={userStatus}
+          setUserStatus={this._setUserStatus}
+        />
+      );
     }
     return (
       <IntlProvider locale={this.state.locale} defaultLocale="en-US">

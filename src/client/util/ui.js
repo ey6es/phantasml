@@ -79,7 +79,11 @@ export class RequestDialog<T: Object> extends React.Component<
           ) : null}
         </ModalBody>
         <ModalFooter>
-          {this.state.loading ? <LoadingSpinner /> : null}
+          {this.state.loading ? (
+            <div className="flex-grow-1">
+              <LoadingSpinner />
+            </div>
+          ) : null}
           {this._cancel ? (
             <CancelButton
               disabled={this.state.loading}
