@@ -278,8 +278,9 @@ export class LoginDialog extends React.Component<
     return (
       <TabPane tabId="sign_in">
         <Form>
-          {this._renderEmail()}
+          {this._renderEmail('sign_in')}
           <PasswordGroup
+            current={true}
             value={this.state.password}
             setValue={value => this._setInputState({password: value})}
           />
@@ -305,7 +306,7 @@ export class LoginDialog extends React.Component<
               `}
             />
           </FormGroup>
-          {this._renderEmail()}
+          {this._renderEmail('create_user')}
         </Form>
       </TabPane>
     );
@@ -324,21 +325,23 @@ export class LoginDialog extends React.Component<
               `}
             />
           </FormGroup>
-          {this._renderEmail()}
+          {this._renderEmail('forgot_password')}
         </Form>
       </TabPane>
     );
   }
 
-  _renderEmail() {
+  _renderEmail(tab: LoginDialogTab) {
+    const id = tab + '-email';
     return (
       <FormGroup>
-        <Label for="email">
+        <Label for={id}>
           <FormattedMessage id="login.email" defaultMessage="Email" />
         </Label>
         <Input
           type="email"
-          id="email"
+          id={id}
+          autoComplete="username"
           value={this.state.email}
           valid={isEmailValid(this.state.email)}
           maxLength={MAX_EMAIL_LENGTH}
@@ -519,15 +522,15 @@ class ExternalButtons extends React.Component<
   }
 
   componentDidMount() {
-    FB.Event.subscribe('auth.authResponseChange', this._setFBAuthResponse);
+    FB.Event.subscribe('auth.login', this._setFBAuthResponse);
   }
 
   componentWillUnmount() {
-    FB.Event.unsubscribe('auth.authResponseChange', this._setFBAuthResponse);
+    FB.Event.unsubscribe('auth.login', this._setFBAuthResponse);
   }
 
-  _setFBAuthResponse = (response: ?Object) => {
-    response && this.props.setFacebookToken(response.accessToken);
+  _setFBAuthResponse = (response: Object) => {
+    this.props.setFacebookToken(response.authResponse.accessToken);
   };
 
   _renderGoogleButton = (element: ?HTMLDivElement) => {
@@ -642,6 +645,7 @@ function VerifiedPasswordGroups(props: {
       <Input
         type="password"
         id="reenter-password"
+        autoComplete="new-password"
         value={props.reenterPassword}
         valid={
           isPasswordValid(props.password) &&
@@ -657,10 +661,16 @@ function VerifiedPasswordGroups(props: {
 /**
  * A form group for entering a password.
  *
+ * @param props.current whether or not this is the current password, as opposed
+ * to a new one (for autocomplete).
  * @param props.value the value of the field.
  * @param props.setValue the function to set the value.
  */
-function PasswordGroup(props: {value: string, setValue: string => void}) {
+function PasswordGroup(props: {
+  current?: boolean,
+  value: string,
+  setValue: string => void,
+}) {
   return (
     <FormGroup>
       <Label for="password">
@@ -669,6 +679,7 @@ function PasswordGroup(props: {value: string, setValue: string => void}) {
       <Input
         type="password"
         id="password"
+        autoComplete={props.current ? 'current-password' : 'new-password'}
         value={props.value}
         valid={isPasswordValid(props.value)}
         maxLength={MAX_PASSWORD_LENGTH}

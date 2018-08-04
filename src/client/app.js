@@ -149,8 +149,8 @@ async function getUserStatus(): Promise<UserStatus> {
     if (status.type === 'anonymous') {
       // if we're not logged in to Phantasml but *are* logged in to Google/FB,
       // request login automatically.  if it fails, log out of Google/FB
-      const googleUser = googleAuth.currentUser.get();
-      if (googleUser) {
+      if (googleAuth.isSignedIn.get()) {
+        const googleUser = googleAuth.currentUser.get();
         try {
           status = await postToApi('/user/login', {
             type: 'google',
