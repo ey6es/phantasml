@@ -36,11 +36,15 @@ const googleAuthPromise = new Promise((resolve, reject) => {
   });
 });
 
-FB.init({
-  appId: metatags.get('facebook-app-id'),
-  version: 'v3.1',
-  xfbml: true,
-});
+// hackery to avoid doing Facebook anything on http
+if (location.protocol === 'https') {
+  FB.init({
+    appId: metatags.get('facebook-app-id'),
+    version: 'v3.1',
+  });
+} else {
+  window.FB = null;
+}
 
 /**
  * Application root component.
@@ -144,7 +148,7 @@ async function getUserStatus(): Promise<UserStatus> {
     let [status, googleAuth, facebookStatus] = await Promise.all([
       getFromApi('/user/status'),
       googleAuthPromise,
-      new Promise(resolve => FB.getLoginStatus(resolve)),
+      FB && new Promise(resolve => FB.getLoginStatus(resolve)),
     ]);
     if (status.type === 'anonymous') {
       // if we're not logged in to Phantasml but *are* logged in to Google/FB,
@@ -159,7 +163,7 @@ async function getUserStatus(): Promise<UserStatus> {
         } catch (error) {
           await googleAuth.signOut();
         }
-      } else if (facebookStatus.authResponse) {
+      } else if (facebookStatus && facebookStatus.authResponse) {
         try {
           status = await postToApi('/user/login', {
             type: 'facebook',

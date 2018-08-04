@@ -94,6 +94,7 @@ export class LoginDialog extends React.Component<
     seenResult: null,
   };
 
+  _submitButton: ?HTMLInputElement;
   _lastResult: ?Object;
 
   render() {
@@ -114,9 +115,7 @@ export class LoginDialog extends React.Component<
         autoRequest={!!(this.state.facebookToken || this.state.googleToken)}
         invalid={
           !(
-            isEmailValid(this.state.email) &&
-            (this.state.activeTab !== 'sign_in' ||
-              isPasswordValid(this.state.password))
+            this.state.activeTab === 'sign_in' || isEmailValid(this.state.email)
           )
         }
         getFeedback={this._getFeedback}
@@ -188,10 +187,16 @@ export class LoginDialog extends React.Component<
       }
       switch (this.state.activeTab) {
         case 'sign_in': {
+          const [email, password] = [this.state.email, this.state.password];
+          if (!(isEmailValid(email) && isPasswordValid(password))) {
+            // don't need to ask the server in this case
+            throw new Error('error.password');
+          }
+          this._submitButton && this._submitButton.click();
           const request: UserLoginRequest = {
             type: 'password',
-            email: this.state.email,
-            password: this.state.password,
+            email,
+            password,
             stayLoggedIn: this.state.stayLoggedIn,
           };
           return await postToApi('/user/login', request);
@@ -277,8 +282,8 @@ export class LoginDialog extends React.Component<
   _renderSignInPane() {
     return (
       <TabPane tabId="sign_in">
-        <Form>
-          {this._renderEmail('sign_in')}
+        <Form onSubmit={event => event.preventDefault()}>
+          {this._renderEmail('sign_in', 'username')}
           <PasswordGroup
             current={true}
             value={this.state.password}
@@ -287,6 +292,11 @@ export class LoginDialog extends React.Component<
           <StayLoggedInCheckbox
             value={this.state.stayLoggedIn}
             setValue={value => this._setInputState({stayLoggedIn: value})}
+          />
+          <input
+            ref={button => (this._submitButton = button)}
+            type="submit"
+            className="d-none"
           />
         </Form>
       </TabPane>
@@ -331,7 +341,7 @@ export class LoginDialog extends React.Component<
     );
   }
 
-  _renderEmail(tab: LoginDialogTab) {
+  _renderEmail(tab: LoginDialogTab, autoComplete: string = 'on') {
     const id = tab + '-email';
     return (
       <FormGroup>
@@ -341,7 +351,7 @@ export class LoginDialog extends React.Component<
         <Input
           type="email"
           id={id}
-          autoComplete="username"
+          autoComplete={autoComplete}
           value={this.state.email}
           valid={isEmailValid(this.state.email)}
           maxLength={MAX_EMAIL_LENGTH}
@@ -504,29 +514,31 @@ class ExternalButtons extends React.Component<
         <div className="text-center login-or">
           — <FormattedMessage id="login.or" defaultMessage="or" /> —
         </div>
-        <Row noGutters className="justify-content-between">
+        <Row noGutters className="justify-content-around">
           <Col md="auto">
             <div ref={this._renderGoogleButton} />
           </Col>
-          <Col md="auto">
-            <div
-              ref={this._renderFacebookButton}
-              className="fb-login-button"
-              data-size="large"
-              data-button-type="login_with"
-            />
-          </Col>
+          {FB ? (
+            <Col md="auto">
+              <div
+                ref={this._renderFacebookButton}
+                className="fb-login-button"
+                data-size="large"
+                data-button-type="login_with"
+              />
+            </Col>
+          ) : null}
         </Row>
       </Container>
     );
   }
 
   componentDidMount() {
-    FB.Event.subscribe('auth.login', this._setFBAuthResponse);
+    FB && FB.Event.subscribe('auth.login', this._setFBAuthResponse);
   }
 
   componentWillUnmount() {
-    FB.Event.unsubscribe('auth.login', this._setFBAuthResponse);
+    FB && FB.Event.unsubscribe('auth.login', this._setFBAuthResponse);
   }
 
   _setFBAuthResponse = (response: Object) => {
@@ -732,13 +744,13 @@ export class UserDropdown extends React.Component<
 
   render() {
     return [
-      this.state.loading ? <LoadingSpinner /> : null,
+      this.state.loading ? <LoadingSpinner key="spinner" /> : null,
       this.props.userStatus.type === 'anonymous' ? (
-        <Button disabled={this.state.loading} color="info">
+        <Button key="control" disabled={this.state.loading} color="info">
           <FormattedMessage id="user.login" defaultMessage="Log In" />
         </Button>
       ) : (
-        <UncontrolledDropdown nav>
+        <UncontrolledDropdown key="control" nav>
           <DropdownToggle disabled={this.state.loading} nav caret>
             <img
               className="user-icon"
@@ -755,6 +767,7 @@ export class UserDropdown extends React.Component<
       ),
       this.state.error ? (
         <ErrorDialog
+          key="dialog"
           error={this.state.error}
           onClosed={() => this.setState({error: null})}
         />
@@ -769,14 +782,13 @@ export class UserDropdown extends React.Component<
       if (gapi.auth2.getAuthInstance().isSignedIn.get()) {
         await gapi.auth2.getAuthInstance().signOut();
       }
-      if (FB.getAuthResponse()) {
+      if (FB && FB.getAuthResponse()) {
         await new Promise(resolve => FB.logout(resolve));
       }
+      this.setState({loading: false});
       this.props.setUserStatus(userStatus);
     } catch (error) {
-      this.setState({error});
-    } finally {
-      this.setState({loading: false});
+      this.setState({loading: false, error});
     }
   };
 }
