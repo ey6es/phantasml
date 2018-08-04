@@ -407,6 +407,12 @@ export async function logout(
     event,
     UserLogoutRequestType,
     (async request => {
+      await dynamodb
+        .deleteItem({
+          Key: {token: {S: request.authToken}},
+          TableName: 'Sessions',
+        })
+        .promise();
       return await getAnonymousResponse();
     }: UserLogoutRequest => Promise<UserLogoutResponse>),
   );

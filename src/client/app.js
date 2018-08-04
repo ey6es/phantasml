@@ -11,11 +11,36 @@ import {IntlProvider, FormattedMessage} from 'react-intl';
 import {Modal, ModalHeader, ModalBody, ModalFooter, Button} from 'reactstrap';
 import {Interface} from './interface';
 import {LoginDialog, UserSetupDialog, PasswordResetDialog} from './user';
-import {setAuthToken, clearAuthToken, getFromApi} from './util/api';
-import {ServerErrorMessage} from './util/ui';
+import {
+  metatags,
+  setAuthToken,
+  clearAuthToken,
+  getFromApi,
+  postToApi,
+} from './util/api';
+import {ErrorDialog} from './util/ui';
 import type {UserStatusResponse} from '../server/api';
 
 type UserStatus = UserStatusResponse | Error;
+
+declare var gapi: any;
+declare var FB: any;
+
+const googleAuthPromise = new Promise((resolve, reject) => {
+  gapi.load('auth2', () => {
+    gapi.auth2
+      .init({
+        client_id: metatags.get('google-signin-client_id'),
+      })
+      .then(resolve, reject);
+  });
+});
+
+FB.init({
+  appId: metatags.get('facebook-app-id'),
+  version: 'v3.1',
+  xfbml: true,
+});
 
 /**
  * Application root component.
@@ -58,7 +83,15 @@ class App extends React.Component<
     let ui: ?React.Element<any>;
     const userStatus = this.state.userStatus;
     if (userStatus instanceof Error) {
-      dialog = <ErrorDialog error={userStatus} retry={this._fetchUserStatus} />;
+      dialog = (
+        <ErrorDialog
+          error={userStatus}
+          closeMessage={
+            <FormattedMessage id="error.retry" defaultMessage="Retry" />
+          }
+          onClosed={this._fetchUserStatus}
+        />
+      );
     } else if (userStatus.type === 'anonymous') {
       if (userStatus.allowAnonymous) {
         ui = (
@@ -106,42 +139,38 @@ class App extends React.Component<
   }
 }
 
-/**
- * Error dialog for initial connection.
- */
-class ErrorDialog extends React.Component<
-  {error: Error, retry: () => mixed},
-  {open: boolean},
-> {
-  state = {open: true};
-
-  _close = () => this.setState({open: false});
-
-  render() {
-    return (
-      <Modal
-        isOpen={this.state.open}
-        centered={true}
-        onClosed={this.props.retry}>
-        <ModalHeader>
-          <FormattedMessage id="error.title" defaultMessage="Error" />
-        </ModalHeader>
-        <ModalBody>
-          <ServerErrorMessage />
-        </ModalBody>
-        <ModalFooter>
-          <Button color="primary" onClick={this._close}>
-            <FormattedMessage id="error.retry" defaultMessage="Retry" />
-          </Button>
-        </ModalFooter>
-      </Modal>
-    );
-  }
-}
-
 async function getUserStatus(): Promise<UserStatus> {
   try {
-    return await getFromApi('/user/status');
+    let [status, googleAuth, facebookStatus] = await Promise.all([
+      getFromApi('/user/status'),
+      googleAuthPromise,
+      new Promise(resolve => FB.getLoginStatus(resolve)),
+    ]);
+    if (status.type === 'anonymous') {
+      // if we're not logged in to Phantasml but *are* logged in to Google/FB,
+      // request login automatically.  if it fails, log out of Google/FB
+      const googleUser = googleAuth.currentUser.get();
+      if (googleUser) {
+        try {
+          status = await postToApi('/user/login', {
+            type: 'google',
+            idToken: googleUser.getAuthResponse(true).id_token,
+          });
+        } catch (error) {
+          await googleAuth.signOut();
+        }
+      } else if (facebookStatus.authResponse) {
+        try {
+          status = await postToApi('/user/login', {
+            type: 'facebook',
+            accessToken: facebookStatus.authResponse.accessToken,
+          });
+        } catch (error) {
+          await new Promise(resolve => FB.logout(resolve));
+        }
+      }
+    }
+    return status;
   } catch (error) {
     return error;
   }

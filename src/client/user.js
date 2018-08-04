@@ -27,8 +27,13 @@ import {
   TabContent,
   TabPane,
 } from 'reactstrap';
-import {metatags, postToApi} from './util/api';
-import {RequestDialog, LabeledCheckbox, LoadingSpinner} from './util/ui';
+import {postToApi} from './util/api';
+import {
+  RequestDialog,
+  ErrorDialog,
+  LabeledCheckbox,
+  LoadingSpinner,
+} from './util/ui';
 import type {
   UserLoginRequest,
   LoggedInResponse,
@@ -49,11 +54,6 @@ import {
 
 declare var gapi: any;
 declare var FB: any;
-
-FB.init({
-  appId: metatags.get('facebook-app-id'),
-  version: 'v3.1',
-});
 
 type LoginDialogTab = 'sign_in' | 'create_user' | 'forgot_password';
 
@@ -167,14 +167,24 @@ export class LoginDialog extends React.Component<
           type: 'facebook',
           accessToken: this.state.facebookToken,
         };
-        return await postToApi('/user/login', request);
+        try {
+          return await postToApi('/user/login', request);
+        } catch (error) {
+          await new Promise(resolve => FB.logout(resolve));
+          throw error;
+        }
       }
       if (this.state.googleToken) {
         const request: UserLoginRequest = {
           type: 'google',
           idToken: this.state.googleToken,
         };
-        return await postToApi('/user/login', request);
+        try {
+          return await postToApi('/user/login', request);
+        } catch (error) {
+          await gapi.auth2.getAuthInstance().signOut();
+          throw error;
+        }
       }
       switch (this.state.activeTab) {
         case 'sign_in': {
@@ -695,11 +705,19 @@ function StayLoggedInCheckbox(props: {
   );
 }
 
+/**
+ * Dropdown for the nav bar that shows the user's picture and name if logged
+ * in, providing access to user-related controls like "log out."  If not logged
+ * in, shows the login button.
+ *
+ * @param props.userStatus the current user status.
+ * @param props.setUserStatus the function to set the user status.
+ */
 export class UserDropdown extends React.Component<
   {userStatus: UserStatusResponse, setUserStatus: UserStatusResponse => void},
-  {loading: boolean},
+  {loading: boolean, error: ?Error},
 > {
-  state = {loading: false};
+  state = {loading: false, error: null};
 
   render() {
     return [
@@ -724,13 +742,28 @@ export class UserDropdown extends React.Component<
           </DropdownMenu>
         </UncontrolledDropdown>
       ),
+      this.state.error ? (
+        <ErrorDialog
+          error={this.state.error}
+          onClosed={() => this.setState({error: null})}
+        />
+      ) : null,
     ];
   }
 
   _logout = async () => {
     this.setState({loading: true});
     try {
-      this.props.setUserStatus(await postToApi('/user/logout'));
+      const userStatus = await postToApi('/user/logout');
+      if (gapi.auth2.getAuthInstance().isSignedIn.get()) {
+        await gapi.auth2.getAuthInstance().signOut();
+      }
+      if (FB.getAuthResponse()) {
+        await new Promise(resolve => FB.logout(resolve));
+      }
+      this.props.setUserStatus(userStatus);
+    } catch (error) {
+      this.setState({error});
     } finally {
       this.setState({loading: false});
     }

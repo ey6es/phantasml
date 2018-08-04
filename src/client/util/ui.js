@@ -6,6 +6,7 @@
  */
 
 import * as React from 'react';
+import type {Element} from 'react';
 import {FormattedMessage, injectIntl} from 'react-intl';
 import {
   Modal,
@@ -129,6 +130,73 @@ export class RequestDialog<T: Object> extends React.Component<
 }
 
 /**
+ * A simple dialog to report an error message.
+ *
+ * @param props.error the error to report.
+ * @param props.getErrorMessage an optional function to retrieve the formatted
+ * message corresponding to the error.
+ * @param props.closeMessage the message to show on the close button ('OK' by
+ * default).
+ * @param props.onClosed the function to call when the dialog is closed.
+ */
+export function ErrorDialog(props: {
+  error: Error,
+  getErrorMessage?: Error => ?React.Element<any>,
+  closeMessage?: React.Element<any>,
+  onClosed: () => mixed,
+}) {
+  return (
+    <FeedbackDialog
+      title={<FormattedMessage id="error.title" defaultMessage="Error" />}
+      closeMessage={props.closeMessage}
+      onClosed={props.onClosed}>
+      <ErrorMessage
+        error={props.error}
+        getErrorMessage={props.getErrorMessage}
+      />
+    </FeedbackDialog>
+  );
+}
+
+/**
+ * A simple dialog to report a feedback message.
+ *
+ * @param props.title the title of the message.
+ * @param props.children the contents of the message.
+ * @param props.closeMessage the message to show on the close button ('OK' by
+ * default).
+ * @param props.onClosed the function to call when the dialog is closed.
+ */
+export class FeedbackDialog extends React.Component<
+  {
+    title: mixed,
+    children: mixed,
+    closeMessage?: React.Element<any>,
+    onClosed: () => mixed,
+  },
+  {open: boolean},
+> {
+  state = {open: true};
+
+  render() {
+    return (
+      <Modal
+        isOpen={this.state.open}
+        centered={true}
+        onClosed={this.props.onClosed}>
+        <ModalHeader>{this.props.title}</ModalHeader>
+        <ModalBody>{this.props.children}</ModalBody>
+        <ModalFooter>
+          <Button color="primary" onClick={() => this.setState({open: false})}>
+            {this.props.closeMessage || <OkMessage />}
+          </Button>
+        </ModalFooter>
+      </Modal>
+    );
+  }
+}
+
+/**
  * A small loading spinner.
  */
 export function LoadingSpinner() {
@@ -156,12 +224,35 @@ export function CancelButton(props: Object) {
 export function OkButton(props: Object) {
   return (
     <Button color="primary" {...props}>
-      <FormattedMessage id="ok" defaultMessage="OK" />
+      <OkMessage />
     </Button>
   );
 }
 
-function ErrorMessage(props: {error: Error}) {
+/**
+ * Generic OK message.
+ */
+function OkMessage() {
+  return <FormattedMessage id="ok" defaultMessage="OK" />;
+}
+
+/**
+ * Renders an error message.
+ *
+ * @param props.error the error to report.
+ * @param props.getErrorMessage an optional function to retrieve the formatted
+ * message corresponding to the error.
+ */
+function ErrorMessage(props: {
+  error: Error,
+  getErrorMessage?: Error => ?React.Element<any>,
+}) {
+  if (props.getErrorMessage) {
+    const message = props.getErrorMessage(props.error);
+    if (message) {
+      return message;
+    }
+  }
   switch (props.error.message) {
     case 'error.expired':
       return (
@@ -173,20 +264,13 @@ function ErrorMessage(props: {error: Error}) {
         />
       );
     default:
-      return <ServerErrorMessage />;
+      return (
+        <FormattedMessage
+          id="error.server"
+          defaultMessage="Sorry, an error occurred connecting to the server."
+        />
+      );
   }
-}
-
-/**
- * A generic server error message.
- */
-export function ServerErrorMessage() {
-  return (
-    <FormattedMessage
-      id="error.server"
-      defaultMessage="Sorry, an error occurred connecting to the server."
-    />
-  );
 }
 
 /**
