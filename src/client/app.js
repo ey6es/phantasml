@@ -37,7 +37,7 @@ const googleAuthPromise = new Promise((resolve, reject) => {
 });
 
 // hackery to avoid doing Facebook anything on http
-if (location.protocol === 'https') {
+if (location.protocol === 'https:') {
   FB.init({
     appId: metatags.get('facebook-app-id'),
     version: 'v3.1',
