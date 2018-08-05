@@ -232,6 +232,7 @@ export async function getStatus(
               imageUrl: user.imageUrl && user.imageUrl.S,
               passwordReset:
                 session.passwordReset && session.passwordReset.BOOL,
+              admin: user.admin && user.admin.BOOL,
             };
           }
         }
@@ -298,15 +299,18 @@ export async function login(
           persistAuthToken: request.stayLoggedIn,
           displayName: user.displayName && user.displayName.S,
           imageUrl: gravatarUrl,
+          admin: user.admin && user.admin.BOOL,
         };
       }
       const [externalId, displayName, imageUrl] = await getExternalLogin(
         request,
       );
       let userId: string;
+      let admin: ?boolean;
       let user = await getUserByExternalId(externalId);
       if (user) {
         userId = user.id.S;
+        admin = user.admin && user.admin.BOOL;
         if (
           user.displayName.S !== displayName ||
           user.imageUrl.S !== imageUrl
@@ -329,6 +333,7 @@ export async function login(
         authToken: token,
         displayName,
         imageUrl,
+        admin,
       };
     }: UserLoginRequest => Promise<UserLoginResponse>),
   );
@@ -463,6 +468,7 @@ export async function setup(
     (async request => {
       const session = await requireSession(request.authToken);
       const userId = session.userId.S;
+      const user = await requireUser(userId);
       let externalId: string;
       let displayName: string;
       let imageUrl: string;
@@ -471,7 +477,6 @@ export async function setup(
         if (!isDisplayNameValid(request.displayName)) {
           throw new Error('Invalid display name: ' + request.displayName);
         }
-        const user = await requireUser(userId);
         const email = user.externalId.S;
         [externalId, displayName, imageUrl, persistAuthToken] = [
           email,
@@ -500,6 +505,7 @@ export async function setup(
         externalId,
         displayName,
         imageUrl,
+        admin: user.admin && user.admin.BOOL,
       };
     }: UserSetupRequest => Promise<UserSetupResponse>),
   );
@@ -579,6 +585,7 @@ export async function password(
         externalId: user.externalId.S,
         displayName: user.displayName.S,
         imageUrl: getGravatarUrl(user.externalId.S),
+        admin: user.admin && user.admin.BOOL,
       };
     }: UserPasswordRequest => Promise<UserPasswordResponse>),
   );

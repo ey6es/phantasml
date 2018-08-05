@@ -9,6 +9,7 @@ import * as React from 'react';
 import {FormattedMessage} from 'react-intl';
 import {Collapse, Nav, Navbar, NavbarBrand, NavbarToggler} from 'reactstrap';
 import {UserDropdown} from './user';
+import {AdminDropdown} from './admin';
 import type {UserStatusResponse} from '../server/api';
 
 /**
@@ -39,11 +40,14 @@ class TopBar extends React.Component<
   render() {
     return (
       <Navbar color="primary" dark expand="md">
-        <NavbarBrand className="mr-auto">
+        <NavbarBrand>
           <FormattedMessage id="app.title" defaultMessage="Phantasml" />
         </NavbarBrand>
         <NavbarToggler onClick={this._toggle} />
         <Collapse isOpen={this.state.open} navbar>
+          <Nav navbar>
+            {this.props.userStatus.admin ? <AdminDropdown /> : null}
+          </Nav>
           <Nav className="ml-auto" navbar>
             <UserDropdown
               userStatus={this.props.userStatus}

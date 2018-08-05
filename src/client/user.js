@@ -761,7 +761,9 @@ export class UserDropdown extends React.Component<
             {this.props.userStatus.displayName}
           </DropdownToggle>
           <DropdownMenu>
-            <DropdownItem onClick={this._logout}>Log Out</DropdownItem>
+            <DropdownItem onClick={this._logout}>
+              <FormattedMessage id="user.logout" defaultMessage="Log Out" />
+            </DropdownItem>
           </DropdownMenu>
         </UncontrolledDropdown>
       ),

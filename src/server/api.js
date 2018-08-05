@@ -27,6 +27,7 @@ export type LoggedInResponse = {
   persistAuthToken?: boolean,
   displayName: ?string,
   imageUrl: ?string,
+  admin: ?boolean,
   passwordReset?: ?boolean,
 };
 export type UserStatusResponse = AnonymousResponse | LoggedInResponse;
