@@ -7,7 +7,7 @@
 
 import {URL} from 'url';
 import {randomBytes, createHash} from 'crypto';
-import {DynamoDB, SES} from 'aws-sdk';
+import {SES} from 'aws-sdk';
 import uuid from 'uuid/v1';
 import React from 'react';
 import type {Element} from 'react';
@@ -16,12 +16,14 @@ import {IntlProvider, FormattedMessage} from 'react-intl';
 import type {APIGatewayEvent, Context, ProxyResult} from 'flow-aws-lambda';
 import FB from 'fb';
 import {OAuth2Client} from 'google-auth-library';
+import {dynamodb, updateItem, getSettings} from './util/database';
 import {
   FriendlyError,
   handleQueryRequest,
   handleBodyRequest,
 } from './util/handler';
 import type {
+  ApiRequest,
   UserStatusRequest,
   UserStatusResponse,
   ExternalLoginRequest,
@@ -50,7 +52,6 @@ import {
 } from './api';
 import {isDisplayNameValid} from './constants';
 
-const dynamodb = new DynamoDB();
 const ses = new SES();
 
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
@@ -258,13 +259,6 @@ async function getCanCreateUser(): Promise<?boolean> {
   return settings && settings.canCreateUser && settings.canCreateUser.BOOL;
 }
 
-async function getSettings(id: string = 'site'): Promise<?Object> {
-  const result = await dynamodb
-    .getItem({Key: {id: {S: id}}, TableName: 'Users'})
-    .promise();
-  return result.Item;
-}
-
 export async function login(
   event: APIGatewayEvent,
   context: Context,
@@ -379,31 +373,6 @@ async function updateUser(userId: string, attributes: Object) {
   await updateItem('Users', {id: {S: userId}}, attributes);
 }
 
-async function updateItem(TableName: string, Key: Object, attributes: Object) {
-  let ExpressionAttributeNames = {};
-  let ExpressionAttributeValues = {};
-  let UpdateExpression = '';
-  for (const key in attributes) {
-    ExpressionAttributeNames['#' + key] = key;
-    ExpressionAttributeValues[':' + key] = attributes[key];
-    if (UpdateExpression) {
-      UpdateExpression += ',';
-    } else {
-      UpdateExpression = 'SET';
-    }
-    UpdateExpression += ` #${key} = :${key}`;
-  }
-  await dynamodb
-    .updateItem({
-      ExpressionAttributeNames,
-      ExpressionAttributeValues,
-      Key,
-      TableName,
-      UpdateExpression,
-    })
-    .promise();
-}
-
 export async function logout(
   event: APIGatewayEvent,
   context: Context,
@@ -466,9 +435,8 @@ export async function setup(
     event,
     UserSetupRequestType,
     (async request => {
-      const session = await requireSession(request.authToken);
-      const userId = session.userId.S;
-      const user = await requireUser(userId);
+      const user = await requireSessionUser(request);
+      const userId = user.id.S;
       let externalId: string;
       let displayName: string;
       let imageUrl: string;
@@ -589,6 +557,18 @@ export async function password(
       };
     }: UserPasswordRequest => Promise<UserPasswordResponse>),
   );
+}
+
+/**
+ * Retrieves the user record for the request, throwing an exception if there
+ * isn't one.
+ *
+ * @param request the current request.
+ * @return a promise that will resolve to the user record.
+ */
+export async function requireSessionUser(request: ApiRequest): Promise<Object> {
+  const session = await requireSession(request.authToken);
+  return await requireUser(session.userId.S);
 }
 
 async function requireSession(token: ?string): Promise<Object> {

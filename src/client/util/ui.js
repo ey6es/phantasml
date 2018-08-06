@@ -24,6 +24,7 @@ import {
  *
  * @param props.header the contents of the dialog header.
  * @param props.children the contents of the dialog body.
+ * @param props.loadState optional function to load the initial dialog state.
  * @param props.makeRequest the function to use to make the request.  Return
  * [result, true] to keep the dialog open even if the request succeeds.
  * @param props.autoRequest if true, start the request process automatically
@@ -36,46 +37,60 @@ import {
  * current result, that result's feedback (if any) will not be rendered.
  * @param props.onClosed an optional function to invoke with the result (if
  * any) when the dialog is completely closed.
+ * @param props.applicable if true, the dialog can be applied without closing.
  * @param props.cancelable if true, the dialog can be closed without making the
  * request.
  */
 export class RequestDialog<T: Object> extends React.Component<
   {
-    header: mixed,
+    header: any,
     children?: mixed,
+    loadState?: () => Promise<void>,
     makeRequest: () => Promise<T | [T, boolean]>,
     autoRequest?: boolean,
     invalid?: boolean,
     getFeedback?: (T | Error) => ?React.Element<any>,
     seenResult?: ?T | Error,
     onClosed?: (?T) => void,
+    applicable?: boolean,
     cancelable?: boolean,
   },
   {open: boolean, loading: boolean, result: ?T | Error},
 > {
-  state = {open: true, loading: false, result: null};
+  state = {open: true, loading: !!this.props.loadState, result: null};
 
   render() {
     const displayResult =
       this.state.result === this.props.seenResult ? null : this.state.result;
+    const resultFeedback =
+      (displayResult &&
+        (this.props.getFeedback && this.props.getFeedback(displayResult))) ||
+      (displayResult instanceof Error ? (
+        <ErrorMessage error={displayResult} />
+      ) : null);
     return (
       <Modal
         isOpen={this.state.open}
         centered={true}
         toggle={this.state.loading ? null : this._cancel}
         onClosed={this._onClosed}>
-        <ModalHeader toggle={this.state.loading ? null : this._cancel}>
-          {this.props.header}
-        </ModalHeader>
+        <div className="modal-header">
+          <h5 className="modal-title">{this.props.header}</h5>
+          {this._cancel ? (
+            <button
+              type="button"
+              className="close"
+              disabled={this.state.loading}
+              onClick={this._cancel}>
+              <span aria-hidden="true">&times;</span>
+            </button>
+          ) : null}
+        </div>
         <ModalBody>
           {this.props.children}
-          {displayResult ? (
+          {resultFeedback ? (
             <div className="text-warning text-center request-error">
-              {(this.props.getFeedback &&
-                this.props.getFeedback(displayResult)) ||
-                (displayResult instanceof Error ? (
-                  <ErrorMessage error={displayResult} />
-                ) : null)}
+              {resultFeedback}
             </div>
           ) : null}
         </ModalBody>
@@ -91,6 +106,12 @@ export class RequestDialog<T: Object> extends React.Component<
               onClick={this._cancel}
             />
           ) : null}
+          {this.props.applicable ? (
+            <ApplyButton
+              disabled={this.state.loading || this.props.invalid}
+              onClick={this._apply}
+            />
+          ) : null}
           <OkButton
             disabled={this.state.loading || this.props.invalid}
             onClick={this._submit}
@@ -100,6 +121,19 @@ export class RequestDialog<T: Object> extends React.Component<
     );
   }
 
+  async componentDidMount() {
+    const loadState = this.props.loadState;
+    if (!loadState) {
+      return;
+    }
+    try {
+      await loadState();
+      this.setState({loading: false});
+    } catch (error) {
+      this.setState({loading: false, result: error});
+    }
+  }
+
   componentDidUpdate() {
     if (this.props.autoRequest && !this.state.loading) {
       this._submit();
@@ -107,6 +141,19 @@ export class RequestDialog<T: Object> extends React.Component<
   }
 
   _cancel = this.props.cancelable ? () => this.setState({open: false}) : null;
+
+  _apply = async () => {
+    this.setState({loading: true, result: null});
+    try {
+      const response = await this.props.makeRequest();
+      const [result, open] = Array.isArray(response)
+        ? (response: any)
+        : [response, false];
+      this.setState({loading: false, result});
+    } catch (error) {
+      this.setState({loading: false, result: error});
+    }
+  };
 
   _submit = async () => {
     this.setState({loading: true, result: null});
@@ -212,6 +259,19 @@ export function CancelButton(props: Object) {
   return (
     <Button color="secondary" {...props}>
       <FormattedMessage id="cancel" defaultMessage="Cancel" />
+    </Button>
+  );
+}
+
+/**
+ * A generic apply button.
+ *
+ * @param props properties to pass to the button.
+ */
+export function ApplyButton(props: Object) {
+  return (
+    <Button color="primary" {...props}>
+      <FormattedMessage id="apply" defaultMessage="Apply" />
     </Button>
   );
 }

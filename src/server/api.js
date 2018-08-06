@@ -11,7 +11,7 @@
 import t, {reify} from 'flow-runtime';
 import type {Type} from 'flow-runtime';
 
-type ApiRequest = {authToken?: string};
+export type ApiRequest = {authToken?: string};
 
 export type UserStatusRequest = ApiRequest;
 export const UserStatusRequestType = (reify: Type<UserStatusRequest>);
@@ -84,3 +84,21 @@ export type UserPasswordRequest = ApiRequest & {
 };
 export const UserPasswordRequestType = (reify: Type<UserPasswordRequest>);
 export type UserPasswordResponse = LoggedInResponse;
+
+export type GetAdminSettingsRequest = ApiRequest;
+export const GetAdminSettingsRequestType = (reify: Type<
+  GetAdminSettingsRequest,
+>);
+export type GetAdminSettingsResponse = {
+  allowAnonymous: ?boolean,
+  canCreateUser: ?boolean,
+};
+
+export type PutAdminSettingsRequest = ApiRequest & {
+  allowAnonymous: boolean,
+  canCreateUser: boolean,
+};
+export const PutAdminSettingsRequestType = (reify: Type<
+  PutAdminSettingsRequest,
+>);
+export type PutAdminSettingsResponse = {};

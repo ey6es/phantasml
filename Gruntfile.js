@@ -237,7 +237,7 @@ module.exports = function(grunt) {
       for (const key in config.distributions) {
         taskConfig[key] = {
           url: config.distributions[key].siteUrl,
-          delay: 3000,
+          delay: 5000,
         };
       }
       return taskConfig;

@@ -126,3 +126,31 @@ Resources:
           Properties:
             Path: /api/user/password
             Method: post
+
+  GetAdminSettings:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: admin.getSettings
+      Role: !Ref Role
+      Runtime: nodejs8.10
+      CodeUri: ../../build/server
+      Events:
+        Request:
+          Type: Api
+          Properties:
+            Path: /api/admin/settings
+            Method: get
+
+  PutAdminSettings:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: admin.putSettings
+      Role: !Ref Role
+      Runtime: nodejs8.10
+      CodeUri: ../../build/server
+      Events:
+        Request:
+          Type: Api
+          Properties:
+            Path: /api/admin/settings
+            Method: put

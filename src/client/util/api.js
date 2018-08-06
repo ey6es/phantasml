@@ -110,6 +110,30 @@ export async function getFromApi<RequestType: Object, ResponseType: Object>(
 }
 
 /**
+ * Makes a PUT request to the API endpoint, including the auth token in the
+ * parameters.
+ *
+ * @param path the path of the function to call.
+ * @param request the request object.
+ * @return a promise that will resolve to the response object.
+ */
+export async function putToApi<RequestType: Object, ResponseType: Object>(
+  path: string,
+  request: RequestType = ({}: any),
+): Promise<ResponseType> {
+  const query = authToken ? `?authToken=${encodeURIComponent(authToken)}` : '';
+  const response = await fetch(apiEndpoint + path + query, {
+    method: 'PUT',
+    body: JSON.stringify(request),
+  });
+  const data = await response.json();
+  if (data.error) {
+    throw new Error(data.error);
+  }
+  return data;
+}
+
+/**
  * Makes a POST request to the API endpoint, including the auth token in the
  * parameters.
  *

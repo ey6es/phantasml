@@ -98,7 +98,53 @@ function getBodyRequest<T: Object>(
   event: APIGatewayEvent,
   runtimeType: Type<T>,
 ): T {
-  const request: T = JSON.parse(event.body || '');
+  const request: T = JSON.parse(event.body || '{}');
+  runtimeType.assert(request);
+  return request;
+}
+
+/**
+ * Wraps a handler function for a combined request, returning an OK result if
+ * it returns successfully or an error result if it throws an exception.
+ *
+ * @param event the gateway event.
+ * @param runtimeRequestType the runtime type of the request.
+ * @param handler the handler to wrap.
+ * @return a promise that will resolve to the result.
+ */
+export async function handleCombinedRequest<
+  RequestType: Object,
+  ResponseType: Object,
+>(
+  event: APIGatewayEvent,
+  runtimeRequestType: Type<RequestType>,
+  handler: RequestType => Promise<ResponseType>,
+): Promise<ProxyResult> {
+  try {
+    const response = await handler(
+      getCombinedRequest(event, runtimeRequestType),
+    );
+    return createOkResult(response);
+  } catch (error) {
+    return createErrorResult(error);
+  }
+}
+
+/**
+ * Retrieves the request object from the query and body of a request.
+ *
+ * @param event the gateway event.
+ * @param runtimeType the runtime type of the request.
+ * @return the parsed request.
+ */
+function getCombinedRequest<T: Object>(
+  event: APIGatewayEvent,
+  runtimeType: Type<T>,
+): T {
+  const request: T = Object.assign(
+    JSON.parse(event.body || '{}'),
+    event.queryStringParameters,
+  );
   runtimeType.assert(request);
   return request;
 }
