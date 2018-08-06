@@ -16,7 +16,11 @@ import type {UserStatusResponse} from '../server/api';
  * The main app interface.
  */
 export class Interface extends React.Component<
-  {userStatus: UserStatusResponse, setUserStatus: UserStatusResponse => void},
+  {
+    userStatus: UserStatusResponse,
+    setUserStatus: UserStatusResponse => void,
+    locale: string,
+  },
   {},
 > {
   render() {
@@ -25,6 +29,7 @@ export class Interface extends React.Component<
         <TopBar
           userStatus={this.props.userStatus}
           setUserStatus={this.props.setUserStatus}
+          locale={this.props.locale}
         />
       </div>
     );
@@ -32,7 +37,11 @@ export class Interface extends React.Component<
 }
 
 class TopBar extends React.Component<
-  {userStatus: UserStatusResponse, setUserStatus: UserStatusResponse => void},
+  {
+    userStatus: UserStatusResponse,
+    setUserStatus: UserStatusResponse => void,
+    locale: string,
+  },
   {open: boolean},
 > {
   state = {open: false};
@@ -52,6 +61,7 @@ class TopBar extends React.Component<
             <UserDropdown
               userStatus={this.props.userStatus}
               setUserStatus={this.props.setUserStatus}
+              locale={this.props.locale}
             />
           </Nav>
         </Collapse>

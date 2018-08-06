@@ -64,6 +64,7 @@ type LoginDialogTab = 'sign_in' | 'create_user' | 'forgot_password';
  * @param props.setUserStatus the function used to set the user properties in
  * the containing context.
  * @param cancelable whether the user can close the dialog without logging in.
+ * @param onClose an optional function to call when the dialog is closed.
  */
 export class LoginDialog extends React.Component<
   {
@@ -71,6 +72,7 @@ export class LoginDialog extends React.Component<
     setUserStatus: LoggedInResponse => void,
     locale: string,
     cancelable?: boolean,
+    onClose?: () => void,
   },
   {
     activeTab: LoginDialogTab,
@@ -277,6 +279,7 @@ export class LoginDialog extends React.Component<
     response &&
       response.type === 'logged-in' &&
       this.props.setUserStatus(response);
+    this.props.onClose && this.props.onClose();
   };
 
   _renderSignInPane() {
@@ -735,18 +738,40 @@ function StayLoggedInCheckbox(props: {
  *
  * @param props.userStatus the current user status.
  * @param props.setUserStatus the function to set the user status.
+ * @param props.locale the configured locale.
  */
 export class UserDropdown extends React.Component<
-  {userStatus: UserStatusResponse, setUserStatus: UserStatusResponse => void},
-  {loading: boolean, error: ?Error},
+  {
+    userStatus: UserStatusResponse,
+    setUserStatus: UserStatusResponse => void,
+    locale: string,
+  },
+  {loading: boolean, dialog: ?React.Element<any>},
 > {
-  state = {loading: false, error: null};
+  state = {loading: false, dialog: null};
 
   render() {
+    const userStatus = this.props.userStatus;
     return [
       this.state.loading ? <LoadingSpinner key="spinner" /> : null,
-      this.props.userStatus.type === 'anonymous' ? (
-        <Button key="control" disabled={this.state.loading} color="info">
+      userStatus.type === 'anonymous' ? (
+        <Button
+          key="control"
+          disabled={this.state.loading}
+          color="info"
+          onClick={() =>
+            this.setState({
+              dialog: (
+                <LoginDialog
+                  canCreateUser={userStatus.canCreateUser}
+                  setUserStatus={this.props.setUserStatus}
+                  locale={this.props.locale}
+                  onClose={this._clearDialog}
+                  cancelable
+                />
+              ),
+            })
+          }>
           <FormattedMessage id="user.login" defaultMessage="Log In" />
         </Button>
       ) : (
@@ -754,11 +779,11 @@ export class UserDropdown extends React.Component<
           <DropdownToggle disabled={this.state.loading} nav caret>
             <img
               className="user-icon"
-              src={this.props.userStatus.imageUrl}
+              src={userStatus.imageUrl}
               width={24}
               height={24}
             />
-            {this.props.userStatus.displayName}
+            {userStatus.displayName}
           </DropdownToggle>
           <DropdownMenu>
             <DropdownItem onClick={this._logout}>
@@ -767,13 +792,7 @@ export class UserDropdown extends React.Component<
           </DropdownMenu>
         </UncontrolledDropdown>
       ),
-      this.state.error ? (
-        <ErrorDialog
-          key="dialog"
-          error={this.state.error}
-          onClosed={() => this.setState({error: null})}
-        />
-      ) : null,
+      this.state.dialog,
     ];
   }
 
@@ -790,7 +809,18 @@ export class UserDropdown extends React.Component<
       this.setState({loading: false});
       this.props.setUserStatus(userStatus);
     } catch (error) {
-      this.setState({loading: false, error});
+      this.setState({
+        loading: false,
+        dialog: (
+          <ErrorDialog
+            key="dialog"
+            error={error}
+            onClosed={this._clearDialog}
+          />
+        ),
+      });
     }
   };
+
+  _clearDialog = () => this.setState({dialog: null});
 }

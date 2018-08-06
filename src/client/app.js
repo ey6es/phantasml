@@ -84,7 +84,7 @@ class App extends React.Component<
       return <div className="loading" />;
     }
     let dialog: ?React.Element<any>;
-    let ui: ?React.Element<any>;
+    let interfaceUserStatus: ?UserStatusResponse;
     const userStatus = this.state.userStatus;
     if (userStatus instanceof Error) {
       dialog = (
@@ -98,12 +98,7 @@ class App extends React.Component<
       );
     } else if (userStatus.type === 'anonymous') {
       if (userStatus.allowAnonymous) {
-        ui = (
-          <Interface
-            userStatus={userStatus}
-            setUserStatus={this._setUserStatus}
-          />
-        );
+        interfaceUserStatus = userStatus;
       } else {
         dialog = (
           <LoginDialog
@@ -125,18 +120,19 @@ class App extends React.Component<
       } else if (userStatus.passwordReset) {
         dialog = <PasswordResetDialog setUserStatus={this._setUserStatus} />;
       }
-      ui = (
-        <Interface
-          userStatus={userStatus}
-          setUserStatus={this._setUserStatus}
-        />
-      );
+      interfaceUserStatus = userStatus;
     }
     return (
       <IntlProvider locale={this.state.locale} defaultLocale="en-US">
         <div>
           {dialog}
-          {ui}
+          {interfaceUserStatus ? (
+            <Interface
+              userStatus={interfaceUserStatus}
+              setUserStatus={this._setUserStatus}
+              locale={this.state.locale}
+            />
+          ) : null}
         </div>
       </IntlProvider>
     );
