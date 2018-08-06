@@ -6,6 +6,7 @@
  */
 
 import {DynamoDB} from 'aws-sdk';
+import {SITE_URL} from './handler';
 
 /** The shared DynamoDB instance. */
 export const dynamodb = new DynamoDB();
@@ -13,10 +14,10 @@ export const dynamodb = new DynamoDB();
 /**
  * Retrieves a settings record from the database.
  *
- * @param [id='site'] the id of the settings record to retrieve.
+ * @param [id=SITE_URL] the id of the settings record to retrieve.
  * @return a promise that will resolve to the settings record, if found.
  */
-export async function getSettings(id: string = 'site'): Promise<?Object> {
+export async function getSettings(id: string = SITE_URL): Promise<?Object> {
   const result = await dynamodb
     .getItem({Key: {id: {S: id}}, TableName: 'Settings'})
     .promise();
@@ -27,12 +28,12 @@ export async function getSettings(id: string = 'site'): Promise<?Object> {
  * Updates a settings record in the database.
  *
  * @param attributes the object containing the attributes to set.
- * @param [id='site'] the id of the settings record to update.
+ * @param [id=SITE_URL] the id of the settings record to update.
  * @return a promise that will resolve when finished.
  */
 export async function updateSettings(
   attributes: Object,
-  id: string = 'site',
+  id: string = SITE_URL,
 ): Promise<void> {
   await updateItem('Settings', {id: {S: id}}, attributes);
 }

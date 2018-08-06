@@ -18,6 +18,8 @@ import FB from 'fb';
 import {OAuth2Client} from 'google-auth-library';
 import {dynamodb, updateItem, getSettings} from './util/database';
 import {
+  SITE_URL,
+  FROM_EMAIL,
   FriendlyError,
   handleQueryRequest,
   handleBodyRequest,
@@ -134,8 +136,8 @@ async function sendLinkEmail(
   htmlBody: (url: string) => Element<FormattedMessage>,
   forceCreateUser: boolean = false,
   admin: boolean = false,
-  fromEmail: string = process.env.FROM_EMAIL || 'noreply@phantasml.com',
-  siteUrl: string = process.env.SITE_URL || 'https://www.phantasml.com',
+  fromEmail: string = FROM_EMAIL,
+  siteUrl: string = SITE_URL,
 ) {
   // see if they already have an account
   const user = await getUserByExternalId(email);

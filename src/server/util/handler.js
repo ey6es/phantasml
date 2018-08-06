@@ -8,6 +8,12 @@
 import type {APIGatewayEvent, ProxyResult} from 'flow-aws-lambda';
 import type {Type} from 'flow-runtime';
 
+/** The site URL as specified in an environment variable. */
+export const SITE_URL = process.env.SITE_URL || 'https://www.phantasml.com';
+
+/** The 'from' email as specified in an environment variable. */
+export const FROM_EMAIL = process.env.FROM_URL || 'noreply@phantasml.com';
+
 /**
  * Marker class for errors that will be communicated to the client.
  *
