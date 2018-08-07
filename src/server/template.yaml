@@ -95,6 +95,9 @@ Resources:
       Role: !Ref Role
       Runtime: nodejs8.10
       CodeUri: ../../build/server
+      Environment:
+        Variables:
+          GOOGLE_CLIENT_ID: !Ref GoogleClientId
       Events:
         Request:
           Type: Api
@@ -134,6 +137,56 @@ Resources:
             Path: /api/user/password
             Method: post
 
+  ConfigureUser:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: user.configure
+      Role: !Ref Role
+      Runtime: nodejs8.10
+      CodeUri: ../../build/server
+      Events:
+        Request:
+          Type: Api
+          Properties:
+            Path: /api/user/configure
+            Method: post
+            
+  TransferUser:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: user.transfer
+      Role: !Ref Role
+      Runtime: nodejs8.10
+      CodeUri: ../../build/server
+      Environment:
+        Variables:
+          FROM_EMAIL: !Ref FromEmail
+          SITE_URL: !Ref SiteUrl
+          GOOGLE_CLIENT_ID: !Ref GoogleClientId
+      Events:
+        Request:
+          Type: Api
+          Properties:
+            Path: /api/user/transfer
+            Method: post
+            
+  DeleteUser:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: user.deleteUser
+      Role: !Ref Role
+      Runtime: nodejs8.10
+      CodeUri: ../../build/server
+      Environment:
+        Variables:
+          SITE_URL: !Ref SiteUrl
+      Events:
+        Request:
+          Type: Api
+          Properties:
+            Path: /api/user/delete
+            Method: post
+            
   GetAdminSettings:
     Type: AWS::Serverless::Function
     Properties:

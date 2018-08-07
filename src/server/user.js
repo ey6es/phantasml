@@ -42,6 +42,12 @@ import type {
   UserPasswordResetResponse,
   UserPasswordRequest,
   UserPasswordResponse,
+  UserConfigureRequest,
+  UserConfigureResponse,
+  UserTransferRequest,
+  UserTransferResponse,
+  UserDeleteRequest,
+  UserDeleteResponse,
 } from './api';
 import {
   UserStatusRequestType,
@@ -51,6 +57,9 @@ import {
   UserSetupRequestType,
   UserPasswordResetRequestType,
   UserPasswordRequestType,
+  UserConfigureRequestType,
+  UserTransferRequestType,
+  UserDeleteRequestType,
 } from './api';
 import {isDisplayNameValid} from './constants';
 
@@ -215,7 +224,7 @@ function renderText(element: Element<*>, locale: string): string {
   );
 }
 
-export async function getStatus(
+export function getStatus(
   event: APIGatewayEvent,
   context: Context,
 ): Promise<ProxyResult> {
@@ -261,7 +270,7 @@ async function getCanCreateUser(): Promise<?boolean> {
   return settings && settings.canCreateUser && settings.canCreateUser.BOOL;
 }
 
-export async function login(
+export function login(
   event: APIGatewayEvent,
   context: Context,
 ): Promise<ProxyResult> {
@@ -375,7 +384,7 @@ async function updateUser(userId: string, attributes: Object) {
   await updateItem('Users', {id: {S: userId}}, attributes);
 }
 
-export async function logout(
+export function logout(
   event: APIGatewayEvent,
   context: Context,
 ): Promise<ProxyResult> {
@@ -383,18 +392,13 @@ export async function logout(
     event,
     UserLogoutRequestType,
     (async request => {
-      await dynamodb
-        .deleteItem({
-          Key: {token: {S: request.authToken}},
-          TableName: 'Sessions',
-        })
-        .promise();
+      await deleteSession(request.authToken);
       return await getAnonymousResponse();
     }: UserLogoutRequest => Promise<UserLogoutResponse>),
   );
 }
 
-export async function create(
+export function create(
   event: APIGatewayEvent,
   context: Context,
 ): Promise<ProxyResult> {
@@ -429,7 +433,7 @@ export async function create(
   );
 }
 
-export async function setup(
+export function setup(
   event: APIGatewayEvent,
   context: Context,
 ): Promise<ProxyResult> {
@@ -498,7 +502,7 @@ async function getExternalLogin(
   }
 }
 
-export async function passwordReset(
+export function passwordReset(
   event: APIGatewayEvent,
   context: Context,
 ): Promise<ProxyResult> {
@@ -533,7 +537,7 @@ export async function passwordReset(
   );
 }
 
-export async function password(
+export function password(
   event: APIGatewayEvent,
   context: Context,
 ): Promise<ProxyResult> {
@@ -558,6 +562,65 @@ export async function password(
         admin: user.admin && user.admin.BOOL,
       };
     }: UserPasswordRequest => Promise<UserPasswordResponse>),
+  );
+}
+
+export function configure(
+  event: APIGatewayEvent,
+  context: Context,
+): Promise<ProxyResult> {
+  return handleBodyRequest(
+    event,
+    UserConfigureRequestType,
+    (async request => {
+      return {
+        type: 'logged-in',
+        externalId: '',
+        displayName: '',
+        imageUrl: '',
+        admin: false,
+      };
+    }: UserConfigureRequest => Promise<UserConfigureResponse>),
+  );
+}
+
+export function transfer(
+  event: APIGatewayEvent,
+  context: Context,
+): Promise<ProxyResult> {
+  return handleBodyRequest(
+    event,
+    UserTransferRequestType,
+    (async request => {
+      return {
+        type: 'logged-in',
+        externalId: '',
+        displayName: '',
+        imageUrl: '',
+        admin: false,
+      };
+    }: UserTransferRequest => Promise<UserTransferResponse>),
+  );
+}
+
+export function deleteUser(
+  event: APIGatewayEvent,
+  context: Context,
+): Promise<ProxyResult> {
+  return handleBodyRequest(
+    event,
+    UserDeleteRequestType,
+    (async request => {
+      const session = await requireSession(request.authToken);
+      await dynamodb
+        .deleteItem({
+          Key: {id: {S: session.userId.S}},
+          TableName: 'Users',
+        })
+        .promise();
+      await deleteSession(request.authToken);
+      return await getAnonymousResponse();
+    }: UserDeleteRequest => Promise<UserDeleteResponse>),
   );
 }
 
@@ -627,6 +690,18 @@ async function createSession(
     })
     .promise();
   return token;
+}
+
+async function deleteSession(token: ?string): Promise<void> {
+  if (!token) {
+    throw new Error('Missing token');
+  }
+  await dynamodb
+    .deleteItem({
+      Key: {token: {S: token}},
+      TableName: 'Sessions',
+    })
+    .promise();
 }
 
 function nowInSeconds(): number {

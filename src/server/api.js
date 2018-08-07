@@ -85,6 +85,22 @@ export type UserPasswordRequest = ApiRequest & {
 export const UserPasswordRequestType = (reify: Type<UserPasswordRequest>);
 export type UserPasswordResponse = LoggedInResponse;
 
+export type UserConfigureRequest = ApiRequest & {
+  displayName: string,
+  password: string,
+};
+export const UserConfigureRequestType = (reify: Type<UserConfigureRequest>);
+export type UserConfigureResponse = LoggedInResponse;
+
+type EmailTransferRequest = ApiRequest & {type: 'email', email: string};
+export type UserTransferRequest = EmailTransferRequest | ExternalLoginRequest;
+export const UserTransferRequestType = (reify: Type<UserTransferRequest>);
+export type UserTransferResponse = LoggedInResponse;
+
+export type UserDeleteRequest = ApiRequest;
+export const UserDeleteRequestType = (reify: Type<UserDeleteRequest>);
+export type UserDeleteResponse = AnonymousResponse;
+
 export type GetAdminSettingsRequest = ApiRequest;
 export const GetAdminSettingsRequestType = (reify: Type<
   GetAdminSettingsRequest,

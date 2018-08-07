@@ -28,7 +28,7 @@ import {
 } from './api';
 import {inviteEmail, requireSessionUser} from './user';
 
-export async function getSettings(
+export function getSettings(
   event: APIGatewayEvent,
   context: Context,
 ): Promise<ProxyResult> {
@@ -50,7 +50,7 @@ export async function getSettings(
   );
 }
 
-export async function putSettings(
+export function putSettings(
   event: APIGatewayEvent,
   context: Context,
 ): Promise<ProxyResult> {
@@ -68,7 +68,7 @@ export async function putSettings(
   );
 }
 
-export async function invite(
+export function invite(
   event: APIGatewayEvent,
   context: Context,
 ): Promise<ProxyResult> {

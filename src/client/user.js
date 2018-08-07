@@ -42,6 +42,8 @@ import type {
   UserPasswordResetRequest,
   UserPasswordRequest,
   UserSetupRequest,
+  UserConfigureRequest,
+  UserTransferRequest,
 } from '../server/api';
 import {
   MAX_EMAIL_LENGTH,
@@ -64,7 +66,7 @@ type LoginDialogTab = 'sign_in' | 'create_user' | 'forgot_password';
  * @param props.setUserStatus the function used to set the user properties in
  * the containing context.
  * @param cancelable whether the user can close the dialog without logging in.
- * @param onClose an optional function to call when the dialog is closed.
+ * @param onClosed an optional function to call when the dialog is closed.
  */
 export class LoginDialog extends React.Component<
   {
@@ -72,7 +74,7 @@ export class LoginDialog extends React.Component<
     setUserStatus: LoggedInResponse => void,
     locale: string,
     cancelable?: boolean,
-    onClose?: () => void,
+    onClosed?: () => void,
   },
   {
     activeTab: LoginDialogTab,
@@ -268,7 +270,7 @@ export class LoginDialog extends React.Component<
     response &&
       response.type === 'logged-in' &&
       this.props.setUserStatus(response);
-    this.props.onClose && this.props.onClose();
+    this.props.onClosed && this.props.onClosed();
   };
 
   _renderSignInPane() {
@@ -334,22 +336,13 @@ export class LoginDialog extends React.Component<
   }
 
   _renderEmail(tab: LoginDialogTab, autoComplete: string = 'on') {
-    const id = tab + '-email';
     return (
-      <FormGroup>
-        <Label for={id}>
-          <FormattedMessage id="login.email" defaultMessage="Email" />
-        </Label>
-        <Input
-          type="email"
-          id={id}
-          autoComplete={autoComplete}
-          value={this.state.email}
-          valid={isEmailValid(this.state.email)}
-          maxLength={MAX_EMAIL_LENGTH}
-          onInput={event => this.setState({email: event.target.value})}
-        />
-      </FormGroup>
+      <EmailGroup
+        id={tab + '-email'}
+        autoComplete={autoComplete}
+        value={this.state.email}
+        setValue={email => this.setState({email})}
+      />
     );
   }
 }
@@ -413,30 +406,10 @@ export class UserSetupDialog extends React.Component<
               }}
             />
           </FormGroup>
-          <FormGroup>
-            <Label for="display-name">
-              <FormattedMessage
-                id="user.display_name"
-                defaultMessage="Display Name"
-              />
-            </Label>
-            <Input
-              id="display-name"
-              autoComplete="on"
-              value={this.state.displayName}
-              valid={isDisplayNameValid(this.state.displayName)}
-              maxLength={MAX_DISPLAY_NAME_LENGTH}
-              onInput={event =>
-                this.setState({displayName: event.target.value})
-              }
-            />
-            <FormText>
-              <FormattedMessage
-                id="user.display_name.text"
-                defaultMessage="This is how you will be identified to other users."
-              />
-            </FormText>
-          </FormGroup>
+          <DisplayNameGroup
+            value={this.state.displayName}
+            setValue={displayName => this.setState({displayName})}
+          />
           <VerifiedPasswordGroups
             password={this.state.password}
             setPassword={password => this.setState({password})}
@@ -489,70 +462,6 @@ export class UserSetupDialog extends React.Component<
   _onClosed = (response: any) => {
     response && this.props.setUserStatus(response);
   };
-}
-
-/**
- * Renders the Google/Facebook login buttons.
- *
- * @param props.setGoogleToken the setter for the Google id token.
- * @param props.setFacebookToken the setter for the Facebook access token.
- */
-class ExternalButtons extends React.Component<
-  {setGoogleToken: string => void, setFacebookToken: string => void},
-  {},
-> {
-  render() {
-    return (
-      <Container>
-        <div className="text-center login-or">
-          — <FormattedMessage id="login.or" defaultMessage="or" /> —
-        </div>
-        <Row noGutters className="justify-content-around">
-          <Col md="auto">
-            <div ref={this._renderGoogleButton} />
-          </Col>
-          {FB ? (
-            <Col md="auto">
-              <div
-                ref={this._renderFacebookButton}
-                className="fb-login-button"
-                data-size="large"
-                data-button-type="login_with"
-              />
-            </Col>
-          ) : null}
-        </Row>
-      </Container>
-    );
-  }
-
-  componentDidMount() {
-    FB && FB.Event.subscribe('auth.login', this._setFBAuthResponse);
-  }
-
-  componentWillUnmount() {
-    FB && FB.Event.unsubscribe('auth.login', this._setFBAuthResponse);
-  }
-
-  _setFBAuthResponse = (response: Object) => {
-    this.props.setFacebookToken(response.authResponse.accessToken);
-  };
-
-  _renderGoogleButton = (element: ?HTMLDivElement) => {
-    element &&
-      gapi.signin2.render(element, {
-        longtitle: true,
-        theme: 'dark',
-        height: 40,
-        onsuccess: user => {
-          this.props.setGoogleToken(user.getAuthResponse(true).id_token);
-        },
-      });
-  };
-
-  _renderFacebookButton(element: ?HTMLDivElement) {
-    element && FB.XFBML.parse(element.parentElement);
-  }
 }
 
 /**
@@ -757,10 +666,11 @@ export class UserDropdown extends React.Component<
             this.setState({
               dialog: (
                 <LoginDialog
+                  key="login"
                   canCreateUser={userStatus.canCreateUser}
                   setUserStatus={this.props.setUserStatus}
                   locale={this.props.locale}
-                  onClose={this._clearDialog}
+                  onClosed={this._clearDialog}
                   cancelable
                 />
               ),
@@ -780,6 +690,25 @@ export class UserDropdown extends React.Component<
             {userStatus.displayName}
           </DropdownToggle>
           <DropdownMenu>
+            <DropdownItem
+              onClick={() =>
+                this.setState({
+                  dialog: (
+                    <UserSettingsDialog
+                      key="user-settings"
+                      userStatus={userStatus}
+                      setUserStatus={this.props.setUserStatus}
+                      locale={this.props.locale}
+                      onClosed={this._clearDialog}
+                    />
+                  ),
+                })
+              }>
+              <FormattedMessage
+                id="user.settings"
+                defaultMessage="Account Settings..."
+              />
+            </DropdownItem>
             <DropdownItem onClick={this._logout}>
               <FormattedMessage id="user.logout" defaultMessage="Log Out" />
             </DropdownItem>
@@ -794,12 +723,7 @@ export class UserDropdown extends React.Component<
     this.setState({loading: true});
     try {
       const userStatus = await postToApi('/user/logout');
-      if (gapi.auth2.getAuthInstance().isSignedIn.get()) {
-        await gapi.auth2.getAuthInstance().signOut();
-      }
-      if (FB && FB.getAuthResponse()) {
-        await new Promise(resolve => FB.logout(resolve));
-      }
+      await externalLogout();
       this.setState({loading: false});
       this.props.setUserStatus(userStatus);
     } catch (error) {
@@ -817,4 +741,407 @@ export class UserDropdown extends React.Component<
   };
 
   _clearDialog = () => this.setState({dialog: null});
+}
+
+type UserSettingsTab = 'identity' | 'transfer' | 'delete';
+
+class UserSettingsDialog extends React.Component<
+  {
+    userStatus: LoggedInResponse,
+    setUserStatus: UserStatusResponse => void,
+    locale: string,
+    onClosed: () => void,
+  },
+  {
+    activeTab: UserSettingsTab,
+    loading: boolean,
+    displayName: string,
+    password: string,
+    reenterPassword: string,
+    email: string,
+    googleToken: ?string,
+    facebookToken: ?string,
+    confirmDelete: string,
+  },
+> {
+  state = {
+    activeTab: this._isEmailAccount() ? 'identity' : 'transfer',
+    loading: false,
+    displayName: this.props.userStatus.displayName || '',
+    password: '',
+    reenterPassword: '',
+    email: '',
+    googleToken: null,
+    facebookToken: null,
+    confirmDelete: '',
+  };
+
+  render() {
+    const Tab = (props: {id: UserSettingsTab, children: mixed}) => (
+      <NavItem>
+        <NavLink
+          active={props.id === this.state.activeTab}
+          onClick={() => this.setState({activeTab: props.id})}
+          disabled={this.state.loading}>
+          {props.children}
+        </NavLink>
+      </NavItem>
+    );
+    return (
+      <RequestDialog
+        header={
+          <FormattedMessage
+            id="user_settings.title"
+            defaultMessage="Account Settings"
+          />
+        }
+        invalid={!this._isValid()}
+        autoRequest={!!(this.state.googleToken || this.state.facebookToken)}
+        makeRequest={this._makeRequest}
+        onClosed={this._onClosed}
+        applicable={this.state.activeTab === 'identity'}
+        cancelable>
+        <Nav tabs>
+          {this._isEmailAccount() ? (
+            <Tab id="identity">
+              <FormattedMessage
+                id="user_settings.identity"
+                defaultMessage="Identity"
+              />
+            </Tab>
+          ) : null}
+          <Tab id="transfer">
+            <FormattedMessage
+              id="user_settings.transfer"
+              defaultMessage="Transfer"
+            />
+          </Tab>
+          <Tab id="delete">
+            <FormattedMessage
+              id="user_settings.delete"
+              defaultMessage="Delete"
+            />
+          </Tab>
+        </Nav>
+        <TabContent activeTab={this.state.activeTab}>
+          {this._renderIdentityPane()}
+          {this._renderTransferPane()}
+          {this._renderDeletePane()}
+        </TabContent>
+      </RequestDialog>
+    );
+  }
+
+  _renderIdentityPane() {
+    if (!this._isEmailAccount()) {
+      return;
+    }
+    return (
+      <TabPane tabId="identity">
+        <Form>
+          <FormGroup className="text-center">
+            <FormattedMessage
+              id="user_settings.identity.text"
+              defaultMessage="Settings for {email}."
+              values={{
+                email: (
+                  <span className="text-info">
+                    {this.props.userStatus.externalId}
+                  </span>
+                ),
+              }}
+            />
+          </FormGroup>
+          <DisplayNameGroup
+            value={this.state.displayName}
+            setValue={displayName => this.setState({displayName})}
+          />
+          <VerifiedPasswordGroups
+            password={this.state.password}
+            setPassword={password => this.setState({password})}
+            reenterPassword={this.state.reenterPassword}
+            setReenterPassword={reenterPassword =>
+              this.setState({reenterPassword})
+            }
+          />
+        </Form>
+      </TabPane>
+    );
+  }
+
+  _isEmailAccount() {
+    return isEmailValid(this.props.userStatus.externalId);
+  }
+
+  _renderTransferPane() {
+    return (
+      <TabPane tabId="transfer">
+        <Form>
+          <FormGroup className="text-center">
+            <FormattedMessage
+              id="user_settings.transfer.text"
+              defaultMessage={`
+                From here, you may transfer your account to another email
+                address or external login provider.
+              `}
+            />
+          </FormGroup>
+          <EmailGroup
+            id="email"
+            autoComplete="on"
+            value={this.state.email}
+            setValue={email => this.setState({email})}
+          />
+          <ExternalButtons
+            setGoogleToken={
+              isGoogleLogin()
+                ? null
+                : googleToken => this.setState({googleToken})
+            }
+            setFacebookToken={
+              isFacebookLogin()
+                ? null
+                : facebookToken => this.setState({facebookToken})
+            }
+          />
+        </Form>
+      </TabPane>
+    );
+  }
+
+  _renderDeletePane() {
+    return (
+      <TabPane tabId="delete">
+        <Form>
+          <FormGroup className="text-center">
+            <FormattedMessage
+              id="user_settings.delete.text"
+              defaultMessage={`
+                If you wish to delete your account permanently, type "delete"
+                into the text box below and press OK. 
+              `}
+            />
+          </FormGroup>
+          <FormGroup>
+            <Label for="confirm-delete">
+              <FormattedMessage
+                id="user_settings.delete.confirm"
+                defaultMessage="Confirm Deletion"
+              />
+            </Label>
+            <Input
+              id="confirm-delete"
+              autoComplete="off"
+              value={this.state.confirmDelete}
+              valid={this._isConfirmDeleteValid()}
+              onInput={event =>
+                this.setState({
+                  confirmDelete: event.target.value,
+                })
+              }
+            />
+          </FormGroup>
+        </Form>
+      </TabPane>
+    );
+  }
+
+  _isValid(): ?boolean {
+    switch (this.state.activeTab) {
+      case 'identity':
+        return (
+          isDisplayNameValid(this.state.displayName) &&
+          (!this.state.password || isPasswordValid(this.state.password)) &&
+          this.state.password === this.state.reenterPassword
+        );
+      case 'transfer':
+        return isEmailValid(this.state.email);
+      case 'delete':
+        return this._isConfirmDeleteValid();
+    }
+  }
+
+  _isConfirmDeleteValid(): ?boolean {
+    return this.state.confirmDelete.trim().toLowerCase() === 'delete';
+  }
+
+  _makeRequest = async () => {
+    this.setState({loading: true});
+    try {
+      switch (this.state.activeTab) {
+        case 'identity': {
+          const request: UserConfigureRequest = {
+            displayName: this.state.displayName,
+            password: this.state.password,
+          };
+          const response = await postToApi('/user/configure', request);
+          this.props.setUserStatus(response);
+          return response;
+        }
+        case 'transfer': {
+          let request: UserTransferRequest;
+          if (this.state.googleToken) {
+            request = {type: 'google', idToken: this.state.googleToken};
+          } else if (this.state.facebookToken) {
+            request = {
+              type: 'facebook',
+              accessToken: this.state.facebookToken,
+            };
+          } else {
+            request = {type: 'email', email: this.state.email};
+          }
+          return await postToApi('/user/transfer', request);
+        }
+        case 'delete':
+          const response = await postToApi('/user/delete');
+          await externalLogout();
+          return response;
+        default:
+          throw new Error('Unknown tab');
+      }
+    } finally {
+      this.setState({loading: false, googleToken: null, facebookToken: null});
+    }
+  };
+
+  _onClosed = (response: any) => {
+    response && this.props.setUserStatus(response);
+    this.props.onClosed();
+  };
+}
+
+async function externalLogout() {
+  if (isGoogleLogin()) {
+    await gapi.auth2.getAuthInstance().signOut();
+  }
+  if (isFacebookLogin()) {
+    await new Promise(resolve => FB.logout(resolve));
+  }
+}
+
+function isGoogleLogin(): boolean {
+  return gapi.auth2.getAuthInstance().isSignedIn.get();
+}
+
+function isFacebookLogin(): boolean {
+  return FB && FB.getAuthResponse();
+}
+
+function DisplayNameGroup(props: {value: string, setValue: string => void}) {
+  return (
+    <FormGroup>
+      <Label for="display-name">
+        <FormattedMessage
+          id="user.display_name"
+          defaultMessage="Display Name"
+        />
+      </Label>
+      <Input
+        id="display-name"
+        autoComplete="on"
+        value={props.value}
+        valid={isDisplayNameValid(props.value)}
+        maxLength={MAX_DISPLAY_NAME_LENGTH}
+        onInput={event => props.setValue(event.target.value)}
+      />
+      <FormText>
+        <FormattedMessage
+          id="user.display_name.text"
+          defaultMessage="This is how you will be identified to other users."
+        />
+      </FormText>
+    </FormGroup>
+  );
+}
+
+function EmailGroup(props: {
+  id: string,
+  autoComplete: ?string,
+  value: string,
+  setValue: string => void,
+}) {
+  return (
+    <FormGroup>
+      <Label for={props.id}>
+        <FormattedMessage id="user.email" defaultMessage="Email" />
+      </Label>
+      <Input
+        type="email"
+        id={props.id}
+        autoComplete={props.autoComplete}
+        value={props.value}
+        valid={isEmailValid(props.value)}
+        maxLength={MAX_EMAIL_LENGTH}
+        onInput={event => props.setValue(event.target.value)}
+      />
+    </FormGroup>
+  );
+}
+
+/**
+ * Renders the Google/Facebook login buttons.
+ *
+ * @param [props.setGoogleToken] the setter for the Google id token.
+ * @param [props.setFacebookToken] the setter for the Facebook access token.
+ */
+class ExternalButtons extends React.Component<
+  {setGoogleToken: ?(string) => void, setFacebookToken: ?(string) => void},
+  {},
+> {
+  render() {
+    return (
+      <Container>
+        <div className="text-center login-or">
+          — <FormattedMessage id="login.or" defaultMessage="or" /> —
+        </div>
+        <Row noGutters className="justify-content-around">
+          {this.props.setGoogleToken ? (
+            <Col md="auto">
+              <div ref={this._renderGoogleButton} />
+            </Col>
+          ) : null}
+          {FB && this.props.setFacebookToken ? (
+            <Col md="auto">
+              <div
+                ref={this._renderFacebookButton}
+                className="fb-login-button"
+                data-size="large"
+                data-button-type="login_with"
+              />
+            </Col>
+          ) : null}
+        </Row>
+      </Container>
+    );
+  }
+
+  componentDidMount() {
+    FB && FB.Event.subscribe('auth.login', this._setFBAuthResponse);
+  }
+
+  componentWillUnmount() {
+    FB && FB.Event.unsubscribe('auth.login', this._setFBAuthResponse);
+  }
+
+  _setFBAuthResponse = (response: Object) => {
+    this.props.setFacebookToken &&
+      this.props.setFacebookToken(response.authResponse.accessToken);
+  };
+
+  _renderGoogleButton = (element: ?HTMLDivElement) => {
+    const setGoogleToken = this.props.setGoogleToken;
+    element &&
+      gapi.signin2.render(element, {
+        longtitle: true,
+        theme: 'dark',
+        height: 40,
+        onsuccess: user => {
+          setGoogleToken && setGoogleToken(user.getAuthResponse(true).id_token);
+        },
+      });
+  };
+
+  _renderFacebookButton(element: ?HTMLDivElement) {
+    element && FB.XFBML.parse(element.parentElement);
+  }
 }
