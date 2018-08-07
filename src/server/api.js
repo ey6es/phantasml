@@ -102,3 +102,10 @@ export const PutAdminSettingsRequestType = (reify: Type<
   PutAdminSettingsRequest,
 >);
 export type PutAdminSettingsResponse = {};
+
+export type AdminInviteRequest = ApiRequest & {
+  addresses: string[],
+  locale: string,
+};
+export const AdminInviteRequestType = (reify: Type<AdminInviteRequest>);
+export type AdminInviteResponse = {};

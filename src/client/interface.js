@@ -55,7 +55,9 @@ class TopBar extends React.Component<
         <NavbarToggler onClick={this._toggle} />
         <Collapse isOpen={this.state.open} navbar>
           <Nav navbar>
-            {this.props.userStatus.admin ? <AdminDropdown /> : null}
+            {this.props.userStatus.admin ? (
+              <AdminDropdown locale={this.props.locale} />
+            ) : null}
           </Nav>
           <Nav className="ml-auto" navbar>
             <UserDropdown

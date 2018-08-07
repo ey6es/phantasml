@@ -33,8 +33,6 @@ import {
  * be made.
  * @param props.getFeedback an optional function to generate custom feedback
  * for result/errors.
- * @param props.seenResult the last result seen.  If this is equal to the
- * current result, that result's feedback (if any) will not be rendered.
  * @param props.onClosed an optional function to invoke with the result (if
  * any) when the dialog is completely closed.
  * @param props.applicable if true, the dialog can be applied without closing.
@@ -50,7 +48,6 @@ export class RequestDialog<T: Object> extends React.Component<
     autoRequest?: boolean,
     invalid?: boolean,
     getFeedback?: (T | Error) => ?React.Element<any>,
-    seenResult?: ?T | Error,
     onClosed?: (?T) => void,
     applicable?: boolean,
     cancelable?: boolean,
@@ -59,9 +56,10 @@ export class RequestDialog<T: Object> extends React.Component<
 > {
   state = {open: true, loading: !!this.props.loadState, result: null};
 
+  _renderedResult: ?T | Error;
+
   render() {
-    const displayResult =
-      this.state.result === this.props.seenResult ? null : this.state.result;
+    const displayResult = this.state.result;
     const resultFeedback =
       (displayResult &&
         (this.props.getFeedback && this.props.getFeedback(displayResult))) ||
@@ -135,6 +133,17 @@ export class RequestDialog<T: Object> extends React.Component<
   }
 
   componentDidUpdate() {
+    if (this.state.result) {
+      // the first time we see the result, we render it.
+      // the next time, we clear it out (assuming that some other state
+      // update means the user has seen it)
+      if (this.state.result !== this._renderedResult) {
+        this._renderedResult = this.state.result;
+      } else {
+        this._renderedResult = null;
+        this.setState({result: null});
+      }
+    }
     if (this.props.autoRequest && !this.state.loading) {
       this._submit();
     }

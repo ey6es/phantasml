@@ -167,3 +167,21 @@ Resources:
           Properties:
             Path: /api/admin/settings
             Method: put
+
+  AdminInvite:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: admin.invite
+      Role: !Ref Role
+      Runtime: nodejs8.10
+      CodeUri: ../../build/server
+      Environment:
+        Variables:
+          FROM_EMAIL: !Ref FromEmail
+          SITE_URL: !Ref SiteUrl
+      Events:
+        Request:
+          Type: Api
+          Properties:
+            Path: /api/admin/invite
+            Method: post

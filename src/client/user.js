@@ -82,7 +82,6 @@ export class LoginDialog extends React.Component<
     facebookToken: ?string,
     googleToken: ?string,
     loading: boolean,
-    seenResult: ?Object,
   },
 > {
   state = {
@@ -93,18 +92,16 @@ export class LoginDialog extends React.Component<
     facebookToken: null,
     googleToken: null,
     loading: false,
-    seenResult: null,
   };
 
   _submitButton: ?HTMLInputElement;
-  _lastResult: ?Object;
 
   render() {
     const Tab = (props: {id: LoginDialogTab, children: mixed}) => (
       <NavItem>
         <NavLink
           active={props.id === this.state.activeTab}
-          onClick={() => this._setInputState({activeTab: props.id})}
+          onClick={() => this.setState({activeTab: props.id})}
           disabled={this.state.loading}>
           {props.children}
         </NavLink>
@@ -121,7 +118,6 @@ export class LoginDialog extends React.Component<
           )
         }
         getFeedback={this._getFeedback}
-        seenResult={this.state.seenResult}
         onClosed={this._onClosed}
         cancelable={this.props.cancelable}>
         <Nav tabs>
@@ -154,10 +150,6 @@ export class LoginDialog extends React.Component<
         />
       </RequestDialog>
     );
-  }
-
-  _setInputState(state: Object) {
-    this.setState(Object.assign({seenResult: this._lastResult}, state));
   }
 
   _makeRequest = async () => {
@@ -226,9 +218,6 @@ export class LoginDialog extends React.Component<
   };
 
   _getFeedback = (result: Object) => {
-    // store for rendering
-    this._lastResult = result;
-
     if (result instanceof Error) {
       switch (result.message) {
         case 'error.password':
@@ -290,11 +279,11 @@ export class LoginDialog extends React.Component<
           <PasswordGroup
             current={true}
             value={this.state.password}
-            setValue={value => this._setInputState({password: value})}
+            setValue={value => this.setState({password: value})}
           />
           <StayLoggedInCheckbox
             value={this.state.stayLoggedIn}
-            setValue={value => this._setInputState({stayLoggedIn: value})}
+            setValue={value => this.setState({stayLoggedIn: value})}
           />
           <input
             ref={button => (this._submitButton = button)}
@@ -358,7 +347,7 @@ export class LoginDialog extends React.Component<
           value={this.state.email}
           valid={isEmailValid(this.state.email)}
           maxLength={MAX_EMAIL_LENGTH}
-          onInput={event => this._setInputState({email: event.target.value})}
+          onInput={event => this.setState({email: event.target.value})}
         />
       </FormGroup>
     );

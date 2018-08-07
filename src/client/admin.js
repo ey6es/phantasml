@@ -13,16 +13,22 @@ import {
   DropdownMenu,
   DropdownItem,
   Form,
+  FormGroup,
+  Label,
+  Input,
 } from 'reactstrap';
 import {getFromApi, putToApi} from './util/api';
 import {RequestDialog, LabeledCheckbox} from './util/ui';
-import type {PutAdminSettingsRequest} from '../server/api';
+import type {PutAdminSettingsRequest, AdminInviteRequest} from '../server/api';
+import {isEmailValid} from '../server/constants';
 
 /**
  * The dropdown menu for admins.
+ *
+ * @param props.locale the currently configured locale.
  */
 export class AdminDropdown extends React.Component<
-  {},
+  {locale: string},
   {dialog: ?React.Element<any>},
 > {
   state = {dialog: null};
@@ -43,6 +49,22 @@ export class AdminDropdown extends React.Component<
             <FormattedMessage
               id="admin.site_settings"
               defaultMessage="Site Settings..."
+            />
+          </DropdownItem>
+          <DropdownItem
+            onClick={() =>
+              this.setState({
+                dialog: (
+                  <SendInvitesDialog
+                    locale={this.props.locale}
+                    onClosed={this._clearDialog}
+                  />
+                ),
+              })
+            }>
+            <FormattedMessage
+              id="admin.send_invites"
+              defaultMessage="Send Invites..."
             />
           </DropdownItem>
         </DropdownMenu>
@@ -123,5 +145,86 @@ class SiteSettingsDialog extends React.Component<
       canCreateUser: this.state.canCreateUser,
     };
     return await putToApi('/admin/settings', request);
+  };
+}
+
+class SendInvitesDialog extends React.Component<
+  {locale: string, onClosed: () => void},
+  {addresses: string},
+> {
+  state = {addresses: ''};
+
+  render() {
+    const firstAddress = this._getAddressArray()[0];
+    return (
+      <RequestDialog
+        header={
+          <FormattedMessage
+            id="send_invites.title"
+            defaultMessage="Send Invites"
+          />
+        }
+        invalid={!(firstAddress && isEmailValid(firstAddress))}
+        makeRequest={this._makeRequest}
+        getFeedback={this._getFeedback}
+        onClosed={this.props.onClosed}
+        applicable
+        cancelable>
+        <Form>
+          <FormGroup className="text-center">
+            <FormattedMessage
+              id="send_invites.text"
+              defaultMessage={
+                'Enter the email addresses to invite below (one per line).'
+              }
+            />
+          </FormGroup>
+          <FormGroup>
+            <Label for="emailAddresses">
+              <FormattedMessage
+                id="send_invites.email_addresses"
+                defaultMessage="Email Addresses"
+              />
+            </Label>
+            <Input
+              type="textarea"
+              id="emailAddresses"
+              value={this.state.addresses}
+              onInput={event => this.setState({addresses: event.target.value})}
+            />
+          </FormGroup>
+        </Form>
+      </RequestDialog>
+    );
+  }
+
+  _makeRequest = async () => {
+    const request: AdminInviteRequest = {
+      addresses: this._getAddressArray(),
+      locale: this.props.locale,
+    };
+    const response = await putToApi('/admin/invite', request);
+    this.setState({addresses: ''});
+    return response;
+  };
+
+  _getAddressArray(): string[] {
+    return this.state.addresses
+      .split('\n')
+      .map(address => address.trim())
+      .filter(address => address);
+  }
+
+  _getFeedback = (result: Object) => {
+    if (!(result instanceof Error)) {
+      return (
+        <span className="text-success">
+          <FormattedMessage
+            id="send_invites.feedback"
+            defaultMessage="Invites sent!"
+          />
+        </span>
+      );
+    }
   };
 }

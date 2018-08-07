@@ -7,16 +7,26 @@
 
 import type {APIGatewayEvent, Context, ProxyResult} from 'flow-aws-lambda';
 import {getSettings as fetchSettings, updateSettings} from './util/database';
-import {handleQueryRequest, handleCombinedRequest} from './util/handler';
+import {
+  handleQueryRequest,
+  handleBodyRequest,
+  handleCombinedRequest,
+} from './util/handler';
 import type {
   ApiRequest,
   GetAdminSettingsRequest,
   GetAdminSettingsResponse,
   PutAdminSettingsRequest,
   PutAdminSettingsResponse,
+  AdminInviteRequest,
+  AdminInviteResponse,
 } from './api';
-import {GetAdminSettingsRequestType, PutAdminSettingsRequestType} from './api';
-import {requireSessionUser} from './user';
+import {
+  GetAdminSettingsRequestType,
+  PutAdminSettingsRequestType,
+  AdminInviteRequestType,
+} from './api';
+import {inviteEmail, requireSessionUser} from './user';
 
 export async function getSettings(
   event: APIGatewayEvent,
@@ -55,6 +65,23 @@ export async function putSettings(
       });
       return {};
     }: PutAdminSettingsRequest => Promise<PutAdminSettingsResponse>),
+  );
+}
+
+export async function invite(
+  event: APIGatewayEvent,
+  context: Context,
+): Promise<ProxyResult> {
+  return handleBodyRequest(
+    event,
+    AdminInviteRequestType,
+    (async request => {
+      await requireAdmin(request);
+      await Promise.all(
+        request.addresses.map(address => inviteEmail(address, request.locale)),
+      );
+      return {};
+    }: AdminInviteRequest => Promise<AdminInviteResponse>),
   );
 }
 
