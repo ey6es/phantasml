@@ -156,7 +156,7 @@ async function sendLinkEmail(
         return;
       }
     }
-    userId = await createUser(email, '', getGravatarUrl(email), admin);
+    userId = await createUser(email, null, getGravatarUrl(email), admin);
   }
 
   // create the invite session
@@ -351,8 +351,8 @@ async function getUserByExternalId(externalId: string): Promise<?Object> {
 
 async function createUser(
   externalId: string,
-  displayName: string = '',
-  imageUrl: string = '',
+  displayName: ?string,
+  imageUrl: ?string,
   admin: boolean = false,
 ): Promise<string> {
   const userId = createUuid();
@@ -361,8 +361,8 @@ async function createUser(
       Item: {
         id: {S: userId},
         externalId: {S: externalId},
-        displayName: {S: displayName},
-        imageUrl: {S: imageUrl},
+        displayName: displayName ? {S: displayName} : undefined,
+        imageUrl: imageUrl ? {S: imageUrl} : undefined,
         admin: {BOOL: admin},
       },
       TableName: 'Users',

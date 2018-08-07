@@ -422,6 +422,7 @@ export class UserSetupDialog extends React.Component<
             </Label>
             <Input
               id="display-name"
+              autoComplete="on"
               value={this.state.displayName}
               valid={isDisplayNameValid(this.state.displayName)}
               maxLength={MAX_DISPLAY_NAME_LENGTH}
@@ -638,8 +639,12 @@ function VerifiedPasswordGroups(props: {
   setReenterPassword: string => void,
 }) {
   return [
-    <PasswordGroup value={props.password} setValue={props.setPassword} />,
-    <FormGroup>
+    <PasswordGroup
+      key="password"
+      value={props.password}
+      setValue={props.setPassword}
+    />,
+    <FormGroup key="reenter-password">
       <Label for="reenter-password">
         <FormattedMessage
           id="user.reenter_password"

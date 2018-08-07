@@ -17,7 +17,7 @@ import {
   Label,
   Input,
 } from 'reactstrap';
-import {getFromApi, putToApi} from './util/api';
+import {getFromApi, putToApi, postToApi} from './util/api';
 import {RequestDialog, LabeledCheckbox} from './util/ui';
 import type {PutAdminSettingsRequest, AdminInviteRequest} from '../server/api';
 import {isEmailValid} from '../server/constants';
@@ -203,7 +203,7 @@ class SendInvitesDialog extends React.Component<
       addresses: this._getAddressArray(),
       locale: this.props.locale,
     };
-    const response = await putToApi('/admin/invite', request);
+    const response = await postToApi('/admin/invite', request);
     this.setState({addresses: ''});
     return response;
   };
