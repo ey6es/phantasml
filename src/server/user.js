@@ -515,10 +515,10 @@ async function getExternalLogin(
   request: ExternalLoginRequest,
 ): Promise<[string, string, string]> {
   if (request.type === 'facebook') {
-    const user = await FB.api('/me?fields=first_name,profile_pic', {
+    const user = await FB.api('/me?fields=first_name,picture', {
       access_token: request.accessToken,
     });
-    return [`facebook:${user.id}`, user.first_name, user.profile_pic];
+    return [`facebook:${user.id}`, user.first_name, user.picture.data.url];
   } else {
     // request.type === 'google'
     const ticket = await googleClient.verifyIdToken({
