@@ -92,10 +92,14 @@ export type UserConfigureRequest = ApiRequest & {
 export const UserConfigureRequestType = (reify: Type<UserConfigureRequest>);
 export type UserConfigureResponse = LoggedInResponse;
 
-type EmailTransferRequest = ApiRequest & {type: 'email', email: string};
+type EmailTransferRequest = ApiRequest & {
+  type: 'email',
+  email: string,
+  locale: string,
+};
 export type UserTransferRequest = EmailTransferRequest | ExternalLoginRequest;
 export const UserTransferRequestType = (reify: Type<UserTransferRequest>);
-export type UserTransferResponse = LoggedInResponse;
+export type UserTransferResponse = LoggedInResponse | {type: 'email'};
 
 export type UserDeleteRequest = ApiRequest;
 export const UserDeleteRequestType = (reify: Type<UserDeleteRequest>);

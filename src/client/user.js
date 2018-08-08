@@ -798,6 +798,7 @@ class UserSettingsDialog extends React.Component<
         invalid={!this._isValid()}
         autoRequest={!!(this.state.googleToken || this.state.facebookToken)}
         makeRequest={this._makeRequest}
+        getFeedback={this._getFeedback}
         onClosed={this._onClosed}
         applicable={this.state.activeTab === 'identity'}
         cancelable>
@@ -842,7 +843,7 @@ class UserSettingsDialog extends React.Component<
           <FormGroup className="text-center">
             <FormattedMessage
               id="user_settings.identity.text"
-              defaultMessage="Settings for {email}."
+              defaultMessage="Settings for {email}"
               values={{
                 email: (
                   <span className="text-info">
@@ -922,6 +923,15 @@ class UserSettingsDialog extends React.Component<
               `}
             />
           </FormGroup>
+          <FormGroup className="text-center text-danger">
+            <FormattedMessage
+              id="user_settings.delete.warning"
+              defaultMessage={`
+                This action is irreversible.  You will lose access to
+                any resources you have created.
+              `}
+            />
+          </FormGroup>
           <FormGroup>
             <Label for="confirm-delete">
               <FormattedMessage
@@ -988,7 +998,12 @@ class UserSettingsDialog extends React.Component<
               accessToken: this.state.facebookToken,
             };
           } else {
-            request = {type: 'email', email: this.state.email};
+            request = {
+              type: 'email',
+              email: this.state.email,
+              locale: this.props.locale,
+            };
+            return [await postToApi('/user/transfer', request), true];
           }
           return await postToApi('/user/transfer', request);
         }
@@ -1004,8 +1019,24 @@ class UserSettingsDialog extends React.Component<
     }
   };
 
+  _getFeedback = (result: Object) => {
+    if (result.type) {
+      return;
+    }
+    return (
+      <span className="text-success">
+        <FormattedMessage
+          id="user_settings.transfer.feedback"
+          defaultMessage={`
+            Check your email for the link to continue the transfer process.
+          `}
+        />
+      </span>
+    );
+  };
+
   _onClosed = (response: any) => {
-    response && this.props.setUserStatus(response);
+    response && response.type !== 'email' && this.props.setUserStatus(response);
     this.props.onClosed();
   };
 }

@@ -130,6 +130,7 @@ export async function inviteEmail(
         values={{url: <a href={url}>{url}</a>}}
       />
     ),
+    null,
     true,
     admin,
     fromEmail,
@@ -143,6 +144,7 @@ async function sendLinkEmail(
   subject: Element<FormattedMessage>,
   textBody: (url: string) => Element<FormattedMessage>,
   htmlBody: (url: string) => Element<FormattedMessage>,
+  transferUserId: ?string,
   forceCreateUser: boolean = false,
   admin: boolean = false,
   fromEmail: string = FROM_EMAIL,
@@ -156,7 +158,7 @@ async function sendLinkEmail(
   let passwordReset = false;
   if (user) {
     userId = user.id.S;
-    if (user.displayName && user.displayName.S) {
+    if (user.displayName && user.displayName.S && !transferUserId) {
       passwordReset = true;
     }
   } else {
@@ -169,7 +171,12 @@ async function sendLinkEmail(
   }
 
   // create the invite session
-  const token = await createSession(userId, true, passwordReset);
+  const token = await createSession(
+    userId,
+    true,
+    passwordReset,
+    transferUserId,
+  );
 
   // send the email
   const url = new URL(
@@ -237,14 +244,36 @@ export function getStatus(
         if (session) {
           const user = await getUser(session.userId.S);
           if (user) {
+            let displayName = user.displayName && user.displayName.S;
+            let admin = user.admin && user.admin.BOOL;
+            if (session.transferUserId) {
+              const originalUser = await getUser(session.transferUserId.S);
+              if (originalUser) {
+                // complete transfer
+                // TODO: also transfer all resources
+                displayName =
+                  originalUser.displayName && originalUser.displayName.S;
+                admin =
+                  admin || (originalUser.admin && originalUser.admin.BOOL);
+                await Promise.all([
+                  updateUser(user.id.S, {
+                    displayName: originalUser.displayName,
+                    admin: {BOOL: !!admin},
+                    passwordSalt: originalUser.passwordSalt,
+                    passwordHash: originalUser.passwordHash,
+                  }),
+                  deleteUserItem(originalUser.id.S),
+                ]);
+              }
+            }
             return {
               type: 'logged-in',
               externalId: user.externalId.S,
-              displayName: user.displayName && user.displayName.S,
+              displayName,
               imageUrl: user.imageUrl && user.imageUrl.S,
               passwordReset:
                 session.passwordReset && session.passwordReset.BOOL,
-              admin: user.admin && user.admin.BOOL,
+              admin,
             };
           }
         }
@@ -441,8 +470,8 @@ export function setup(
     event,
     UserSetupRequestType,
     (async request => {
-      const user = await requireSessionUser(request);
-      const userId = user.id.S;
+      let user = await requireSessionUser(request);
+      let userId = user.id.S;
       let externalId: string;
       let displayName: string;
       let imageUrl: string;
@@ -465,6 +494,21 @@ export function setup(
         });
       } else {
         [externalId, displayName, imageUrl] = await getExternalLogin(request);
+        const existingUser = await getUserByExternalId(externalId);
+        if (existingUser) {
+          // if the authenticated user already exists, delete the original user
+          // and transfer the session
+          await Promise.all([
+            deleteUserItem(userId),
+            updateItem(
+              'Sessions',
+              {token: {S: request.authToken}},
+              {userId: {S: existingUser.id.S}},
+            ),
+          ]);
+          user = existingUser;
+          userId = existingUser.id.S;
+        }
         await updateUser(userId, {
           externalId: {S: externalId},
           displayName: {S: displayName},
@@ -573,12 +617,20 @@ export function configure(
     event,
     UserConfigureRequestType,
     (async request => {
+      const user = await requireSessionUser(request);
+      if (!isDisplayNameValid(request.displayName)) {
+        throw new Error('Invalid display name: ' + request.displayName);
+      }
+      await updateUser(user.id.S, {
+        displayName: {S: request.displayName},
+        ...(request.password ? getPasswordAttributes(request.password) : {}),
+      });
       return {
         type: 'logged-in',
-        externalId: '',
-        displayName: '',
-        imageUrl: '',
-        admin: false,
+        externalId: user.externalId.S,
+        displayName: request.displayName,
+        imageUrl: getGravatarUrl(user.externalId.S),
+        admin: user.admin && user.admin.BOOL,
       };
     }: UserConfigureRequest => Promise<UserConfigureResponse>),
   );
@@ -592,12 +644,67 @@ export function transfer(
     event,
     UserTransferRequestType,
     (async request => {
+      let user = await requireSessionUser(request);
+      let userId = user.id.S;
+      if (request.type === 'email') {
+        await sendLinkEmail(
+          request.email,
+          request.locale,
+          <FormattedMessage
+            id="transfer.subject"
+            defaultMessage="Phantasml account transfer"
+          />,
+          url => (
+            <FormattedMessage
+              id="transfer.body.text"
+              defaultMessage="Visit {url} to transfer your account."
+              values={{url}}
+            />
+          ),
+          url => (
+            <FormattedMessage
+              id="transfer.body.html"
+              defaultMessage="Visit {url} to transfer your account."
+              values={{url: <a href={url}>{url}</a>}}
+            />
+          ),
+          userId,
+        );
+        return {type: 'email'};
+      }
+      let admin = user.admin && user.admin.BOOL;
+      const [externalId, displayName, imageUrl] = await getExternalLogin(
+        request,
+      );
+      const existingUser = await getUserByExternalId(externalId);
+      if (existingUser) {
+        // if the authenticated user already exists, delete the original user
+        // and transfer the session
+        // TODO: also transfer all resources
+        await Promise.all([
+          deleteUserItem(userId),
+          updateItem(
+            'Sessions',
+            {token: {S: request.authToken}},
+            {userId: {S: existingUser.id.S}},
+          ),
+        ]);
+        user = existingUser;
+        userId = existingUser.id.S;
+        admin = admin || (existingUser.admin && existingUser.admin.BOOL);
+      }
+      await updateUser(userId, {
+        externalId: {S: externalId},
+        displayName: {S: displayName},
+        imageUrl: {S: imageUrl},
+        admin: {BOOL: !!admin},
+      });
       return {
         type: 'logged-in',
-        externalId: '',
-        displayName: '',
-        imageUrl: '',
-        admin: false,
+        externalId,
+        displayName,
+        imageUrl,
+        admin,
       };
     }: UserTransferRequest => Promise<UserTransferResponse>),
   );
@@ -612,16 +719,20 @@ export function deleteUser(
     UserDeleteRequestType,
     (async request => {
       const session = await requireSession(request.authToken);
-      await dynamodb
-        .deleteItem({
-          Key: {id: {S: session.userId.S}},
-          TableName: 'Users',
-        })
-        .promise();
+      await deleteUserItem(session.userId.S);
       await deleteSession(request.authToken);
       return await getAnonymousResponse();
     }: UserDeleteRequest => Promise<UserDeleteResponse>),
   );
+}
+
+async function deleteUserItem(id: string): Promise<void> {
+  await dynamodb
+    .deleteItem({
+      Key: {id: {S: id}},
+      TableName: 'Users',
+    })
+    .promise();
 }
 
 /**
@@ -672,7 +783,8 @@ async function getUser(id: string): Promise<?Object> {
 async function createSession(
   userId: string,
   persistent: boolean = false,
-  passwordReset: boolean = false,
+  passwordReset: ?boolean,
+  transferUserId: ?string,
 ): Promise<string> {
   const token = createToken();
   const daysUntilExpiration = persistent ? 365 : 7;
@@ -681,7 +793,8 @@ async function createSession(
       Item: {
         token: {S: token},
         userId: {S: userId},
-        passwordReset: {BOOL: passwordReset},
+        passwordReset: passwordReset ? {BOOL: true} : undefined,
+        transferUserId: transferUserId ? {S: transferUserId} : undefined,
         expirationTime: {
           N: String(nowInSeconds() + daysUntilExpiration * 24 * 60 * 60),
         },
