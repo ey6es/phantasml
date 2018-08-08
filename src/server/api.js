@@ -29,6 +29,7 @@ export type LoggedInResponse = {
   imageUrl: ?string,
   admin: ?boolean,
   passwordReset?: ?boolean,
+  transfer?: ?boolean,
 };
 export type UserStatusResponse = AnonymousResponse | LoggedInResponse;
 
@@ -100,6 +101,12 @@ type EmailTransferRequest = ApiRequest & {
 export type UserTransferRequest = EmailTransferRequest | ExternalLoginRequest;
 export const UserTransferRequestType = (reify: Type<UserTransferRequest>);
 export type UserTransferResponse = LoggedInResponse | {type: 'email'};
+
+export type UserCompleteTransferRequest = ApiRequest & {stayLoggedIn: boolean};
+export const UserCompleteTransferRequestType = (reify: Type<
+  UserCompleteTransferRequest,
+>);
+export type UserCompleteTransferResponse = LoggedInResponse;
 
 export type UserDeleteRequest = ApiRequest;
 export const UserDeleteRequestType = (reify: Type<UserDeleteRequest>);

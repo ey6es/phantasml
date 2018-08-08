@@ -44,6 +44,7 @@ import type {
   UserSetupRequest,
   UserConfigureRequest,
   UserTransferRequest,
+  UserCompleteTransferRequest,
 } from '../server/api';
 import {
   MAX_EMAIL_LENGTH,
@@ -1038,6 +1039,53 @@ class UserSettingsDialog extends React.Component<
   _onClosed = (response: any) => {
     response && response.type !== 'email' && this.props.setUserStatus(response);
     this.props.onClosed();
+  };
+}
+
+export class CompleteTransferDialog extends React.Component<
+  {setUserStatus: UserStatusResponse => void},
+  {stayLoggedIn: boolean},
+> {
+  state = {stayLoggedIn: false};
+
+  render() {
+    return (
+      <RequestDialog
+        header={
+          <FormattedMessage
+            id="complete_transfer.title"
+            defaultMessage="Complete Account Transfer"
+          />
+        }
+        makeRequest={this._makeRequest}
+        onClosed={this._onClosed}>
+        <Form>
+          <FormGroup className="text-center">
+            <FormattedMessage
+              id="complete_transfer.text"
+              defaultMessage={
+                'Press OK to complete the transfer of your old account.'
+              }
+            />
+          </FormGroup>
+          <StayLoggedInCheckbox
+            value={this.state.stayLoggedIn}
+            setValue={stayLoggedIn => this.setState({stayLoggedIn})}
+          />
+        </Form>
+      </RequestDialog>
+    );
+  }
+
+  _makeRequest = async () => {
+    const request: UserCompleteTransferRequest = {
+      stayLoggedIn: this.state.stayLoggedIn,
+    };
+    return await postToApi('/user/complete_transfer', request);
+  };
+
+  _onClosed = (response: any) => {
+    this.props.setUserStatus(response);
   };
 }
 

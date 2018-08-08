@@ -46,6 +46,8 @@ import type {
   UserConfigureResponse,
   UserTransferRequest,
   UserTransferResponse,
+  UserCompleteTransferRequest,
+  UserCompleteTransferResponse,
   UserDeleteRequest,
   UserDeleteResponse,
 } from './api';
@@ -59,6 +61,7 @@ import {
   UserPasswordRequestType,
   UserConfigureRequestType,
   UserTransferRequestType,
+  UserCompleteTransferRequestType,
   UserDeleteRequestType,
 } from './api';
 import {isDisplayNameValid} from './constants';
@@ -244,36 +247,15 @@ export function getStatus(
         if (session) {
           const user = await getUser(session.userId.S);
           if (user) {
-            let displayName = user.displayName && user.displayName.S;
-            let admin = user.admin && user.admin.BOOL;
-            if (session.transferUserId) {
-              const originalUser = await getUser(session.transferUserId.S);
-              if (originalUser) {
-                // complete transfer
-                // TODO: also transfer all resources
-                displayName =
-                  originalUser.displayName && originalUser.displayName.S;
-                admin =
-                  admin || (originalUser.admin && originalUser.admin.BOOL);
-                await Promise.all([
-                  updateUser(user.id.S, {
-                    displayName: originalUser.displayName,
-                    admin: {BOOL: !!admin},
-                    passwordSalt: originalUser.passwordSalt,
-                    passwordHash: originalUser.passwordHash,
-                  }),
-                  deleteUserItem(originalUser.id.S),
-                ]);
-              }
-            }
             return {
               type: 'logged-in',
               externalId: user.externalId.S,
-              displayName,
+              displayName: user.displayName && user.displayName.S,
               imageUrl: user.imageUrl && user.imageUrl.S,
               passwordReset:
                 session.passwordReset && session.passwordReset.BOOL,
-              admin,
+              transfer: session.transferUserId && !!session.transferUserId.S,
+              admin: user.admin && user.admin.BOOL,
             };
           }
         }
@@ -707,6 +689,54 @@ export function transfer(
         admin,
       };
     }: UserTransferRequest => Promise<UserTransferResponse>),
+  );
+}
+
+export function completeTransfer(
+  event: APIGatewayEvent,
+  context: Context,
+): Promise<ProxyResult> {
+  return handleBodyRequest(
+    event,
+    UserCompleteTransferRequestType,
+    (async request => {
+      const session = await requireSession(request.authToken);
+      if (!(session.transferUserId && session.transferUserId.S)) {
+        throw new Error('Invalid transfer session.');
+      }
+      const [user, originalUser] = await Promise.all([
+        requireUser(session.userId.S),
+        requireUser(session.transferUserId.S),
+      ]);
+      const admin =
+        (originalUser.admin && originalUser.admin.BOOL) ||
+        (user.admin && user.admin.BOOL);
+      // TODO: also transfer resources
+      await Promise.all([
+        updateUser(user.id.S, {
+          displayName: originalUser.displayName,
+          admin: {BOOL: !!admin},
+          passwordSalt: originalUser.passwordSalt,
+          passwordHash: originalUser.passwordHash,
+        }),
+        deleteUserItem(originalUser.id.S),
+        updateItem(
+          'Sessions',
+          {token: {S: request.authToken}},
+          {transferUserId: null},
+        ),
+      ]);
+      const token = await createSession(user.id.S, request.stayLoggedIn);
+      return {
+        type: 'logged-in',
+        authToken: token,
+        persistAuthToken: request.stayLoggedIn,
+        externalId: user.externalId.S,
+        displayName: originalUser.displayName,
+        imageUrl: getGravatarUrl(user.externalId.S),
+        admin,
+      };
+    }: UserCompleteTransferRequest => Promise<UserCompleteTransferResponse>),
   );
 }
 

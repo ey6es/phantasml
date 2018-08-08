@@ -10,7 +10,12 @@ import * as ReactDOM from 'react-dom';
 import {IntlProvider, FormattedMessage} from 'react-intl';
 import {Modal, ModalHeader, ModalBody, ModalFooter, Button} from 'reactstrap';
 import {Interface} from './interface';
-import {LoginDialog, UserSetupDialog, PasswordResetDialog} from './user';
+import {
+  LoginDialog,
+  UserSetupDialog,
+  PasswordResetDialog,
+  CompleteTransferDialog,
+} from './user';
 import {
   metatags,
   setAuthToken,
@@ -110,7 +115,9 @@ class App extends React.Component<
       }
     } else {
       // userStatus.type === 'logged-in'
-      if (!userStatus.displayName) {
+      if (userStatus.transfer) {
+        dialog = <CompleteTransferDialog setUserStatus={this._setUserStatus} />;
+      } else if (!userStatus.displayName) {
         dialog = (
           <UserSetupDialog
             userStatus={userStatus}

@@ -53,16 +53,27 @@ export async function updateItem(
 ): Promise<void> {
   let ExpressionAttributeNames = {};
   let ExpressionAttributeValues = {};
-  let UpdateExpression = '';
+  let setExpression = '';
+  let removeExpression = '';
   for (const key in attributes) {
     ExpressionAttributeNames['#' + key] = key;
-    ExpressionAttributeValues[':' + key] = attributes[key];
-    if (UpdateExpression) {
-      UpdateExpression += ',';
+    const value = attributes[key];
+    if (value) {
+      ExpressionAttributeValues[':' + key] = value;
+      if (setExpression) {
+        setExpression += ',';
+      } else {
+        setExpression = 'SET';
+      }
+      setExpression += ` #${key} = :${key}`;
     } else {
-      UpdateExpression = 'SET';
+      if (removeExpression) {
+        removeExpression += ',';
+      } else {
+        removeExpression = 'REMOVE';
+      }
+      removeExpression += ` #${key}`;
     }
-    UpdateExpression += ` #${key} = :${key}`;
   }
   await dynamodb
     .updateItem({
@@ -70,7 +81,10 @@ export async function updateItem(
       ExpressionAttributeValues,
       Key,
       TableName,
-      UpdateExpression,
+      UpdateExpression:
+        setExpression +
+        (setExpression && removeExpression ? ' ' : '') +
+        removeExpression,
     })
     .promise();
 }
