@@ -1021,19 +1021,18 @@ class UserSettingsDialog extends React.Component<
   };
 
   _getFeedback = (result: Object) => {
-    if (result.type) {
-      return;
+    if (result.type === 'email') {
+      return (
+        <span className="text-success">
+          <FormattedMessage
+            id="user_settings.transfer.feedback"
+            defaultMessage={`
+              Check your email for the link to continue the transfer process.
+            `}
+          />
+        </span>
+      );
     }
-    return (
-      <span className="text-success">
-        <FormattedMessage
-          id="user_settings.transfer.feedback"
-          defaultMessage={`
-            Check your email for the link to continue the transfer process.
-          `}
-        />
-      </span>
-    );
   };
 
   _onClosed = (response: any) => {
