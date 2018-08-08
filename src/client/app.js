@@ -64,26 +64,6 @@ class App extends React.Component<
     userStatus: this.props.initialUserStatus,
   };
 
-  _fetchUserStatus = async () => {
-    this.setState({loading: true});
-    this.setState({
-      loading: false,
-      userStatus: await getUserStatus(),
-    });
-  };
-
-  _setUserStatus = (status: UserStatus) => {
-    // store or clear the auth token if appropriate
-    if (!(status instanceof Error)) {
-      if (status.type === 'anonymous') {
-        clearAuthToken();
-      } else if (status.authToken) {
-        setAuthToken(status.authToken, status.persistAuthToken);
-      }
-    }
-    this.setState({userStatus: status});
-  };
-
   render() {
     if (this.state.loading) {
       return <div className="loading" />;
@@ -144,6 +124,19 @@ class App extends React.Component<
       </IntlProvider>
     );
   }
+
+  _fetchUserStatus = async () => {
+    this.setState({loading: true});
+    this.setState({
+      loading: false,
+      userStatus: await getUserStatus(),
+    });
+  };
+
+  _setUserStatus = (status: UserStatus) => {
+    updateAuthToken(status);
+    this.setState({userStatus: status});
+  };
 }
 
 async function getUserStatus(): Promise<UserStatus> {
@@ -177,9 +170,20 @@ async function getUserStatus(): Promise<UserStatus> {
         }
       }
     }
+    updateAuthToken(status);
     return status;
   } catch (error) {
     return error;
+  }
+}
+
+function updateAuthToken(status: UserStatus) {
+  if (!(status instanceof Error)) {
+    if (status.type === 'anonymous') {
+      clearAuthToken();
+    } else if (status.authToken) {
+      setAuthToken(status.authToken, status.persistAuthToken);
+    }
   }
 }
 
