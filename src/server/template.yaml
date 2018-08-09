@@ -157,6 +157,7 @@ Resources:
       Handler: user.transfer
       Role: !Ref Role
       Runtime: nodejs8.10
+      Timeout: 5
       CodeUri: ../../build/server
       Environment:
         Variables:

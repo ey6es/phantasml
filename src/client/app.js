@@ -96,7 +96,12 @@ class App extends React.Component<
     } else {
       // userStatus.type === 'logged-in'
       if (userStatus.transfer) {
-        dialog = <CompleteTransferDialog setUserStatus={this._setUserStatus} />;
+        dialog = (
+          <CompleteTransferDialog
+            userStatus={userStatus}
+            setUserStatus={this._setUserStatus}
+          />
+        );
       } else if (!userStatus.displayName) {
         dialog = (
           <UserSetupDialog
@@ -105,7 +110,12 @@ class App extends React.Component<
           />
         );
       } else if (userStatus.passwordReset) {
-        dialog = <PasswordResetDialog setUserStatus={this._setUserStatus} />;
+        dialog = (
+          <PasswordResetDialog
+            userStatus={userStatus}
+            setUserStatus={this._setUserStatus}
+          />
+        );
       }
       interfaceUserStatus = userStatus;
     }

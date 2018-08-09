@@ -278,7 +278,7 @@ export class LoginDialog extends React.Component<
     return (
       <TabPane tabId="sign_in">
         <Form onSubmit={event => event.preventDefault()}>
-          {this._renderEmail('sign_in', 'username')}
+          {this._renderEmail('sign_in', 'username email')}
           <PasswordGroup
             current={true}
             value={this.state.password}
@@ -336,7 +336,7 @@ export class LoginDialog extends React.Component<
     );
   }
 
-  _renderEmail(tab: LoginDialogTab, autoComplete: string = 'on') {
+  _renderEmail(tab: LoginDialogTab, autoComplete: string = 'email') {
     return (
       <EmailGroup
         id={tab + '-email'}
@@ -412,6 +412,7 @@ export class UserSetupDialog extends React.Component<
             setValue={displayName => this.setState({displayName})}
           />
           <VerifiedPasswordGroups
+            email={this.props.userStatus.externalId}
             password={this.state.password}
             setPassword={password => this.setState({password})}
             reenterPassword={this.state.reenterPassword}
@@ -472,7 +473,7 @@ export class UserSetupDialog extends React.Component<
  * containing context.
  */
 export class PasswordResetDialog extends React.Component<
-  {setUserStatus: LoggedInResponse => void},
+  {userStatus: LoggedInResponse, setUserStatus: LoggedInResponse => void},
   {password: string, reenterPassword: string, stayLoggedIn: boolean},
 > {
   state = {password: '', reenterPassword: '', stayLoggedIn: false};
@@ -505,6 +506,7 @@ export class PasswordResetDialog extends React.Component<
             />
           </FormGroup>
           <VerifiedPasswordGroups
+            email={this.props.userStatus.externalId}
             password={this.state.password}
             setPassword={password => this.setState({password})}
             reenterPassword={this.state.reenterPassword}
@@ -543,12 +545,21 @@ export class PasswordResetDialog extends React.Component<
  * @param props.setReenterPassword the function to set the reentered field.
  */
 function VerifiedPasswordGroups(props: {
+  email: string,
   password: string,
   setPassword: string => void,
   reenterPassword: string,
   setReenterPassword: string => void,
 }) {
   return [
+    <input
+      key="email"
+      type="text"
+      className="d-none"
+      value={props.email}
+      autoComplete="username email"
+      readOnly
+    />,
     <PasswordGroup
       key="password"
       value={props.password}
@@ -571,7 +582,7 @@ function VerifiedPasswordGroups(props: {
           props.reenterPassword === props.password
         }
         maxLength={MAX_PASSWORD_LENGTH}
-        onInput={event => props.setReenterPassword(event.target.value)}
+        onChange={event => props.setReenterPassword(event.target.value)}
       />
     </FormGroup>,
   ];
@@ -602,7 +613,7 @@ function PasswordGroup(props: {
         value={props.value}
         valid={isPasswordValid(props.value)}
         maxLength={MAX_PASSWORD_LENGTH}
-        onInput={event => props.setValue(event.target.value)}
+        onChange={event => props.setValue(event.target.value)}
       />
     </FormGroup>
   );
@@ -859,6 +870,7 @@ class UserSettingsDialog extends React.Component<
             setValue={displayName => this.setState({displayName})}
           />
           <VerifiedPasswordGroups
+            email={this.props.userStatus.externalId}
             password={this.state.password}
             setPassword={password => this.setState({password})}
             reenterPassword={this.state.reenterPassword}
@@ -890,7 +902,7 @@ class UserSettingsDialog extends React.Component<
           </FormGroup>
           <EmailGroup
             id="email"
-            autoComplete="on"
+            autoComplete="email"
             value={this.state.email}
             setValue={email => this.setState({email})}
           />
@@ -945,7 +957,7 @@ class UserSettingsDialog extends React.Component<
               autoComplete="off"
               value={this.state.confirmDelete}
               valid={this._isConfirmDeleteValid()}
-              onInput={event =>
+              onChange={event =>
                 this.setState({
                   confirmDelete: event.target.value,
                 })
@@ -1042,7 +1054,7 @@ class UserSettingsDialog extends React.Component<
 }
 
 export class CompleteTransferDialog extends React.Component<
-  {setUserStatus: UserStatusResponse => void},
+  {userStatus: LoggedInResponse, setUserStatus: UserStatusResponse => void},
   {password: string, reenterPassword: string, stayLoggedIn: boolean},
 > {
   state = {password: '', reenterPassword: '', stayLoggedIn: false};
@@ -1075,6 +1087,7 @@ export class CompleteTransferDialog extends React.Component<
             />
           </FormGroup>
           <VerifiedPasswordGroups
+            email={this.props.userStatus.externalId}
             password={this.state.password}
             setPassword={password => this.setState({password})}
             reenterPassword={this.state.reenterPassword}
@@ -1132,11 +1145,11 @@ function DisplayNameGroup(props: {value: string, setValue: string => void}) {
       </Label>
       <Input
         id="display-name"
-        autoComplete="on"
+        autoComplete="off"
         value={props.value}
         valid={isDisplayNameValid(props.value)}
         maxLength={MAX_DISPLAY_NAME_LENGTH}
-        onInput={event => props.setValue(event.target.value)}
+        onChange={event => props.setValue(event.target.value)}
       />
       <FormText>
         <FormattedMessage
@@ -1166,7 +1179,7 @@ function EmailGroup(props: {
         value={props.value}
         valid={isEmailValid(props.value)}
         maxLength={MAX_EMAIL_LENGTH}
-        onInput={event => props.setValue(event.target.value)}
+        onChange={event => props.setValue(event.target.value)}
       />
     </FormGroup>
   );

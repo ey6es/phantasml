@@ -190,7 +190,7 @@ class SendInvitesDialog extends React.Component<
               type="textarea"
               id="emailAddresses"
               value={this.state.addresses}
-              onInput={event => this.setState({addresses: event.target.value})}
+              onChange={event => this.setState({addresses: event.target.value})}
             />
           </FormGroup>
         </Form>
