@@ -102,7 +102,7 @@ export type UserTransferRequest = EmailTransferRequest | ExternalLoginRequest;
 export const UserTransferRequestType = (reify: Type<UserTransferRequest>);
 export type UserTransferResponse = LoggedInResponse | {type: 'email'};
 
-export type UserCompleteTransferRequest = ApiRequest & {stayLoggedIn: boolean};
+export type UserCompleteTransferRequest = UserPasswordRequest;
 export const UserCompleteTransferRequestType = (reify: Type<
   UserCompleteTransferRequest,
 >);

@@ -52,13 +52,16 @@ export async function updateItem(
   attributes: Object,
 ): Promise<void> {
   let ExpressionAttributeNames = {};
-  let ExpressionAttributeValues = {};
+  let ExpressionAttributeValues: ?Object;
   let setExpression = '';
   let removeExpression = '';
   for (const key in attributes) {
     ExpressionAttributeNames['#' + key] = key;
     const value = attributes[key];
     if (value) {
+      if (!ExpressionAttributeValues) {
+        ExpressionAttributeValues = {};
+      }
       ExpressionAttributeValues[':' + key] = value;
       if (setExpression) {
         setExpression += ',';

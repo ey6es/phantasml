@@ -1043,9 +1043,9 @@ class UserSettingsDialog extends React.Component<
 
 export class CompleteTransferDialog extends React.Component<
   {setUserStatus: UserStatusResponse => void},
-  {stayLoggedIn: boolean},
+  {password: string, reenterPassword: string, stayLoggedIn: boolean},
 > {
-  state = {stayLoggedIn: false};
+  state = {password: '', reenterPassword: '', stayLoggedIn: false};
 
   render() {
     return (
@@ -1056,17 +1056,30 @@ export class CompleteTransferDialog extends React.Component<
             defaultMessage="Complete Account Transfer"
           />
         }
+        invalid={
+          isPasswordValid(this.state.password) &&
+          this.state.password === this.state.reenterPassword
+        }
         makeRequest={this._makeRequest}
         onClosed={this._onClosed}>
         <Form>
           <FormGroup className="text-center">
             <FormattedMessage
               id="complete_transfer.text"
-              defaultMessage={
-                'Press OK to complete the transfer of your old account.'
-              }
+              defaultMessage={`
+                Enter and verify the password you wish to use, then
+                press OK to complete the transfer of your old account.
+              `}
             />
           </FormGroup>
+          <VerifiedPasswordGroups
+            password={this.state.password}
+            setPassword={password => this.setState({password})}
+            reenterPassword={this.state.reenterPassword}
+            setReenterPassword={reenterPassword =>
+              this.setState({reenterPassword})
+            }
+          />
           <StayLoggedInCheckbox
             value={this.state.stayLoggedIn}
             setValue={stayLoggedIn => this.setState({stayLoggedIn})}
@@ -1078,6 +1091,7 @@ export class CompleteTransferDialog extends React.Component<
 
   _makeRequest = async () => {
     const request: UserCompleteTransferRequest = {
+      password: this.state.password,
       stayLoggedIn: this.state.stayLoggedIn,
     };
     return await postToApi('/user/complete_transfer', request);

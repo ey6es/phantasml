@@ -653,6 +653,7 @@ export function transfer(
             />
           ),
           userId,
+          true,
         );
         return {type: 'email'};
       }
@@ -718,8 +719,7 @@ export function completeTransfer(
         updateUser(user.id.S, {
           displayName: originalUser.displayName,
           admin: {BOOL: !!admin},
-          passwordSalt: originalUser.passwordSalt,
-          passwordHash: originalUser.passwordHash,
+          ...getPasswordAttributes(request.password),
         }),
         deleteUserItem(originalUser.id.S),
         updateItem(
