@@ -192,6 +192,7 @@ function createResult(statusCode: number, body: Object): ProxyResult {
     headers: {
       'Content-Type': 'application/json',
       'Access-Control-Allow-Origin': '*',
+      'Cache-Control': 'no-cache',
     },
     body: JSON.stringify(body),
   };
