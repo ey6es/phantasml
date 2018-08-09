@@ -1057,8 +1057,10 @@ export class CompleteTransferDialog extends React.Component<
           />
         }
         invalid={
-          isPasswordValid(this.state.password) &&
-          this.state.password === this.state.reenterPassword
+          !(
+            isPasswordValid(this.state.password) &&
+            this.state.password === this.state.reenterPassword
+          )
         }
         makeRequest={this._makeRequest}
         onClosed={this._onClosed}>

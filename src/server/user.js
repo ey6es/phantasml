@@ -734,7 +734,7 @@ export function completeTransfer(
         authToken: token,
         persistAuthToken: request.stayLoggedIn,
         externalId: user.externalId.S,
-        displayName: originalUser.displayName,
+        displayName: originalUser.displayName.S,
         imageUrl: getGravatarUrl(user.externalId.S),
         admin,
       };
