@@ -84,6 +84,10 @@ module.exports = function(grunt) {
           src: 'build/client/app.bundle.js',
           dest: `dist/${key}/app.min.js`,
         };
+        taskConfig[key + '-icon'] = {
+          src: 'src/client/favicon.ico',
+          dest: `dist/${key}/favicon.ico`,
+        };
       }
       return taskConfig;
     })(),
@@ -324,6 +328,7 @@ module.exports = function(grunt) {
       `env:${key}`,
       `browserify:${key}`,
       'copy:server',
+      `copy:${key}-icon`,
       `${distributionConfig.beautify ? 'copy' : 'uglify'}:${key}`,
       `replace:${key}`,
       `less:${key}`,
