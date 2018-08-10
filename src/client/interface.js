@@ -9,6 +9,7 @@ import * as React from 'react';
 import {FormattedMessage} from 'react-intl';
 import {Collapse, Nav, Navbar, NavbarBrand, NavbarToggler} from 'reactstrap';
 import {UserDropdown} from './user';
+import {ResourceDropdown} from './resource';
 import {AdminDropdown} from './admin';
 import type {UserStatusResponse} from '../server/api';
 
@@ -55,6 +56,7 @@ class TopBar extends React.Component<
         <NavbarToggler onClick={this._toggle} />
         <Collapse isOpen={this.state.open} navbar>
           <Nav navbar>
+            <ResourceDropdown />
             {this.props.userStatus.admin ? (
               <AdminDropdown locale={this.props.locale} />
             ) : null}

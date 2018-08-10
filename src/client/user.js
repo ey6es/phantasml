@@ -9,10 +9,6 @@ import * as React from 'react';
 import {FormattedMessage} from 'react-intl';
 import {
   Button,
-  UncontrolledDropdown,
-  DropdownToggle,
-  DropdownMenu,
-  DropdownItem,
   Form,
   FormGroup,
   FormText,
@@ -33,6 +29,8 @@ import {
   ErrorDialog,
   LabeledCheckbox,
   LoadingSpinner,
+  Menu,
+  MenuItem,
 } from './util/ui';
 import type {
   UserLoginRequest,
@@ -691,41 +689,43 @@ export class UserDropdown extends React.Component<
           <FormattedMessage id="user.login" defaultMessage="Log In" />
         </Button>
       ) : (
-        <UncontrolledDropdown key="control" nav>
-          <DropdownToggle disabled={this.state.loading} nav caret>
-            <img
-              className="user-icon"
-              src={userStatus.imageUrl}
-              width={24}
-              height={24}
-            />
-            {userStatus.displayName}
-          </DropdownToggle>
-          <DropdownMenu>
-            <DropdownItem
-              onClick={() =>
-                this.setState({
-                  dialog: (
-                    <UserSettingsDialog
-                      key="user-settings"
-                      userStatus={userStatus}
-                      setUserStatus={this.props.setUserStatus}
-                      locale={this.props.locale}
-                      onClosed={this._clearDialog}
-                    />
-                  ),
-                })
-              }>
-              <FormattedMessage
-                id="user.settings"
-                defaultMessage="Account Settings..."
+        <Menu
+          key="control"
+          label={
+            <span>
+              <img
+                className="user-icon"
+                src={userStatus.imageUrl}
+                width={24}
+                height={24}
               />
-            </DropdownItem>
-            <DropdownItem onClick={this._logout}>
-              <FormattedMessage id="user.logout" defaultMessage="Log Out" />
-            </DropdownItem>
-          </DropdownMenu>
-        </UncontrolledDropdown>
+              {userStatus.displayName}
+            </span>
+          }
+          disabled={this.state.loading}>
+          <MenuItem
+            onClick={() =>
+              this.setState({
+                dialog: (
+                  <UserSettingsDialog
+                    key="user-settings"
+                    userStatus={userStatus}
+                    setUserStatus={this.props.setUserStatus}
+                    locale={this.props.locale}
+                    onClosed={this._clearDialog}
+                  />
+                ),
+              })
+            }>
+            <FormattedMessage
+              id="user.settings"
+              defaultMessage="Account Settings..."
+            />
+          </MenuItem>
+          <MenuItem onClick={this._logout}>
+            <FormattedMessage id="user.logout" defaultMessage="Log Out" />
+          </MenuItem>
+        </Menu>
       ),
       this.state.dialog,
     ];

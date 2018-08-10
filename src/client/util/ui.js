@@ -17,6 +17,11 @@ import {
   CustomInput,
   NavItem,
   NavLink,
+  UncontrolledDropdown,
+  Dropdown,
+  DropdownToggle,
+  DropdownMenu,
+  DropdownItem,
 } from 'reactstrap';
 
 /**
@@ -361,3 +366,106 @@ export const LabeledCheckbox = injectIntl((props: Object) => {
     />
   );
 });
+
+const MenuContext = React.createContext({
+  state: {},
+  setState: state => undefined,
+});
+
+/**
+ * A dropdown menu with submenu support.
+ *
+ * @param props.label the menu label.
+ * @param props.children the menu contents.
+ */
+export class Menu extends React.Component<
+  {label: React.Element<any>, disabled?: ?boolean, children?: mixed},
+  {hoverItem: ?React.Component<any, any>},
+> {
+  state = {hoverItem: null};
+
+  render() {
+    return (
+      <UncontrolledDropdown nav>
+        <DropdownToggle disabled={this.props.disabled} nav caret>
+          {this.props.label}
+        </DropdownToggle>
+        <DropdownMenu>
+          <MenuContext.Provider value={this}>
+            {this.props.children}
+          </MenuContext.Provider>
+        </DropdownMenu>
+      </UncontrolledDropdown>
+    );
+  }
+}
+
+/**
+ * A simple menu item.
+ *
+ * @param props.children the item contents.
+ */
+export class MenuItem extends React.Component<
+  {onClick?: (SyntheticEvent<>) => mixed, children?: mixed},
+  {},
+> {
+  render() {
+    return (
+      <MenuContext.Consumer>
+        {menu => (
+          <DropdownItem
+            onClick={this.props.onClick}
+            onMouseOver={event => menu.setState({hoverItem: this})}>
+            {this.props.children}
+          </DropdownItem>
+        )}
+      </MenuContext.Consumer>
+    );
+  }
+}
+
+function RawButton(props: Object) {
+  const {innerRef, ...rest} = props;
+  return <button ref={innerRef} {...rest} />;
+}
+
+/**
+ * A submenu for dropdown menus.
+ *
+ * @param props.label the menu label.
+ * @param props.children the menu contents.
+ */
+export class Submenu extends React.Component<
+  {label: React.Element<any>, children?: mixed},
+  {hoverItem: ?React.Component<any, any>},
+> {
+  state = {hoverItem: null};
+
+  render() {
+    let element: ?HTMLElement;
+    return (
+      <MenuContext.Consumer>
+        {menu => (
+          <Dropdown
+            direction="right"
+            onMouseOver={event => menu.setState({hoverItem: this})}
+            isOpen={menu.state.hoverItem === this}
+            toggle={() => {}}>
+            <DropdownToggle
+              className="dropdown-item dropdown-toggle submenu-toggle"
+              tag={RawButton}>
+              {this.props.label}
+            </DropdownToggle>
+            <DropdownMenu
+              className="p-0"
+              modifiers={{offset: {offset: '-1px'}}}>
+              <MenuContext.Provider value={this}>
+                {this.props.children}
+              </MenuContext.Provider>
+            </DropdownMenu>
+          </Dropdown>
+        )}
+      </MenuContext.Consumer>
+    );
+  }
+}

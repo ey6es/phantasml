@@ -7,18 +7,9 @@
 
 import * as React from 'react';
 import {FormattedMessage} from 'react-intl';
-import {
-  UncontrolledDropdown,
-  DropdownToggle,
-  DropdownMenu,
-  DropdownItem,
-  Form,
-  FormGroup,
-  Label,
-  Input,
-} from 'reactstrap';
+import {Form, FormGroup, Label, Input} from 'reactstrap';
 import {getFromApi, putToApi, postToApi} from './util/api';
-import {RequestDialog, LabeledCheckbox} from './util/ui';
+import {Menu, MenuItem, RequestDialog, LabeledCheckbox} from './util/ui';
 import type {PutAdminSettingsRequest, AdminInviteRequest} from '../server/api';
 import {isEmailValid} from '../server/constants';
 
@@ -35,41 +26,37 @@ export class AdminDropdown extends React.Component<
 
   render() {
     return (
-      <UncontrolledDropdown nav>
-        <DropdownToggle nav caret>
-          <FormattedMessage id="admin.title" defaultMessage="Admin" />
-        </DropdownToggle>
-        <DropdownMenu>
-          <DropdownItem
-            onClick={() =>
-              this.setState({
-                dialog: <SiteSettingsDialog onClosed={this._clearDialog} />,
-              })
-            }>
-            <FormattedMessage
-              id="admin.site_settings"
-              defaultMessage="Site Settings..."
-            />
-          </DropdownItem>
-          <DropdownItem
-            onClick={() =>
-              this.setState({
-                dialog: (
-                  <SendInvitesDialog
-                    locale={this.props.locale}
-                    onClosed={this._clearDialog}
-                  />
-                ),
-              })
-            }>
-            <FormattedMessage
-              id="admin.send_invites"
-              defaultMessage="Send Invites..."
-            />
-          </DropdownItem>
-        </DropdownMenu>
+      <Menu
+        label={<FormattedMessage id="admin.title" defaultMessage="Admin" />}>
+        <MenuItem
+          onClick={() =>
+            this.setState({
+              dialog: <SiteSettingsDialog onClosed={this._clearDialog} />,
+            })
+          }>
+          <FormattedMessage
+            id="admin.site_settings"
+            defaultMessage="Site Settings..."
+          />
+        </MenuItem>
+        <MenuItem
+          onClick={() =>
+            this.setState({
+              dialog: (
+                <SendInvitesDialog
+                  locale={this.props.locale}
+                  onClosed={this._clearDialog}
+                />
+              ),
+            })
+          }>
+          <FormattedMessage
+            id="admin.send_invites"
+            defaultMessage="Send Invites..."
+          />
+        </MenuItem>
         {this.state.dialog}
-      </UncontrolledDropdown>
+      </Menu>
     );
   }
 
