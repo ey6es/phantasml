@@ -30,6 +30,9 @@ export class ResourceDropdown extends React.Component<
         label={
           <FormattedMessage id="resource.title" defaultMessage="Resource" />
         }>
+        <MenuItem>
+          <FormattedMessage id="resource.test" defaultMessage="Test" />
+        </MenuItem>
         <Submenu
           label={<FormattedMessage id="resource.new" defaultMessage="New" />}>
           <MenuItem>

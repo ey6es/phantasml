@@ -468,8 +468,8 @@ export class MenuItem extends React.Component<
 }
 
 function RawButton(props: Object) {
-  const {innerRef, ...rest} = props;
-  return <button ref={innerRef} {...rest} />;
+  const {innerRef, onClick, ...rest} = props;
+  return <button ref={innerRef} {...rest} tabIndex={-1} />;
 }
 
 /**
@@ -486,31 +486,39 @@ export class Submenu extends React.Component<
 
   render() {
     return (
-      <MenuContext.Consumer>
-        {menu => (
-          <Dropdown
-            direction="right"
-            onMouseOver={event => menu.setState({hoverItem: this})}
-            isOpen={menu.state.hoverItem === this}
-            toggle={() => {}}>
-            <DropdownToggle
-              className={
-                'dropdown-item dropdown-toggle submenu-toggle' +
-                (menu.state.hoverItem === this ? ' active' : '')
-              }
-              tag={RawButton}>
-              {this.props.label}
-            </DropdownToggle>
-            <DropdownMenu
-              className="p-0"
-              modifiers={{offset: {offset: '-1px'}}}>
-              <MenuContext.Provider value={this}>
-                {this.props.children}
-              </MenuContext.Provider>
-            </DropdownMenu>
-          </Dropdown>
+      <MenuBarContext.Consumer>
+        {menuBar => (
+          <MenuContext.Consumer>
+            {menu => (
+              <Dropdown
+                direction="right"
+                onMouseOver={event => menu.setState({hoverItem: this})}
+                isOpen={menu.state.hoverItem === this}
+                toggle={() =>
+                  menuBar.setState({
+                    active: !menuBar.state.active,
+                  })
+                }>
+                <DropdownToggle
+                  className={
+                    'dropdown-item dropdown-toggle submenu-toggle' +
+                    (menu.state.hoverItem === this ? ' active' : '')
+                  }
+                  tag={RawButton}>
+                  {this.props.label}
+                </DropdownToggle>
+                <DropdownMenu
+                  className="p-0"
+                  modifiers={{offset: {offset: '-1px'}}}>
+                  <MenuContext.Provider value={this}>
+                    {this.props.children}
+                  </MenuContext.Provider>
+                </DropdownMenu>
+              </Dropdown>
+            )}
+          </MenuContext.Consumer>
         )}
-      </MenuContext.Consumer>
+      </MenuBarContext.Consumer>
     );
   }
 }
