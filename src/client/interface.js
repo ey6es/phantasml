@@ -7,10 +7,11 @@
 
 import * as React from 'react';
 import {FormattedMessage} from 'react-intl';
-import {Collapse, Nav, Navbar, NavbarBrand, NavbarToggler} from 'reactstrap';
+import {Nav} from 'reactstrap';
 import {UserDropdown} from './user';
 import {ResourceDropdown} from './resource';
 import {AdminDropdown} from './admin';
+import {MenuBar} from './util/ui';
 import type {UserStatusResponse} from '../server/api';
 
 /**
@@ -27,34 +28,10 @@ export class Interface extends React.Component<
   render() {
     return (
       <div className="interface">
-        <TopBar
-          userStatus={this.props.userStatus}
-          setUserStatus={this.props.setUserStatus}
-          locale={this.props.locale}
-        />
-      </div>
-    );
-  }
-}
-
-class TopBar extends React.Component<
-  {
-    userStatus: UserStatusResponse,
-    setUserStatus: UserStatusResponse => void,
-    locale: string,
-  },
-  {open: boolean},
-> {
-  state = {open: false};
-
-  render() {
-    return (
-      <Navbar color="primary" dark expand="md">
-        <NavbarBrand>
-          <FormattedMessage id="app.title" defaultMessage="Phantasml" />
-        </NavbarBrand>
-        <NavbarToggler onClick={this._toggle} />
-        <Collapse isOpen={this.state.open} navbar>
+        <MenuBar
+          brand={
+            <FormattedMessage id="app.title" defaultMessage="Phantasml" />
+          }>
           <Nav navbar>
             <ResourceDropdown />
             {this.props.userStatus.admin ? (
@@ -68,10 +45,8 @@ class TopBar extends React.Component<
               locale={this.props.locale}
             />
           </Nav>
-        </Collapse>
-      </Navbar>
+        </MenuBar>
+      </div>
     );
   }
-
-  _toggle = () => this.setState({open: !this.state.open});
 }
