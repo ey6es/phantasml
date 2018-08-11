@@ -6,10 +6,24 @@
  */
 
 import {DynamoDB} from 'aws-sdk';
+import uuid from 'uuid/v1';
 import {SITE_URL} from './handler';
 
 /** The shared DynamoDB instance. */
 export const dynamodb = new DynamoDB();
+
+/**
+ * Creates and returns a base64 UUID with URL-safe characters.
+ *
+ * @return the newly created UUID.
+ */
+export function createUuid() {
+  const base = uuid({}, Buffer.alloc(16), 0).toString('base64');
+  // only 22 characters will be valid; the final two will be ==
+  return base
+    .substring(0, 22)
+    .replace(/[+/]/g, char => (char === '+' ? '-' : '_'));
+}
 
 /**
  * Retrieves a settings record from the database.

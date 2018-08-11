@@ -14,16 +14,16 @@ import {
 } from './util/handler';
 import type {
   ApiRequest,
-  GetAdminSettingsRequest,
-  GetAdminSettingsResponse,
-  PutAdminSettingsRequest,
-  PutAdminSettingsResponse,
+  AdminGetSettingsRequest,
+  AdminGetSettingsResponse,
+  AdminPutSettingsRequest,
+  AdminPutSettingsResponse,
   AdminInviteRequest,
   AdminInviteResponse,
 } from './api';
 import {
-  GetAdminSettingsRequestType,
-  PutAdminSettingsRequestType,
+  AdminGetSettingsRequestType,
+  AdminPutSettingsRequestType,
   AdminInviteRequestType,
 } from './api';
 import {inviteEmail, requireSessionUser} from './user';
@@ -34,7 +34,7 @@ export function getSettings(
 ): Promise<ProxyResult> {
   return handleQueryRequest(
     event,
-    GetAdminSettingsRequestType,
+    AdminGetSettingsRequestType,
     (async request => {
       const [user, settings] = await Promise.all([
         requireAdmin(request),
@@ -46,7 +46,7 @@ export function getSettings(
         canCreateUser:
           settings && settings.canCreateUser && settings.canCreateUser.BOOL,
       };
-    }: GetAdminSettingsRequest => Promise<GetAdminSettingsResponse>),
+    }: AdminGetSettingsRequest => Promise<AdminGetSettingsResponse>),
   );
 }
 
@@ -56,7 +56,7 @@ export function putSettings(
 ): Promise<ProxyResult> {
   return handleCombinedRequest(
     event,
-    PutAdminSettingsRequestType,
+    AdminPutSettingsRequestType,
     (async request => {
       await requireAdmin(request);
       await updateSettings({
@@ -64,7 +64,7 @@ export function putSettings(
         canCreateUser: {BOOL: request.canCreateUser},
       });
       return {};
-    }: PutAdminSettingsRequest => Promise<PutAdminSettingsResponse>),
+    }: AdminPutSettingsRequest => Promise<AdminPutSettingsResponse>),
   );
 }
 

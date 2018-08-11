@@ -8,7 +8,6 @@
 import {URL} from 'url';
 import {randomBytes, createHash} from 'crypto';
 import {SES} from 'aws-sdk';
-import uuid from 'uuid/v1';
 import React from 'react';
 import type {Element} from 'react';
 import ReactDOMServer from 'react-dom/server';
@@ -16,7 +15,7 @@ import {IntlProvider, FormattedMessage} from 'react-intl';
 import type {APIGatewayEvent, Context, ProxyResult} from 'flow-aws-lambda';
 import FB from 'fb';
 import {OAuth2Client} from 'google-auth-library';
-import {dynamodb, updateItem, getSettings} from './util/database';
+import {dynamodb, createUuid, updateItem, getSettings} from './util/database';
 import {
   SITE_URL,
   FROM_EMAIL,
@@ -78,19 +77,6 @@ const googleClient = new OAuth2Client(GOOGLE_CLIENT_ID);
  */
 function createToken(): string {
   return randomBytes(18).toString('base64');
-}
-
-/**
- * Creates and returns a base64 UUID with URL-safe characters.
- *
- * @return the newly created UUID.
- */
-function createUuid() {
-  const base = uuid({}, Buffer.alloc(16), 0).toString('base64');
-  // only 22 characters will be valid; the final two will be ==
-  return base
-    .substring(0, 22)
-    .replace(/[+/]/g, char => (char === '+' ? '-' : '_'));
 }
 
 /**

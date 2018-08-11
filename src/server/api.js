@@ -112,23 +112,23 @@ export type UserDeleteRequest = ApiRequest;
 export const UserDeleteRequestType = (reify: Type<UserDeleteRequest>);
 export type UserDeleteResponse = AnonymousResponse;
 
-export type GetAdminSettingsRequest = ApiRequest;
-export const GetAdminSettingsRequestType = (reify: Type<
-  GetAdminSettingsRequest,
+export type AdminGetSettingsRequest = ApiRequest;
+export const AdminGetSettingsRequestType = (reify: Type<
+  AdminGetSettingsRequest,
 >);
-export type GetAdminSettingsResponse = {
+export type AdminGetSettingsResponse = {
   allowAnonymous: ?boolean,
   canCreateUser: ?boolean,
 };
 
-export type PutAdminSettingsRequest = ApiRequest & {
+export type AdminPutSettingsRequest = ApiRequest & {
   allowAnonymous: boolean,
   canCreateUser: boolean,
 };
-export const PutAdminSettingsRequestType = (reify: Type<
-  PutAdminSettingsRequest,
+export const AdminPutSettingsRequestType = (reify: Type<
+  AdminPutSettingsRequest,
 >);
-export type PutAdminSettingsResponse = {};
+export type AdminPutSettingsResponse = {};
 
 export type AdminInviteRequest = ApiRequest & {
   addresses: string[],
@@ -136,3 +136,9 @@ export type AdminInviteRequest = ApiRequest & {
 };
 export const AdminInviteRequestType = (reify: Type<AdminInviteRequest>);
 export type AdminInviteResponse = {};
+
+export type ResourceType = 'environment';
+
+export type ResourceCreateRequest = ApiRequest & {type: ResourceType};
+export const ResourceCreateRequestType = (reify: Type<ResourceCreateRequest>);
+export type ResourceCreateResponse = {id: string};

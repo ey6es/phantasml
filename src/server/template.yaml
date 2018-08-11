@@ -18,7 +18,7 @@ Parameters:
   
 Resources:
 
-  GetUserStatus:
+  UserGetStatus:
     Type: AWS::Serverless::Function
     Properties:
       Handler: user.getStatus
@@ -35,7 +35,7 @@ Resources:
             Path: /api/user/status
             Method: get
    
-  LoginUser:
+  UserLogin:
     Type: AWS::Serverless::Function
     Properties:
       Handler: user.login
@@ -53,7 +53,7 @@ Resources:
             Path: /api/user/login
             Method: post
 
-  LogoutUser:
+  UserLogout:
     Type: AWS::Serverless::Function
     Properties:
       Handler: user.logout
@@ -70,7 +70,7 @@ Resources:
             Path: /api/user/logout
             Method: post
 
-  CreateUser:
+  UserCreate:
     Type: AWS::Serverless::Function
     Properties:
       Handler: user.create
@@ -88,7 +88,7 @@ Resources:
             Path: /api/user/create
             Method: post
 
-  SetupUser:
+  UserSetup:
     Type: AWS::Serverless::Function
     Properties:
       Handler: user.setup
@@ -137,7 +137,7 @@ Resources:
             Path: /api/user/password
             Method: post
 
-  ConfigureUser:
+  UserConfigure:
     Type: AWS::Serverless::Function
     Properties:
       Handler: user.configure
@@ -151,7 +151,7 @@ Resources:
             Path: /api/user/configure
             Method: post
             
-  TransferUser:
+  UserTransfer:
     Type: AWS::Serverless::Function
     Properties:
       Handler: user.transfer
@@ -171,7 +171,7 @@ Resources:
             Path: /api/user/transfer
             Method: post
   
-  CompleteUserTransfer:
+  UserCompleteTransfer:
     Type: AWS::Serverless::Function
     Properties:
       Handler: user.completeTransfer
@@ -185,7 +185,7 @@ Resources:
             Path: /api/user/complete_transfer
             Method: post
             
-  DeleteUser:
+  UserDelete:
     Type: AWS::Serverless::Function
     Properties:
       Handler: user.deleteUser
@@ -202,7 +202,7 @@ Resources:
             Path: /api/user/delete
             Method: post
             
-  GetAdminSettings:
+  AdminGetSettings:
     Type: AWS::Serverless::Function
     Properties:
       Handler: admin.getSettings
@@ -219,7 +219,7 @@ Resources:
             Path: /api/admin/settings
             Method: get
 
-  PutAdminSettings:
+  AdminPutSettings:
     Type: AWS::Serverless::Function
     Properties:
       Handler: admin.putSettings
@@ -252,4 +252,18 @@ Resources:
           Type: Api
           Properties:
             Path: /api/admin/invite
+            Method: post
+
+  ResourceCreate:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: resource.create
+      Role: !Ref Role
+      Runtime: nodejs8.10
+      CodeUri: ../../build/server
+      Events:
+        Request:
+          Type: Api
+          Properties:
+            Path: /api/resource/create
             Method: post

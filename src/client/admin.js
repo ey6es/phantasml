@@ -10,7 +10,7 @@ import {FormattedMessage} from 'react-intl';
 import {Form, FormGroup, Label, Input} from 'reactstrap';
 import {getFromApi, putToApi, postToApi} from './util/api';
 import {Menu, MenuItem, RequestDialog, LabeledCheckbox} from './util/ui';
-import type {PutAdminSettingsRequest, AdminInviteRequest} from '../server/api';
+import type {AdminPutSettingsRequest, AdminInviteRequest} from '../server/api';
 import {isEmailValid} from '../server/constants';
 
 /**
@@ -127,7 +127,7 @@ class SiteSettingsDialog extends React.Component<
   };
 
   _makeRequest = async () => {
-    const request: PutAdminSettingsRequest = {
+    const request: AdminPutSettingsRequest = {
       allowAnonymous: this.state.allowAnonymous,
       canCreateUser: this.state.canCreateUser,
     };
