@@ -368,16 +368,18 @@ export const LabeledCheckbox = injectIntl((props: Object) => {
   );
 });
 
-const dummyComponent = {state: {}, setState: state => undefined};
+const dummyComponent = {props: {}, state: {}, setState: state => undefined};
 const MenuBarContext = React.createContext(dummyComponent);
 
 /**
  * A menu bar.
  *
+ * @param props.disabled if true, disable all menus on the bar.
+ * @param props.brand the contents of the brand section.
  * @param props.children the bar contents.
  */
 export class MenuBar extends React.Component<
-  {brand?: mixed, children?: mixed},
+  {disabled?: ?boolean, brand?: mixed, children?: mixed},
   {open: boolean, active: boolean, hoverItem: ?React.Component<any, any>},
 > {
   state = {open: false, active: false, hoverItem: null};
@@ -423,7 +425,7 @@ export class Menu extends React.Component<
             isOpen={menuBar.state.active && menuBar.state.hoverItem === this}
             toggle={() => menuBar.setState({active: !menuBar.state.active})}>
             <DropdownToggle
-              disabled={this.props.disabled}
+              disabled={menuBar.props.disabled || this.props.disabled}
               nav
               caret
               onMouseOver={event =>
@@ -507,9 +509,7 @@ export class Submenu extends React.Component<
                   tag={RawButton}>
                   {this.props.label}
                 </DropdownToggle>
-                <DropdownMenu
-                  className="p-0"
-                  modifiers={{offset: {offset: '-1px'}}}>
+                <DropdownMenu modifiers={{offset: {offset: -9}}}>
                   <MenuContext.Provider value={this}>
                     {this.props.children}
                   </MenuContext.Provider>

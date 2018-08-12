@@ -19,7 +19,8 @@ export function create(
     event,
     ResourceCreateRequestType,
     (async request => {
-      return {id: '...'};
+      const id = createUuid();
+      return {id};
     }: ResourceCreateRequest => Promise<ResourceCreateResponse>),
   );
 }
