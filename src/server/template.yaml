@@ -15,19 +15,26 @@ Parameters:
   
   GoogleClientId:
     Type: String
-  
+
+Globals:
+
+  Function:
+    Runtime: nodejs8.10
+    CodeUri: ../../build/server
+    Environment:
+        Variables:
+          FROM_EMAIL: !Ref FromEmail
+          SITE_URL: !Ref SiteUrl
+          GOOGLE_CLIENT_ID: !Ref GoogleClientId
+    Timeout: 5
+    
 Resources:
 
   UserGetStatus:
     Type: AWS::Serverless::Function
     Properties:
-      Handler: user.getStatus
       Role: !Ref Role
-      Runtime: nodejs8.10
-      CodeUri: ../../build/server
-      Environment:
-        Variables:
-          SITE_URL: !Ref SiteUrl
+      Handler: user.getStatus
       Events:
         Request:
           Type: Api
@@ -38,14 +45,8 @@ Resources:
   UserLogin:
     Type: AWS::Serverless::Function
     Properties:
-      Handler: user.login
       Role: !Ref Role
-      Runtime: nodejs8.10
-      CodeUri: ../../build/server
-      Environment:
-        Variables:
-          SITE_URL: !Ref SiteUrl
-          GOOGLE_CLIENT_ID: !Ref GoogleClientId
+      Handler: user.login
       Events:
         Request:
           Type: Api
@@ -56,13 +57,8 @@ Resources:
   UserLogout:
     Type: AWS::Serverless::Function
     Properties:
-      Handler: user.logout
       Role: !Ref Role
-      Runtime: nodejs8.10
-      CodeUri: ../../build/server
-      Environment:
-        Variables:
-          SITE_URL: !Ref SiteUrl
+      Handler: user.logout
       Events:
         Request:
           Type: Api
@@ -73,14 +69,8 @@ Resources:
   UserCreate:
     Type: AWS::Serverless::Function
     Properties:
-      Handler: user.create
       Role: !Ref Role
-      Runtime: nodejs8.10
-      CodeUri: ../../build/server
-      Environment:
-        Variables:
-          FROM_EMAIL: !Ref FromEmail
-          SITE_URL: !Ref SiteUrl
+      Handler: user.create
       Events:
         Request:
           Type: Api
@@ -91,13 +81,8 @@ Resources:
   UserSetup:
     Type: AWS::Serverless::Function
     Properties:
-      Handler: user.setup
       Role: !Ref Role
-      Runtime: nodejs8.10
-      CodeUri: ../../build/server
-      Environment:
-        Variables:
-          GOOGLE_CLIENT_ID: !Ref GoogleClientId
+      Handler: user.setup
       Events:
         Request:
           Type: Api
@@ -108,14 +93,8 @@ Resources:
   UserPasswordReset:
     Type: AWS::Serverless::Function
     Properties:
-      Handler: user.passwordReset
       Role: !Ref Role
-      Runtime: nodejs8.10
-      CodeUri: ../../build/server
-      Environment:
-        Variables:
-          FROM_EMAIL: !Ref FromEmail
-          SITE_URL: !Ref SiteUrl
+      Handler: user.passwordReset
       Events:
         Request:
           Type: Api
@@ -126,10 +105,8 @@ Resources:
   UserPassword:
     Type: AWS::Serverless::Function
     Properties:
-      Handler: user.password
       Role: !Ref Role
-      Runtime: nodejs8.10
-      CodeUri: ../../build/server
+      Handler: user.password
       Events:
         Request:
           Type: Api
@@ -140,10 +117,8 @@ Resources:
   UserConfigure:
     Type: AWS::Serverless::Function
     Properties:
-      Handler: user.configure
       Role: !Ref Role
-      Runtime: nodejs8.10
-      CodeUri: ../../build/server
+      Handler: user.configure
       Events:
         Request:
           Type: Api
@@ -154,16 +129,8 @@ Resources:
   UserTransfer:
     Type: AWS::Serverless::Function
     Properties:
-      Handler: user.transfer
       Role: !Ref Role
-      Runtime: nodejs8.10
-      Timeout: 5
-      CodeUri: ../../build/server
-      Environment:
-        Variables:
-          FROM_EMAIL: !Ref FromEmail
-          SITE_URL: !Ref SiteUrl
-          GOOGLE_CLIENT_ID: !Ref GoogleClientId
+      Handler: user.transfer
       Events:
         Request:
           Type: Api
@@ -174,10 +141,8 @@ Resources:
   UserCompleteTransfer:
     Type: AWS::Serverless::Function
     Properties:
-      Handler: user.completeTransfer
       Role: !Ref Role
-      Runtime: nodejs8.10
-      CodeUri: ../../build/server
+      Handler: user.completeTransfer
       Events:
         Request:
           Type: Api
@@ -188,13 +153,8 @@ Resources:
   UserDelete:
     Type: AWS::Serverless::Function
     Properties:
-      Handler: user.deleteUser
       Role: !Ref Role
-      Runtime: nodejs8.10
-      CodeUri: ../../build/server
-      Environment:
-        Variables:
-          SITE_URL: !Ref SiteUrl
+      Handler: user.deleteUser
       Events:
         Request:
           Type: Api
@@ -205,13 +165,8 @@ Resources:
   AdminGetSettings:
     Type: AWS::Serverless::Function
     Properties:
-      Handler: admin.getSettings
       Role: !Ref Role
-      Runtime: nodejs8.10
-      CodeUri: ../../build/server
-      Environment:
-        Variables:
-          SITE_URL: !Ref SiteUrl
+      Handler: admin.getSettings
       Events:
         Request:
           Type: Api
@@ -222,13 +177,8 @@ Resources:
   AdminPutSettings:
     Type: AWS::Serverless::Function
     Properties:
-      Handler: admin.putSettings
       Role: !Ref Role
-      Runtime: nodejs8.10
-      CodeUri: ../../build/server
-      Environment:
-        Variables:
-          SITE_URL: !Ref SiteUrl
+      Handler: admin.putSettings
       Events:
         Request:
           Type: Api
@@ -239,14 +189,8 @@ Resources:
   AdminInvite:
     Type: AWS::Serverless::Function
     Properties:
-      Handler: admin.invite
       Role: !Ref Role
-      Runtime: nodejs8.10
-      CodeUri: ../../build/server
-      Environment:
-        Variables:
-          FROM_EMAIL: !Ref FromEmail
-          SITE_URL: !Ref SiteUrl
+      Handler: admin.invite
       Events:
         Request:
           Type: Api
@@ -254,16 +198,63 @@ Resources:
             Path: /api/admin/invite
             Method: post
 
-  ResourceCreate:
+  ResourceList:
     Type: AWS::Serverless::Function
     Properties:
-      Handler: resource.create
       Role: !Ref Role
-      Runtime: nodejs8.10
-      CodeUri: ../../build/server
+      Handler: resource.list
       Events:
         Request:
           Type: Api
           Properties:
-            Path: /api/resource/create
+            Path: /api/resource
+            Method: get
+            
+  ResourceCreate:
+    Type: AWS::Serverless::Function
+    Properties:
+      Role: !Ref Role
+      Handler: resource.create
+      Events:
+        Request:
+          Type: Api
+          Properties:
+            Path: /api/resource
             Method: post
+
+  ResourceGet:
+    Type: AWS::Serverless::Function
+    Properties:
+      Role: !Ref Role
+      Handler: resource.get
+      Events:
+        Request:
+          Type: Api
+          Properties:
+            Path: /api/resource/{id}
+            Method: get
+
+  ResourcePut:
+    Type: AWS::Serverless::Function
+    Properties:
+      Role: !Ref Role
+      Handler: resource.put
+      Events:
+        Request:
+          Type: Api
+          Properties:
+            Path: /api/resource/{id}
+            Method: put
+            
+  ResourceDelete:
+    Type: AWS::Serverless::Function
+    Properties:
+      Role: !Ref Role
+      Handler: resource.deleteResource
+      Events:
+        Request:
+          Type: Api
+          Properties:
+            Path: /api/resource/{id}
+            Method: delete
+              

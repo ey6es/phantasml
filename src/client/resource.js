@@ -52,7 +52,7 @@ export class ResourceDropdown extends React.Component<
     this.props.setLoading(true);
     try {
       const request: ResourceCreateRequest = {type};
-      const response = await postToApi('/resource/create', request);
+      const response = await postToApi('/resource', request);
       history.pushState({}, '', '?r=' + response.id);
     } catch (error) {
       this.setState({

@@ -139,6 +139,22 @@ export type AdminInviteResponse = {};
 
 export type ResourceType = 'environment';
 
+export type ResourceListRequest = ApiRequest;
+export const ResourceListRequestType = (reify: Type<ResourceListRequest>);
+export type ResourceListResponse = {};
+
 export type ResourceCreateRequest = ApiRequest & {type: ResourceType};
 export const ResourceCreateRequestType = (reify: Type<ResourceCreateRequest>);
 export type ResourceCreateResponse = {id: string};
+
+export type ResourceGetRequest = ApiRequest & {id: string};
+export const ResourceGetRequestType = (reify: Type<ResourceGetRequest>);
+export type ResourceGetResponse = {};
+
+export type ResourcePutRequest = ApiRequest & {id: string};
+export const ResourcePutRequestType = (reify: Type<ResourcePutRequest>);
+export type ResourcePutResponse = {};
+
+export type ResourceDeleteRequest = ApiRequest & {id: string};
+export const ResourceDeleteRequestType = (reify: Type<ResourceDeleteRequest>);
+export type ResourceDeleteResponse = {};
