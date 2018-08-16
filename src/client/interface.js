@@ -9,7 +9,7 @@ import * as React from 'react';
 import {FormattedMessage} from 'react-intl';
 import {Nav} from 'reactstrap';
 import {UserDropdown} from './user';
-import {ResourceDropdown} from './resource';
+import {RESOURCE_PARAM, ResourceDropdown, ResourceContent} from './resource';
 import {AdminDropdown} from './admin';
 import {MenuBar} from './util/ui';
 import type {UserStatusResponse} from '../server/api';
@@ -23,9 +23,21 @@ export class Interface extends React.Component<
     setUserStatus: UserStatusResponse => void,
     locale: string,
   },
-  {loading: boolean},
+  {loading: boolean, content: ?React.Element<any>},
 > {
-  state = {loading: false};
+  // define this early becaue createContent needs it
+  _setLoading = (loading: boolean, updateContent: ?boolean) => {
+    if (updateContent) {
+      this.setState({
+        loading,
+        content: loading ? null : this._createContent(),
+      });
+    } else {
+      this.setState({loading});
+    }
+  };
+
+  state = {loading: false, content: this._createContent()};
 
   render() {
     return (
@@ -34,7 +46,10 @@ export class Interface extends React.Component<
           brand={<FormattedMessage id="app.title" defaultMessage="Phantasml" />}
           disabled={this.state.loading}>
           <Nav navbar>
-            <ResourceDropdown setLoading={this._setLoading} />
+            <ResourceDropdown
+              setLoading={this._setLoading}
+              pushSearch={this._pushSearch}
+            />
             {this.props.userStatus.admin ? (
               <AdminDropdown locale={this.props.locale} />
             ) : null}
@@ -47,6 +62,7 @@ export class Interface extends React.Component<
             />
           </Nav>
         </MenuBar>
+        {this.state.content}
         {this.state.loading ? (
           <div className="position-relative flex-grow-1">
             <div className="loading" />
@@ -56,5 +72,38 @@ export class Interface extends React.Component<
     );
   }
 
-  _setLoading = (loading: boolean) => this.setState({loading});
+  componentDidMount() {
+    window.addEventListener('popstate', this._handlePopState);
+  }
+
+  componentWillUnmount() {
+    window.removeEventListener('popstate', this._handlePopState);
+  }
+
+  _pushSearch = (search: string) => {
+    history.pushState({}, '', search);
+    this.setState({content: this._createContent()});
+  };
+
+  _handlePopState = () => {
+    this.setState({content: this._createContent()});
+  };
+
+  _createContent() {
+    if (location.search.startsWith('?')) {
+      for (const param of location.search.substring(1).split('&')) {
+        if (param.startsWith(RESOURCE_PARAM)) {
+          const id = param.substring(RESOURCE_PARAM.length);
+          return (
+            <ResourceContent key={id} id={id} setLoading={this._setLoading} />
+          );
+        }
+      }
+    }
+    return <DefaultContent />;
+  }
+}
+
+function DefaultContent() {
+  return <div />;
 }

@@ -13,9 +13,12 @@ import {
   DropdownMenu,
   DropdownItem,
 } from 'reactstrap';
-import {postToApi} from './util/api';
+import {getFromApi, postToApi} from './util/api';
 import {Menu, MenuItem, Submenu, ErrorDialog} from './util/ui';
 import type {ResourceType, ResourceCreateRequest} from '../server/api';
+
+/** The parameter prefix used for resources. */
+export const RESOURCE_PARAM = 'r=';
 
 /**
  * The dropdown menu for resources.
@@ -23,7 +26,7 @@ import type {ResourceType, ResourceCreateRequest} from '../server/api';
  * @param props.setLoading the function to set the loading state.
  */
 export class ResourceDropdown extends React.Component<
-  {setLoading: boolean => void},
+  {setLoading: (boolean, ?boolean) => void, pushSearch: string => void},
   {dialog: ?React.Element<any>},
 > {
   state = {dialog: null};
@@ -49,11 +52,42 @@ export class ResourceDropdown extends React.Component<
   }
 
   async _createResource(type: ResourceType) {
-    this.props.setLoading(true);
+    this.props.setLoading(true, true);
     try {
       const request: ResourceCreateRequest = {type};
       const response = await postToApi('/resource', request);
-      history.pushState({}, '', '?r=' + response.id);
+      this.props.pushSearch('?' + RESOURCE_PARAM + response.id);
+    } catch (error) {
+      this.props.setLoading(false, true);
+      this.setState({
+        dialog: <ErrorDialog error={error} onClosed={this._clearDialog} />,
+      });
+    }
+  }
+
+  _clearDialog = () => this.setState({dialog: null});
+}
+
+/**
+ * Content for viewing/editing resources.
+ *
+ * @param props.id the id of the resource to load.
+ * @param props.setLoading the function to set the loading state.
+ */
+export class ResourceContent extends React.Component<
+  {id: string, setLoading: (boolean, ?boolean) => void},
+  {dialog: ?React.Element<any>},
+> {
+  state = {dialog: null};
+
+  render() {
+    return <div>{this.state.dialog}</div>;
+  }
+
+  async componentDidMount() {
+    this.props.setLoading(true);
+    try {
+      const response = await getFromApi('/resource/' + this.props.id);
     } catch (error) {
       this.setState({
         dialog: <ErrorDialog error={error} onClosed={this._clearDialog} />,

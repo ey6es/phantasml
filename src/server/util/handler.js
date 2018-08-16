@@ -63,7 +63,11 @@ function getQueryRequest<T: Object>(
   event: APIGatewayEvent,
   runtimeType: Type<T>,
 ): T {
-  const request: T = (event.queryStringParameters || {}: any);
+  const request: T = (Object.assign(
+    {},
+    event.queryStringParameters,
+    event.pathParameters,
+  ): any);
   runtimeType.assert(request);
   return request;
 }
@@ -104,7 +108,10 @@ function getBodyRequest<T: Object>(
   event: APIGatewayEvent,
   runtimeType: Type<T>,
 ): T {
-  const request: T = JSON.parse(event.body || '{}');
+  const request: T = Object.assign(
+    JSON.parse(event.body || '{}'),
+    event.pathParameters,
+  );
   runtimeType.assert(request);
   return request;
 }
