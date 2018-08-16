@@ -16,7 +16,6 @@ import {
   Button,
   CustomInput,
   Navbar,
-  NavbarBrand,
   NavbarToggler,
   Collapse,
   Dropdown,
@@ -387,7 +386,7 @@ export class MenuBar extends React.Component<
   render() {
     return (
       <Navbar color="primary" dark expand="md">
-        <NavbarBrand>{this.props.brand}</NavbarBrand>
+        {this.props.brand}
         <NavbarToggler onClick={this._toggle} />
         <Collapse isOpen={this.state.open} navbar>
           <MenuBarContext.Provider value={this}>

@@ -69,6 +69,37 @@ export class ResourceDropdown extends React.Component<
 }
 
 /**
+ * Content for browsing available resources.
+ *
+ * @param props.setLoading the function to set the loading state.
+ */
+export class ResourceBrowser extends React.Component<
+  {setLoading: (boolean, ?boolean) => void},
+  {dialog: ?React.Element<any>},
+> {
+  state = {dialog: null};
+
+  render() {
+    return <div>{this.state.dialog}</div>;
+  }
+
+  async componentDidMount() {
+    this.props.setLoading(true);
+    try {
+      const response = await getFromApi('/resource');
+    } catch (error) {
+      this.setState({
+        dialog: <ErrorDialog error={error} onClosed={this._clearDialog} />,
+      });
+    } finally {
+      this.props.setLoading(false);
+    }
+  }
+
+  _clearDialog = () => this.setState({dialog: null});
+}
+
+/**
  * Content for viewing/editing resources.
  *
  * @param props.id the id of the resource to load.

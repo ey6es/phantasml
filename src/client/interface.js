@@ -7,9 +7,14 @@
 
 import * as React from 'react';
 import {FormattedMessage} from 'react-intl';
-import {Nav} from 'reactstrap';
+import {NavbarBrand, Nav} from 'reactstrap';
 import {UserDropdown} from './user';
-import {RESOURCE_PARAM, ResourceDropdown, ResourceContent} from './resource';
+import {
+  RESOURCE_PARAM,
+  ResourceDropdown,
+  ResourceBrowser,
+  ResourceContent,
+} from './resource';
 import {AdminDropdown} from './admin';
 import {MenuBar} from './util/ui';
 import type {UserStatusResponse} from '../server/api';
@@ -43,7 +48,11 @@ export class Interface extends React.Component<
     return (
       <div className="interface">
         <MenuBar
-          brand={<FormattedMessage id="app.title" defaultMessage="Phantasml" />}
+          brand={
+            <NavbarBrand onClick={() => this._pushSearch('')}>
+              <FormattedMessage id="app.title" defaultMessage="Phantasml" />
+            </NavbarBrand>
+          }
           disabled={this.state.loading}>
           <Nav navbar>
             <ResourceDropdown
@@ -81,7 +90,10 @@ export class Interface extends React.Component<
   }
 
   _pushSearch = (search: string) => {
-    history.pushState({}, '', search);
+    if (location.search === search) {
+      return;
+    }
+    history.pushState({}, '', search || location.pathname);
     this.setState({content: this._createContent()});
   };
 
@@ -100,10 +112,6 @@ export class Interface extends React.Component<
         }
       }
     }
-    return <DefaultContent />;
+    return <ResourceBrowser setLoading={this._setLoading} />;
   }
-}
-
-function DefaultContent() {
-  return <div />;
 }
