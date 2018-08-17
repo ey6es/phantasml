@@ -56,6 +56,7 @@ export class Interface extends React.Component<
           disabled={this.state.loading}>
           <Nav navbar>
             <ResourceDropdown
+              userStatus={this.props.userStatus}
               setLoading={this._setLoading}
               pushSearch={this._pushSearch}
             />

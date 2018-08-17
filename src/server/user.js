@@ -15,7 +15,13 @@ import {IntlProvider, FormattedMessage} from 'react-intl';
 import type {APIGatewayEvent, Context, ProxyResult} from 'flow-aws-lambda';
 import FB from 'fb';
 import {OAuth2Client} from 'google-auth-library';
-import {dynamodb, createUuid, updateItem, getSettings} from './util/database';
+import {
+  dynamodb,
+  createUuid,
+  updateItem,
+  getSettings,
+  nowInSeconds,
+} from './util/database';
 import {
   SITE_URL,
   FROM_EMAIL,
@@ -773,7 +779,14 @@ export async function requireSessionUser(request: ApiRequest): Promise<Object> {
   return await requireUser(session.userId.S);
 }
 
-async function requireSession(token: ?string): Promise<Object> {
+/**
+ * Retrieves the session record for the auth token, throwing an exception if
+ * there isn't one.
+ *
+ * @param token the request token.
+ * @return a promise that will resolve to the session record.
+ */
+export async function requireSession(token: ?string): Promise<Object> {
   if (!token) {
     throw new Error('Missing token.');
   }
@@ -784,7 +797,16 @@ async function requireSession(token: ?string): Promise<Object> {
   return session;
 }
 
-async function getSession(token: string): Promise<?Object> {
+/**
+ * Retrieves the session record for the auth token, if any.
+ *
+ * @param token the request token.
+ * @return a promise that will resolve to the session record, if any.
+ */
+export async function getSession(token: ?string): Promise<?Object> {
+  if (!token) {
+    return null;
+  }
   const result = await dynamodb
     .getItem({Key: {token: {S: token}}, TableName: 'Sessions'})
     .promise();
@@ -841,10 +863,6 @@ async function deleteSession(token: ?string): Promise<void> {
       TableName: 'Sessions',
     })
     .promise();
-}
-
-function nowInSeconds(): number {
-  return Math.round(Date.now() / 1000);
 }
 
 function getPasswordAttributes(password: string): Object {

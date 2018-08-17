@@ -15,7 +15,11 @@ import {
 } from 'reactstrap';
 import {getFromApi, postToApi} from './util/api';
 import {Menu, MenuItem, Submenu, ErrorDialog} from './util/ui';
-import type {ResourceType, ResourceCreateRequest} from '../server/api';
+import type {
+  UserStatusResponse,
+  ResourceType,
+  ResourceCreateRequest,
+} from '../server/api';
 
 /** The parameter prefix used for resources. */
 export const RESOURCE_PARAM = 'r=';
@@ -26,7 +30,11 @@ export const RESOURCE_PARAM = 'r=';
  * @param props.setLoading the function to set the loading state.
  */
 export class ResourceDropdown extends React.Component<
-  {setLoading: (boolean, ?boolean) => void, pushSearch: string => void},
+  {
+    userStatus: UserStatusResponse,
+    setLoading: (boolean, ?boolean) => void,
+    pushSearch: string => void,
+  },
   {dialog: ?React.Element<any>},
 > {
   state = {dialog: null};
@@ -37,15 +45,17 @@ export class ResourceDropdown extends React.Component<
         label={
           <FormattedMessage id="resource.title" defaultMessage="Resource" />
         }>
-        <Submenu
-          label={<FormattedMessage id="resource.new" defaultMessage="New" />}>
-          <MenuItem onClick={() => this._createResource('environment')}>
-            <FormattedMessage
-              id="resource.environment"
-              defaultMessage="Environment"
-            />
-          </MenuItem>
-        </Submenu>
+        {this.props.userStatus.type === 'logged-in' ? (
+          <Submenu
+            label={<FormattedMessage id="resource.new" defaultMessage="New" />}>
+            <MenuItem onClick={() => this._createResource('environment')}>
+              <FormattedMessage
+                id="resource.environment"
+                defaultMessage="Environment"
+              />
+            </MenuItem>
+          </Submenu>
+        ) : null}
         {this.state.dialog}
       </Menu>
     );

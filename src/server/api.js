@@ -12,6 +12,7 @@ import t, {reify} from 'flow-runtime';
 import type {Type} from 'flow-runtime';
 
 export type ApiRequest = {authToken?: string};
+export type IdRequest = ApiRequest & {id: string};
 
 export type UserStatusRequest = ApiRequest;
 export const UserStatusRequestType = (reify: Type<UserStatusRequest>);
@@ -139,22 +140,30 @@ export type AdminInviteResponse = {};
 
 export type ResourceType = 'environment';
 
+type ResourceMetadata = {name: string, description: string};
+export type ResourceDescriptor = ResourceMetadata & {
+  id: string,
+  ownerId: string,
+  type: ResourceType,
+  lastOwnerAccessTime: string,
+};
+
 export type ResourceListRequest = ApiRequest;
 export const ResourceListRequestType = (reify: Type<ResourceListRequest>);
-export type ResourceListResponse = {};
+export type ResourceListResponse = {resources: ResourceDescriptor[]};
 
 export type ResourceCreateRequest = ApiRequest & {type: ResourceType};
 export const ResourceCreateRequestType = (reify: Type<ResourceCreateRequest>);
 export type ResourceCreateResponse = {id: string};
 
-export type ResourceGetRequest = ApiRequest & {id: string};
+export type ResourceGetRequest = IdRequest;
 export const ResourceGetRequestType = (reify: Type<ResourceGetRequest>);
-export type ResourceGetResponse = {};
+export type ResourceGetResponse = ResourceDescriptor;
 
-export type ResourcePutRequest = ApiRequest & {id: string};
+export type ResourcePutRequest = IdRequest & ResourceMetadata;
 export const ResourcePutRequestType = (reify: Type<ResourcePutRequest>);
 export type ResourcePutResponse = {};
 
-export type ResourceDeleteRequest = ApiRequest & {id: string};
+export type ResourceDeleteRequest = IdRequest;
 export const ResourceDeleteRequestType = (reify: Type<ResourceDeleteRequest>);
 export type ResourceDeleteResponse = {};

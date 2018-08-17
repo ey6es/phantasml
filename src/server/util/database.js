@@ -13,6 +13,15 @@ import {SITE_URL} from './handler';
 export const dynamodb = new DynamoDB();
 
 /**
+ * Returns the current time in seconds since the epoch.
+ *
+ * @return the current time in seconds.
+ */
+export function nowInSeconds(): number {
+  return Math.round(Date.now() / 1000);
+}
+
+/**
  * Creates and returns a base64 UUID with URL-safe characters.
  *
  * @return the newly created UUID.
