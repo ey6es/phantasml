@@ -5,94 +5,7 @@
  * @flow
  */
 
-import {DynamoDB} from 'aws-sdk';
-import {inviteEmail} from '../server/user';
-
-const dynamodb = new DynamoDB();
-
-const TABLES = [
-  {
-    TableName: 'Sessions',
-    AttributeDefinitions: [
-      {
-        AttributeName: 'token',
-        AttributeType: 'S',
-      },
-    ],
-    KeySchema: [
-      {
-        AttributeName: 'token',
-        KeyType: 'HASH',
-      },
-    ],
-    ProvisionedThroughput: {
-      ReadCapacityUnits: 5,
-      WriteCapacityUnits: 5,
-    },
-  },
-  {
-    TableName: 'Users',
-    AttributeDefinitions: [
-      {
-        AttributeName: 'id',
-        AttributeType: 'S',
-      },
-      {
-        AttributeName: 'externalId',
-        AttributeType: 'S',
-      },
-    ],
-    KeySchema: [
-      {
-        AttributeName: 'id',
-        KeyType: 'HASH',
-      },
-    ],
-    GlobalSecondaryIndexes: [
-      {
-        IndexName: 'ExternalId',
-        KeySchema: [
-          {
-            AttributeName: 'externalId',
-            KeyType: 'HASH',
-          },
-        ],
-        Projection: {
-          ProjectionType: 'ALL',
-        },
-        ProvisionedThroughput: {
-          ReadCapacityUnits: 5,
-          WriteCapacityUnits: 5,
-        },
-      },
-    ],
-    ProvisionedThroughput: {
-      ReadCapacityUnits: 5,
-      WriteCapacityUnits: 5,
-    },
-  },
-  {
-    TableName: 'Settings',
-    AttributeDefinitions: [
-      {
-        AttributeName: 'id',
-        AttributeType: 'S',
-      },
-    ],
-    KeySchema: [
-      {
-        AttributeName: 'id',
-        KeyType: 'HASH',
-      },
-    ],
-    ProvisionedThroughput: {
-      ReadCapacityUnits: 5,
-      WriteCapacityUnits: 5,
-    },
-  },
-];
-
-const TABLE_TTL_ATTRIBUTES: {[string]: string} = {Sessions: 'expirationTime'};
+import {getUserByExternalId, inviteEmail} from '../server/user';
 
 /**
  * Performs all necessary migrations, including creating and seeding tables.
@@ -108,42 +21,10 @@ export default async function migrate(
   fromEmail: string,
   siteUrl: string,
 ) {
-  // get the list of tables
-  const tableList = await dynamodb.listTables().promise();
-  const tableNames = new Set(tableList.TableNames);
-
-  for (const table of TABLES) {
-    // create table if it doesn't exist
-    const TableName = table.TableName;
-    if (!tableNames.has(TableName)) {
-      console.log(`Creating table ${TableName}`);
-      await dynamodb.createTable(table).promise();
-      await dynamodb.waitFor('tableExists', {TableName}).promise();
-
-      // seed table if appropriate
-      if (TableName === 'Users') {
-        console.log('Creating and sending initial admin invite');
-        await inviteEmail(firstAdminEmail, 'en-US', true, fromEmail, siteUrl);
-      }
-    }
-
-    // enable/disable/configure TTL
-    const ttl = await dynamodb.describeTimeToLive({TableName}).promise();
-    const ttlDesc = ttl.TimeToLiveDescription;
-    const ttlEnabled =
-      ttlDesc.TimeToLiveStatus === 'ENABLED' ||
-      ttlDesc.TimeToLiveStatus === 'ENABLING';
-    const ttlAttribute = ttlEnabled ? ttlDesc.AttributeName : undefined;
-    const AttributeName = TABLE_TTL_ATTRIBUTES[TableName];
-    const Enabled = !!AttributeName;
-    if (ttlEnabled !== Enabled || ttlAttribute !== AttributeName) {
-      console.log(`Updating TTL on ${TableName}`);
-      await dynamodb
-        .updateTimeToLive({
-          TableName,
-          TimeToLiveSpecification: {Enabled, AttributeName},
-        })
-        .promise();
-    }
+  // send the initial admin invite if the account doesn't exist
+  const firstAdmin = await getUserByExternalId(firstAdminEmail);
+  if (!firstAdmin) {
+    console.log('Creating and sending initial admin invite');
+    await inviteEmail(firstAdminEmail, 'en-US', true, fromEmail, siteUrl);
   }
 }

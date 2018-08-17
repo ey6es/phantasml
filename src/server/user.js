@@ -341,7 +341,15 @@ export function login(
   );
 }
 
-async function getUserByExternalId(externalId: string): Promise<?Object> {
+/**
+ * Retrieves a user item by external id (e.g., email address).
+ *
+ * @param externalId the external id to find.
+ * @return a promise that will resolve to the user item, if any.
+ */
+export async function getUserByExternalId(
+  externalId: string,
+): Promise<?Object> {
   const users = await dynamodb
     .query({
       TableName: 'Users',

@@ -1,0 +1,108 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Phantasml database.
+
+Resources:
+
+  SessionsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: Sessions
+      AttributeDefinitions:
+        - 
+          AttributeName: token
+          AttributeType: S
+      KeySchema:
+        - 
+          AttributeName: token
+          KeyType: HASH
+      ProvisionedThroughput:
+        ReadCapacityUnits: 5
+        WriteCapacityUnits: 5
+      TimeToLiveSpecification:
+        AttributeName: expirationTime
+        Enabled: true
+    
+  UsersTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: Users
+      AttributeDefinitions:
+        - 
+          AttributeName: id
+          AttributeType: S
+        - 
+          AttributeName: externalId
+          AttributeType: S
+      KeySchema:
+        - 
+          AttributeName: id
+          KeyType: HASH
+      ProvisionedThroughput:
+        ReadCapacityUnits: 5
+        WriteCapacityUnits: 5
+      GlobalSecondaryIndexes: 
+        - 
+          IndexName: ExternalId
+          KeySchema: 
+            - 
+              AttributeName: externalId
+              KeyType: HASH
+          Projection: 
+            ProjectionType: ALL
+          ProvisionedThroughput: 
+            ReadCapacityUnits: 5
+            WriteCapacityUnits: 5
+
+  SettingsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: Settings
+      AttributeDefinitions:
+        - 
+          AttributeName: id
+          AttributeType: S
+      KeySchema:
+        - 
+          AttributeName: id
+          KeyType: HASH
+      ProvisionedThroughput:
+        ReadCapacityUnits: 5
+        WriteCapacityUnits: 5
+
+  ResourcesTable:
+    Type: AWS::DynamoDB::Table
+    DependsOn: UsersTable
+    Properties:
+      TableName: Resources
+      AttributeDefinitions:
+        - 
+          AttributeName: id
+          AttributeType: S
+        - 
+          AttributeName: ownerId
+          AttributeType: S
+        - 
+          AttributeName: lastOwnerAccessTime
+          AttributeType: N
+      KeySchema:
+        - 
+          AttributeName: id
+          KeyType: HASH
+      ProvisionedThroughput:
+        ReadCapacityUnits: 5
+        WriteCapacityUnits: 5
+      GlobalSecondaryIndexes: 
+        - 
+          IndexName: OwnerId
+          KeySchema: 
+            - 
+              AttributeName: ownerId
+              KeyType: HASH
+            - 
+              AttributeName: lastOwnerAccessTime
+              KeyType: RANGE
+          Projection: 
+            ProjectionType: ALL
+          ProvisionedThroughput: 
+            ReadCapacityUnits: 5
+            WriteCapacityUnits: 5

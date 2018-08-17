@@ -202,6 +202,13 @@ module.exports = function(grunt) {
             'sam local start-api --skip-pull-image -s ../../dist/local ' +
             '-t src/server/template.yaml -n build/environment.json',
         },
+        prepare: {
+          cmd:
+            `aws cloudformation deploy --template-file ` +
+            `src/tools/template.yaml --stack-name phantasml-database ` +
+            `--s3-bucket ${config.distributions.production.bucket} ` +
+            `--no-fail-on-empty-changeset`,
+        },
       };
       for (const key in config.distributions) {
         const distributionConfig = config.distributions[key];
@@ -340,6 +347,7 @@ module.exports = function(grunt) {
         [
           `build-${key}`,
           `exec:npm`,
+          `exec:prepare`,
           `migrate:${key}`,
           `exec:package-${key}`,
           `exec:deploy-${key}`,
@@ -370,6 +378,7 @@ module.exports = function(grunt) {
     [
       'build-local',
       'exec:npm',
+      'exec:prepare',
       'migrate:local',
       'json_generator:local',
       'concurrent:local',
