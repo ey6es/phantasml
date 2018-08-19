@@ -7,17 +7,13 @@
 
 import * as React from 'react';
 import {FormattedMessage} from 'react-intl';
-import {
-  UncontrolledDropdown,
-  DropdownToggle,
-  DropdownMenu,
-  DropdownItem,
-} from 'reactstrap';
+import {Card, CardBody, CardTitle, CardSubtitle, Button} from 'reactstrap';
 import {getFromApi, postToApi} from './util/api';
 import {Menu, MenuItem, Submenu, ErrorDialog} from './util/ui';
 import type {
   UserStatusResponse,
   ResourceType,
+  ResourceDescriptor,
   ResourceCreateRequest,
 } from '../server/api';
 
@@ -32,7 +28,7 @@ export const RESOURCE_PARAM = 'r=';
 export class ResourceDropdown extends React.Component<
   {
     userStatus: UserStatusResponse,
-    setLoading: (boolean, ?boolean) => void,
+    setLoading: boolean => void,
     pushSearch: string => void,
   },
   {dialog: ?React.Element<any>},
@@ -62,13 +58,13 @@ export class ResourceDropdown extends React.Component<
   }
 
   async _createResource(type: ResourceType) {
-    this.props.setLoading(true, true);
+    this.props.setLoading(true);
     try {
       const request: ResourceCreateRequest = {type};
       const response = await postToApi('/resource', request);
       this.props.pushSearch('?' + RESOURCE_PARAM + response.id);
     } catch (error) {
-      this.props.setLoading(false, true);
+      this.props.setLoading(false);
       this.setState({
         dialog: <ErrorDialog error={error} onClosed={this._clearDialog} />,
       });
@@ -84,19 +80,35 @@ export class ResourceDropdown extends React.Component<
  * @param props.setLoading the function to set the loading state.
  */
 export class ResourceBrowser extends React.Component<
-  {setLoading: (boolean, ?boolean) => void},
-  {dialog: ?React.Element<any>},
+  {
+    userStatus: UserStatusResponse,
+    setLoading: boolean => void,
+    pushSearch: string => void,
+  },
+  {resources: ?(ResourceDescriptor[]), dialog: ?React.Element<any>},
 > {
-  state = {dialog: null};
+  state = {resources: null, dialog: null};
 
   render() {
-    return <div>{this.state.dialog}</div>;
+    return (
+      <div>
+        {this.state.resources ? (
+          <ResourcePage
+            resources={this.state.resources}
+            userStatus={this.props.userStatus}
+            pushSearch={this.props.pushSearch}
+          />
+        ) : null}
+        {this.state.dialog}
+      </div>
+    );
   }
 
   async componentDidMount() {
     this.props.setLoading(true);
     try {
       const response = await getFromApi('/resource');
+      this.setState({resources: response.resources});
     } catch (error) {
       this.setState({
         dialog: <ErrorDialog error={error} onClosed={this._clearDialog} />,
@@ -107,6 +119,88 @@ export class ResourceBrowser extends React.Component<
   }
 
   _clearDialog = () => this.setState({dialog: null});
+}
+
+class ResourcePage extends React.Component<
+  {
+    resources: ResourceDescriptor[],
+    userStatus: UserStatusResponse,
+    pushSearch: string => void,
+  },
+  {},
+> {
+  render() {
+    return (
+      <div>
+        {this.props.resources.map(resource => (
+          <ResourceCard
+            key={resource.id}
+            resource={resource}
+            userStatus={this.props.userStatus}
+            pushSearch={this.props.pushSearch}
+          />
+        ))}
+      </div>
+    );
+  }
+}
+
+function ResourceCard(props: {
+  resource: ResourceDescriptor,
+  userStatus: UserStatusResponse,
+  pushSearch: string => void,
+}) {
+  return (
+    <Card>
+      <CardBody>
+        <CardTitle>
+          <ResourceName resource={props.resource} />
+        </CardTitle>
+        <CardSubtitle>{props.resource.description}</CardSubtitle>
+        <Button
+          color="primary"
+          onClick={() =>
+            props.pushSearch('?' + RESOURCE_PARAM + props.resource.id)
+          }>
+          <FormattedMessage id="resource.open" defaultMessage="Open" />
+        </Button>
+      </CardBody>
+    </Card>
+  );
+}
+
+function ResourceName(props: {resource: ResourceDescriptor}) {
+  if (props.resource.name) {
+    return props.resource.name;
+  }
+  return (
+    <FormattedMessage
+      id="resource.name.untitled"
+      defaultMessage="Untitled {type}"
+      values={{type: <ResourceTypeMessage type={props.resource.type} />}}
+    />
+  );
+}
+
+/**
+ * Returns the formatted message identifying the specified resource type.
+ *
+ * @param props.type the type to label.
+ * @return the formatted message.
+ */
+export function ResourceTypeMessage(props: {type: ResourceType}) {
+  switch (props.type) {
+    case 'environment':
+      return (
+        <FormattedMessage
+          id="resource.type.environment"
+          defaultMessage="Environment"
+        />
+      );
+
+    default:
+      throw new Error('Unknown resource type: ' + props.type);
+  }
 }
 
 /**

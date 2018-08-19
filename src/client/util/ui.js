@@ -385,7 +385,7 @@ export class MenuBar extends React.Component<
 
   render() {
     return (
-      <Navbar color="primary" dark expand="md">
+      <Navbar className="menu-bar" color="primary" dark expand="md">
         {this.props.brand}
         <NavbarToggler onClick={this._toggle} />
         <Collapse isOpen={this.state.open} navbar>

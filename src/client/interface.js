@@ -28,21 +28,9 @@ export class Interface extends React.Component<
     setUserStatus: UserStatusResponse => void,
     locale: string,
   },
-  {loading: boolean, content: ?React.Element<any>},
+  {loading: boolean, search: string},
 > {
-  // define this early becaue createContent needs it
-  _setLoading = (loading: boolean, updateContent: ?boolean) => {
-    if (updateContent) {
-      this.setState({
-        loading,
-        content: loading ? null : this._createContent(),
-      });
-    } else {
-      this.setState({loading});
-    }
-  };
-
-  state = {loading: false, content: this._createContent()};
+  state = {loading: false, search: location.search};
 
   render() {
     return (
@@ -72,9 +60,9 @@ export class Interface extends React.Component<
             />
           </Nav>
         </MenuBar>
-        {this.state.content}
+        {this._createContent()}
         {this.state.loading ? (
-          <div className="position-relative flex-grow-1">
+          <div className="full-interface">
             <div className="loading" />
           </div>
         ) : null}
@@ -83,28 +71,30 @@ export class Interface extends React.Component<
   }
 
   componentDidMount() {
-    window.addEventListener('popstate', this._handlePopState);
+    window.addEventListener('popstate', this._updateSearch);
   }
 
   componentWillUnmount() {
-    window.removeEventListener('popstate', this._handlePopState);
+    window.removeEventListener('popstate', this._updateSearch);
   }
+
+  _setLoading = (loading: boolean) => this.setState({loading});
 
   _pushSearch = (search: string) => {
     if (location.search === search) {
       return;
     }
     history.pushState({}, '', search || location.pathname);
-    this.setState({content: this._createContent()});
+    this._updateSearch();
   };
 
-  _handlePopState = () => {
-    this.setState({content: this._createContent()});
+  _updateSearch = () => {
+    this.setState({search: location.search});
   };
 
   _createContent() {
-    if (location.search.startsWith('?')) {
-      for (const param of location.search.substring(1).split('&')) {
+    if (this.state.search.startsWith('?')) {
+      for (const param of this.state.search.substring(1).split('&')) {
         if (param.startsWith(RESOURCE_PARAM)) {
           const id = param.substring(RESOURCE_PARAM.length);
           return (
@@ -113,6 +103,13 @@ export class Interface extends React.Component<
         }
       }
     }
-    return <ResourceBrowser setLoading={this._setLoading} />;
+    return (
+      <ResourceBrowser
+        key={this.props.userStatus.type}
+        userStatus={this.props.userStatus}
+        setLoading={this._setLoading}
+        pushSearch={this._pushSearch}
+      />
+    );
   }
 }

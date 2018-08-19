@@ -66,7 +66,11 @@ class App extends React.Component<
 
   render() {
     if (this.state.loading) {
-      return <div className="loading" />;
+      return (
+        <div class="full-screen">
+          <div class="loading" />
+        </div>
+      );
     }
     let dialog: ?React.Element<any>;
     let interfaceUserStatus: ?UserStatusResponse;
