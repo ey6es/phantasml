@@ -8,8 +8,8 @@
 import * as React from 'react';
 import {FormattedMessage} from 'react-intl';
 import {Card, CardBody, CardTitle, CardSubtitle, Button} from 'reactstrap';
-import {getFromApi, postToApi} from './util/api';
-import {Menu, MenuItem, Submenu, ErrorDialog} from './util/ui';
+import {getFromApi, deleteFromApi, postToApi} from './util/api';
+import {Menu, MenuItem, Submenu, ErrorDialog, RequestDialog} from './util/ui';
 import type {
   UserStatusResponse,
   ResourceType,
@@ -91,12 +91,13 @@ export class ResourceBrowser extends React.Component<
 
   render() {
     return (
-      <div>
+      <div className="p-3">
         {this.state.resources ? (
           <ResourcePage
             resources={this.state.resources}
             userStatus={this.props.userStatus}
             pushSearch={this.props.pushSearch}
+            setDialog={this._setDialog}
           />
         ) : null}
         {this.state.dialog}
@@ -110,13 +111,15 @@ export class ResourceBrowser extends React.Component<
       const response = await getFromApi('/resource');
       this.setState({resources: response.resources});
     } catch (error) {
-      this.setState({
-        dialog: <ErrorDialog error={error} onClosed={this._clearDialog} />,
-      });
+      this._setDialog(
+        <ErrorDialog error={error} onClosed={this._clearDialog} />,
+      );
     } finally {
       this.props.setLoading(false);
     }
   }
+
+  _setDialog = (dialog: ?React.Element<any>) => this.setState({dialog});
 
   _clearDialog = () => this.setState({dialog: null});
 }
@@ -125,48 +128,106 @@ class ResourcePage extends React.Component<
   {
     resources: ResourceDescriptor[],
     userStatus: UserStatusResponse,
+    setDialog: (?React.Element<any>) => void,
     pushSearch: string => void,
   },
-  {},
+  {resources: ResourceDescriptor[]},
 > {
+  state = {resources: this.props.resources};
+
   render() {
     return (
       <div>
-        {this.props.resources.map(resource => (
+        {this.state.resources.map(resource => (
           <ResourceCard
             key={resource.id}
             resource={resource}
             userStatus={this.props.userStatus}
-            pushSearch={this.props.pushSearch}
+            openResource={this._openResource}
+            deleteResource={this._deleteResource}
           />
         ))}
       </div>
     );
   }
+
+  _openResource = (id: string) => {
+    this.props.pushSearch('?' + RESOURCE_PARAM + id);
+  };
+
+  _deleteResource = (id: string) => {
+    this.props.setDialog(
+      <RequestDialog
+        header={
+          <FormattedMessage
+            id="resource.delete.title"
+            defaultMessage="Confirm Deletion"
+          />
+        }
+        makeRequest={async () => {
+          return await deleteFromApi('/resource/' + id);
+        }}
+        onClosed={(result: any) => {
+          if (result) {
+            this.setState({
+              resources: this.state.resources.filter(
+                resource => resource.id !== id,
+              ),
+            });
+          }
+          this.props.setDialog(null);
+        }}
+        cancelable>
+        <FormattedMessage
+          id="resource.delete.content"
+          defaultMessage="Are you sure you want to delete this resource?"
+        />
+      </RequestDialog>,
+    );
+  };
 }
 
 function ResourceCard(props: {
   resource: ResourceDescriptor,
   userStatus: UserStatusResponse,
-  pushSearch: string => void,
+  openResource: string => void,
+  deleteResource: string => void,
 }) {
   return (
-    <Card>
-      <CardBody>
-        <CardTitle>
-          <ResourceName resource={props.resource} />
-        </CardTitle>
-        <CardSubtitle>{props.resource.description}</CardSubtitle>
-        <Button
-          color="primary"
-          onClick={() =>
-            props.pushSearch('?' + RESOURCE_PARAM + props.resource.id)
-          }>
-          <FormattedMessage id="resource.open" defaultMessage="Open" />
-        </Button>
-      </CardBody>
-    </Card>
+    <div className="d-inline-block p-3">
+      <Card>
+        <CardBody>
+          <CardTitle>
+            <ResourceName resource={props.resource} />
+          </CardTitle>
+          <CardSubtitle>{props.resource.description}</CardSubtitle>
+          {isResourceOwned(props.resource, props.userStatus) ? (
+            <Button
+              color="secondary"
+              onClick={() => props.deleteResource(props.resource.id)}>
+              <FormattedMessage id="resource.delete" defaultMessage="Delete" />
+            </Button>
+          ) : null}
+          <Button
+            className="float-right"
+            color="primary"
+            onClick={() => props.openResource(props.resource.id)}>
+            <FormattedMessage id="resource.open" defaultMessage="Open" />
+          </Button>
+        </CardBody>
+      </Card>
+    </div>
   );
+}
+
+function isResourceOwned(
+  resource: ResourceDescriptor,
+  userStatus: UserStatusResponse,
+): boolean {
+  if (userStatus.type === 'anonymous') {
+    return false;
+  }
+  return userStatus.admin || resource.ownerId === userStatus.userId;
 }
 
 function ResourceName(props: {resource: ResourceDescriptor}) {

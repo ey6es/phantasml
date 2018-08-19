@@ -23,6 +23,7 @@ export type AnonymousResponse = {
 };
 export type LoggedInResponse = {
   type: 'logged-in',
+  userId: string,
   externalId: string,
   authToken?: string,
   persistAuthToken?: boolean,

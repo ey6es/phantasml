@@ -87,6 +87,29 @@ export async function getFromApi<RequestType: Object, ResponseType: Object>(
   path: string,
   request: RequestType = ({}: any),
 ): Promise<ResponseType> {
+  return await requestFromApi('GET', path, request);
+}
+
+/**
+ * Makes a DELETE request to the API endpoint, including the auth token in the
+ * parameters.
+ *
+ * @param path the path of the function to call.
+ * @param request the request object.
+ * @return a promise that will resolve to the response object.
+ */
+export async function deleteFromApi<RequestType: Object, ResponseType: Object>(
+  path: string,
+  request: RequestType = ({}: any),
+): Promise<ResponseType> {
+  return await requestFromApi('DELETE', path, request);
+}
+
+async function requestFromApi<RequestType: Object, ResponseType: Object>(
+  method: string,
+  path: string,
+  request: RequestType = ({}: any),
+): Promise<ResponseType> {
   let query = '';
   let requestWithToken = Object.assign({authToken}, request);
   for (const [key, value] of Object.entries(requestWithToken)) {
@@ -101,7 +124,7 @@ export async function getFromApi<RequestType: Object, ResponseType: Object>(
         typeof value === 'object' ? JSON.stringify(value) : String(value),
       );
   }
-  const response = await fetch(apiEndpoint + path + query);
+  const response = await fetch(apiEndpoint + path + query, {method});
   const data = await response.json();
   if (data.error) {
     throw new Error(data.error);

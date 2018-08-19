@@ -35,6 +35,12 @@ export class Interface extends React.Component<
   render() {
     return (
       <div className="interface">
+        {this._createContent()}
+        {this.state.loading ? (
+          <div className="full-interface">
+            <div className="loading" />
+          </div>
+        ) : null}
         <MenuBar
           brand={
             <NavbarBrand onClick={() => this._pushSearch('')}>
@@ -60,12 +66,6 @@ export class Interface extends React.Component<
             />
           </Nav>
         </MenuBar>
-        {this._createContent()}
-        {this.state.loading ? (
-          <div className="full-interface">
-            <div className="loading" />
-          </div>
-        ) : null}
       </div>
     );
   }

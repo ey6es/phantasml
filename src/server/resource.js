@@ -149,7 +149,7 @@ export function deleteResource(
   event: APIGatewayEvent,
   context: Context,
 ): Promise<ProxyResult> {
-  return handleBodyRequest(
+  return handleQueryRequest(
     event,
     ResourceDeleteRequestType,
     (async request => {

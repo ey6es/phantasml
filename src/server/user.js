@@ -241,6 +241,7 @@ export function getStatus(
           if (user) {
             return {
               type: 'logged-in',
+              userId: user.id.S,
               externalId: user.externalId.S,
               displayName: user.displayName && user.displayName.S,
               imageUrl: user.imageUrl && user.imageUrl.S,
@@ -302,6 +303,7 @@ export function login(
         const token = await createSession(user.id.S, request.stayLoggedIn);
         return {
           type: 'logged-in',
+          userId: user.id.S,
           externalId: user.externalId.S,
           authToken: token,
           persistAuthToken: request.stayLoggedIn,
@@ -337,6 +339,7 @@ export function login(
       const token = await createSession(userId);
       return {
         type: 'logged-in',
+        userId,
         externalId,
         authToken: token,
         displayName,
@@ -502,6 +505,7 @@ export function setup(
         type: 'logged-in',
         authToken: token,
         persistAuthToken,
+        userId,
         externalId,
         displayName,
         imageUrl,
@@ -584,6 +588,7 @@ export function password(
         type: 'logged-in',
         authToken: token,
         persistAuthToken: request.stayLoggedIn,
+        userId,
         externalId: user.externalId.S,
         displayName: user.displayName.S,
         imageUrl: getGravatarUrl(user.externalId.S),
@@ -611,6 +616,7 @@ export function configure(
       });
       return {
         type: 'logged-in',
+        userId: user.id.S,
         externalId: user.externalId.S,
         displayName: request.displayName,
         imageUrl: getGravatarUrl(user.externalId.S),
@@ -686,6 +692,7 @@ export function transfer(
       });
       return {
         type: 'logged-in',
+        userId,
         externalId,
         displayName,
         imageUrl,
@@ -733,6 +740,7 @@ export function completeTransfer(
         type: 'logged-in',
         authToken: token,
         persistAuthToken: request.stayLoggedIn,
+        userId: user.id.S,
         externalId: user.externalId.S,
         displayName: originalUser.displayName.S,
         imageUrl: getGravatarUrl(user.externalId.S),
