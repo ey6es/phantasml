@@ -10,6 +10,7 @@
 
 import t, {reify} from 'flow-runtime';
 import type {Type} from 'flow-runtime';
+import {RESOURCE_TYPES} from './constants';
 
 export type ApiRequest = {authToken?: string};
 export type IdRequest = ApiRequest & {id: string};
@@ -139,7 +140,7 @@ export type AdminInviteRequest = ApiRequest & {
 export const AdminInviteRequestType = (reify: Type<AdminInviteRequest>);
 export type AdminInviteResponse = {};
 
-export type ResourceType = 'environment';
+export type ResourceType = $Keys<typeof RESOURCE_TYPES>;
 
 type ResourceMetadata = {name: string, description: string};
 export type ResourceDescriptor = ResourceMetadata & {

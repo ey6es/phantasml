@@ -28,9 +28,9 @@ export class Interface extends React.Component<
     setUserStatus: UserStatusResponse => void,
     locale: string,
   },
-  {loading: boolean, search: string},
+  {loading: ?Object, search: string},
 > {
-  state = {loading: false, search: location.search};
+  state = {loading: null, search: location.search};
 
   render() {
     return (
@@ -47,7 +47,7 @@ export class Interface extends React.Component<
               <FormattedMessage id="app.title" defaultMessage="Phantasml" />
             </NavbarBrand>
           }
-          disabled={this.state.loading}>
+          disabled={!!this.state.loading}>
           <Nav navbar>
             <ResourceDropdown
               userStatus={this.props.userStatus}
@@ -78,7 +78,13 @@ export class Interface extends React.Component<
     window.removeEventListener('popstate', this._updateSearch);
   }
 
-  _setLoading = (loading: boolean) => this.setState({loading});
+  _setLoading = (source: Object, loading: boolean) => {
+    if (loading) {
+      this.setState({loading: source});
+    } else if (this.state.loading === source) {
+      this.setState({loading: null});
+    }
+  };
 
   _pushSearch = (search: string) => {
     if (location.search === search) {

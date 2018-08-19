@@ -58,3 +58,6 @@ export function isDisplayNameValid(name: string): boolean {
     name.length <= MAX_DISPLAY_NAME_LENGTH
   );
 }
+
+/** The available resource types (as an object so that we can use $Keys). */
+export const RESOURCE_TYPES = {environment: 0};

@@ -16,6 +16,7 @@ import type {
   ResourceDescriptor,
   ResourceCreateRequest,
 } from '../server/api';
+import {RESOURCE_TYPES} from '../server/constants';
 
 /** The parameter prefix used for resources. */
 export const RESOURCE_PARAM = 'r=';
@@ -28,7 +29,7 @@ export const RESOURCE_PARAM = 'r=';
 export class ResourceDropdown extends React.Component<
   {
     userStatus: UserStatusResponse,
-    setLoading: boolean => void,
+    setLoading: (Object, boolean) => void,
     pushSearch: string => void,
   },
   {dialog: ?React.Element<any>},
@@ -44,12 +45,11 @@ export class ResourceDropdown extends React.Component<
         {this.props.userStatus.type === 'logged-in' ? (
           <Submenu
             label={<FormattedMessage id="resource.new" defaultMessage="New" />}>
-            <MenuItem onClick={() => this._createResource('environment')}>
-              <FormattedMessage
-                id="resource.environment"
-                defaultMessage="Environment"
-              />
-            </MenuItem>
+            {Object.keys(RESOURCE_TYPES).map(type => (
+              <MenuItem onClick={() => this._createResource(type)}>
+                <ResourceTypeMessage type={type} />
+              </MenuItem>
+            ))}
           </Submenu>
         ) : null}
         {this.state.dialog}
@@ -58,13 +58,13 @@ export class ResourceDropdown extends React.Component<
   }
 
   async _createResource(type: ResourceType) {
-    this.props.setLoading(true);
+    this.props.setLoading(this, true);
     try {
       const request: ResourceCreateRequest = {type};
       const response = await postToApi('/resource', request);
       this.props.pushSearch('?' + RESOURCE_PARAM + response.id);
     } catch (error) {
-      this.props.setLoading(false);
+      this.props.setLoading(this, false);
       this.setState({
         dialog: <ErrorDialog error={error} onClosed={this._clearDialog} />,
       });
@@ -82,7 +82,7 @@ export class ResourceDropdown extends React.Component<
 export class ResourceBrowser extends React.Component<
   {
     userStatus: UserStatusResponse,
-    setLoading: boolean => void,
+    setLoading: (Object, boolean) => void,
     pushSearch: string => void,
   },
   {resources: ?(ResourceDescriptor[]), dialog: ?React.Element<any>},
@@ -106,7 +106,7 @@ export class ResourceBrowser extends React.Component<
   }
 
   async componentDidMount() {
-    this.props.setLoading(true);
+    this.props.setLoading(this, true);
     try {
       const response = await getFromApi('/resource');
       this.setState({resources: response.resources});
@@ -115,7 +115,7 @@ export class ResourceBrowser extends React.Component<
         <ErrorDialog error={error} onClosed={this._clearDialog} />,
       );
     } finally {
-      this.props.setLoading(false);
+      this.props.setLoading(this, false);
     }
   }
 
@@ -271,7 +271,7 @@ export function ResourceTypeMessage(props: {type: ResourceType}) {
  * @param props.setLoading the function to set the loading state.
  */
 export class ResourceContent extends React.Component<
-  {id: string, setLoading: (boolean, ?boolean) => void},
+  {id: string, setLoading: (Object, boolean) => void},
   {dialog: ?React.Element<any>},
 > {
   state = {dialog: null};
@@ -281,7 +281,7 @@ export class ResourceContent extends React.Component<
   }
 
   async componentDidMount() {
-    this.props.setLoading(true);
+    this.props.setLoading(this, true);
     try {
       const response = await getFromApi('/resource/' + this.props.id);
     } catch (error) {
@@ -289,7 +289,7 @@ export class ResourceContent extends React.Component<
         dialog: <ErrorDialog error={error} onClosed={this._clearDialog} />,
       });
     } finally {
-      this.props.setLoading(false);
+      this.props.setLoading(this, false);
     }
   }
 
