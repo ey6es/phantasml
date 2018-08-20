@@ -337,6 +337,13 @@ function ErrorMessage(props: {
           }
         />
       );
+    case 'error.resource':
+      return (
+        <FormattedMessage
+          id="error.resource"
+          defaultMessage="Sorry, this resource has been deleted."
+        />
+      );
     default:
       return (
         <FormattedMessage

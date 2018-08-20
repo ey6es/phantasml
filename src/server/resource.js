@@ -7,7 +7,11 @@
 
 import type {APIGatewayEvent, Context, ProxyResult} from 'flow-aws-lambda';
 import {dynamodb, createUuid, nowInSeconds, updateItem} from './util/database';
-import {handleBodyRequest, handleQueryRequest} from './util/handler';
+import {
+  FriendlyError,
+  handleBodyRequest,
+  handleQueryRequest,
+} from './util/handler';
 import type {
   IdRequest,
   ResourceType,
@@ -176,7 +180,7 @@ async function requireOwnedResource(
 async function requireResource(id: string): Promise<Object> {
   const resource = await getResource(id);
   if (!resource) {
-    throw new Error('Missing resource: ' + id);
+    throw new FriendlyError('error.resource');
   }
   return resource;
 }
