@@ -38,6 +38,8 @@ const INTEGER_MAX = Math.pow(2, 32);
  * @param props.height the height of the state texture (must be at least 8).
  */
 export class Psa {
+  canvas: HTMLCanvasElement;
+
   _gl: WebGLRenderingContext;
   _width: number;
   _height: number;
@@ -73,10 +75,10 @@ export class Psa {
   _programs: WebGLProgram[] = [];
 
   constructor(width: number, height: number) {
-    const canvas: HTMLCanvasElement = (document.createElement('CANVAS'): any);
-    canvas.width = width;
-    canvas.height = height;
-    const gl = canvas.getContext('webgl', {
+    this.canvas = (document.createElement('CANVAS'): any);
+    this.canvas.width = width;
+    this.canvas.height = height;
+    const gl = this.canvas.getContext('webgl', {
       alpha: false,
       depth: false,
       antialias: false,
@@ -87,9 +89,7 @@ export class Psa {
     this._gl = gl;
     this._width = width;
     this._height = height;
-    const extensions = gl.getSupportedExtensions();
-    this._floatTextures =
-      !!extensions && extensions.indexOf('OES_texture_float') !== -1;
+    this._floatTextures = !!gl.getExtension('OES_texture_float');
 
     // the connection texture holds the addresses of each node's inputs
     {
@@ -161,6 +161,12 @@ export class Psa {
       this._createFramebuffer(this._stateTextures[1], this._noiseTextures[1]),
     );
 
+    const ext = gl.getExtension('WEBGL_draw_buffers');
+    ext.drawBuffersWEBGL([
+      ext.COLOR_ATTACHMENT0_WEBGL,
+      ext.COLOR_ATTACHMENT1_WEBGL,
+    ]);
+
     // the buffer is a single quad
     {
       this._buffer = gl.createBuffer();
@@ -184,6 +190,7 @@ export class Psa {
     this._rewardShader = this._createShader(
       gl.FRAGMENT_SHADER,
       `
+      #extension GL_EXT_draw_buffers : require
       precision mediump float;
       uniform sampler2D history;
       uniform sampler2D probability;
@@ -198,6 +205,7 @@ export class Psa {
     this._recordShader = this._createShader(
       gl.FRAGMENT_SHADER,
       `
+      #extension GL_EXT_draw_buffers : require
       precision mediump float;
       uniform sampler2D connection;
       uniform sampler2D state;
@@ -214,6 +222,7 @@ export class Psa {
     this._transitionShader = this._createShader(
       gl.FRAGMENT_SHADER,
       `
+      #extension GL_EXT_draw_buffers : require
       precision mediump float;
       uniform sampler2D connection;
       uniform sampler2D state;
@@ -256,22 +265,25 @@ export class Psa {
     gl.bindTexture(gl.TEXTURE_2D, texture);
     let data: ?Uint8Array;
     if (initialize) {
-      data = new Uint8Array(this._width * this._height);
+      data = new Uint8Array(this._width * this._height * 3);
       for (let ii = 0; ii < data.length; ) {
         const value = (Math.random() * INTEGER_MAX) | 0;
         for (let jj = 0; jj < 32; jj++) {
-          data[ii++] = (value >> jj) & 0x01 ? 255 : 0;
+          const level = (value >> jj) & 0x01 ? 255 : 0;
+          data[ii++] = level;
+          data[ii++] = level;
+          data[ii++] = level;
         }
       }
     }
     gl.texImage2D(
       gl.TEXTURE_2D,
       0,
-      gl.LUMINANCE,
+      gl.RGB,
       this._width,
       this._height,
       0,
-      gl.LUMINANCE,
+      gl.RGB,
       gl.UNSIGNED_BYTE,
       data,
     );
@@ -292,6 +304,7 @@ export class Psa {
       0,
       gl.RGBA,
       this._floatTextures ? gl.FLOAT : gl.UNSIGNED_BYTE,
+      null,
     );
   }
 
@@ -310,6 +323,7 @@ export class Psa {
       0,
       gl.RGBA,
       this._floatTextures ? gl.FLOAT : gl.UNSIGNED_BYTE,
+      null,
     );
   }
 
@@ -348,12 +362,13 @@ export class Psa {
     texture1?: WebGLTexture,
   ): WebGLFramebuffer {
     const gl = this._gl;
+    const ext = gl.getExtension('WEBGL_draw_buffers');
     const buffer = gl.createFramebuffer();
     this._framebuffers.push(buffer);
     gl.bindFramebuffer(gl.FRAMEBUFFER, buffer);
     gl.framebufferTexture2D(
       gl.FRAMEBUFFER,
-      gl.COLOR_ATTACHMENT0,
+      ext.COLOR_ATTACHMENT0_WEBGL,
       gl.TEXTURE_2D,
       texture0,
       0,
@@ -361,11 +376,15 @@ export class Psa {
     if (texture1) {
       gl.framebufferTexture2D(
         gl.FRAMEBUFFER,
-        gl.COLOR_ATTACHMENT0 + 1,
+        ext.COLOR_ATTACHMENT1_WEBGL,
         gl.TEXTURE_2D,
         texture1,
         0,
       );
+    }
+    const status = gl.checkFramebufferStatus(gl.FRAMEBUFFER);
+    if (status !== gl.FRAMEBUFFER_COMPLETE) {
+      throw new Error('Framebuffer not complete: ' + status);
     }
     return buffer;
   }
@@ -420,9 +439,9 @@ export class Psa {
       y,
       1,
       1,
-      gl.LUMINANCE,
+      gl.RGB,
       gl.UNSIGNED_BYTE,
-      new Uint8Array([value ? 255 : 0]),
+      new Uint8Array(value ? [255, 255, 255] : [0, 0, 0]),
     );
   }
 
@@ -473,7 +492,7 @@ export class Psa {
     // render the states to the output so that we can sample them
     gl.useProgram(this._outputProgram);
     this._bindTexture(gl.TEXTURE0, this._stateTextures[secondIndex]);
-    gl.bindFramebuffer(gl.FRAMEBUFFER);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     gl.drawArrays(gl.TRIANGLE_FAN, 0, 4);
   }
 
