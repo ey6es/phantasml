@@ -2,16 +2,16 @@
 
 import * as React from 'react';
 import * as ReactDOM from 'react-dom';
-import {Psa} from '../models/psa';
+import {Pbrrn} from '../models/pbrrn';
 
 const STEP_DELAY = 10;
 
-class PsaExercise extends React.Component<{}, {running: boolean}> {
+class PbrrnExercise extends React.Component<{}, {running: boolean}> {
   state = {running: false};
 
   _intervalId: ?IntervalID;
   _container: ?HTMLElement;
-  _psa: ?Psa;
+  _model: ?Pbrrn;
 
   render() {
     return (
@@ -44,36 +44,36 @@ class PsaExercise extends React.Component<{}, {running: boolean}> {
   };
 
   componentWillUnmount() {
-    this._psa && this._psa.dispose();
+    this._model && this._model.dispose();
     this._intervalId && clearInterval(this._intervalId);
   }
 
   _toggleRunning() {
     if (this._intervalId) {
-      const psa = this._psa;
-      if (psa) {
-        this._container && this._container.removeChild(psa.canvas);
-        psa.dispose();
+      const model = this._model;
+      if (model) {
+        this._container && this._container.removeChild(model.canvas);
+        model.dispose();
       }
-      this._psa = null;
+      this._model = null;
       clearInterval(this._intervalId);
       delete this._intervalId;
       this.setState({running: false});
     } else {
-      const psa = (this._psa = new Psa(64, 64));
-      this._container && this._container.appendChild(psa.canvas);
+      const model = (this._model = new Pbrrn({width: 64, height: 64}));
+      this._container && this._container.appendChild(model.canvas);
       this._intervalId = setInterval(this._step, STEP_DELAY);
       this.setState({running: true});
     }
   }
 
   _step = () => {
-    const psa = this._psa;
-    if (!psa) {
+    const model = this._model;
+    if (!model) {
       return;
     }
-    psa.step(0.0);
+    model.step(0.0);
   };
 }
 
-ReactDOM.render(<PsaExercise />, (document.body: any));
+ReactDOM.render(<PbrrnExercise />, (document.body: any));

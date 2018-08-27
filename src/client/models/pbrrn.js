@@ -1,7 +1,7 @@
 /**
- * Probabilistic spreading activation model.
+ * Probabilistic binary rule reinforcement network.
  *
- * @module client/models/psa
+ * @module client/models/pbrrn
  * @flow
  */
 
@@ -32,18 +32,30 @@ const OUTPUT_UNITS = {
 const INTEGER_MAX = Math.pow(2, 32);
 
 /**
- * Probabilistic spreading activation model.
- *
- * @param props.width the width of the state texture (must be at least 8).
- * @param props.height the height of the state texture (must be at least 8).
+ * Options for the PBRRN model.
  */
-export class Psa {
+export type PbrrnOptions = {
+  width: number,
+  height: number,
+  probabilityLimit?: number,
+  historyDecayRate?: number,
+};
+
+/**
+ * Probabilistic binary rule reinforcement network.
+ *
+ * @param width the width of the state texture (must be at least 8).
+ * @param height the height of the state texture (must be at least 8).
+ */
+export class Pbrrn {
+  options: PbrrnOptions;
   canvas: HTMLCanvasElement;
 
   _gl: WebGLRenderingContext;
-  _width: number;
-  _height: number;
   _floatTextures: boolean;
+
+  _historyDecayRate: number;
+  _probabilityLimit: number;
 
   _connectionTexture: WebGLTexture;
   _stateTextures: WebGLTexture[] = [];
@@ -74,10 +86,15 @@ export class Psa {
   _outputProgram: WebGLProgram;
   _programs: WebGLProgram[] = [];
 
-  constructor(width: number, height: number) {
+  _rewardLocation: number;
+  _probabilityLimitLocation: number;
+  _historyDecayRateLocation: number;
+
+  constructor(options: PbrrnOptions) {
+    this.options = options;
     this.canvas = (document.createElement('CANVAS'): any);
-    this.canvas.width = width;
-    this.canvas.height = height;
+    this.canvas.width = options.width;
+    this.canvas.height = options.height;
     const gl = this.canvas.getContext('webgl', {
       alpha: false,
       depth: false,
@@ -87,37 +104,45 @@ export class Psa {
       throw new Error('Failed to create WebGL context.');
     }
     this._gl = gl;
-    this._width = width;
-    this._height = height;
     this._floatTextures = !!gl.getExtension('OES_texture_float');
+
+    const DEFAULT_PROBABILITY_LIMIT = 6.0;
+    this._probabilityLimit =
+      options.probabilityLimit || DEFAULT_PROBABILITY_LIMIT;
+
+    const DEFAULT_HISTORY_DECAY_RATE = 0.01;
+    this._historyDecayRate =
+      options.historyDecayRate || DEFAULT_HISTORY_DECAY_RATE;
 
     // the connection texture holds the addresses of each node's inputs
     {
       this._connectionTexture = gl.createTexture();
       this._textures.push(this._connectionTexture);
       gl.bindTexture(gl.TEXTURE_2D, this._connectionTexture);
-      const data = new Uint8Array(width * height * 4);
-      for (let yy = 0, ii = 0; yy < height; yy++) {
-        let odd = yy & 1;
-        let even = odd ^ 1;
-        for (let xx = 0; xx < width; xx++) {
-          data[ii++] = -even;
-          data[ii++] = -odd;
-          data[ii++] = even;
-          data[ii++] = odd;
+      const data = new Uint8Array(options.width * options.height * 4);
+      for (let yy = 0, ii = 0; yy < options.height; yy++) {
+        let [v0, v1, v2, v3, v4, v5, v6, v7] =
+          yy & 1
+            ? [128, 0, 128, 255, 0, 128, 255, 128]
+            : [0, 128, 255, 128, 128, 0, 128, 255];
+        for (let xx = 0; xx < options.width; xx++) {
+          data[ii++] = v0;
+          data[ii++] = v1;
+          data[ii++] = v2;
+          data[ii++] = v3;
 
-          data[ii++] = -odd;
-          data[ii++] = -even;
-          data[ii++] = odd;
-          data[ii++] = even;
+          data[ii++] = v4;
+          data[ii++] = v5;
+          data[ii++] = v6;
+          data[ii++] = v7;
         }
       }
       gl.texImage2D(
         gl.TEXTURE_2D,
         0,
         gl.RGBA,
-        width,
-        height,
+        options.width,
+        options.height,
         0,
         gl.RGBA,
         gl.UNSIGNED_BYTE,
@@ -161,12 +186,6 @@ export class Psa {
       this._createFramebuffer(this._stateTextures[1], this._noiseTextures[1]),
     );
 
-    const ext = gl.getExtension('WEBGL_draw_buffers');
-    ext.drawBuffersWEBGL([
-      ext.COLOR_ATTACHMENT0_WEBGL,
-      ext.COLOR_ATTACHMENT1_WEBGL,
-    ]);
-
     // the buffer is a single quad
     {
       this._buffer = gl.createBuffer();
@@ -175,6 +194,7 @@ export class Psa {
       gl.bufferData(gl.ARRAY_BUFFER, data, gl.STATIC_DRAW);
     }
 
+    // vertex shader mostly just converts the vertices to uvs
     this._vertexShader = this._createShader(
       gl.VERTEX_SHADER,
       `
@@ -187,6 +207,14 @@ export class Psa {
     `,
     );
 
+    // fragment for defining the uv scale
+    const UV_SCALE_SNIPPET = `
+      const vec2 UV_SCALE = vec2(
+        ${1.0 / options.width},
+        ${1.0 / options.height}
+      );
+    `;
+
     this._rewardShader = this._createShader(
       gl.FRAGMENT_SHADER,
       `
@@ -195,12 +223,62 @@ export class Psa {
       uniform sampler2D history;
       uniform sampler2D probability;
       uniform float reward;
+      uniform float probabilityLimit;
+      ${UV_SCALE_SNIPPET}
       varying vec2 uv;
       void main(void) {
-        gl_FragData[0] = vec4(0.0, 0.0, 0.0, 0.0);
+        // move probability based on reward and rule history
+        vec2 historyOffset = UV_SCALE * vec2(0.0, 0.25);
+        vec4 history0 = texture2D(history, uv - historyOffset);
+        vec4 history1 = texture2D(history, uv + historyOffset);
+        vec4 oldProbs = texture2D(probability, uv);
+        vec4 newProbs = oldProbs + reward * vec4(
+          history0.z - history0.w,
+          history0.x - history0.y,
+          history1.z - history1.w,
+          history1.x - history1.y
+        );
+        // clamp to our limit so that we can "unlearn" reasonably rapidly
+        gl_FragData[0] = clamp(newProbs, -probabilityLimit, probabilityLimit);
       }
     `,
     );
+
+    // snippet for determining the next state of the cell
+    const NEXT_STATE_SNIPPET = `
+      // use our input addresses to get the states of this cell and inputs
+      vec4 connections = texture2D(connection, uv) * 2.0 - vec4(1.0);
+      vec3 inputStates = vec3(
+        texture2D(state, uv).r,
+        texture2D(state, uv + connections.st * UV_SCALE).r,
+        texture2D(state, uv + connections.pq * UV_SCALE).r
+      );
+      // choose probability from the eight possible based on states
+      vec2 probUv = (floor(uv / UV_SCALE) + vec2(0.5, 0.5)) * UV_SCALE;
+      vec2 probOffset = UV_SCALE * vec2(0.25, 0.0);
+      vec4 probs0 = texture2D(probability, probUv - probOffset);
+      vec4 probs1 = texture2D(probability, probUv + probOffset);
+      vec4 mixed0 = mix(
+        vec4(probs0.xz, probs1.xz),
+        vec4(probs0.yw, probs1.yw),
+        inputStates.z
+      );
+      vec2 mixed1 = mix(mixed0.xz, mixed0.yw, inputStates.y);
+      float mixed = mix(mixed1.x, mixed1.y, inputStates.x);
+      
+      // apply the logistic function to turn raw value into prob. threshold
+      float threshold = 1.0 / (1.0 + exp(-mixed));
+      
+      // get a random value between zero and one from noise texture
+      vec4 noiseValues = texture2D(noise, uv);
+      float randomValue = dot(noiseValues, vec4(
+        255.0 / 256.0,
+        255.0 / (256.0 * 256.0),
+        255.0 / (256.0 * 256.0 * 256.0),
+        255.0 / (256.0 * 256.0 * 256.0)
+      ));
+      float nextState = step(randomValue, threshold);
+    `;
 
     this._recordShader = this._createShader(
       gl.FRAGMENT_SHADER,
@@ -212,9 +290,33 @@ export class Psa {
       uniform sampler2D probability;
       uniform sampler2D history;
       uniform sampler2D noise;
+      uniform float historyDecayRate;
+      ${UV_SCALE_SNIPPET}
       varying vec2 uv;
       void main(void) {
-        gl_FragData[0] = vec4(0.0, 0.0, 0.0, 0.0);
+        ${NEXT_STATE_SNIPPET}
+        
+        // use the input and next states to locate the history entry to update
+        vec4 decision = vec4(inputStates, nextState);
+        vec4 notDecision = vec4(1.0) - decision;
+        vec4 history0 = vec4(
+          decision.z * decision.w,
+          decision.z * notDecision.w,
+          notDecision.z * decision.w,
+          notDecision.z * notDecision.w
+        );
+        vec2 location = step(vec2(0.5, 0.5), fract(uv / UV_SCALE));
+        vec2 notLocation = vec2(1.0) - location;
+        vec2 active = vec2(
+          (decision.x * location.x) + (notDecision.x * notLocation.x),
+          (decision.y * location.y) + (notDecision.y * notLocation.y)
+        );
+        // the decay rate controls how long historical decisions linger
+        gl_FragData[0] = mix(
+          texture2D(history, uv),
+          active.x * active.y * history0,
+          historyDecayRate
+        );
       }
     `,
     );
@@ -228,14 +330,32 @@ export class Psa {
       uniform sampler2D state;
       uniform sampler2D probability;
       uniform sampler2D noise;
+      ${UV_SCALE_SNIPPET}
       varying vec2 uv;
       void main(void) {
-        gl_FragData[0] = vec4(0.0, 0.0, 0.0, 0.0);
-        gl_FragData[1] = vec4(0.0, 0.0, 0.0, 0.0);
+        ${NEXT_STATE_SNIPPET}
+        gl_FragData[0] = vec4(nextState);
+        
+        // update the random seeds using two separate LCGs
+        vec2 seeds = vec2(
+          dot(noiseValues.xy, vec2(256.0, 1.0)),
+          dot(noiseValues.zw, vec2(256.0, 1.0))
+        );
+        vec2 nextSeeds = mod(
+          seeds * vec2(269.8008, 257.0039) + vec2(1.0 / 256.0),
+          256.0
+        );
+        gl_FragData[1] = vec4(
+          nextSeeds.x / 256.0,
+          fract(nextSeeds.x),
+          nextSeeds.y / 256.0,
+          fract(nextSeeds.y)
+        );
       }
     `,
     );
 
+    // output shader simply renders the states to the frame buffer
     this._outputShader = this._createShader(
       gl.FRAGMENT_SHADER,
       `
@@ -249,7 +369,16 @@ export class Psa {
     );
 
     this._rewardProgram = this._createProgram(this._rewardShader, REWARD_UNITS);
+    this._rewardLocation = gl.getUniformLocation(this._rewardProgram, 'reward');
+    this._probabilityLimitLocation = gl.getUniformLocation(
+      this._rewardProgram,
+      'probabilityLimit',
+    );
     this._recordProgram = this._createProgram(this._recordShader, RECORD_UNITS);
+    this._historyDecayRateLocation = gl.getUniformLocation(
+      this._recordProgram,
+      'historyDecayRate',
+    );
     this._transitionProgram = this._createProgram(
       this._transitionShader,
       TRANSITION_UNITS,
@@ -263,9 +392,9 @@ export class Psa {
     this._stateTextures.push(texture);
     this._textures.push(texture);
     gl.bindTexture(gl.TEXTURE_2D, texture);
-    let data: ?Uint8Array;
+    let data: ?Uint8Array = null;
     if (initialize) {
-      data = new Uint8Array(this._width * this._height * 3);
+      data = new Uint8Array(this.options.width * this.options.height * 3);
       for (let ii = 0; ii < data.length; ) {
         const value = (Math.random() * INTEGER_MAX) | 0;
         for (let jj = 0; jj < 32; jj++) {
@@ -280,13 +409,15 @@ export class Psa {
       gl.TEXTURE_2D,
       0,
       gl.RGB,
-      this._width,
-      this._height,
+      this.options.width,
+      this.options.height,
       0,
       gl.RGB,
       gl.UNSIGNED_BYTE,
       data,
     );
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
   }
 
   _createProbabilityTexture() {
@@ -299,8 +430,8 @@ export class Psa {
       gl.TEXTURE_2D,
       0,
       gl.RGBA,
-      this._width,
-      this._height,
+      this.options.width * 2,
+      this.options.height,
       0,
       gl.RGBA,
       this._floatTextures ? gl.FLOAT : gl.UNSIGNED_BYTE,
@@ -318,8 +449,8 @@ export class Psa {
       gl.TEXTURE_2D,
       0,
       gl.RGBA,
-      this._width * 2,
-      this._height,
+      this.options.width * 2,
+      this.options.height * 2,
       0,
       gl.RGBA,
       this._floatTextures ? gl.FLOAT : gl.UNSIGNED_BYTE,
@@ -333,9 +464,8 @@ export class Psa {
     this._noiseTextures.push(texture);
     this._textures.push(texture);
     gl.bindTexture(gl.TEXTURE_2D, texture);
-    let data: ?Uint8Array;
+    let data = new Uint8Array(this.options.width * this.options.height * 4);
     if (initialize) {
-      data = new Uint8Array(this._width * this._height * 4);
       for (let ii = 0; ii < data.length; ) {
         const value = (Math.random() * INTEGER_MAX) | 0;
         data[ii++] = value & 0xff;
@@ -348,8 +478,8 @@ export class Psa {
       gl.TEXTURE_2D,
       0,
       gl.RGBA,
-      this._width,
-      this._height,
+      this.options.width,
+      this.options.height,
       0,
       gl.RGBA,
       gl.UNSIGNED_BYTE,
@@ -373,6 +503,7 @@ export class Psa {
       texture0,
       0,
     );
+    const drawBuffers = [ext.COLOR_ATTACHMENT0_WEBGL];
     if (texture1) {
       gl.framebufferTexture2D(
         gl.FRAMEBUFFER,
@@ -381,11 +512,13 @@ export class Psa {
         texture1,
         0,
       );
+      drawBuffers.push(ext.COLOR_ATTACHMENT1_WEBGL);
     }
     const status = gl.checkFramebufferStatus(gl.FRAMEBUFFER);
     if (status !== gl.FRAMEBUFFER_COMPLETE) {
       throw new Error('Framebuffer not complete: ' + status);
     }
+    ext.drawBuffersWEBGL(drawBuffers);
     return buffer;
   }
 
@@ -430,6 +563,32 @@ export class Psa {
    * @param value the value to set at the coordinates.
    */
   setState(x: number, y: number, value: boolean) {
+    this.setStates(
+      x,
+      y,
+      1,
+      1,
+      new Uint8Array(value ? [255, 255, 255, 255] : [0, 0, 0, 0]),
+    );
+  }
+
+  /**
+   * Sets a block of states within the system.
+   *
+   * @param x the x coordinate of the block.
+   * @param y the y coordinate of the block.
+   * @param width the width of the block.
+   * @param height the height of the block.
+   * @param buffer the buffer containing the states.  Should be in RGBA format
+   * and thus at least width * height * 4 in size.
+   */
+  setStates(
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+    buffer: Uint8Array,
+  ) {
     const gl = this._gl;
     gl.bindTexture(gl.TEXTURE_2D, this._stateTextures[this._textureIndex]);
     gl.texSubImage2D(
@@ -437,11 +596,11 @@ export class Psa {
       0,
       x,
       y,
-      1,
-      1,
-      gl.RGB,
+      width,
+      height,
+      gl.RGBA,
       gl.UNSIGNED_BYTE,
-      new Uint8Array(value ? [255, 255, 255] : [0, 0, 0]),
+      buffer,
     );
   }
 
@@ -459,59 +618,85 @@ export class Psa {
 
     // alternate between texture indices each frame
     const firstIndex = this._textureIndex;
-    const secondIndex = (firstIndex + 1) % 2;
+    const secondIndex = 1 - firstIndex;
     this._textureIndex = secondIndex;
 
     // apply the reward, updating probabilities based on history
+    gl.bindFramebuffer(gl.FRAMEBUFFER, this._rewardBuffers[firstIndex]);
+    gl.viewport(0, 0, this.options.width * 2, this.options.height);
     gl.useProgram(this._rewardProgram);
+    gl.uniform1f(this._rewardLocation, reward);
+    gl.uniform1f(this._probabilityLimitLocation, this._probabilityLimit);
     this._bindTexture(gl.TEXTURE0, this._historyTextures[secondIndex]);
     this._bindTexture(gl.TEXTURE1, this._probabilityTextures[secondIndex]);
-    gl.uniform1f(gl.getUniformLocation(this._rewardProgram, 'reward'), reward);
-    gl.bindFramebuffer(gl.FRAMEBUFFER, this._rewardBuffers[firstIndex]);
     gl.drawArrays(gl.TRIANGLE_FAN, 0, 4);
 
     // record the state transition that we're going to perform to history
+    gl.bindFramebuffer(gl.FRAMEBUFFER, this._recordBuffers[firstIndex]);
+    gl.viewport(0, 0, this.options.width * 2, this.options.height * 2);
     gl.useProgram(this._recordProgram);
+    gl.uniform1f(this._historyDecayRateLocation, this._historyDecayRate);
     this._bindTexture(gl.TEXTURE0, this._connectionTexture);
     this._bindTexture(gl.TEXTURE1, this._stateTextures[firstIndex]);
     this._bindTexture(gl.TEXTURE2, this._probabilityTextures[firstIndex]);
     this._bindTexture(gl.TEXTURE3, this._historyTextures[secondIndex]);
     this._bindTexture(gl.TEXTURE4, this._noiseTextures[firstIndex]);
-    gl.bindFramebuffer(gl.FRAMEBUFFER, this._recordBuffers[firstIndex]);
     gl.drawArrays(gl.TRIANGLE_FAN, 0, 4);
 
     // apply the actual transition and update the noise state
+    gl.bindFramebuffer(gl.FRAMEBUFFER, this._transitionBuffers[secondIndex]);
+    gl.viewport(0, 0, this.options.width, this.options.height);
     gl.useProgram(this._transitionProgram);
     this._bindTexture(gl.TEXTURE0, this._connectionTexture);
     this._bindTexture(gl.TEXTURE1, this._stateTextures[firstIndex]);
     this._bindTexture(gl.TEXTURE2, this._probabilityTextures[firstIndex]);
     this._bindTexture(gl.TEXTURE3, this._noiseTextures[firstIndex]);
-    gl.bindFramebuffer(gl.FRAMEBUFFER, this._transitionBuffers[secondIndex]);
+    this._bindTexture(gl.TEXTURE4, null);
     gl.drawArrays(gl.TRIANGLE_FAN, 0, 4);
 
     // render the states to the output so that we can sample them
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     gl.useProgram(this._outputProgram);
     this._bindTexture(gl.TEXTURE0, this._stateTextures[secondIndex]);
-    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     gl.drawArrays(gl.TRIANGLE_FAN, 0, 4);
   }
 
   /**
    * Retrieves the state of the system at the specified coordinates (i.e., get
-   * the value of an output).  Only valid after the first step.
+   * the value of an output).
    *
    * @param x the x coordinate of interest.
    * @param y the y coordinate of interest.
    * @return the boolean state of the location.
    */
   getState(x: number, y: number): boolean {
-    const gl = this._gl;
     const buffer = new Uint8Array(4);
-    gl.readPixels(x, y, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, buffer);
+    this.getStates(x, y, 1, 1, buffer);
     return !!buffer[0];
   }
 
-  _bindTexture(unit: number, texture: WebGLTexture) {
+  /**
+   * Retrieves a block of state data from the system.
+   *
+   * @param x the x coordinate of the block.
+   * @param y the y coordinate of the block.
+   * @param width the width of the block.
+   * @param height the height of the block.
+   * @param buffer the buffer in which to store the state.  Should be at least
+   * of size width * height * 4, since the state is read as RGBA data.
+   */
+  getStates(
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+    buffer: Uint8Array,
+  ) {
+    const gl = this._gl;
+    gl.readPixels(x, y, width, height, gl.RGBA, gl.UNSIGNED_BYTE, buffer);
+  }
+
+  _bindTexture(unit: number, texture: ?WebGLTexture) {
     const gl = this._gl;
     gl.activeTexture(unit);
     gl.bindTexture(gl.TEXTURE_2D, texture);

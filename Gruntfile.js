@@ -68,6 +68,17 @@ module.exports = function(grunt) {
     })(),
     copy: (function() {
       const taskConfig = {
+        exercises: {
+          files: [
+            {
+              expand: true,
+              cwd: 'build/client',
+              src: 'exercises/+([0-9])-*.bundle.js',
+              dest: 'dist/',
+              ext: '.min.js',
+            },
+          ],
+        },
         server: {
           files: [
             {
@@ -362,7 +373,7 @@ module.exports = function(grunt) {
   grunt.registerTask('build-exercises', 'Builds the exercises.', [
     'babel',
     'browserify:exercises',
-    'uglify:exercises',
+    'copy:exercises', // 'uglify:exercises',
     ...exerciseNames.map(name => `replace:${name}`),
     'less:exercises',
   ]);
