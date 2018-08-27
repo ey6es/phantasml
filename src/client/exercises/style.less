@@ -84,3 +84,30 @@ th {
 .loss {
   padding-top: 20px;
 }
+
+.running-toggle {
+  margin-top: 20px;
+}
+
+.nearest-neighbor-resize() {
+  image-rendering: optimizeSpeed;
+  image-rendering: -moz-crisp-edges;
+  image-rendering: -webkit-optimize-contrast;
+  image-rendering: -o-crisp-edges;
+  image-rendering: pixelated;
+  -ms-interpolation-mode: nearest-neighbor;
+}
+
+.states {
+  .nearest-neighbor-resize();
+  width: 66px;
+  height: 66px;
+  border: 1px solid black;
+}
+
+.visualizer {
+  .nearest-neighbor-resize();
+  width: 66px;
+  height: 8px;
+  border: 1px solid black;
+}

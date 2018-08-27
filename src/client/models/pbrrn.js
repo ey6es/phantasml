@@ -44,8 +44,7 @@ export type PbrrnOptions = {
 /**
  * Probabilistic binary rule reinforcement network.
  *
- * @param width the width of the state texture (must be at least 8).
- * @param height the height of the state texture (must be at least 8).
+ * @param options the options for the model.
  */
 export class Pbrrn {
   options: PbrrnOptions;
@@ -99,6 +98,7 @@ export class Pbrrn {
       alpha: false,
       depth: false,
       antialias: false,
+      powerPreference: 'high-performance',
     });
     if (!gl) {
       throw new Error('Failed to create WebGL context.');
@@ -219,7 +219,7 @@ export class Pbrrn {
       gl.FRAGMENT_SHADER,
       `
       #extension GL_EXT_draw_buffers : require
-      precision mediump float;
+      precision highp float;
       uniform sampler2D history;
       uniform sampler2D probability;
       uniform float reward;
@@ -284,7 +284,7 @@ export class Pbrrn {
       gl.FRAGMENT_SHADER,
       `
       #extension GL_EXT_draw_buffers : require
-      precision mediump float;
+      precision highp float;
       uniform sampler2D connection;
       uniform sampler2D state;
       uniform sampler2D probability;
@@ -325,7 +325,7 @@ export class Pbrrn {
       gl.FRAGMENT_SHADER,
       `
       #extension GL_EXT_draw_buffers : require
-      precision mediump float;
+      precision highp float;
       uniform sampler2D connection;
       uniform sampler2D state;
       uniform sampler2D probability;
@@ -712,5 +712,101 @@ export class Pbrrn {
     gl.deleteBuffer(this._buffer);
     this._programs.forEach(program => gl.deleteProgram(program));
     this._shaders.forEach(shader => gl.deleteShader(shader));
+  }
+}
+
+type Point = {x: number, y: number};
+
+/**
+ * Visualizes the state of a system over time.
+ *
+ * @param model the model to visualize.
+ * @param locations the locations of the states to visualize.
+ * @param length the number of frames to visualize.
+ * @param [fillStyle='#000'] the color with which to draw the states.
+ * @param [backgroundStyle='#FFF'] the color with which to clear.
+ */
+export class StateVisualizer {
+  canvas: HTMLCanvasElement;
+
+  _backCanvas: HTMLCanvasElement;
+  _ctx: CanvasRenderingContext2D;
+  _backCtx: CanvasRenderingContext2D;
+  _model: Pbrrn;
+  _locations: Point[];
+  _fillStyle: string;
+  _backgroundStyle: string;
+
+  _position = 0;
+
+  constructor(
+    model: Pbrrn,
+    locations: Point[],
+    length: number,
+    fillStyle: string = '#FFF',
+    backgroundStyle: string = '#000',
+  ) {
+    this.canvas = (document.createElement('CANVAS'): any);
+    this._backCanvas = (document.createElement('CANVAS'): any);
+    this.canvas.width = this._backCanvas.width = length;
+    this.canvas.height = this._backCanvas.height = locations.length * 2 - 1;
+    this._ctx = this.canvas.getContext('2d', {alpha: false});
+    this._ctx.imageSmoothingEnabled = false;
+    this._backCtx = this._backCanvas.getContext('2d', {alpha: false});
+    this._model = model;
+    this._locations = locations;
+    this._fillStyle = fillStyle;
+    this._backgroundStyle = backgroundStyle;
+
+    // clear the initial back buffer
+    this._backCtx.fillStyle = backgroundStyle;
+    this._backCtx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+  }
+
+  /**
+   * Updates the visualizer based on the current state.
+   */
+  update() {
+    // write the current state to the current position on the back canvas
+    this._backCtx.fillStyle = this._backgroundStyle;
+    this._backCtx.fillRect(this._position, 0, 1, this.canvas.height);
+    this._backCtx.fillStyle = this._fillStyle;
+    for (let ii = 0, yy = 0; ii < this._locations.length; ii++, yy += 2) {
+      const location = this._locations[ii];
+      if (this._model.getState(location.x, location.y)) {
+        this._backCtx.fillRect(this._position, yy, 1, 1);
+      }
+    }
+
+    // draw the back canvas to the front in two parts to scroll
+    const firstWidth = this._position + 1;
+    this._ctx.drawImage(
+      this._backCanvas,
+      0,
+      0,
+      firstWidth,
+      this.canvas.height,
+      this.canvas.width - firstWidth,
+      0,
+      firstWidth,
+      this.canvas.height,
+    );
+    const secondWidth = this.canvas.width - firstWidth;
+    if (secondWidth > 0) {
+      this._ctx.drawImage(
+        this._backCanvas,
+        this._position + 1,
+        0,
+        secondWidth,
+        this.canvas.height,
+        0,
+        0,
+        secondWidth,
+        this.canvas.height,
+      );
+    }
+
+    // the position loops around
+    this._position = (this._position + 1) % this.canvas.width;
   }
 }
