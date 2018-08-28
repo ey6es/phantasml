@@ -45,6 +45,7 @@ export type PbrrnOptions = {
  * Probabilistic binary rule reinforcement network.
  *
  * @param options the options for the model.
+ * @param [canvas] an existing canvas to use rather than creating a new one.
  */
 export class Pbrrn {
   options: PbrrnOptions;
@@ -85,16 +86,18 @@ export class Pbrrn {
   _outputProgram: WebGLProgram;
   _programs: WebGLProgram[] = [];
 
-  _rewardLocation: number;
-  _probabilityLimitLocation: number;
-  _historyDecayRateLocation: number;
+  _rewardLocation: WebGLUniformLocation;
+  _probabilityLimitLocation: WebGLUniformLocation;
+  _historyDecayRateLocation: WebGLUniformLocation;
+  _uvScaleLocation: WebGLUniformLocation;
+  _uvOffsetLocation: WebGLUniformLocation;
 
-  constructor(options: PbrrnOptions) {
+  constructor(options: PbrrnOptions, canvas?: ?HTMLCanvasElement) {
     this.options = options;
-    this.canvas = (document.createElement('CANVAS'): any);
+    this.canvas = canvas || (document.createElement('CANVAS'): any);
     this.canvas.width = options.width;
     this.canvas.height = options.height;
-    const gl = this.canvas.getContext('webgl', {
+    const gl: any = this.canvas.getContext('webgl', {
       alpha: false,
       depth: false,
       antialias: false,
@@ -125,7 +128,7 @@ export class Pbrrn {
           yy & 1
             ? [128, 0, 128, 255, 0, 128, 255, 128]
             : [0, 128, 255, 128, 128, 0, 128, 255];
-        for (let xx = 0; xx < options.width; xx++) {
+        for (let xx = 0; xx < options.width; xx += 2) {
           data[ii++] = v0;
           data[ii++] = v1;
           data[ii++] = v2;
@@ -361,9 +364,11 @@ export class Pbrrn {
       `
       precision mediump float;
       uniform sampler2D state;
+      uniform vec2 uvScale;
+      uniform vec2 uvOffset;
       varying vec2 uv;
       void main(void) {
-        gl_FragColor = texture2D(state, uv);
+        gl_FragColor = texture2D(state, uv * uvScale + uvOffset);
       }
     `,
     );
@@ -384,6 +389,14 @@ export class Pbrrn {
       TRANSITION_UNITS,
     );
     this._outputProgram = this._createProgram(this._outputShader, OUTPUT_UNITS);
+    this._uvScaleLocation = gl.getUniformLocation(
+      this._outputProgram,
+      'uvScale',
+    );
+    this._uvOffsetLocation = gl.getUniformLocation(
+      this._outputProgram,
+      'uvOffset',
+    );
   }
 
   _createStateTexture(initialize: boolean) {
@@ -655,10 +668,7 @@ export class Pbrrn {
     gl.drawArrays(gl.TRIANGLE_FAN, 0, 4);
 
     // render the states to the output so that we can sample them
-    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-    gl.useProgram(this._outputProgram);
-    this._bindTexture(gl.TEXTURE0, this._stateTextures[secondIndex]);
-    gl.drawArrays(gl.TRIANGLE_FAN, 0, 4);
+    this.renderStateTexture();
   }
 
   /**
@@ -696,6 +706,67 @@ export class Pbrrn {
     gl.readPixels(x, y, width, height, gl.RGBA, gl.UNSIGNED_BYTE, buffer);
   }
 
+  /**
+   * Renders the connection texture to the canvas for debugging.
+   */
+  renderConnectionTexture() {
+    this._renderTexture(this._connectionTexture);
+  }
+
+  /**
+   * Renders part of the probability texture to the canvas for debugging.
+   *
+   * @param offset the texture coordinate offset to use.
+   */
+  renderProbabilityTexture(offset: number) {
+    this._renderTexture(
+      this._probabilityTextures[this._textureIndex],
+      0.5,
+      1.0,
+      offset,
+      0.0,
+    );
+  }
+
+  /**
+   * Renders part of the history texture to the canvas for debugging.
+   *
+   * @param offsetS the texture coordinate offset to use on the S axis.
+   * @param offsetT the texture coordinate offset to use on the T axis.
+   */
+  renderHistoryTexture(offsetS: number, offsetT: number) {
+    this._renderTexture(
+      this._historyTextures[this._textureIndex],
+      0.5,
+      0.5,
+      offsetS,
+      offsetT,
+    );
+  }
+
+  /**
+   * Renders the state texture to the canvas.
+   */
+  renderStateTexture() {
+    this._renderTexture(this._stateTextures[this._textureIndex]);
+  }
+
+  _renderTexture(
+    texture: WebGLTexture,
+    uvScaleS: number = 1.0,
+    uvScaleT: number = 1.0,
+    uvOffsetS: number = 0.0,
+    uvOffsetT: number = 0.0,
+  ) {
+    const gl = this._gl;
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    gl.useProgram(this._outputProgram);
+    gl.uniform2f(this._uvScaleLocation, uvScaleS, uvScaleT);
+    gl.uniform2f(this._uvOffsetLocation, uvOffsetS, uvOffsetT);
+    this._bindTexture(gl.TEXTURE0, texture);
+    gl.drawArrays(gl.TRIANGLE_FAN, 0, 4);
+  }
+
   _bindTexture(unit: number, texture: ?WebGLTexture) {
     const gl = this._gl;
     gl.activeTexture(unit);
@@ -715,6 +786,85 @@ export class Pbrrn {
   }
 }
 
+type TextureVisualizerMode = 'connection' | 'probability' | 'history';
+
+/**
+ * Visualizes one of the model's textures.
+ *
+ * @param model the model to visualize.
+ * @param mode the mode (the texture to visualize).
+ * @param [canvas] an existing canvas to use rather than creating a new one.
+ */
+export class TextureVisualizer {
+  canvas: HTMLCanvasElement;
+
+  _ctx: CanvasRenderingContext2D;
+  _model: Pbrrn;
+  _mode: TextureVisualizerMode;
+
+  constructor(
+    model: Pbrrn,
+    mode: TextureVisualizerMode,
+    canvas?: ?HTMLCanvasElement,
+  ) {
+    this.canvas = canvas || (document.createElement('CANVAS'): any);
+    switch ((this._mode = mode)) {
+      case 'probability':
+        this.canvas.width = model.options.width * 2;
+        this.canvas.height = model.options.height;
+        break;
+
+      case 'history':
+        this.canvas.width = model.options.width * 2;
+        this.canvas.height = model.options.height * 2;
+        break;
+
+      default:
+        this.canvas.width = model.options.width;
+        this.canvas.height = model.options.height;
+        break;
+    }
+    this._ctx = this.canvas.getContext('2d', {alpha: false});
+    this._ctx.imageSmoothingEnabled = false;
+    this._model = model;
+  }
+
+  update() {
+    try {
+      switch (this._mode) {
+        case 'probability':
+          this._model.renderProbabilityTexture(0.0);
+          this._ctx.drawImage(this._model.canvas, 0, 0);
+          this._model.renderProbabilityTexture(0.5);
+          this._ctx.drawImage(this._model.canvas, this._model.canvas.width, 0);
+          break;
+
+        case 'history':
+          this._model.renderHistoryTexture(0.0, 0.0);
+          this._ctx.drawImage(this._model.canvas, 0, this._model.canvas.height);
+          this._model.renderHistoryTexture(0.5, 0.0);
+          this._ctx.drawImage(
+            this._model.canvas,
+            this._model.canvas.width,
+            this._model.canvas.height,
+          );
+          this._model.renderHistoryTexture(0.0, 0.5);
+          this._ctx.drawImage(this._model.canvas, 0, 0);
+          this._model.renderHistoryTexture(0.5, 0.5);
+          this._ctx.drawImage(this._model.canvas, this._model.canvas.width, 0);
+          break;
+
+        default:
+          this._model.renderConnectionTexture();
+          this._ctx.drawImage(this._model.canvas, 0, 0);
+          break;
+      }
+    } finally {
+      this._model.renderStateTexture();
+    }
+  }
+}
+
 type Point = {x: number, y: number};
 
 /**
@@ -723,8 +873,9 @@ type Point = {x: number, y: number};
  * @param model the model to visualize.
  * @param locations the locations of the states to visualize.
  * @param length the number of frames to visualize.
- * @param [fillStyle='#000'] the color with which to draw the states.
- * @param [backgroundStyle='#FFF'] the color with which to clear.
+ * @param [fillStyle='#FFF'] the color with which to draw the states.
+ * @param [backgroundStyle='#000'] the color with which to clear.
+ * @param [canvas] an existing canvas to use rather than creating a new one.
  */
 export class StateVisualizer {
   canvas: HTMLCanvasElement;
@@ -745,8 +896,9 @@ export class StateVisualizer {
     length: number,
     fillStyle: string = '#FFF',
     backgroundStyle: string = '#000',
+    canvas?: ?HTMLCanvasElement,
   ) {
-    this.canvas = (document.createElement('CANVAS'): any);
+    this.canvas = canvas || (document.createElement('CANVAS'): any);
     this._backCanvas = (document.createElement('CANVAS'): any);
     this.canvas.width = this._backCanvas.width = length;
     this.canvas.height = this._backCanvas.height = locations.length * 2 - 1;

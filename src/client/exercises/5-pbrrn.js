@@ -2,13 +2,13 @@
 
 import * as React from 'react';
 import * as ReactDOM from 'react-dom';
-import {Pbrrn, StateVisualizer} from '../models/pbrrn';
+import {Pbrrn, StateVisualizer, TextureVisualizer} from '../models/pbrrn';
 
 const STEP_DELAY = 10;
 
 const REWARD_FUNCTIONS: {[string]: (boolean, boolean) => number} = {
-  Output: (input, output) => (output ? 1 : -0.01),
-  'Not Output': (input, output) => (output ? -0.01 : 1),
+  Output: (input, output) => (output ? 1 : -1),
+  'Not Output': (input, output) => (output ? -1 : 1),
   None: (input, output) => 0,
 };
 
@@ -26,17 +26,19 @@ class PbrrnExercise extends React.Component<
   state = {
     width: 8,
     height: 8,
-    probabilityLimit: 6.0,
-    historyDecayRate: 0.1,
+    probabilityLimit: 3.0,
+    historyDecayRate: 0.5,
     rewardFunction: 'Output',
     running: false,
   };
 
   _intervalId: ?IntervalID;
-  _container: ?HTMLElement;
-  _visualizerContainer: ?HTMLElement;
+  _modelCanvas: ?HTMLCanvasElement;
+  _visualizerCanvas: ?HTMLCanvasElement;
+  _textureCanvas: ?HTMLCanvasElement;
   _model: ?Pbrrn;
   _visualizer: ?StateVisualizer;
+  _textureVisualizer: ?TextureVisualizer;
 
   render() {
     return (
@@ -147,21 +149,27 @@ class PbrrnExercise extends React.Component<
           </button>
         </div>
         <div className="titled-table">
-          {this._model ? <h4>State Array</h4> : null}
-          <div ref={this._containerRef} />
-          {this._model ? <h4>Output</h4> : null}
-          <div ref={this._visualizerContainerRef} />
+          <h4>State Array</h4>
+          <canvas className="states" ref={this._modelCanvasRef} />
+          <h4>Output</h4>
+          <canvas className="visualizer" ref={this._visualizerCanvasRef} />
+          <h4>Probabilities</h4>
+          <canvas className="states" ref={this._textureCanvasRef} />
         </div>
       </div>
     );
   }
 
-  _containerRef = (element: ?HTMLElement) => {
-    this._container = element;
+  _modelCanvasRef = (element: ?HTMLElement) => {
+    this._modelCanvas = (element: any);
   };
 
-  _visualizerContainerRef = (element: ?HTMLElement) => {
-    this._visualizerContainer = element;
+  _visualizerCanvasRef = (element: ?HTMLElement) => {
+    this._visualizerCanvas = (element: any);
+  };
+
+  _textureCanvasRef = (element: ?HTMLElement) => {
+    this._textureCanvas = (element: any);
   };
 
   componentWillUnmount() {
@@ -175,34 +183,29 @@ class PbrrnExercise extends React.Component<
       delete this._intervalId;
       this.setState({running: false});
     } else {
-      const oldModel = this._model;
-      if (oldModel) {
-        this._container && this._container.removeChild(oldModel.canvas);
-        oldModel.dispose();
-      }
-      const model = (this._model = new Pbrrn({
-        width: this.state.width,
-        height: this.state.height,
-        probabilityLimit: this.state.probabilityLimit,
-        historyDecayRate: this.state.historyDecayRate,
-      }));
-      model.canvas.className = 'states';
-      this._container && this._container.appendChild(model.canvas);
-
-      const oldVisualizer = this._visualizer;
-      if (oldVisualizer) {
-        this._visualizerContainer &&
-          this._visualizerContainer.removeChild(oldVisualizer.canvas);
-      }
-      const visualizer = (this._visualizer = new StateVisualizer(
+      this._model && this._model.dispose();
+      const model = (this._model = new Pbrrn(
+        {
+          width: this.state.width,
+          height: this.state.height,
+          probabilityLimit: this.state.probabilityLimit,
+          historyDecayRate: this.state.historyDecayRate,
+        },
+        this._modelCanvas,
+      ));
+      this._visualizer = new StateVisualizer(
         model,
         [{x: Math.floor(this.state.width / 2), y: 0}],
         64,
-      ));
-      visualizer.canvas.className = 'visualizer';
-      this._visualizerContainer &&
-        this._visualizerContainer.appendChild(visualizer.canvas);
-
+        '#FFF',
+        '#000',
+        this._visualizerCanvas,
+      );
+      this._textureVisualizer = new TextureVisualizer(
+        model,
+        'probability',
+        this._textureCanvas,
+      );
       this._intervalId = setInterval(this._step, STEP_DELAY);
       this.setState({running: true});
     }
@@ -220,6 +223,7 @@ class PbrrnExercise extends React.Component<
       ),
     );
     this._visualizer && this._visualizer.update();
+    this._textureVisualizer && this._textureVisualizer.update();
   };
 }
 
