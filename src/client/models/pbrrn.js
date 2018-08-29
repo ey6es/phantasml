@@ -86,11 +86,21 @@ export class Pbrrn {
   _outputProgram: WebGLProgram;
   _programs: WebGLProgram[] = [];
 
-  _rewardLocation: WebGLUniformLocation;
-  _probabilityLimitLocation: WebGLUniformLocation;
-  _historyDecayRateLocation: WebGLUniformLocation;
-  _uvScaleLocation: WebGLUniformLocation;
-  _uvOffsetLocation: WebGLUniformLocation;
+  _rewardLocations: {
+    reward: WebGLUniformLocation,
+    probabilityLimit: WebGLUniformLocation,
+  };
+  _recordLocations: {
+    probabilityLimit: WebGLUniformLocation,
+    historyDecayRate: WebGLUniformLocation,
+  };
+  _transitionLocations: {
+    probabilityLimit: WebGLUniformLocation,
+  };
+  _outputLocations: {
+    uvScale: WebGLUniformLocation,
+    uvOffset: WebGLUniformLocation,
+  };
 
   constructor(options: PbrrnOptions, canvas?: ?HTMLCanvasElement) {
     this.options = options;
@@ -108,6 +118,11 @@ export class Pbrrn {
     }
     this._gl = gl;
     this._floatTextures = !!gl.getExtension('OES_texture_float');
+
+    // adjust alignment and make sure there's no color conversion
+    gl.pixelStorei(gl.PACK_ALIGNMENT, 1);
+    gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
+    gl.pixelStorei(gl.UNPACK_COLORSPACE_CONVERSION_WEBGL, gl.NONE);
 
     const DEFAULT_PROBABILITY_LIMIT = 6.0;
     this._probabilityLimit =
@@ -134,10 +149,12 @@ export class Pbrrn {
           data[ii++] = v2;
           data[ii++] = v3;
 
-          data[ii++] = v4;
-          data[ii++] = v5;
-          data[ii++] = v6;
-          data[ii++] = v7;
+          if (xx + 1 < options.width) {
+            data[ii++] = v4;
+            data[ii++] = v5;
+            data[ii++] = v6;
+            data[ii++] = v7;
+          }
         }
       }
       gl.texImage2D(
@@ -158,8 +175,8 @@ export class Pbrrn {
     this._createStateTexture(false);
 
     // the probability textures hold the result probabilities
-    this._createProbabilityTexture();
-    this._createProbabilityTexture();
+    this._createProbabilityTexture(false);
+    this._createProbabilityTexture(true);
 
     // the history textures hold the decision history sums
     this._createHistoryTexture();
@@ -234,7 +251,9 @@ export class Pbrrn {
         vec2 historyOffset = UV_SCALE * vec2(0.0, 0.25);
         vec4 history0 = texture2D(history, uv - historyOffset);
         vec4 history1 = texture2D(history, uv + historyOffset);
-        vec4 oldProbs = texture2D(probability, uv);
+        float probabilityLimit2 = probabilityLimit * 2.0;
+        vec4 oldProbs =
+          (texture2D(probability, uv) - vec4(0.5)) * probabilityLimit2;
         vec4 newProbs = oldProbs + reward * vec4(
           history0.z - history0.w,
           history0.x - history0.y,
@@ -242,7 +261,9 @@ export class Pbrrn {
           history1.x - history1.y
         );
         // clamp to our limit so that we can "unlearn" reasonably rapidly
-        gl_FragData[0] = clamp(newProbs, -probabilityLimit, probabilityLimit);
+        gl_FragData[0] =
+          clamp(newProbs, -probabilityLimit, probabilityLimit) /
+          probabilityLimit2 + vec4(0.5);
       }
     `,
     );
@@ -268,9 +289,10 @@ export class Pbrrn {
       );
       vec2 mixed1 = mix(mixed0.xz, mixed0.yw, inputStates.y);
       float mixed = mix(mixed1.x, mixed1.y, inputStates.x);
+      float finalProb = (mixed - 0.5) * 2.0 * probabilityLimit;
       
       // apply the logistic function to turn raw value into prob. threshold
-      float threshold = 1.0 / (1.0 + exp(-mixed));
+      float threshold = 1.0 / (1.0 + exp(-finalProb));
       
       // get a random value between zero and one from noise texture
       vec4 noiseValues = texture2D(noise, uv);
@@ -293,6 +315,7 @@ export class Pbrrn {
       uniform sampler2D probability;
       uniform sampler2D history;
       uniform sampler2D noise;
+      uniform float probabilityLimit;
       uniform float historyDecayRate;
       ${UV_SCALE_SNIPPET}
       varying vec2 uv;
@@ -333,6 +356,7 @@ export class Pbrrn {
       uniform sampler2D state;
       uniform sampler2D probability;
       uniform sampler2D noise;
+      uniform float probabilityLimit;
       ${UV_SCALE_SNIPPET}
       varying vec2 uv;
       void main(void) {
@@ -374,29 +398,42 @@ export class Pbrrn {
     );
 
     this._rewardProgram = this._createProgram(this._rewardShader, REWARD_UNITS);
-    this._rewardLocation = gl.getUniformLocation(this._rewardProgram, 'reward');
-    this._probabilityLimitLocation = gl.getUniformLocation(
-      this._rewardProgram,
-      'probabilityLimit',
-    );
+    this._rewardLocations = {
+      reward: gl.getUniformLocation(this._rewardProgram, 'reward'),
+      probabilityLimit: gl.getUniformLocation(
+        this._rewardProgram,
+        'probabilityLimit',
+      ),
+    };
+
     this._recordProgram = this._createProgram(this._recordShader, RECORD_UNITS);
-    this._historyDecayRateLocation = gl.getUniformLocation(
-      this._recordProgram,
-      'historyDecayRate',
-    );
+    this._recordLocations = {
+      probabilityLimit: gl.getUniformLocation(
+        this._recordProgram,
+        'probabilityLimit',
+      ),
+      historyDecayRate: gl.getUniformLocation(
+        this._recordProgram,
+        'historyDecayRate',
+      ),
+    };
+
     this._transitionProgram = this._createProgram(
       this._transitionShader,
       TRANSITION_UNITS,
     );
+    this._transitionLocations = {
+      probabilityLimit: gl.getUniformLocation(
+        this._transitionProgram,
+        'probabilityLimit',
+      ),
+    };
+
     this._outputProgram = this._createProgram(this._outputShader, OUTPUT_UNITS);
-    this._uvScaleLocation = gl.getUniformLocation(
-      this._outputProgram,
-      'uvScale',
-    );
-    this._uvOffsetLocation = gl.getUniformLocation(
-      this._outputProgram,
-      'uvOffset',
-    );
+    this._outputLocations = {
+      uvScale: gl.getUniformLocation(this._outputProgram, 'uvScale'),
+      uvOffset: gl.getUniformLocation(this._outputProgram, 'uvOffset'),
+    };
   }
 
   _createStateTexture(initialize: boolean) {
@@ -410,7 +447,7 @@ export class Pbrrn {
       data = new Uint8Array(this.options.width * this.options.height * 3);
       for (let ii = 0; ii < data.length; ) {
         const value = (Math.random() * INTEGER_MAX) | 0;
-        for (let jj = 0; jj < 32; jj++) {
+        for (let jj = 0; jj < 32 && ii < data.length; jj++) {
           const level = (value >> jj) & 0x01 ? 255 : 0;
           data[ii++] = level;
           data[ii++] = level;
@@ -433,23 +470,45 @@ export class Pbrrn {
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
   }
 
-  _createProbabilityTexture() {
+  _createProbabilityTexture(initialize: boolean) {
     const gl = this._gl;
     const texture = gl.createTexture();
     this._probabilityTextures.push(texture);
     this._textures.push(texture);
     gl.bindTexture(gl.TEXTURE_2D, texture);
-    gl.texImage2D(
-      gl.TEXTURE_2D,
-      0,
-      gl.RGBA,
-      this.options.width * 2,
-      this.options.height,
-      0,
-      gl.RGBA,
-      this._floatTextures ? gl.FLOAT : gl.UNSIGNED_BYTE,
-      null,
-    );
+    if (this._floatTextures) {
+      const data = new Float32Array(
+        this.options.width * this.options.height * 2 * 4,
+      );
+      initialize && data.fill(0.5);
+      gl.texImage2D(
+        gl.TEXTURE_2D,
+        0,
+        gl.RGBA,
+        this.options.width * 2,
+        this.options.height,
+        0,
+        gl.RGBA,
+        gl.FLOAT,
+        data,
+      );
+    } else {
+      const data = new Uint8Array(
+        this.options.width * this.options.height * 2 * 4,
+      );
+      initialize && data.fill(128);
+      gl.texImage2D(
+        gl.TEXTURE_2D,
+        0,
+        gl.RGBA,
+        this.options.width * 2,
+        this.options.height,
+        0,
+        gl.RGBA,
+        gl.UNSIGNED_BYTE,
+        data,
+      );
+    }
   }
 
   _createHistoryTexture() {
@@ -638,8 +697,11 @@ export class Pbrrn {
     gl.bindFramebuffer(gl.FRAMEBUFFER, this._rewardBuffers[firstIndex]);
     gl.viewport(0, 0, this.options.width * 2, this.options.height);
     gl.useProgram(this._rewardProgram);
-    gl.uniform1f(this._rewardLocation, reward);
-    gl.uniform1f(this._probabilityLimitLocation, this._probabilityLimit);
+    gl.uniform1f(this._rewardLocations.reward, reward);
+    gl.uniform1f(
+      this._rewardLocations.probabilityLimit,
+      this._probabilityLimit,
+    );
     this._bindTexture(gl.TEXTURE0, this._historyTextures[secondIndex]);
     this._bindTexture(gl.TEXTURE1, this._probabilityTextures[secondIndex]);
     gl.drawArrays(gl.TRIANGLE_FAN, 0, 4);
@@ -648,7 +710,14 @@ export class Pbrrn {
     gl.bindFramebuffer(gl.FRAMEBUFFER, this._recordBuffers[firstIndex]);
     gl.viewport(0, 0, this.options.width * 2, this.options.height * 2);
     gl.useProgram(this._recordProgram);
-    gl.uniform1f(this._historyDecayRateLocation, this._historyDecayRate);
+    gl.uniform1f(
+      this._recordLocations.probabilityLimit,
+      this._probabilityLimit,
+    );
+    gl.uniform1f(
+      this._recordLocations.historyDecayRate,
+      this._historyDecayRate,
+    );
     this._bindTexture(gl.TEXTURE0, this._connectionTexture);
     this._bindTexture(gl.TEXTURE1, this._stateTextures[firstIndex]);
     this._bindTexture(gl.TEXTURE2, this._probabilityTextures[firstIndex]);
@@ -660,6 +729,10 @@ export class Pbrrn {
     gl.bindFramebuffer(gl.FRAMEBUFFER, this._transitionBuffers[secondIndex]);
     gl.viewport(0, 0, this.options.width, this.options.height);
     gl.useProgram(this._transitionProgram);
+    gl.uniform1f(
+      this._transitionLocations.probabilityLimit,
+      this._probabilityLimit,
+    );
     this._bindTexture(gl.TEXTURE0, this._connectionTexture);
     this._bindTexture(gl.TEXTURE1, this._stateTextures[firstIndex]);
     this._bindTexture(gl.TEXTURE2, this._probabilityTextures[firstIndex]);
@@ -761,8 +834,8 @@ export class Pbrrn {
     const gl = this._gl;
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     gl.useProgram(this._outputProgram);
-    gl.uniform2f(this._uvScaleLocation, uvScaleS, uvScaleT);
-    gl.uniform2f(this._uvOffsetLocation, uvOffsetS, uvOffsetT);
+    gl.uniform2f(this._outputLocations.uvScale, uvScaleS, uvScaleT);
+    gl.uniform2f(this._outputLocations.uvOffset, uvOffsetS, uvOffsetT);
     this._bindTexture(gl.TEXTURE0, texture);
     gl.drawArrays(gl.TRIANGLE_FAN, 0, 4);
   }

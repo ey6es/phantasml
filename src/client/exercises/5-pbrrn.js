@@ -55,7 +55,7 @@ class PbrrnExercise extends React.Component<
                 className="form-control"
                 id="width"
                 value={this.state.width}
-                min={8}
+                min={1}
                 disabled={this.state.running}
                 onChange={event =>
                   this.setState({
@@ -73,7 +73,7 @@ class PbrrnExercise extends React.Component<
                 className="form-control"
                 id="height"
                 value={this.state.height}
-                min={8}
+                min={1}
                 disabled={this.state.running}
                 onChange={event =>
                   this.setState({
