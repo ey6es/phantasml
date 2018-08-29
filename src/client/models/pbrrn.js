@@ -39,6 +39,7 @@ export type PbrrnOptions = {
   height: number,
   probabilityLimit?: number,
   historyDecayRate?: number,
+  disableSelfInputs?: boolean,
 };
 
 /**
@@ -48,14 +49,17 @@ export type PbrrnOptions = {
  * @param [canvas] an existing canvas to use rather than creating a new one.
  */
 export class Pbrrn {
+  /** The options provided to the constructor. */
   options: PbrrnOptions;
+
+  /** The canvas we use for WebGL rendering. */
   canvas: HTMLCanvasElement;
 
   _gl: WebGLRenderingContext;
   _floatTextures: boolean;
 
-  _historyDecayRate: number;
   _probabilityLimit: number;
+  _historyDecayRate: number;
 
   _connectionTexture: WebGLTexture;
   _stateTextures: WebGLTexture[] = [];
@@ -260,12 +264,20 @@ export class Pbrrn {
         float probabilityLimit2 = probabilityLimit * 2.0;
         vec4 oldProbs =
           (texture2D(probability, uv) - vec4(0.5)) * probabilityLimit2;
-        vec4 newProbs = oldProbs + reward * vec4(
-          history0.y - history0.x,
-          history0.w - history0.z,
-          history1.y - history1.x,
-          history1.w - history1.z
-        );
+        vec4 diffs =
+          vec4(history0.yw, history1.yw) - vec4(history0.xz, history1.xz);
+        vec4 sums =
+          vec4(history0.yw, history1.yw) + vec4(history0.xz, history1.xz);
+        
+        // positive reward reinforces the rules we've been applying
+        vec4 newProbs = oldProbs + max(reward, 0.0) * diffs;
+        
+        // negative reward ("punishment") causes a reversion to the center
+        vec4 punishmentSums = min(reward, 0.0) * sums;
+        newProbs +=
+          max(-max(newProbs, 0.0), punishmentSums) -
+          max(min(newProbs, 0.0), punishmentSums);
+          
         // clamp to our limit so that we can "unlearn" reasonably rapidly
         gl_FragData[0] =
           clamp(newProbs, -probabilityLimit, probabilityLimit) /
@@ -279,7 +291,7 @@ export class Pbrrn {
       // use our input addresses to get the states of this cell and inputs
       vec4 connections = texture2D(connection, uv) * 2.0 - vec4(1.0);
       vec3 inputStates = vec3(
-        texture2D(state, uv).r,
+        ${options.disableSelfInputs ? '0.0' : 'texture2D(state, uv).r'},
         texture2D(state, uv + connections.st * UV_SCALE).r,
         texture2D(state, uv + connections.pq * UV_SCALE).r
       );
@@ -909,6 +921,7 @@ type TextureVisualizerMode = 'connection' | 'probability' | 'history';
  * @param [canvas] an existing canvas to use rather than creating a new one.
  */
 export class TextureVisualizer {
+  /** The canvas upon which we render the texture. */
   canvas: HTMLCanvasElement;
 
   _ctx: CanvasRenderingContext2D;
@@ -994,17 +1007,24 @@ type Point = {x: number, y: number};
  * @param [canvas] an existing canvas to use rather than creating a new one.
  */
 export class StateVisualizer {
+  /** The canvas upon which we render the state history. */
   canvas: HTMLCanvasElement;
+
+  /** The average states for each location over the window. */
+  averageStates: number[] = [];
 
   _backCanvas: HTMLCanvasElement;
   _ctx: CanvasRenderingContext2D;
   _backCtx: CanvasRenderingContext2D;
   _model: Pbrrn;
   _locations: Point[];
+  _length: number;
   _fillStyle: string;
   _backgroundStyle: string;
 
   _position = 0;
+
+  _averages: {states: number[], sum: number}[] = [];
 
   constructor(
     model: Pbrrn,
@@ -1023,12 +1043,19 @@ export class StateVisualizer {
     this._backCtx = this._backCanvas.getContext('2d', {alpha: false});
     this._model = model;
     this._locations = locations;
+    this._length = length;
     this._fillStyle = fillStyle;
     this._backgroundStyle = backgroundStyle;
 
     // clear the initial back buffer
     this._backCtx.fillStyle = backgroundStyle;
     this._backCtx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+
+    // initialize the average values
+    for (let ii = 0; ii < locations.length; ii++) {
+      this.averageStates.push(0.0);
+      this._averages.push({states: [], sum: 0.0});
+    }
   }
 
   /**
@@ -1041,9 +1068,19 @@ export class StateVisualizer {
     this._backCtx.fillStyle = this._fillStyle;
     for (let ii = 0, yy = 0; ii < this._locations.length; ii++, yy += 2) {
       const location = this._locations[ii];
-      if (this._model.getState(location.x, location.y)) {
+      const state = this._model.getState(location.x, location.y);
+      if (state) {
         this._backCtx.fillRect(this._position, yy, 1, 1);
       }
+      // update average
+      const average = this._averages[ii];
+      const stateValue = Number(state);
+      average.states.push(stateValue);
+      average.sum += stateValue;
+      if (average.states.length > this._length) {
+        average.sum -= average.states.shift();
+      }
+      this.averageStates[ii] = average.sum / average.states.length;
     }
 
     // draw the back canvas to the front in two parts to scroll

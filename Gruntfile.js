@@ -373,7 +373,7 @@ module.exports = function(grunt) {
   grunt.registerTask('build-exercises', 'Builds the exercises.', [
     'babel',
     'browserify:exercises',
-    'copy:exercises', // 'uglify:exercises',
+    'uglify:exercises', // 'copy:exercises',
     ...exerciseNames.map(name => `replace:${name}`),
     'less:exercises',
   ]);
