@@ -78,12 +78,14 @@ export class Pbrrn {
   _recordShader: WebGLShader;
   _transitionShader: WebGLShader;
   _outputShader: WebGLShader;
+  _swizzleShader: WebGLShader;
   _shaders: WebGLShader[] = [];
 
   _rewardProgram: WebGLProgram;
   _recordProgram: WebGLProgram;
   _transitionProgram: WebGLProgram;
   _outputProgram: WebGLProgram;
+  _swizzleProgram: WebGLProgram;
   _programs: WebGLProgram[] = [];
 
   _rewardLocations: {
@@ -98,6 +100,10 @@ export class Pbrrn {
     probabilityLimit: WebGLUniformLocation,
   };
   _outputLocations: {
+    uvScale: WebGLUniformLocation,
+    uvOffset: WebGLUniformLocation,
+  };
+  _swizzleLocations: {
     uvScale: WebGLUniformLocation,
     uvOffset: WebGLUniformLocation,
   };
@@ -139,7 +145,7 @@ export class Pbrrn {
       gl.bindTexture(gl.TEXTURE_2D, this._connectionTexture);
       const data = new Uint8Array(options.width * options.height * 4);
       for (let yy = 0, ii = 0; yy < options.height; yy++) {
-        let [v0, v1, v2, v3, v4, v5, v6, v7] =
+        const [v0, v1, v2, v3, v4, v5, v6, v7] =
           yy & 1
             ? [128, 0, 128, 255, 0, 128, 255, 128]
             : [0, 128, 255, 128, 128, 0, 128, 255];
@@ -255,10 +261,10 @@ export class Pbrrn {
         vec4 oldProbs =
           (texture2D(probability, uv) - vec4(0.5)) * probabilityLimit2;
         vec4 newProbs = oldProbs + reward * vec4(
-          history0.z - history0.w,
-          history0.x - history0.y,
-          history1.z - history1.w,
-          history1.x - history1.y
+          history0.y - history0.x,
+          history0.w - history0.z,
+          history1.y - history1.x,
+          history1.w - history1.z
         );
         // clamp to our limit so that we can "unlearn" reasonably rapidly
         gl_FragData[0] =
@@ -326,10 +332,10 @@ export class Pbrrn {
         vec4 decision = vec4(inputStates, nextState);
         vec4 notDecision = vec4(1.0) - decision;
         vec4 history0 = vec4(
-          decision.z * decision.w,
-          decision.z * notDecision.w,
+          notDecision.z * notDecision.w,
           notDecision.z * decision.w,
-          notDecision.z * notDecision.w
+          decision.z * notDecision.w,
+          decision.z * decision.w
         );
         vec2 location = step(vec2(0.5, 0.5), fract(uv / UV_SCALE));
         vec2 notLocation = vec2(1.0) - location;
@@ -397,6 +403,21 @@ export class Pbrrn {
     `,
     );
 
+    // swizzle shader is like output shader, but reverses RGBA order
+    this._swizzleShader = this._createShader(
+      gl.FRAGMENT_SHADER,
+      `
+      precision mediump float;
+      uniform sampler2D state;
+      uniform vec2 uvScale;
+      uniform vec2 uvOffset;
+      varying vec2 uv;
+      void main(void) {
+        gl_FragColor = texture2D(state, uv * uvScale + uvOffset).abgr;
+      }
+    `,
+    );
+
     this._rewardProgram = this._createProgram(this._rewardShader, REWARD_UNITS);
     this._rewardLocations = {
       reward: gl.getUniformLocation(this._rewardProgram, 'reward'),
@@ -433,6 +454,15 @@ export class Pbrrn {
     this._outputLocations = {
       uvScale: gl.getUniformLocation(this._outputProgram, 'uvScale'),
       uvOffset: gl.getUniformLocation(this._outputProgram, 'uvOffset'),
+    };
+
+    this._swizzleProgram = this._createProgram(
+      this._swizzleShader,
+      OUTPUT_UNITS,
+    );
+    this._swizzleLocations = {
+      uvScale: gl.getUniformLocation(this._swizzleProgram, 'uvScale'),
+      uvOffset: gl.getUniformLocation(this._swizzleProgram, 'uvOffset'),
     };
   }
 
@@ -536,7 +566,7 @@ export class Pbrrn {
     this._noiseTextures.push(texture);
     this._textures.push(texture);
     gl.bindTexture(gl.TEXTURE_2D, texture);
-    let data = new Uint8Array(this.options.width * this.options.height * 4);
+    const data = new Uint8Array(this.options.width * this.options.height * 4);
     if (initialize) {
       for (let ii = 0; ii < data.length; ) {
         const value = (Math.random() * INTEGER_MAX) | 0;
@@ -781,19 +811,23 @@ export class Pbrrn {
 
   /**
    * Renders the connection texture to the canvas for debugging.
+   *
+   * @param swizzle if true, swizzle RGBA to ABGR.
    */
-  renderConnectionTexture() {
-    this._renderTexture(this._connectionTexture);
+  renderConnectionTexture(swizzle: boolean) {
+    this._renderTexture(this._connectionTexture, swizzle);
   }
 
   /**
    * Renders part of the probability texture to the canvas for debugging.
    *
+   * @param swizzle if true, swizzle RGBA to ABGR.
    * @param offset the texture coordinate offset to use.
    */
-  renderProbabilityTexture(offset: number) {
+  renderProbabilityTexture(swizzle: boolean, offset: number) {
     this._renderTexture(
       this._probabilityTextures[this._textureIndex],
+      swizzle,
       0.5,
       1.0,
       offset,
@@ -804,12 +838,14 @@ export class Pbrrn {
   /**
    * Renders part of the history texture to the canvas for debugging.
    *
+   * @param swizzle if true, swizzle RGBA to ABGR.
    * @param offsetS the texture coordinate offset to use on the S axis.
    * @param offsetT the texture coordinate offset to use on the T axis.
    */
-  renderHistoryTexture(offsetS: number, offsetT: number) {
+  renderHistoryTexture(swizzle: boolean, offsetS: number, offsetT: number) {
     this._renderTexture(
       this._historyTextures[this._textureIndex],
+      swizzle,
       0.5,
       0.5,
       offsetS,
@@ -826,6 +862,7 @@ export class Pbrrn {
 
   _renderTexture(
     texture: WebGLTexture,
+    swizzle: boolean = false,
     uvScaleS: number = 1.0,
     uvScaleT: number = 1.0,
     uvOffsetS: number = 0.0,
@@ -833,9 +870,15 @@ export class Pbrrn {
   ) {
     const gl = this._gl;
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-    gl.useProgram(this._outputProgram);
-    gl.uniform2f(this._outputLocations.uvScale, uvScaleS, uvScaleT);
-    gl.uniform2f(this._outputLocations.uvOffset, uvOffsetS, uvOffsetT);
+    if (swizzle) {
+      gl.useProgram(this._swizzleProgram);
+      gl.uniform2f(this._swizzleLocations.uvScale, uvScaleS, uvScaleT);
+      gl.uniform2f(this._swizzleLocations.uvOffset, uvOffsetS, uvOffsetT);
+    } else {
+      gl.useProgram(this._outputProgram);
+      gl.uniform2f(this._outputLocations.uvScale, uvScaleS, uvScaleT);
+      gl.uniform2f(this._outputLocations.uvOffset, uvOffsetS, uvOffsetT);
+    }
     this._bindTexture(gl.TEXTURE0, texture);
     gl.drawArrays(gl.TRIANGLE_FAN, 0, 4);
   }
@@ -866,6 +909,8 @@ type TextureVisualizerMode = 'connection' | 'probability' | 'history';
  *
  * @param model the model to visualize.
  * @param mode the mode (the texture to visualize).
+ * @param [swizzle=false] if true, render RGBA as ABGR so that we can visualize
+ * alpha.
  * @param [canvas] an existing canvas to use rather than creating a new one.
  */
 export class TextureVisualizer {
@@ -874,10 +919,12 @@ export class TextureVisualizer {
   _ctx: CanvasRenderingContext2D;
   _model: Pbrrn;
   _mode: TextureVisualizerMode;
+  _swizzle: boolean;
 
   constructor(
     model: Pbrrn,
     mode: TextureVisualizerMode,
+    swizzle: boolean = false,
     canvas?: ?HTMLCanvasElement,
   ) {
     this.canvas = canvas || (document.createElement('CANVAS'): any);
@@ -900,35 +947,36 @@ export class TextureVisualizer {
     this._ctx = this.canvas.getContext('2d', {alpha: false});
     this._ctx.imageSmoothingEnabled = false;
     this._model = model;
+    this._swizzle = swizzle;
   }
 
   update() {
     try {
       switch (this._mode) {
         case 'probability':
-          this._model.renderProbabilityTexture(0.0);
+          this._model.renderProbabilityTexture(this._swizzle, 0.0);
           this._ctx.drawImage(this._model.canvas, 0, 0);
-          this._model.renderProbabilityTexture(0.5);
+          this._model.renderProbabilityTexture(this._swizzle, 0.5);
           this._ctx.drawImage(this._model.canvas, this._model.canvas.width, 0);
           break;
 
         case 'history':
-          this._model.renderHistoryTexture(0.0, 0.0);
+          this._model.renderHistoryTexture(this._swizzle, 0.0, 0.0);
           this._ctx.drawImage(this._model.canvas, 0, this._model.canvas.height);
-          this._model.renderHistoryTexture(0.5, 0.0);
+          this._model.renderHistoryTexture(this._swizzle, 0.5, 0.0);
           this._ctx.drawImage(
             this._model.canvas,
             this._model.canvas.width,
             this._model.canvas.height,
           );
-          this._model.renderHistoryTexture(0.0, 0.5);
+          this._model.renderHistoryTexture(this._swizzle, 0.0, 0.5);
           this._ctx.drawImage(this._model.canvas, 0, 0);
-          this._model.renderHistoryTexture(0.5, 0.5);
+          this._model.renderHistoryTexture(this._swizzle, 0.5, 0.5);
           this._ctx.drawImage(this._model.canvas, this._model.canvas.width, 0);
           break;
 
         default:
-          this._model.renderConnectionTexture();
+          this._model.renderConnectionTexture(this._swizzle);
           this._ctx.drawImage(this._model.canvas, 0, 0);
           break;
       }

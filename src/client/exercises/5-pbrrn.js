@@ -7,8 +7,8 @@ import {Pbrrn, StateVisualizer, TextureVisualizer} from '../models/pbrrn';
 const STEP_DELAY = 10;
 
 const REWARD_FUNCTIONS: {[string]: (boolean, boolean) => number} = {
-  Output: (input, output) => (output ? 1 : -1),
-  'Not Output': (input, output) => (output ? -1 : 1),
+  Output: (input, output) => (output ? 1 : -0.5),
+  'Not Output': (input, output) => (output ? -0.5 : 1),
   None: (input, output) => 0,
 };
 
@@ -204,6 +204,7 @@ class PbrrnExercise extends React.Component<
       this._textureVisualizer = new TextureVisualizer(
         model,
         'probability',
+        false,
         this._textureCanvas,
       );
       this._intervalId = setInterval(this._step, STEP_DELAY);
