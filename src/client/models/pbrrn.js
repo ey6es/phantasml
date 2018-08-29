@@ -369,21 +369,16 @@ export class Pbrrn {
         ${NEXT_STATE_SNIPPET}
         gl_FragData[0] = vec4(nextState);
         
-        // update the random seeds using two separate LCGs
-        vec2 seeds = vec2(
-          dot(noiseValues.xy, vec2(256.0, 1.0)),
-          dot(noiseValues.zw, vec2(256.0, 1.0))
-        );
-        vec2 nextSeeds = mod(
-          seeds * vec2(269.8008, 257.0039) + vec2(1.0 / 256.0),
-          256.0
-        );
-        gl_FragData[1] = vec4(
-          nextSeeds.x / 256.0,
-          fract(nextSeeds.x),
-          nextSeeds.y / 256.0,
-          fract(nextSeeds.y)
-        );
+        ivec4 noiseInt = ivec4(noiseValues * 255.0);
+        int seed = 256 * (256 * (256 * noiseInt.x + noiseInt.y) + noiseInt.z) +
+          noiseInt.w;
+        int nextSeed = (seed * 1664525 + 1013904223);
+        gl_FragData[1] = fract(vec4(
+          nextSeed / (256 * 256 * 256),
+          (nextSeed * 256) / (256 * 256 * 256),
+          (nextSeed * 256 * 256) / (256 * 256 * 256),
+          (nextSeed * 256 * 256 * 256) / (256 * 256 * 256)
+        ) / 255.0);
       }
     `,
     );
