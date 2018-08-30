@@ -213,6 +213,7 @@ class PbrrnExercise extends React.Component<
           height: this.state.height,
           probabilityLimit: this.state.probabilityLimit,
           historyDecayRate: this.state.historyDecayRate,
+          disableSelfInputs: !this.state.includeSelfInputs,
         },
         this._modelCanvas,
       ));
