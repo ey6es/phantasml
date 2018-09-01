@@ -53,6 +53,7 @@ export class ResourceDropdown extends React.Component<
   {
     userStatus: UserStatusResponse,
     resource: ?ResourceDescriptor,
+    setResource: (?ResourceDescriptor) => void,
     setLoading: (Object, boolean) => void,
     pushSearch: string => void,
     replaceSearch: string => void,
@@ -78,22 +79,41 @@ export class ResourceDropdown extends React.Component<
             ))}
           </Submenu>
         ) : null}
-        {resource && isResourceOwned(resource, this.props.userStatus) ? (
-          <MenuItem
-            onClick={() =>
-              this._setDialog(
-                <DeleteResourceDialog
-                  id={resource.id}
-                  onClosed={(result: ?{}) => {
-                    result && this.props.replaceSearch('');
-                    this._clearDialog();
-                  }}
-                />,
-              )
-            }>
-            <DeleteResourceMessage />
-          </MenuItem>
-        ) : null}
+        {resource && isResourceOwned(resource, this.props.userStatus)
+          ? [
+              <MenuItem
+                key="metadata"
+                onClick={() =>
+                  this._setDialog(
+                    <ResourceMetadataDialog
+                      resource={this.props.resource}
+                      setResource={this.props.setResource}
+                      onClosed={this._clearDialog}
+                    />,
+                  )
+                }>
+                <FormattedMessage
+                  id="resource.metadata"
+                  defaultMessage="Metadata..."
+                />
+              </MenuItem>,
+              <MenuItem
+                key="delete"
+                onClick={() =>
+                  this._setDialog(
+                    <DeleteResourceDialog
+                      id={resource.id}
+                      onClosed={(result: ?{}) => {
+                        result && this.props.replaceSearch('');
+                        this._clearDialog();
+                      }}
+                    />,
+                  )
+                }>
+                <DeleteResourceMessage />
+              </MenuItem>,
+            ]
+          : null}
         {this.state.dialog}
       </Menu>
     );
@@ -277,6 +297,12 @@ function DeleteResourceMessage(props: {}) {
   return <FormattedMessage id="resource.delete" defaultMessage="Delete" />;
 }
 
+/**
+ * A translatable message for the name of a resource.
+ *
+ * @param props.resource the resource descriptor.
+ * @return the resource name message.
+ */
 export function ResourceName(props: {resource: ResourceDescriptor}) {
   if (props.resource.name) {
     return props.resource.name;
@@ -454,6 +480,12 @@ class ResourceMetadataDialogImpl extends React.Component<
   }
 
   _makeRequest = async () => {
+    if (
+      this.props.resource.name === this.state.name &&
+      this.props.resource.description === this.state.description
+    ) {
+      return {};
+    }
     const data = {
       name: this.state.name,
       description: this.state.description,

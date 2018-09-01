@@ -57,6 +57,7 @@ export class Interface extends React.Component<
             <ResourceDropdown
               userStatus={this.props.userStatus}
               resource={this.state.resource}
+              setResource={this._setResource}
               setLoading={this._setLoading}
               pushSearch={this._pushSearch}
               replaceSearch={this._replaceSearch}
@@ -124,7 +125,7 @@ export class Interface extends React.Component<
               id={id}
               userStatus={this.props.userStatus}
               setLoading={this._setLoading}
-              setResource={resource => this.setState({resource})}
+              setResource={this._setResource}
             />
           );
         }
@@ -139,6 +140,8 @@ export class Interface extends React.Component<
       />
     );
   }
+
+  _setResource = (resource: ?ResourceDescriptor) => this.setState({resource});
 }
 
 function WindowTitle(props: {resource: ?ResourceDescriptor}) {
