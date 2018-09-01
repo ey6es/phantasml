@@ -17,7 +17,7 @@ import {
 } from './resource';
 import {AdminDropdown} from './admin';
 import {MenuBar} from './util/ui';
-import type {UserStatusResponse} from '../server/api';
+import type {UserStatusResponse, ResourceDescriptor} from '../server/api';
 
 /**
  * The main app interface.
@@ -28,9 +28,9 @@ export class Interface extends React.Component<
     setUserStatus: UserStatusResponse => void,
     locale: string,
   },
-  {loading: ?Object, search: string},
+  {loading: ?Object, search: string, resource: ?ResourceDescriptor},
 > {
-  state = {loading: null, search: location.search};
+  state = {loading: null, search: location.search, resource: null};
 
   render() {
     return (
@@ -51,8 +51,10 @@ export class Interface extends React.Component<
           <Nav navbar>
             <ResourceDropdown
               userStatus={this.props.userStatus}
+              resource={this.state.resource}
               setLoading={this._setLoading}
               pushSearch={this._pushSearch}
+              replaceSearch={this._replaceSearch}
             />
             {this.props.userStatus.admin ? (
               <AdminDropdown locale={this.props.locale} />
@@ -94,6 +96,14 @@ export class Interface extends React.Component<
     this._updateSearch();
   };
 
+  _replaceSearch = (search: string) => {
+    if (location.search === search) {
+      return;
+    }
+    history.replaceState({}, '', search || location.pathname);
+    this._updateSearch();
+  };
+
   _updateSearch = () => {
     this.setState({search: location.search});
   };
@@ -104,7 +114,12 @@ export class Interface extends React.Component<
         if (param.startsWith(RESOURCE_PARAM)) {
           const id = param.substring(RESOURCE_PARAM.length);
           return (
-            <ResourceContent key={id} id={id} setLoading={this._setLoading} />
+            <ResourceContent
+              key={id}
+              id={id}
+              setLoading={this._setLoading}
+              setResource={resource => this.setState({resource})}
+            />
           );
         }
       }

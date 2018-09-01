@@ -29,14 +29,17 @@ export const RESOURCE_PARAM = 'r=';
 export class ResourceDropdown extends React.Component<
   {
     userStatus: UserStatusResponse,
+    resource: ?ResourceDescriptor,
     setLoading: (Object, boolean) => void,
     pushSearch: string => void,
+    replaceSearch: string => void,
   },
   {dialog: ?React.Element<any>},
 > {
   state = {dialog: null};
 
   render() {
+    const resource = this.props.resource;
     return (
       <Menu
         label={
@@ -52,6 +55,22 @@ export class ResourceDropdown extends React.Component<
             ))}
           </Submenu>
         ) : null}
+        {resource && isResourceOwned(resource, this.props.userStatus) ? (
+          <MenuItem
+            onClick={() =>
+              this._setDialog(
+                <DeleteResourceDialog
+                  id={resource.id}
+                  onClosed={(result: ?{}) => {
+                    result && this.props.replaceSearch('');
+                    this._clearDialog();
+                  }}
+                />,
+              )
+            }>
+            <DeleteResourceMessage />
+          </MenuItem>
+        ) : null}
         {this.state.dialog}
       </Menu>
     );
@@ -65,11 +84,13 @@ export class ResourceDropdown extends React.Component<
       this.props.pushSearch('?' + RESOURCE_PARAM + response.id);
     } catch (error) {
       this.props.setLoading(this, false);
-      this.setState({
-        dialog: <ErrorDialog error={error} onClosed={this._clearDialog} />,
-      });
+      this._setDialog(
+        <ErrorDialog error={error} onClosed={this._clearDialog} />,
+      );
     }
   }
+
+  _setDialog = (dialog: ?React.Element<any>) => this.setState({dialog});
 
   _clearDialog = () => this.setState({dialog: null});
 }
@@ -157,17 +178,9 @@ class ResourcePage extends React.Component<
 
   _deleteResource = (id: string) => {
     this.props.setDialog(
-      <RequestDialog
-        header={
-          <FormattedMessage
-            id="resource.delete.title"
-            defaultMessage="Confirm Deletion"
-          />
-        }
-        makeRequest={async () => {
-          return await deleteFromApi('/resource/' + id);
-        }}
-        onClosed={(result: any) => {
+      <DeleteResourceDialog
+        id={id}
+        onClosed={(result: ?{}) => {
           if (result) {
             this.setState({
               resources: this.state.resources.filter(
@@ -177,14 +190,31 @@ class ResourcePage extends React.Component<
           }
           this.props.setDialog(null);
         }}
-        cancelable>
-        <FormattedMessage
-          id="resource.delete.content"
-          defaultMessage="Are you sure you want to delete this resource?"
-        />
-      </RequestDialog>,
+      />,
     );
   };
+}
+
+function DeleteResourceDialog(props: {id: string, onClosed: (?{}) => void}) {
+  return (
+    <RequestDialog
+      header={
+        <FormattedMessage
+          id="resource.delete.title"
+          defaultMessage="Confirm Deletion"
+        />
+      }
+      makeRequest={async () => {
+        return await deleteFromApi('/resource/' + props.id);
+      }}
+      onClosed={props.onClosed}
+      cancelable>
+      <FormattedMessage
+        id="resource.delete.content"
+        defaultMessage="Are you sure you want to delete this resource?"
+      />
+    </RequestDialog>
+  );
 }
 
 function ResourceCard(props: {
@@ -205,7 +235,7 @@ function ResourceCard(props: {
             <Button
               color="secondary"
               onClick={() => props.deleteResource(props.resource.id)}>
-              <FormattedMessage id="resource.delete" defaultMessage="Delete" />
+              <DeleteResourceMessage />
             </Button>
           ) : null}
           <Button
@@ -220,11 +250,15 @@ function ResourceCard(props: {
   );
 }
 
+function DeleteResourceMessage(props: {}) {
+  return <FormattedMessage id="resource.delete" defaultMessage="Delete" />;
+}
+
 function isResourceOwned(
-  resource: ResourceDescriptor,
+  resource: ?ResourceDescriptor,
   userStatus: UserStatusResponse,
 ): boolean {
-  if (userStatus.type === 'anonymous') {
+  if (!resource || userStatus.type === 'anonymous') {
     return false;
   }
   return userStatus.admin || resource.ownerId === userStatus.userId;
@@ -271,7 +305,11 @@ export function ResourceTypeMessage(props: {type: ResourceType}) {
  * @param props.setLoading the function to set the loading state.
  */
 export class ResourceContent extends React.Component<
-  {id: string, setLoading: (Object, boolean) => void},
+  {
+    id: string,
+    setLoading: (Object, boolean) => void,
+    setResource: (?ResourceDescriptor) => void,
+  },
   {dialog: ?React.Element<any>},
 > {
   state = {dialog: null};
@@ -283,7 +321,7 @@ export class ResourceContent extends React.Component<
   async componentDidMount() {
     this.props.setLoading(this, true);
     try {
-      const response = await getFromApi('/resource/' + this.props.id);
+      this.props.setResource(await getFromApi('/resource/' + this.props.id));
     } catch (error) {
       this.setState({
         dialog: <ErrorDialog error={error} onClosed={this._clearDialog} />,
@@ -291,6 +329,10 @@ export class ResourceContent extends React.Component<
     } finally {
       this.props.setLoading(this, false);
     }
+  }
+
+  componentWillUnmount() {
+    this.props.setResource(null);
   }
 
   _clearDialog = () => this.setState({dialog: null});
