@@ -6,8 +6,9 @@
  */
 
 import * as React from 'react';
+import * as ReactDOMServer from 'react-dom/server';
 import type {Element} from 'react';
-import {FormattedMessage, injectIntl} from 'react-intl';
+import {IntlProvider, FormattedMessage, injectIntl} from 'react-intl';
 import {
   Modal,
   ModalHeader,
@@ -527,4 +528,22 @@ export class Submenu extends React.Component<
       </MenuBarContext.Consumer>
     );
   }
+}
+
+/**
+ * Renders a React element to text with appropriate i18n.
+ *
+ * @param element the element to render.
+ * @param locale the locale in which to render the element.
+ * @return the rendered text.
+ */
+export function renderText(element: Element<*>, locale: string): string {
+  return ReactDOMServer.renderToStaticMarkup(
+    <IntlProvider
+      locale={locale}
+      defaultLocale="en-US"
+      textComponent={(props: {children: string}) => props.children}>
+      {element}
+    </IntlProvider>,
+  );
 }

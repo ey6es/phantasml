@@ -14,9 +14,10 @@ import {
   ResourceDropdown,
   ResourceBrowser,
   ResourceContent,
+  ResourceName,
 } from './resource';
 import {AdminDropdown} from './admin';
-import {MenuBar} from './util/ui';
+import {MenuBar, renderText} from './util/ui';
 import type {UserStatusResponse, ResourceDescriptor} from '../server/api';
 
 /**
@@ -33,6 +34,10 @@ export class Interface extends React.Component<
   state = {loading: null, search: location.search, resource: null};
 
   render() {
+    document.title = renderText(
+      <WindowTitle resource={this.state.resource} />,
+      this.props.locale,
+    );
     return (
       <div className="interface">
         {this._createContent()}
@@ -44,7 +49,7 @@ export class Interface extends React.Component<
         <MenuBar
           brand={
             <NavbarBrand onClick={() => this._pushSearch('')}>
-              <FormattedMessage id="app.title" defaultMessage="Phantasml" />
+              <AppTitle />
             </NavbarBrand>
           }
           disabled={!!this.state.loading}>
@@ -117,6 +122,7 @@ export class Interface extends React.Component<
             <ResourceContent
               key={id}
               id={id}
+              userStatus={this.props.userStatus}
               setLoading={this._setLoading}
               setResource={resource => this.setState({resource})}
             />
@@ -133,4 +139,24 @@ export class Interface extends React.Component<
       />
     );
   }
+}
+
+function WindowTitle(props: {resource: ?ResourceDescriptor}) {
+  if (!props.resource) {
+    return <AppTitle />;
+  }
+  return (
+    <FormattedMessage
+      id="window.title"
+      defaultMessage="{resource} - {app}"
+      values={{
+        resource: <ResourceName resource={props.resource} />,
+        app: <AppTitle />,
+      }}
+    />
+  );
+}
+
+function AppTitle(props: {}) {
+  return <FormattedMessage id="app.title" defaultMessage="Phantasml" />;
 }

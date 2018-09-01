@@ -6,17 +6,40 @@
  */
 
 import * as React from 'react';
-import {FormattedMessage} from 'react-intl';
-import {Card, CardBody, CardTitle, CardSubtitle, Button} from 'reactstrap';
-import {getFromApi, deleteFromApi, postToApi} from './util/api';
-import {Menu, MenuItem, Submenu, ErrorDialog, RequestDialog} from './util/ui';
+import {FormattedMessage, injectIntl, defineMessages} from 'react-intl';
+import {
+  Card,
+  CardBody,
+  CardTitle,
+  CardSubtitle,
+  Button,
+  Form,
+  FormGroup,
+  Label,
+  Input,
+} from 'reactstrap';
+import {getFromApi, deleteFromApi, putToApi, postToApi} from './util/api';
+import {
+  Menu,
+  MenuItem,
+  Submenu,
+  ErrorDialog,
+  RequestDialog,
+  renderText,
+} from './util/ui';
 import type {
   UserStatusResponse,
   ResourceType,
   ResourceDescriptor,
   ResourceCreateRequest,
 } from '../server/api';
-import {RESOURCE_TYPES} from '../server/constants';
+import {
+  RESOURCE_TYPES,
+  MAX_RESOURCE_NAME_LENGTH,
+  MAX_RESOURCE_DESCRIPTION_LENGTH,
+  isResourceNameValid,
+  isResourceDescriptionValid,
+} from '../server/constants';
 
 /** The parameter prefix used for resources. */
 export const RESOURCE_PARAM = 'r=';
@@ -205,7 +228,7 @@ function DeleteResourceDialog(props: {id: string, onClosed: (?{}) => void}) {
         />
       }
       makeRequest={async () => {
-        return await deleteFromApi('/resource/' + props.id);
+        return await deleteFromApi(getResourcePath(props.id));
       }}
       onClosed={props.onClosed}
       cancelable>
@@ -254,17 +277,7 @@ function DeleteResourceMessage(props: {}) {
   return <FormattedMessage id="resource.delete" defaultMessage="Delete" />;
 }
 
-function isResourceOwned(
-  resource: ?ResourceDescriptor,
-  userStatus: UserStatusResponse,
-): boolean {
-  if (!resource || userStatus.type === 'anonymous') {
-    return false;
-  }
-  return userStatus.admin || resource.ownerId === userStatus.userId;
-}
-
-function ResourceName(props: {resource: ResourceDescriptor}) {
+export function ResourceName(props: {resource: ResourceDescriptor}) {
   if (props.resource.name) {
     return props.resource.name;
   }
@@ -307,6 +320,7 @@ export function ResourceTypeMessage(props: {type: ResourceType}) {
 export class ResourceContent extends React.Component<
   {
     id: string,
+    userStatus: UserStatusResponse,
     setLoading: (Object, boolean) => void,
     setResource: (?ResourceDescriptor) => void,
   },
@@ -321,7 +335,19 @@ export class ResourceContent extends React.Component<
   async componentDidMount() {
     this.props.setLoading(this, true);
     try {
-      this.props.setResource(await getFromApi('/resource/' + this.props.id));
+      const resource = await getFromApi(getResourcePath(this.props.id));
+      this.props.setResource(resource);
+      if (isResourceOwned(resource, this.props.userStatus) && !resource.name) {
+        // ask for a name for the new resource
+        this._setDialog(
+          <ResourceMetadataDialog
+            resource={resource}
+            required={true}
+            setResource={this.props.setResource}
+            onClosed={this._clearDialog}
+          />,
+        );
+      }
     } catch (error) {
       this.setState({
         dialog: <ErrorDialog error={error} onClosed={this._clearDialog} />,
@@ -335,5 +361,111 @@ export class ResourceContent extends React.Component<
     this.props.setResource(null);
   }
 
+  _setDialog = (dialog: ?React.Element<any>) => this.setState({dialog});
+
   _clearDialog = () => this.setState({dialog: null});
+}
+
+function isResourceOwned(
+  resource: ?ResourceDescriptor,
+  userStatus: UserStatusResponse,
+): boolean {
+  if (!resource || userStatus.type === 'anonymous') {
+    return false;
+  }
+  return userStatus.admin || resource.ownerId === userStatus.userId;
+}
+
+class ResourceMetadataDialogImpl extends React.Component<
+  {
+    intl: Object,
+    resource: ResourceDescriptor,
+    required: ?boolean,
+    setResource: (?ResourceDescriptor) => void,
+    onClosed: () => void,
+  },
+  {name: string, description: string},
+> {
+  state = {
+    name: renderText(
+      <ResourceName resource={this.props.resource} />,
+      this.props.intl.locale,
+    ),
+    description: this.props.resource.description,
+  };
+
+  render() {
+    const nameValid = isResourceNameValid(this.state.name);
+    const descriptionValid = isResourceDescriptionValid(this.state.description);
+    return (
+      <RequestDialog
+        header={
+          <FormattedMessage
+            id="resource.metadata.title"
+            defaultMessage="Resource Metadata"
+          />
+        }
+        makeRequest={this._makeRequest}
+        invalid={!(nameValid && descriptionValid)}
+        onClosed={this.props.onClosed}
+        applicable={!this.props.required}
+        cancelable={!this.props.required}>
+        <Form>
+          <FormGroup>
+            <Label for="name">
+              <FormattedMessage id="resource.name" defaultMessage="Name" />
+            </Label>
+            <Input
+              id="name"
+              value={this.state.name}
+              valid={nameValid}
+              maxLength={MAX_RESOURCE_NAME_LENGTH}
+              onChange={event => this.setState({name: event.target.value})}
+            />
+          </FormGroup>
+          <FormGroup>
+            <Label for="description">
+              <FormattedMessage
+                id="resource.description"
+                defaultMessage="Description"
+              />
+            </Label>
+            <Input
+              type="textarea"
+              id="description"
+              placeholder={renderText(
+                <FormattedMessage
+                  id="resource.description.placeholder"
+                  defaultMessage="An optional description of the resource."
+                />,
+                this.props.intl.locale,
+              )}
+              value={this.state.description}
+              valid={descriptionValid}
+              maxLength={MAX_RESOURCE_DESCRIPTION_LENGTH}
+              onChange={event =>
+                this.setState({description: event.target.value})
+              }
+            />
+          </FormGroup>
+        </Form>
+      </RequestDialog>
+    );
+  }
+
+  _makeRequest = async () => {
+    const data = {
+      name: this.state.name,
+      description: this.state.description,
+    };
+    await putToApi(getResourcePath(this.props.resource.id), data);
+    this.props.setResource(Object.assign({}, this.props.resource, data));
+    return {};
+  };
+}
+
+const ResourceMetadataDialog = injectIntl(ResourceMetadataDialogImpl);
+
+function getResourcePath(id: string) {
+  return '/resource/' + id;
 }

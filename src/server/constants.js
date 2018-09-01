@@ -61,3 +61,35 @@ export function isDisplayNameValid(name: string): boolean {
 
 /** The available resource types (as an object so that we can use $Keys). */
 export const RESOURCE_TYPES = {environment: 0};
+
+/** Minimum length for resource names. */
+export const MIN_RESOURCE_NAME_LENGTH = 1;
+
+/** Maximum length for resource names. */
+export const MAX_RESOURCE_NAME_LENGTH = 64;
+
+/**
+ * Checks whether the specified resource name is valid.
+ *
+ * @param name the name to check.
+ * @return whether or not the name is valid.
+ */
+export function isResourceNameValid(name: string): boolean {
+  return (
+    name.length >= MIN_RESOURCE_NAME_LENGTH &&
+    name.length <= MAX_RESOURCE_NAME_LENGTH
+  );
+}
+
+/** Maximum length for resource descriptions. */
+export const MAX_RESOURCE_DESCRIPTION_LENGTH = 512;
+
+/**
+ * Checks whether the specified resource description is valid.
+ *
+ * @param name the description to check.
+ * @return whether or not the description is valid.
+ */
+export function isResourceDescriptionValid(description: string): boolean {
+  return description.length <= MAX_RESOURCE_DESCRIPTION_LENGTH;
+}

@@ -157,6 +157,7 @@ function getCombinedRequest<T: Object>(
   const request: T = Object.assign(
     JSON.parse(event.body || '{}'),
     event.queryStringParameters,
+    event.pathParameters,
   );
   runtimeType.assert(request);
   return request;

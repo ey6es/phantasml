@@ -11,6 +11,7 @@ import {
   FriendlyError,
   handleBodyRequest,
   handleQueryRequest,
+  handleCombinedRequest,
 } from './util/handler';
 import type {
   IdRequest,
@@ -35,6 +36,7 @@ import {
   ResourceDeleteRequestType,
 } from './api';
 import {getSession, requireSession, requireSessionUser} from './user';
+import {isResourceNameValid, isResourceDescriptionValid} from './constants';
 
 export function list(
   event: APIGatewayEvent,
@@ -135,11 +137,17 @@ export function put(
   event: APIGatewayEvent,
   context: Context,
 ): Promise<ProxyResult> {
-  return handleBodyRequest(
+  return handleCombinedRequest(
     event,
     ResourcePutRequestType,
     (async request => {
       await requireOwnedResource(request);
+      if (!isResourceNameValid(request.name)) {
+        throw new Error('Invalid resource name: ' + request.name);
+      }
+      if (!isResourceDescriptionValid(request.description)) {
+        throw new Error('Invalid resource description: ' + request.description);
+      }
       await updateResource(request.id, {
         name: request.name ? {S: request.name} : null,
         description: request.description ? {S: request.description} : null,
