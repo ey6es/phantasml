@@ -49,7 +49,7 @@ export class ResourceDropdown extends React.Component<
           <Submenu
             label={<FormattedMessage id="resource.new" defaultMessage="New" />}>
             {Object.keys(RESOURCE_TYPES).map(type => (
-              <MenuItem onClick={() => this._createResource(type)}>
+              <MenuItem key={type} onClick={() => this._createResource(type)}>
                 <ResourceTypeMessage type={type} />
               </MenuItem>
             ))}
