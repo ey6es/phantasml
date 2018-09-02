@@ -3,6 +3,11 @@ Description: Phantasml database.
 
 Resources:
 
+  ResourceBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: phantasml-resources
+    
   SessionsTable:
     Type: AWS::DynamoDB::Table
     Properties:

@@ -238,7 +238,8 @@ module.exports = function(grunt) {
               `Role=${distributionConfig.role} ` +
               `FromEmail=${config.fromEmail} ` +
               `SiteUrl=${distributionConfig.siteUrl} ` +
-              `GoogleClientId=${config.googleClientId}`,
+              `GoogleClientId=${config.googleClientId} ` +
+              `ResourceBucket=${config.resourceBucket}`,
           };
           taskConfig[`s3-${key}`] = {
             cmd:
@@ -287,6 +288,7 @@ module.exports = function(grunt) {
           FROM_EMAIL: config.fromEmail,
           SITE_URL: config.distributions.local.siteUrl,
           GOOGLE_CLIENT_ID: config.googleClientId,
+          RESOURCE_BUCKET: config.resourceBucket,
         };
       }
       return taskConfig;

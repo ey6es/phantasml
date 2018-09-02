@@ -53,6 +53,28 @@ export async function handleQueryRequest<
 }
 
 /**
+ * Wraps a handler function for a redirect request, returning a redirect result
+ * if it returns successfully or an error result if it throws an exception.
+ *
+ * @param event the gateway event.
+ * @param runtimeRequestType the runtime type of the request.
+ * @param handler the handler to wrap.
+ * @return a promise that will resolve to the result.
+ */
+export async function handleRedirectRequest<RequestType: Object>(
+  event: APIGatewayEvent,
+  runtimeRequestType: Type<RequestType>,
+  handler: RequestType => Promise<string>,
+): Promise<ProxyResult> {
+  try {
+    const url = await handler(getQueryRequest(event, runtimeRequestType));
+    return createRedirectResult(url);
+  } catch (error) {
+    return createErrorResult(error);
+  }
+}
+
+/**
  * Retrieves the request object from the query of a request.
  *
  * @param event the gateway event.
@@ -171,6 +193,24 @@ function getCombinedRequest<T: Object>(
  */
 function createOkResult<T: Object>(body: T): ProxyResult {
   return createResult(200, body);
+}
+
+/**
+ * Creates and returns a simple redirect result.
+ *
+ * @param url the URL to redirect to.
+ * @return the redirect result.
+ */
+function createRedirectResult(url: string): ProxyResult {
+  return {
+    statusCode: 302,
+    headers: {
+      Location: url,
+      'Access-Control-Allow-Origin': '*',
+      'Cache-Control': 'no-cache',
+    },
+    body: '',
+  };
 }
 
 /**

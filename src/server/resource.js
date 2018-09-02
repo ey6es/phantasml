@@ -5,12 +5,14 @@
  * @flow
  */
 
+import {S3} from 'aws-sdk';
 import type {APIGatewayEvent, Context, ProxyResult} from 'flow-aws-lambda';
 import {dynamodb, createUuid, nowInSeconds, updateItem} from './util/database';
 import {
   FriendlyError,
   handleBodyRequest,
   handleQueryRequest,
+  handleRedirectRequest,
   handleCombinedRequest,
 } from './util/handler';
 import type {
@@ -21,22 +23,33 @@ import type {
   ResourceListResponse,
   ResourceCreateRequest,
   ResourceCreateResponse,
-  ResourceGetRequest,
-  ResourceGetResponse,
-  ResourcePutRequest,
-  ResourcePutResponse,
+  ResourceGetMetadataRequest,
+  ResourceGetMetadataResponse,
+  ResourcePutMetadataRequest,
+  ResourcePutMetadataResponse,
+  ResourceGetContentRequest,
+  ResourceGetContentResponse,
+  ResourcePutContentRequest,
+  ResourcePutContentResponse,
   ResourceDeleteRequest,
   ResourceDeleteResponse,
 } from './api';
 import {
   ResourceListRequestType,
   ResourceCreateRequestType,
-  ResourceGetRequestType,
-  ResourcePutRequestType,
+  ResourceGetMetadataRequestType,
+  ResourcePutMetadataRequestType,
+  ResourceGetContentRequestType,
+  ResourcePutContentRequestType,
   ResourceDeleteRequestType,
 } from './api';
 import {getSession, requireSession, requireSessionUser} from './user';
 import {isResourceNameValid, isResourceDescriptionValid} from './constants';
+
+const s3 = new S3();
+
+/** The bucket in which we store resources. */
+const RESOURCE_BUCKET = process.env.RESOURCE_BUCKET || 'phantasml-resources';
 
 export function list(
   event: APIGatewayEvent,
@@ -102,13 +115,13 @@ async function createResource(
   return resourceId;
 }
 
-export function get(
+export function getMetadata(
   event: APIGatewayEvent,
   context: Context,
 ): Promise<ProxyResult> {
   return handleQueryRequest(
     event,
-    ResourceGetRequestType,
+    ResourceGetMetadataRequestType,
     (async request => {
       const [user, resource] = await requireOwnedResource(request);
       if (user.id.S === resource.ownerId.S) {
@@ -118,7 +131,7 @@ export function get(
         });
       }
       return createResourceDescriptor(resource);
-    }: ResourceGetRequest => Promise<ResourceGetResponse>),
+    }: ResourceGetMetadataRequest => Promise<ResourceGetMetadataResponse>),
   );
 }
 
@@ -133,13 +146,13 @@ function createResourceDescriptor(item: Object): ResourceDescriptor {
   };
 }
 
-export function put(
+export function putMetadata(
   event: APIGatewayEvent,
   context: Context,
 ): Promise<ProxyResult> {
   return handleCombinedRequest(
     event,
-    ResourcePutRequestType,
+    ResourcePutMetadataRequestType,
     (async request => {
       await requireOwnedResource(request);
       if (!isResourceNameValid(request.name)) {
@@ -153,7 +166,45 @@ export function put(
         description: request.description ? {S: request.description} : null,
       });
       return {};
-    }: ResourcePutRequest => Promise<ResourcePutResponse>),
+    }: ResourcePutMetadataRequest => Promise<ResourcePutMetadataResponse>),
+  );
+}
+
+export function getContent(
+  event: APIGatewayEvent,
+  context: Context,
+): Promise<ProxyResult> {
+  return handleRedirectRequest(
+    event,
+    ResourceGetContentRequestType,
+    (async request => {
+      await requireOwnedResource(request);
+      return await s3
+        .getSignedUrl('getObject', {
+          Bucket: RESOURCE_BUCKET,
+          Key: request.id,
+        })
+        .promise();
+    }: ResourceGetContentRequest => Promise<string>),
+  );
+}
+
+export function putContent(
+  event: APIGatewayEvent,
+  context: Context,
+): Promise<ProxyResult> {
+  return handleRedirectRequest(
+    event,
+    ResourcePutContentRequestType,
+    (async request => {
+      await requireOwnedResource(request);
+      return await s3
+        .getSignedUrl('putObject', {
+          Bucket: RESOURCE_BUCKET,
+          Key: request.id,
+        })
+        .promise();
+    }: ResourcePutContentRequest => Promise<string>),
   );
 }
 

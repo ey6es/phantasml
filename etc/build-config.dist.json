@@ -4,6 +4,7 @@
   "googleClientId":
     "114489240374-0v2m4cscs3rbtqh9pc8oclh1pb2ot4jo.apps.googleusercontent.com",
   "facebookAppId": "632605827132529",
+  "resourceBucket": "phantasml-resources",
   "distributions": {
     "local": {
       "beautify": true,

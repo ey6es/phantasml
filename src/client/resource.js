@@ -81,6 +81,9 @@ export class ResourceDropdown extends React.Component<
         ) : null}
         {resource && isResourceOwned(resource, this.props.userStatus)
           ? [
+              <MenuItem key="save" onClick={() => {}}>
+                <FormattedMessage id="resource.save" defaultMessage="Save" />
+              </MenuItem>,
               <MenuItem
                 key="metadata"
                 onClick={() =>
@@ -361,7 +364,7 @@ export class ResourceContent extends React.Component<
   async componentDidMount() {
     this.props.setLoading(this, true);
     try {
-      const resource = await getFromApi(getResourcePath(this.props.id));
+      const resource = await getFromApi(getResourceMetadataPath(this.props.id));
       this.props.setResource(resource);
       if (isResourceOwned(resource, this.props.userStatus) && !resource.name) {
         // ask for a name for the new resource
@@ -490,13 +493,17 @@ class ResourceMetadataDialogImpl extends React.Component<
       name: this.state.name,
       description: this.state.description,
     };
-    await putToApi(getResourcePath(this.props.resource.id), data);
+    await putToApi(getResourceMetadataPath(this.props.resource.id), data);
     this.props.setResource(Object.assign({}, this.props.resource, data));
     return {};
   };
 }
 
 const ResourceMetadataDialog = injectIntl(ResourceMetadataDialogImpl);
+
+function getResourceMetadataPath(id: string) {
+  return getResourcePath(id) + '/metadata';
+}
 
 function getResourcePath(id: string) {
   return '/resource/' + id;

@@ -16,6 +16,9 @@ Parameters:
   GoogleClientId:
     Type: String
 
+  ResourceBucket:
+    Type: String
+
 Globals:
 
   Function:
@@ -26,6 +29,7 @@ Globals:
           FROM_EMAIL: !Ref FromEmail
           SITE_URL: !Ref SiteUrl
           GOOGLE_CLIENT_ID: !Ref GoogleClientId
+          RESOURCE_BUCKET: !Ref ResourceBucket
     Timeout: 5
     
 Resources:
@@ -222,28 +226,52 @@ Resources:
             Path: /api/resource
             Method: post
 
-  ResourceGet:
+  ResourceGetMetadata:
     Type: AWS::Serverless::Function
     Properties:
       Role: !Ref Role
-      Handler: resource.get
+      Handler: resource.getMetadata
       Events:
         Request:
           Type: Api
           Properties:
-            Path: /api/resource/{id}
+            Path: /api/resource/{id}/metadata
             Method: get
 
-  ResourcePut:
+  ResourcePutMetadata:
     Type: AWS::Serverless::Function
     Properties:
       Role: !Ref Role
-      Handler: resource.put
+      Handler: resource.putMetadata
       Events:
         Request:
           Type: Api
           Properties:
-            Path: /api/resource/{id}
+            Path: /api/resource/{id}/metadata
+            Method: put
+  
+  ResourceGetContent:
+    Type: AWS::Serverless::Function
+    Properties:
+      Role: !Ref Role
+      Handler: resource.getContent
+      Events:
+        Request:
+          Type: Api
+          Properties:
+            Path: /api/resource/{id}/content
+            Method: get
+
+  ResourcePutContent:
+    Type: AWS::Serverless::Function
+    Properties:
+      Role: !Ref Role
+      Handler: resource.putContent
+      Events:
+        Request:
+          Type: Api
+          Properties:
+            Path: /api/resource/{id}/content
             Method: put
             
   ResourceDelete:

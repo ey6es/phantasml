@@ -158,13 +158,29 @@ export type ResourceCreateRequest = ApiRequest & {type: ResourceType};
 export const ResourceCreateRequestType = (reify: Type<ResourceCreateRequest>);
 export type ResourceCreateResponse = {id: string};
 
-export type ResourceGetRequest = IdRequest;
-export const ResourceGetRequestType = (reify: Type<ResourceGetRequest>);
-export type ResourceGetResponse = ResourceDescriptor;
+export type ResourceGetMetadataRequest = IdRequest;
+export const ResourceGetMetadataRequestType = (reify: Type<
+  ResourceGetMetadataRequest,
+>);
+export type ResourceGetMetadataResponse = ResourceDescriptor;
 
-export type ResourcePutRequest = IdRequest & ResourceMetadata;
-export const ResourcePutRequestType = (reify: Type<ResourcePutRequest>);
-export type ResourcePutResponse = {};
+export type ResourcePutMetadataRequest = IdRequest & ResourceMetadata;
+export const ResourcePutMetadataRequestType = (reify: Type<
+  ResourcePutMetadataRequest,
+>);
+export type ResourcePutMetadataResponse = {};
+
+export type ResourceGetContentRequest = IdRequest;
+export const ResourceGetContentRequestType = (reify: Type<
+  ResourceGetContentRequest,
+>);
+export type ResourceGetContentResponse = {};
+
+export type ResourcePutContentRequest = IdRequest;
+export const ResourcePutContentRequestType = (reify: Type<
+  ResourcePutContentRequest,
+>);
+export type ResourcePutContentResponse = {};
 
 export type ResourceDeleteRequest = IdRequest;
 export const ResourceDeleteRequestType = (reify: Type<ResourceDeleteRequest>);
