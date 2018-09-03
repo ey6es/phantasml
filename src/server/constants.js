@@ -93,3 +93,22 @@ export const MAX_RESOURCE_DESCRIPTION_LENGTH = 512;
 export function isResourceDescriptionValid(description: string): boolean {
   return description.length <= MAX_RESOURCE_DESCRIPTION_LENGTH;
 }
+
+/** Minimum length for bug descriptions. */
+export const MIN_BUG_DESCRIPTION_LENGTH = 1;
+
+/** Maximum length for bug descriptions. */
+export const MAX_BUG_DESCRIPTION_LENGTH = 512;
+
+/**
+ * Checks whether the specified bug description is valid.
+ *
+ * @param name the description to check.
+ * @return whether or not the description is valid.
+ */
+export function isBugDescriptionValid(description: string): boolean {
+  return (
+    description.length >= MIN_BUG_DESCRIPTION_LENGTH &&
+    description.length <= MAX_BUG_DESCRIPTION_LENGTH
+  );
+}

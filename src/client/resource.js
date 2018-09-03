@@ -47,7 +47,12 @@ export const RESOURCE_PARAM = 'r=';
 /**
  * The dropdown menu for resources.
  *
+ * @param props.userStatus the current user status.
+ * @param props.resource the current resource descriptor, if any.
+ * @param props.setResource the function to set the resource descriptor.
  * @param props.setLoading the function to set the loading state.
+ * @param props.pushSearch the function to push a search URL.
+ * @param props.replaceSearch the function to replace the search URL.
  */
 export class ResourceDropdown extends React.Component<
   {
@@ -144,7 +149,9 @@ export class ResourceDropdown extends React.Component<
 /**
  * Content for browsing available resources.
  *
+ * @param props.userStatus the current user status.
  * @param props.setLoading the function to set the loading state.
+ * @param props.pushSearch the function to push a search URL.
  */
 export class ResourceBrowser extends React.Component<
   {
@@ -344,7 +351,9 @@ export function ResourceTypeMessage(props: {type: ResourceType}) {
  * Content for viewing/editing resources.
  *
  * @param props.id the id of the resource to load.
+ * @param props.userStatus the current user status.
  * @param props.setLoading the function to set the loading state.
+ * @param props.setResource the function to set the resource descriptor.
  */
 export class ResourceContent extends React.Component<
   {

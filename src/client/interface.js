@@ -17,6 +17,7 @@ import {
   ResourceName,
 } from './resource';
 import {AdminDropdown} from './admin';
+import {HelpDropdown} from './help';
 import {MenuBar, renderText} from './util/ui';
 import type {UserStatusResponse, ResourceDescriptor} from '../server/api';
 
@@ -65,6 +66,7 @@ export class Interface extends React.Component<
             {this.props.userStatus.admin ? (
               <AdminDropdown locale={this.props.locale} />
             ) : null}
+            <HelpDropdown />
           </Nav>
           <Nav className="ml-auto" navbar>
             <UserDropdown
