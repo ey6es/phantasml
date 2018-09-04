@@ -8,7 +8,7 @@
 import * as React from 'react';
 import {FormattedMessage, FormattedDate, injectIntl} from 'react-intl';
 import {Form, FormGroup, Label, Input} from 'reactstrap';
-import {buildTime, postToApi} from './util/api';
+import {buildTime, recentLogEntries, postToApi} from './util/api';
 import {
   Menu,
   MenuItem,
@@ -126,6 +126,7 @@ class ReportBugDialogImpl extends React.Component<
       userAgent: navigator.userAgent,
       url: location.href,
       buildTime,
+      recentLogEntries,
     };
     return await postToApi('/help/bug', request);
   };

@@ -67,6 +67,15 @@ User Agent: ${request.userAgent}
 URL: ${request.url}
 Client Build: ${getTimeString(request.buildTime)}
 Server Build: ${getTimeString(BUILD_TIME)}
+
+--${boundary}
+Content-Type: text/plain; name="client.txt"
+Content-Description: client.txt
+Content-Disposition: attachment;filename="client.txt";
+    creation-date="${new Date().toUTCString()}";
+Content-Transfer-Encoding: quoted-printable
+
+${request.recentLogEntries.join('\n')}
 --${boundary}--`;
       await ses
         .sendRawEmail({

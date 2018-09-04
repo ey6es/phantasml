@@ -19,6 +19,46 @@ const apiEndpoint = metatags.get('phantasml-api-endpoint') || '/api';
 /** The client build time. */
 export const buildTime = metatags.get('phantasml-build-time') || '';
 
+/** Stores the most recent log entries for bug reports. */
+export const recentLogEntries: string[] = [];
+
+const LOG_HISTORY_LENGTH = 500;
+
+// store recent console entries
+const pushLogEntry = (level: string, args: any[]) => {
+  recentLogEntries.push(
+    new Date().toISOString() + ` ${level} ${args.map(logToString).join(' ')}`,
+  );
+  if (recentLogEntries.length > LOG_HISTORY_LENGTH) {
+    recentLogEntries.shift();
+  }
+};
+const writableConsole: Object = window.console;
+const underlyingInfo = console.info;
+writableConsole.info = (...args: any[]) => {
+  underlyingInfo(...args);
+  pushLogEntry('INFO', args);
+};
+const underlyingLog = console.log;
+writableConsole.log = (...args: any[]) => {
+  underlyingLog(...args);
+  pushLogEntry('LOG', args);
+};
+const underlyingWarn = console.warn;
+writableConsole.warn = (...args: any[]) => {
+  underlyingWarn(...args);
+  pushLogEntry('WARN', args);
+};
+const underlyingError = console.error;
+writableConsole.error = (...args: any[]) => {
+  underlyingError(...args);
+  pushLogEntry('ERROR', args);
+};
+
+function logToString(value: any) {
+  return String(value);
+}
+
 // check for, remove auth token parameter
 let authToken: ?string;
 if (location.search.startsWith('?')) {

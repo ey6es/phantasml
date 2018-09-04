@@ -193,6 +193,7 @@ export type HelpReportBugRequest = ApiRequest & {
   userAgent: string,
   url: string,
   buildTime: string,
+  recentLogEntries: string[],
 };
 export const HelpReportBugRequestType = (reify: Type<HelpReportBugRequest>);
 export type HelpReportBugResponse = {};
