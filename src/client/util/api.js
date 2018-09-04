@@ -55,7 +55,25 @@ writableConsole.error = (...args: any[]) => {
   pushLogEntry('ERROR', args);
 };
 
-function logToString(value: any) {
+const MAX_LOG_DEPTH = 3;
+
+function logToString(value: any, depth: number = 0): string {
+  if (depth < MAX_LOG_DEPTH) {
+    const nextDepth = depth + 1;
+    const nextToString = value => logToString(value, nextDepth);
+    if (Array.isArray(value)) {
+      return `[${value.map(nextToString).join(', ')}]`;
+    }
+    if (value instanceof Error) {
+      return value.stack;
+    }
+    if (typeof value === 'object' && value) {
+      const inside = Object.entries(value)
+        .map(([key, value]) => `${key}: ${nextToString(value)}`)
+        .join(', ');
+      return `{${inside}}`;
+    }
+  }
   return String(value);
 }
 

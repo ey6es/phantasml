@@ -649,6 +649,7 @@ export function transfer(
         // if the authenticated user already exists, delete the original user
         // and transfer the session
         // TODO: also transfer all resources
+        await transferResources(userId, existingUser.id.S);
         await Promise.all([
           deleteUserItem(userId),
           updateItem(
@@ -698,7 +699,7 @@ export function completeTransfer(
       const admin =
         (originalUser.admin && originalUser.admin.BOOL) ||
         (user.admin && user.admin.BOOL);
-      // TODO: also transfer resources
+      await transferResources(originalUser.id.S, user.id.S);
       await Promise.all([
         updateUser(user.id.S, {
           displayName: originalUser.displayName,
@@ -727,6 +728,17 @@ export function completeTransfer(
   );
 }
 
+async function transferResources(
+  oldUserId: string,
+  newUserId: string,
+): Promise<void> {
+  await forAllOwnedResources(oldUserId, async items => {
+    for (const item of items) {
+      await updateItem('Resources', {id: item.id}, {ownerId: {S: newUserId}});
+    }
+  });
+}
+
 export function deleteUser(
   event: APIGatewayEvent,
   context: Context,
@@ -736,11 +748,48 @@ export function deleteUser(
     UserDeleteRequestType,
     (async request => {
       const session = await requireSession(request.authToken);
+      await forAllOwnedResources(session.userId.S, async items => {
+        await dynamodb
+          .batchWriteItem({
+            RequestItems: {
+              Resources: items.map(item => ({
+                DeleteRequest: {Key: {id: item.id}},
+              })),
+            },
+          })
+          .promise();
+      });
       await deleteUserItem(session.userId.S);
       await deleteSession(request.authToken);
       return await getAnonymousResponse();
     }: UserDeleteRequest => Promise<UserDeleteResponse>),
   );
+}
+
+async function forAllOwnedResources(
+  userId: string,
+  op: (Object[]) => Promise<void>,
+): Promise<void> {
+  let ExclusiveStartKey: ?Object;
+  do {
+    const BATCH_WRITE_LIMIT = 25;
+    const resources = await dynamodb
+      .query({
+        TableName: 'Resources',
+        IndexName: 'OwnerId',
+        Select: 'SPECIFIC_ATTRIBUTES',
+        KeyConditionExpression: 'ownerId = :v1',
+        ExpressionAttributeValues: {':v1': {S: userId}},
+        Limit: BATCH_WRITE_LIMIT,
+        ProjectionExpression: 'id',
+        ExclusiveStartKey,
+      })
+      .promise();
+    if (resources.Items.length > 0) {
+      await op(resources.Items);
+    }
+    ExclusiveStartKey = resources.LastEvaluatedKey;
+  } while (ExclusiveStartKey);
 }
 
 async function deleteUserItem(id: string): Promise<void> {
