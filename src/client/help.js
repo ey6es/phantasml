@@ -6,9 +6,9 @@
  */
 
 import * as React from 'react';
-import {FormattedMessage, injectIntl} from 'react-intl';
+import {FormattedMessage, FormattedDate, injectIntl} from 'react-intl';
 import {Form, FormGroup, Label, Input} from 'reactstrap';
-import {postToApi} from './util/api';
+import {buildTime, postToApi} from './util/api';
 import {
   Menu,
   MenuItem,
@@ -21,6 +21,13 @@ import {
   MAX_BUG_DESCRIPTION_LENGTH,
   isBugDescriptionValid,
 } from '../server/constants';
+
+/**
+ * The translatable title of the application.
+ */
+export function AppTitle(props: {}) {
+  return <FormattedMessage id="app.title" defaultMessage="Phantasml" />;
+}
 
 /**
  * The dropdown menu for help.
@@ -116,6 +123,9 @@ class ReportBugDialogImpl extends React.Component<
   _makeRequest = async () => {
     const request: HelpReportBugRequest = {
       description: this.state.description,
+      userAgent: navigator.userAgent,
+      url: location.href,
+      buildTime,
     };
     return await postToApi('/help/bug', request);
   };
@@ -126,13 +136,37 @@ const ReportBugDialog = injectIntl(ReportBugDialogImpl);
 function AboutDialog(props: {onClosed: () => void}) {
   return (
     <FeedbackDialog
-      title={
-        <FormattedMessage
-          id="help.about.title"
-          defaultMessage="About Phantasml"
-        />
-      }
+      title={<FormattedMessage id="about.title" defaultMessage="About" />}
       onClosed={props.onClosed}>
+      <div className="text-center">
+        <h1>
+          <AppTitle />
+        </h1>
+      </div>
+      <div className="text-center text-muted">
+        <FormattedMessage
+          id="about.copyright"
+          defaultMessage="Copyright &copy; 2018, Andrzej Kapolka"
+        />
+      </div>
+      <div className="text-center pt-3">
+        <FormattedMessage
+          id="about.build_time"
+          defaultMessage="Built at {time}"
+          values={{
+            time: (
+              <FormattedDate
+                value={new Date(parseInt(buildTime) * 1000)}
+                year="numeric"
+                month="numeric"
+                day="numeric"
+                hour="numeric"
+                minute="numeric"
+              />
+            ),
+          }}
+        />
+      </div>
       <div className="text-center">
         <a href="https://github.com/ey6es/phantasml" target="_blank">
           github.com/ey6es/phantasml

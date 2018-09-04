@@ -5,6 +5,9 @@ module.exports = function(grunt) {
   const config = grunt.file.readJSON('etc/build-config.json');
   const exerciseNames = [];
 
+  // use a single build time for all commands
+  const buildTime = String(Math.floor(Date.now() / 1000));
+
   // Project configuration.
   grunt.initConfig({
     pkg: grunt.file.readJSON('package.json'),
@@ -151,6 +154,10 @@ module.exports = function(grunt) {
                 replacement: distributionConfig.apiEndpoint,
               },
               {
+                match: 'build-time',
+                replacement: buildTime,
+              },
+              {
                 match: 'google-client-id',
                 replacement: config.googleClientId,
               },
@@ -240,7 +247,8 @@ module.exports = function(grunt) {
               `FirstAdminEmail=${config.firstAdminEmail} ` +
               `SiteUrl=${distributionConfig.siteUrl} ` +
               `GoogleClientId=${config.googleClientId} ` +
-              `ResourceBucket=${config.resourceBucket}`,
+              `ResourceBucket=${config.resourceBucket} ` +
+              `BuildTime=${buildTime}`,
           };
           taskConfig[`s3-${key}`] = {
             cmd:
@@ -291,6 +299,7 @@ module.exports = function(grunt) {
           SITE_URL: config.distributions.local.siteUrl,
           GOOGLE_CLIENT_ID: config.googleClientId,
           RESOURCE_BUCKET: config.resourceBucket,
+          BUILD_TIME: buildTime,
         };
       }
       return taskConfig;

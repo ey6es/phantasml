@@ -188,6 +188,11 @@ export type ResourceDeleteRequest = IdRequest;
 export const ResourceDeleteRequestType = (reify: Type<ResourceDeleteRequest>);
 export type ResourceDeleteResponse = {};
 
-export type HelpReportBugRequest = ApiRequest & {description: string};
+export type HelpReportBugRequest = ApiRequest & {
+  description: string,
+  userAgent: string,
+  url: string,
+  buildTime: string,
+};
 export const HelpReportBugRequestType = (reify: Type<HelpReportBugRequest>);
 export type HelpReportBugResponse = {};

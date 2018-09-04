@@ -16,6 +16,9 @@ export const metatags: Map<?string, ?string> = new Map(
 // get the api endpoint
 const apiEndpoint = metatags.get('phantasml-api-endpoint') || '/api';
 
+/** The client build time. */
+export const buildTime = metatags.get('phantasml-build-time') || '';
+
 // check for, remove auth token parameter
 let authToken: ?string;
 if (location.search.startsWith('?')) {

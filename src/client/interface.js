@@ -17,7 +17,7 @@ import {
   ResourceName,
 } from './resource';
 import {AdminDropdown} from './admin';
-import {HelpDropdown} from './help';
+import {AppTitle, HelpDropdown} from './help';
 import {MenuBar, renderText} from './util/ui';
 import type {UserStatusResponse, ResourceDescriptor} from '../server/api';
 
@@ -160,8 +160,4 @@ function WindowTitle(props: {resource: ?ResourceDescriptor}) {
       }}
     />
   );
-}
-
-function AppTitle(props: {}) {
-  return <FormattedMessage id="app.title" defaultMessage="Phantasml" />;
 }

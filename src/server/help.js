@@ -8,7 +8,7 @@
 import {randomBytes} from 'crypto';
 import type {APIGatewayEvent, Context, ProxyResult} from 'flow-aws-lambda';
 import {getSettings} from './util/database';
-import {handleBodyRequest} from './util/handler';
+import {BUILD_TIME, handleBodyRequest} from './util/handler';
 import {FROM_EMAIL, FIRST_ADMIN_EMAIL, ses} from './util/email';
 import type {HelpReportBugRequest, HelpReportBugResponse} from './api';
 import {HelpReportBugRequestType} from './api';
@@ -52,7 +52,7 @@ export function reportBug(
       const boundary = randomBytes(32).toString('hex');
       const message = `From: "Phantasml bugs" <${FROM_EMAIL}>
 To: ${bugReportEmail}
-Subject: "${subject.length > 80 ? subject.substring(0, 80) + '...' : subject}"
+Subject: "${subject.length > 40 ? subject.substring(0, 40) + '...' : subject}"
 Content-Type: multipart/mixed; boundary=${boundary}
 
 --${boundary}
@@ -63,7 +63,10 @@ Content-Transfer-Encoding: quoted-printable
 
 Token: ${request.authToken || 'none'}
 User: ${user ? `${user.id.S}/${user.externalId.S}/${displayName}` : 'none'}
-
+User Agent: ${request.userAgent}
+URL: ${request.url}
+Client Build: ${getTimeString(request.buildTime)}
+Server Build: ${getTimeString(BUILD_TIME)}
 --${boundary}--`;
       await ses
         .sendRawEmail({
@@ -75,4 +78,8 @@ User: ${user ? `${user.id.S}/${user.externalId.S}/${displayName}` : 'none'}
       return {};
     }: HelpReportBugRequest => Promise<HelpReportBugResponse>),
   );
+}
+
+function getTimeString(time: string): string {
+  return new Date(parseInt(time) * 1000).toString();
 }
