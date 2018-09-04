@@ -65,9 +65,19 @@ export class AdminDropdown extends React.Component<
 
 class SiteSettingsDialog extends React.Component<
   {onClosed: () => void},
-  {loaded: boolean, allowAnonymous: boolean, canCreateUser: boolean},
+  {
+    loaded: boolean,
+    allowAnonymous: boolean,
+    canCreateUser: boolean,
+    bugReportEmail: string,
+  },
 > {
-  state = {loaded: false, allowAnonymous: false, canCreateUser: false};
+  state = {
+    loaded: false,
+    allowAnonymous: false,
+    canCreateUser: false,
+    bugReportEmail: '',
+  };
 
   render() {
     return (
@@ -111,6 +121,21 @@ class SiteSettingsDialog extends React.Component<
                 />
               }
             />
+            <FormGroup className="pt-3">
+              <Label for="bugReportEmail">
+                <FormattedMessage
+                  id="site_settings.bug_report_email"
+                  defaultMessage="Bug report email"
+                />
+              </Label>
+              <Input
+                id="bugReportEmail"
+                value={this.state.bugReportEmail}
+                onChange={event =>
+                  this.setState({bugReportEmail: event.target.value})
+                }
+              />
+            </FormGroup>
           </Form>
         ) : null}
       </RequestDialog>
@@ -123,6 +148,7 @@ class SiteSettingsDialog extends React.Component<
       loaded: true,
       allowAnonymous: !!settings.allowAnonymous,
       canCreateUser: !!settings.canCreateUser,
+      bugReportEmail: settings.bugReportEmail || '',
     });
   };
 
@@ -130,6 +156,7 @@ class SiteSettingsDialog extends React.Component<
     const request: AdminPutSettingsRequest = {
       allowAnonymous: this.state.allowAnonymous,
       canCreateUser: this.state.canCreateUser,
+      bugReportEmail: this.state.bugReportEmail,
     };
     return await putToApi('/admin/settings', request);
   };

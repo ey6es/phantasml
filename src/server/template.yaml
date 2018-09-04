@@ -10,6 +10,9 @@ Parameters:
   FromEmail:
     Type: String
   
+  FirstAdminEmail:
+    Type: String
+    
   SiteUrl:
     Type: String
   
@@ -27,6 +30,7 @@ Globals:
     Environment:
         Variables:
           FROM_EMAIL: !Ref FromEmail
+          FIRST_ADMIN_EMAIL: !Ref FirstAdminEmail
           SITE_URL: !Ref SiteUrl
           GOOGLE_CLIENT_ID: !Ref GoogleClientId
           RESOURCE_BUCKET: !Ref ResourceBucket
@@ -285,4 +289,16 @@ Resources:
           Properties:
             Path: /api/resource/{id}
             Method: delete
+
+  HelpReportBug:
+    Type: AWS::Serverless::Function
+    Properties:
+      Role: !Ref Role
+      Handler: help.reportBug
+      Events:
+        Request:
+          Type: Api
+          Properties:
+            Path: /api/help/bug
+            Method: post
               

@@ -26,6 +26,7 @@ import {
   AdminPutSettingsRequestType,
   AdminInviteRequestType,
 } from './api';
+import {getBugReportEmail} from './help';
 import {inviteEmail, requireSessionUser} from './user';
 
 export function getSettings(
@@ -45,6 +46,7 @@ export function getSettings(
           settings && settings.allowAnonymous && settings.allowAnonymous.BOOL,
         canCreateUser:
           settings && settings.canCreateUser && settings.canCreateUser.BOOL,
+        bugReportEmail: getBugReportEmail(settings),
       };
     }: AdminGetSettingsRequest => Promise<AdminGetSettingsResponse>),
   );
@@ -62,6 +64,9 @@ export function putSettings(
       await updateSettings({
         allowAnonymous: {BOOL: request.allowAnonymous},
         canCreateUser: {BOOL: request.canCreateUser},
+        bugReportEmail: request.bugReportEmail
+          ? {S: request.bugReportEmail}
+          : null,
       });
       return {};
     }: AdminPutSettingsRequest => Promise<AdminPutSettingsResponse>),

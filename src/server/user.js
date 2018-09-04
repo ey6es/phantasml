@@ -7,11 +7,9 @@
 
 import {URL} from 'url';
 import {randomBytes, createHash} from 'crypto';
-import {SES} from 'aws-sdk';
 import React from 'react';
 import type {Element} from 'react';
-import ReactDOMServer from 'react-dom/server';
-import {IntlProvider, FormattedMessage} from 'react-intl';
+import {FormattedMessage} from 'react-intl';
 import type {APIGatewayEvent, Context, ProxyResult} from 'flow-aws-lambda';
 import FB from 'fb';
 import {OAuth2Client} from 'google-auth-library';
@@ -22,9 +20,9 @@ import {
   getSettings,
   nowInSeconds,
 } from './util/database';
+import {FROM_EMAIL, ses, renderHtml, renderText} from './util/email';
 import {
   SITE_URL,
-  FROM_EMAIL,
   FriendlyError,
   handleQueryRequest,
   handleBodyRequest,
@@ -70,8 +68,6 @@ import {
   UserDeleteRequestType,
 } from './api';
 import {isDisplayNameValid} from './constants';
-
-const ses = new SES();
 
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
 const googleClient = new OAuth2Client(GOOGLE_CLIENT_ID);
@@ -205,25 +201,6 @@ function getGravatarUrl(email: string) {
   const hash = createHash('md5');
   hash.update(email.trim().toLowerCase());
   return `https://www.gravatar.com/avatar/${hash.digest('hex')}?d=retro`;
-}
-
-function renderHtml(element: Element<*>, locale: string): string {
-  return ReactDOMServer.renderToStaticMarkup(
-    <IntlProvider locale={locale} defaultLocale="en-US">
-      {element}
-    </IntlProvider>,
-  );
-}
-
-function renderText(element: Element<*>, locale: string): string {
-  return ReactDOMServer.renderToStaticMarkup(
-    <IntlProvider
-      locale={locale}
-      defaultLocale="en-US"
-      textComponent={(props: {children: string}) => props.children}>
-      {element}
-    </IntlProvider>,
-  );
 }
 
 export function getStatus(
@@ -829,7 +806,7 @@ async function requireUser(id: string): Promise<Object> {
   return user;
 }
 
-async function getUser(id: string): Promise<?Object> {
+export async function getUser(id: string): Promise<?Object> {
   const result = await dynamodb
     .getItem({Key: {id: {S: id}}, TableName: 'Users'})
     .promise();

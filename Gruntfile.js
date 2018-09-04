@@ -237,6 +237,7 @@ module.exports = function(grunt) {
               `--capabilities CAPABILITY_IAM --parameter-overrides ` +
               `Role=${distributionConfig.role} ` +
               `FromEmail=${config.fromEmail} ` +
+              `FirstAdminEmail=${config.firstAdminEmail} ` +
               `SiteUrl=${distributionConfig.siteUrl} ` +
               `GoogleClientId=${config.googleClientId} ` +
               `ResourceBucket=${config.resourceBucket}`,
@@ -286,6 +287,7 @@ module.exports = function(grunt) {
       for (const resource in template.Resources) {
         taskConfig.local.options[resource] = {
           FROM_EMAIL: config.fromEmail,
+          FIRST_ADMIN_EMAIL: config.firstAdminEmail,
           SITE_URL: config.distributions.local.siteUrl,
           GOOGLE_CLIENT_ID: config.googleClientId,
           RESOURCE_BUCKET: config.resourceBucket,

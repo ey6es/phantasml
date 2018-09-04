@@ -8,6 +8,7 @@
 import * as React from 'react';
 import {FormattedMessage, injectIntl} from 'react-intl';
 import {Form, FormGroup, Label, Input} from 'reactstrap';
+import {postToApi} from './util/api';
 import {
   Menu,
   MenuItem,
@@ -15,6 +16,7 @@ import {
   FeedbackDialog,
   renderText,
 } from './util/ui';
+import type {HelpReportBugRequest} from '../server/api';
 import {
   MAX_BUG_DESCRIPTION_LENGTH,
   isBugDescriptionValid,
@@ -112,7 +114,10 @@ class ReportBugDialogImpl extends React.Component<
   }
 
   _makeRequest = async () => {
-    return {};
+    const request: HelpReportBugRequest = {
+      description: this.state.description,
+    };
+    return await postToApi('/help/bug', request);
   };
 }
 

@@ -122,11 +122,13 @@ export const AdminGetSettingsRequestType = (reify: Type<
 export type AdminGetSettingsResponse = {
   allowAnonymous: ?boolean,
   canCreateUser: ?boolean,
+  bugReportEmail: ?string,
 };
 
 export type AdminPutSettingsRequest = ApiRequest & {
   allowAnonymous: boolean,
   canCreateUser: boolean,
+  bugReportEmail: string,
 };
 export const AdminPutSettingsRequestType = (reify: Type<
   AdminPutSettingsRequest,
@@ -185,3 +187,7 @@ export type ResourcePutContentResponse = {};
 export type ResourceDeleteRequest = IdRequest;
 export const ResourceDeleteRequestType = (reify: Type<ResourceDeleteRequest>);
 export type ResourceDeleteResponse = {};
+
+export type HelpReportBugRequest = ApiRequest & {description: string};
+export const HelpReportBugRequestType = (reify: Type<HelpReportBugRequest>);
+export type HelpReportBugResponse = {};
