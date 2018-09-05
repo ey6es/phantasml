@@ -734,6 +734,7 @@ async function transferResources(
 ): Promise<void> {
   await forAllOwnedResources(oldUserId, async items => {
     for (const item of items) {
+      // TODO: batch these to whatever extent makes sense
       await updateItem('Resources', {id: item.id}, {ownerId: {S: newUserId}});
     }
   });

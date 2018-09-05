@@ -86,7 +86,7 @@ export class ResourceDropdown extends React.Component<
         ) : null}
         {resource && isResourceOwned(resource, this.props.userStatus)
           ? [
-              <MenuItem key="save" onClick={() => {}}>
+              <MenuItem key="save" disabled={true} onClick={() => {}}>
                 <FormattedMessage id="resource.save" defaultMessage="Save" />
               </MenuItem>,
               <MenuItem

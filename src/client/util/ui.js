@@ -455,10 +455,16 @@ export class Menu extends React.Component<
 /**
  * A simple menu item.
  *
+ * @param props.disabled whether or not the item is disabled.
+ * @param props.onClick the item click handler.
  * @param props.children the item contents.
  */
 export class MenuItem extends React.Component<
-  {onClick?: (SyntheticEvent<>) => mixed, children?: mixed},
+  {
+    disabled?: boolean,
+    onClick?: (SyntheticEvent<>) => mixed,
+    children?: mixed,
+  },
   {},
 > {
   render() {
@@ -466,6 +472,7 @@ export class MenuItem extends React.Component<
       <MenuContext.Consumer>
         {menu => (
           <DropdownItem
+            disabled={this.props.disabled}
             onClick={this.props.onClick}
             onMouseOver={event => menu.setState({hoverItem: this})}>
             {this.props.children}
