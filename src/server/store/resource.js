@@ -5,7 +5,7 @@
  * @flow
  */
 
-export type ResourceAction = {type: string};
+export type ResourceAction = {type: string, [string]: any};
 
 /**
  * Applies actions to the resource, returning a new resource.
@@ -29,6 +29,23 @@ export function reducer(state: ?Resource, action: ResourceAction): ?Resource {
 }
 
 /**
+ * Takes an undo stack and an action, returns the new undo stack.
+ *
+ * @param state the existing resource state.
+ * @param undoStack the current undo stack.
+ * @param action the action to apply.
+ * @return the new undo stack.
+ */
+export function undoStackReducer(
+  state: ?Resource,
+  undoStack: ResourceAction[],
+  action: ResourceAction,
+): ResourceAction[] {
+  // undo actions are always state-specific
+  return state ? state.reduceUndoStack(undoStack, action) : undoStack;
+}
+
+/**
  * Base class for all resources.
  */
 export class Resource {
@@ -40,6 +57,29 @@ export class Resource {
    */
   reduce(action: ResourceAction): ?Resource {
     return this;
+  }
+
+  /**
+   * Applies the specified action to the undo stack, returning the new stack.
+   *
+   * @param undoStack the original undo stack.
+   * @param action the action to apply.
+   * @return the new undo stack.
+   */
+  reduceUndoStack(
+    undoStack: ResourceAction[],
+    action: ResourceAction,
+  ): ResourceAction[] {
+    return undoStack;
+  }
+
+  /**
+   * Serializes the resource to JSON.
+   *
+   * @return the JSON representation.
+   */
+  toJSON(): Object {
+    return {};
   }
 }
 
