@@ -5,46 +5,68 @@
  * @flow
  */
 
+export type ResourceAction = {type: string};
+
 /**
  * Applies actions to the resource, returning a new resource.
  *
  * @param state the existing resource state.
  * @param action the action to apply.
- * @return the mutated resource instance.
+ * @return the new resource instance.
  */
-export default function reducer(state: ?Resource, action: Object): ?Resource {
-  if (action instanceof ResourceAction) {
-    return action.mutate(state);
+export function reducer(state: ?Resource, action: ResourceAction): ?Resource {
+  // first check the list of actions that apply to all resources
+  const handler = ResourceActions[action.type];
+  if (handler) {
+    return handler.reduce(state, action);
   }
-  return state === undefined ? null : state;
+  // then try state-specific actions
+  if (state) {
+    return state.reduce(action);
+  }
+  // finally, return null rather than undefined to initialize
+  return null;
 }
 
 /**
  * Base class for all resources.
  */
-class Resource {}
-
-/**
- * Base class for all resource actions.
- */
-class ResourceAction {
+export class Resource {
   /**
-   * Mutates the state according to this action.
+   * Applies the specified action to this resource, returning a new resource.
    *
-   * @param state the state to mutate.
-   * @return the new state.
+   * @param action the action to apply.
+   * @return the new resource instance.
    */
-  mutate(state: ?Resource): ?Resource {
-    throw new Error('Not implemented.');
+  reduce(action: ResourceAction): ?Resource {
+    return this;
   }
 }
 
 /**
- * Clears the entire resource.
+ * The map containing all the resource actions.
  */
-export class ClearResource {
-  mutate(state: ?Resource): ?Resource {
-    return null;
-  }
+export const ResourceActions = {
+  clearResource: {
+    create: () => ({type: 'clearResource'}),
+    reduce: (state: ?Resource, action: ResourceAction) => null,
+  },
+};
+
+type ResourceActionHandler = {
+  create: (...args: any[]) => ResourceAction,
+  reduce: (state: ?Resource, action: ResourceAction) => ?Resource,
+};
+
+/**
+ * Adds a handler for resource actions.
+ *
+ * @param type the type of action to be handled.
+ * @param handler the handler object.
+ */
+export function addResourceActionHandler(
+  handlers: {[string]: ResourceActionHandler},
+  type: string,
+) {
+  (ResourceActions: Object)[type] = handlers[type];
 }
-(ClearResource.prototype: Object).type = ClearResource.name;

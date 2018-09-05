@@ -6,7 +6,6 @@
  */
 
 import * as React from 'react';
-import * as Redux from 'redux';
 import * as ReactRedux from 'react-redux';
 import * as ReactDOM from 'react-dom';
 import {IntlProvider, FormattedMessage} from 'react-intl';
@@ -18,6 +17,7 @@ import {
   PasswordResetDialog,
   CompleteTransferDialog,
 } from './user';
+import store from './store';
 import {
   metatags,
   setAuthToken,
@@ -27,7 +27,6 @@ import {
 } from './util/api';
 import {ErrorDialog} from './util/ui';
 import type {UserStatusResponse} from '../server/api';
-import resource from '../server/store/resource';
 
 type UserStatus = UserStatusResponse | Error;
 
@@ -203,8 +202,6 @@ function updateAuthToken(status: UserStatus) {
     }
   }
 }
-
-const store = Redux.createStore(Redux.combineReducers({resource}));
 
 // contact api to determine session information
 (async function() {

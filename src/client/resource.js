@@ -18,6 +18,7 @@ import {
   Label,
   Input,
 } from 'reactstrap';
+import store from './store';
 import {getFromApi, deleteFromApi, putToApi, postToApi} from './util/api';
 import {
   Menu,
@@ -40,6 +41,7 @@ import {
   isResourceNameValid,
   isResourceDescriptionValid,
 } from '../server/constants';
+import {ResourceActions} from '../server/store/resource';
 
 /** The parameter prefix used for resources. */
 export const RESOURCE_PARAM = 'r=';
@@ -396,6 +398,7 @@ export class ResourceContent extends React.Component<
   }
 
   componentWillUnmount() {
+    store.dispatch(ResourceActions.clearResource.create());
     this.props.setResource(null);
   }
 
