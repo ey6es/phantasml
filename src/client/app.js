@@ -17,7 +17,7 @@ import {
   PasswordResetDialog,
   CompleteTransferDialog,
 } from './user';
-import store from './store';
+import {store} from './store';
 import {
   metatags,
   setAuthToken,

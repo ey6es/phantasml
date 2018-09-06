@@ -6,7 +6,7 @@
  */
 
 import * as Redux from 'redux';
-import type {Resource, ResourceAction} from '../server/store/resource';
+import type {Resource, ResourceAction, Entity} from '../server/store/resource';
 import {
   reducer as resourceReducer,
   undoStackReducer,
@@ -17,7 +17,7 @@ type StoreState = {
   undoStack: ResourceAction[],
   redoStack: ResourceAction[],
   selection: Set<string>,
-  clipboard: ?Object,
+  clipboard: Entity[],
 };
 
 const initialState = {
@@ -25,10 +25,10 @@ const initialState = {
   undoStack: [],
   redoStack: [],
   selection: new Set(),
-  clipboard: null,
+  clipboard: [],
 };
 
-type StoreAction = {type: string};
+type StoreAction = {type: string, [string]: any};
 
 function reducer(state: StoreState, action: StoreAction): StoreState {
   // make sure we have a valid state
@@ -93,6 +93,84 @@ export const StoreActions = {
       }): StoreState);
     },
   },
+  select: {
+    create: (map: {[string]: boolean}, additive: boolean = false) => ({
+      type: 'select',
+      map,
+      additive,
+    }),
+    reduce: (state: StoreState, action: StoreAction) => {
+      const selection: Set<string> = new Set(
+        action.additive ? state.selection : undefined,
+      );
+      for (const key in action.map) {
+        action.map[key] ? selection.add(key) : selection.delete(key);
+      }
+      return Object.assign({}, state, {selection});
+    },
+  },
+  cut: {
+    create: () => ({type: 'cut'}),
+    reduce: (state: StoreState, action: StoreAction) => {
+      if (!state.resource) {
+        return state;
+      }
+      let resource = state.resource;
+      const selection: Set<string> = new Set();
+      const clipboard: Entity[] = [];
+      for (const id of state.selection) {
+        const entity = resource.getEntity(id);
+        if (entity) {
+          clipboard.push(entity);
+          resource = resource.removeEntity(id);
+        }
+      }
+      return Object.assign({}, state, {resource, selection, clipboard});
+    },
+  },
+  copy: {
+    create: () => ({type: 'copy'}),
+    reduce: (state: StoreState, action: StoreAction) => {
+      if (!state.resource) {
+        return state;
+      }
+      const clipboard: Entity[] = [];
+      for (const id of state.selection) {
+        const entity = state.resource.getEntity(id);
+        entity && clipboard.push(entity);
+      }
+      return Object.assign({}, state, {clipboard});
+    },
+  },
+  paste: {
+    create: () => ({type: 'paste'}),
+    reduce: (state: StoreState, action: StoreAction) => {
+      if (!state.resource) {
+        return state;
+      }
+      let resource = state.resource;
+      const selection: Set<string> = new Set();
+      for (const entity of state.clipboard) {
+        resource = resource.addEntity(entity);
+        selection.add(entity.id);
+      }
+      return Object.assign({}, state, {resource, selection});
+    },
+  },
+  delete: {
+    create: () => ({type: 'delete'}),
+    reduce: (state: StoreState, action: StoreAction) => {
+      if (!state.resource) {
+        return state;
+      }
+      let resource = state.resource;
+      for (const id of state.selection) {
+        resource = resource.removeEntity(id);
+      }
+      const selection: Set<string> = new Set();
+      return Object.assign({}, state, {resource, selection});
+    },
+  },
   clearResource: {
     create: () => ({type: 'clearResource'}),
     reduce: (state: StoreState, action: StoreAction) => {
@@ -105,7 +183,5 @@ export const StoreActions = {
   },
 };
 
-const store = Redux.createStore(reducer, initialState);
-
 /** The global Redux store. */
-export default store;
+export const store = Redux.createStore(reducer, initialState);

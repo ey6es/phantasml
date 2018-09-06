@@ -81,6 +81,49 @@ export class Resource {
   toJSON(): Object {
     return {};
   }
+
+  /**
+   * Retrieves an entity reference from the resource.
+   *
+   * @param id the id of the entity to fetch.
+   * @return the entity reference, if found.
+   */
+  getEntity(id: string): ?Entity {
+    return null;
+  }
+
+  /**
+   * Adds an entity to the resource.
+   *
+   * @param entity the entity to add.
+   * @return the modified resource.
+   */
+  addEntity(entity: Entity): Resource {
+    return this;
+  }
+
+  /**
+   * Removes an entity from the resource.
+   *
+   * @param id the id of the entity to remove.
+   * @return the modified resource.
+   */
+  removeEntity(id: string): Resource {
+    return this;
+  }
+}
+
+/**
+ * Base class for all entities.
+ *
+ * @param id the entity's unique identifier.
+ */
+export class Entity {
+  id: string;
+
+  constructor(id: string) {
+    this.id = id;
+  }
 }
 
 /**

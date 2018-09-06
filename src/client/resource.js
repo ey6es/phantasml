@@ -6,7 +6,7 @@
  */
 
 import * as React from 'react';
-import {FormattedMessage, injectIntl, defineMessages} from 'react-intl';
+import {FormattedMessage, injectIntl} from 'react-intl';
 import {
   Card,
   CardBody,
@@ -18,7 +18,7 @@ import {
   Label,
   Input,
 } from 'reactstrap';
-import store from './store';
+import {store} from './store';
 import {getFromApi, deleteFromApi, putToApi, postToApi} from './util/api';
 import {
   Menu,
