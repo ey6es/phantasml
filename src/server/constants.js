@@ -5,6 +5,16 @@
  * @flow
  */
 
+/**
+ * Converts whitespace sequences to single spaces and trims the string.
+ *
+ * @param value the string to process.
+ * @return the string with its whitespace collapsed.
+ */
+export function collapseWhitespace(value: string): string {
+  return value.replace(/\s+/g, ' ').trim();
+}
+
 /** Email addresses must match this regex. */
 export const EMAIL_PATTERN = /^[^@]+@[^.]+\.[^.]+/;
 

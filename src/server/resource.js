@@ -44,7 +44,11 @@ import {
   ResourceDeleteRequestType,
 } from './api';
 import {getSession, requireSession, requireSessionUser} from './user';
-import {isResourceNameValid, isResourceDescriptionValid} from './constants';
+import {
+  collapseWhitespace,
+  isResourceNameValid,
+  isResourceDescriptionValid,
+} from './constants';
 
 const s3 = new S3();
 
@@ -161,9 +165,13 @@ export function putMetadata(
       if (!isResourceDescriptionValid(request.description)) {
         throw new Error('Invalid resource description: ' + request.description);
       }
+      const [name, description] = [
+        collapseWhitespace(request.name),
+        collapseWhitespace(request.description),
+      ];
       await updateResource(request.id, {
-        name: request.name ? {S: request.name} : null,
-        description: request.description ? {S: request.description} : null,
+        name: name ? {S: name} : null,
+        description: description ? {S: description} : null,
       });
       return {};
     }: ResourcePutMetadataRequest => Promise<ResourcePutMetadataResponse>),

@@ -17,6 +17,9 @@ import {
   ResourceName,
 } from './resource';
 import {EditDropdown} from './edit';
+import {ViewDropdown} from './view';
+import {EntityDropdown} from './entity';
+import {ComponentDropdown} from './component';
 import {AdminDropdown} from './admin';
 import {AppTitle, HelpDropdown} from './help';
 import {MenuBar, renderText} from './util/ui';
@@ -64,7 +67,14 @@ export class Interface extends React.Component<
               pushSearch={this._pushSearch}
               replaceSearch={this._replaceSearch}
             />
-            <EditDropdown />
+            {this.state.resource
+              ? [
+                  <EditDropdown key="edit" />,
+                  <ViewDropdown key="view" />,
+                  <EntityDropdown key="entity" />,
+                  <ComponentDropdown key="component" />,
+                ]
+              : null}
             {this.props.userStatus.admin ? (
               <AdminDropdown locale={this.props.locale} />
             ) : null}

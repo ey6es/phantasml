@@ -12,7 +12,7 @@ import {BUILD_TIME, handleBodyRequest} from './util/handler';
 import {FROM_EMAIL, FIRST_ADMIN_EMAIL, ses} from './util/email';
 import type {HelpReportBugRequest, HelpReportBugResponse} from './api';
 import {HelpReportBugRequestType} from './api';
-import {isBugDescriptionValid} from './constants';
+import {collapseWhitespace, isBugDescriptionValid} from './constants';
 import {getSession, getUser} from './user';
 
 /**
@@ -48,7 +48,7 @@ export function reportBug(
         user && user.displayName && user.displayName.S,
       );
       const bugReportEmail = getBugReportEmail(settings);
-      const subject = request.description.replace(/\s/g, ' ').trim();
+      const subject = collapseWhitespace(request.description);
       const boundary = randomBytes(32).toString('hex');
       const message = `From: "Phantasml bugs" <${FROM_EMAIL}>
 To: ${bugReportEmail}

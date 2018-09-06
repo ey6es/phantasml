@@ -67,7 +67,7 @@ import {
   UserCompleteTransferRequestType,
   UserDeleteRequestType,
 } from './api';
-import {isDisplayNameValid} from './constants';
+import {collapseWhitespace, isDisplayNameValid} from './constants';
 
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
 const googleClient = new OAuth2Client(GOOGLE_CLIENT_ID);
@@ -445,7 +445,7 @@ export function setup(
         const email = user.externalId.S;
         [externalId, displayName, imageUrl, persistAuthToken] = [
           email,
-          request.displayName,
+          collapseWhitespace(request.displayName),
           getGravatarUrl(email),
           request.stayLoggedIn,
         ];
@@ -587,15 +587,16 @@ export function configure(
       if (!isDisplayNameValid(request.displayName)) {
         throw new Error('Invalid display name: ' + request.displayName);
       }
+      const displayName = collapseWhitespace(request.displayName);
       await updateUser(user.id.S, {
-        displayName: {S: request.displayName},
+        displayName: {S: displayName},
         ...(request.password ? getPasswordAttributes(request.password) : {}),
       });
       return {
         type: 'logged-in',
         userId: user.id.S,
         externalId: user.externalId.S,
-        displayName: request.displayName,
+        displayName: displayName,
         imageUrl: getGravatarUrl(user.externalId.S),
         admin: user.admin && user.admin.BOOL,
       };
