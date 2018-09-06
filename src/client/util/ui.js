@@ -455,15 +455,17 @@ export class Menu extends React.Component<
 /**
  * A simple menu item.
  *
+ * @param props.shortcut the item shortcut, if any.
  * @param props.disabled whether or not the item is disabled.
  * @param props.onClick the item click handler.
  * @param props.children the item contents.
  */
 export class MenuItem extends React.Component<
   {
+    shortcut?: string,
     disabled?: boolean,
     onClick?: (SyntheticEvent<>) => mixed,
-    children?: mixed,
+    children?: any,
   },
   {},
 > {
@@ -475,7 +477,12 @@ export class MenuItem extends React.Component<
             disabled={this.props.disabled}
             onClick={this.props.onClick}
             onMouseOver={event => menu.setState({hoverItem: this})}>
-            {this.props.children}
+            <span className="float-left">{this.props.children}</span>
+            {this.props.shortcut ? (
+              <span className="float-right shortcut">
+                {this.props.shortcut}
+              </span>
+            ) : null}
           </DropdownItem>
         )}
       </MenuContext.Consumer>
