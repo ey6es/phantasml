@@ -11,6 +11,7 @@ import {
   reducer as resourceReducer,
   undoStackReducer,
 } from '../server/store/resource';
+import {Environment} from '../server/store/environment';
 
 type StoreState = {
   resource: ?Resource,

@@ -206,10 +206,11 @@ function createRedirectResult(url: string): ProxyResult {
     statusCode: 302,
     headers: {
       Location: url,
+      'Content-Type': 'application/json',
       'Access-Control-Allow-Origin': '*',
       'Cache-Control': 'no-cache',
     },
-    body: '',
+    body: '{}',
   };
 }
 

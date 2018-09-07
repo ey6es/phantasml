@@ -379,8 +379,14 @@ export class ResourceContent extends React.Component<
   async componentDidMount() {
     this.props.setLoading(this, true);
     try {
-      const resource = await getFromApi(getResourceMetadataPath(this.props.id));
+      const [resource, content] = await Promise.all([
+        getFromApi(getResourceMetadataPath(this.props.id)),
+        getFromApi(getResourceContentPath(this.props.id)),
+      ]);
       this.props.setResource(resource);
+      store.dispatch(
+        ResourceActions.setResource.create(resource.type, content),
+      );
       if (isResourceOwned(resource, this.props.userStatus) && !resource.name) {
         // ask for a name for the new resource
         this._setDialog(
@@ -519,6 +525,10 @@ const ResourceMetadataDialog = injectIntl(ResourceMetadataDialogImpl);
 
 function getResourceMetadataPath(id: string) {
   return getResourcePath(id) + '/metadata';
+}
+
+function getResourceContentPath(id: string) {
+  return getResourcePath(id) + '/content';
 }
 
 function getResourcePath(id: string) {

@@ -5,7 +5,7 @@
  * @flow
  */
 
-import {Resource, addResourceActionHandler} from './resource';
+import {Resource, addResourceTypeConstructor} from './resource';
 import type {ResourceAction} from './resource';
 
 /**
@@ -15,7 +15,7 @@ import type {ResourceAction} from './resource';
  * an empty environment.
  */
 export class Environment extends Resource {
-  constructor(json: ?Object) {
+  constructor(json: Object) {
     super();
   }
 
@@ -55,6 +55,9 @@ export class Environment extends Resource {
   }
 }
 
+// register the type constructor for deserialization
+addResourceTypeConstructor('environment', Environment);
+
 // used to determine which edits to merge
 let editNumber = 0;
 
@@ -81,12 +84,6 @@ function mergeEntityEdits(first: Object, second: Object): Object {
  * The actions that apply to environments.
  */
 export const EnvironmentActions = {
-  setEnvironment: {
-    create: (json: ?Object) => ({type: 'setEnvironment', json}),
-    reduce: (state: ?Resource, action: ResourceAction) => {
-      return new Environment(action.json);
-    },
-  },
   editEntities: {
     create: (map: Object) => ({type: 'editEntities', editNumber, map}),
     reduce: (state: Environment, action: ResourceAction) => {
@@ -119,6 +116,3 @@ export const EnvironmentActions = {
     },
   },
 };
-
-// creator actions need to be in the resource action list
-addResourceActionHandler((EnvironmentActions: Object), 'setEnvironment');

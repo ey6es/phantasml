@@ -7,6 +7,11 @@ Resources:
     Type: AWS::S3::Bucket
     Properties:
       BucketName: phantasml-resources
+      CorsConfiguration:
+        CorsRules:
+          -
+            AllowedMethods: [GET, PUT]
+            AllowedOrigins: ['*']
     
   SessionsTable:
     Type: AWS::DynamoDB::Table

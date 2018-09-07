@@ -5,7 +5,6 @@
  * @flow
  */
 
-import {S3} from 'aws-sdk';
 import type {APIGatewayEvent, Context, ProxyResult} from 'flow-aws-lambda';
 import {dynamodb, createUuid, nowInSeconds, updateItem} from './util/database';
 import {
@@ -15,6 +14,7 @@ import {
   handleRedirectRequest,
   handleCombinedRequest,
 } from './util/handler';
+import {RESOURCE_BUCKET, s3} from './util/resource';
 import type {
   IdRequest,
   ResourceType,
@@ -49,11 +49,6 @@ import {
   isResourceNameValid,
   isResourceDescriptionValid,
 } from './constants';
-
-const s3 = new S3();
-
-/** The bucket in which we store resources. */
-const RESOURCE_BUCKET = process.env.RESOURCE_BUCKET || 'phantasml-resources';
 
 export function list(
   event: APIGatewayEvent,
@@ -105,17 +100,27 @@ async function createResource(
   type: ResourceType,
 ): Promise<string> {
   const resourceId = createUuid();
-  await dynamodb
-    .putItem({
-      Item: {
-        id: {S: resourceId},
-        ownerId: {S: ownerId},
-        type: {S: type},
-        lastOwnerAccessTime: {N: String(nowInSeconds())},
-      },
-      TableName: 'Resources',
-    })
-    .promise();
+  await Promise.all([
+    dynamodb
+      .putItem({
+        Item: {
+          id: {S: resourceId},
+          ownerId: {S: ownerId},
+          type: {S: type},
+          lastOwnerAccessTime: {N: String(nowInSeconds())},
+        },
+        TableName: 'Resources',
+      })
+      .promise(),
+    s3
+      .putObject({
+        Bucket: RESOURCE_BUCKET,
+        Key: resourceId,
+        Body: '{}',
+        ContentType: 'application/json',
+      })
+      .promise(),
+  ]);
   return resourceId;
 }
 
@@ -187,12 +192,10 @@ export function getContent(
     ResourceGetContentRequestType,
     (async request => {
       await requireOwnedResource(request);
-      return await s3
-        .getSignedUrl('getObject', {
-          Bucket: RESOURCE_BUCKET,
-          Key: request.id,
-        })
-        .promise();
+      return await getSignedUrl('getObject', {
+        Bucket: RESOURCE_BUCKET,
+        Key: request.id,
+      });
     }: ResourceGetContentRequest => Promise<string>),
   );
 }
@@ -206,14 +209,20 @@ export function putContent(
     ResourcePutContentRequestType,
     (async request => {
       await requireOwnedResource(request);
-      return await s3
-        .getSignedUrl('putObject', {
-          Bucket: RESOURCE_BUCKET,
-          Key: request.id,
-        })
-        .promise();
+      return await getSignedUrl('putObject', {
+        Bucket: RESOURCE_BUCKET,
+        Key: request.id,
+      });
     }: ResourcePutContentRequest => Promise<string>),
   );
+}
+
+function getSignedUrl(operation: string, params: Object): Promise<string> {
+  return new Promise((resolve, reject) => {
+    s3.getSignedUrl(operation, params, (error, result) => {
+      error ? reject(new Error(error)) : resolve(result);
+    });
+  });
 }
 
 export function deleteResource(
@@ -264,10 +273,13 @@ async function updateResource(id: string, attributes: Object) {
 }
 
 async function deleteResourceItem(id: string): Promise<void> {
-  await dynamodb
-    .deleteItem({
-      Key: {id: {S: id}},
-      TableName: 'Resources',
-    })
-    .promise();
+  await Promise.all([
+    dynamodb
+      .deleteItem({
+        Key: {id: {S: id}},
+        TableName: 'Resources',
+      })
+      .promise(),
+    s3.deleteObject({Bucket: RESOURCE_BUCKET, Key: id}).promise(),
+  ]);
 }

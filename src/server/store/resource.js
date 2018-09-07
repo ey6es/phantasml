@@ -5,6 +5,8 @@
  * @flow
  */
 
+import type {ResourceType} from '../api';
+
 export type ResourceAction = {type: string, [string]: any};
 
 /**
@@ -126,30 +128,42 @@ export class Entity {
   }
 }
 
+// the map from resource type to constructor
+const resourceTypeConstructors: {[ResourceType]: Function} = {};
+
+/**
+ * Adds a constructor for a resource type.
+ *
+ * @param type the type of resource to construct.
+ * @param constructor the constructor function.
+ */
+export function addResourceTypeConstructor(
+  type: ResourceType,
+  constructor: Function,
+) {
+  resourceTypeConstructors[type] = constructor;
+}
+
 /**
  * The map containing all the resource actions.
  */
 export const ResourceActions = {
+  setResource: {
+    create: (resourceType: ResourceType, json: Object) => ({
+      type: 'setResource',
+      resourceType,
+      json,
+    }),
+    reduce: (state: ?Resource, action: ResourceAction) => {
+      const Constructor = resourceTypeConstructors[action.resourceType];
+      if (!Constructor) {
+        throw new Error('Unknown resource type: ' + action.resourceType);
+      }
+      return new Constructor(action.json);
+    },
+  },
   clearResource: {
     create: () => ({type: 'clearResource'}),
     reduce: (state: ?Resource, action: ResourceAction) => null,
   },
 };
-
-type ResourceActionHandler = {
-  create: (...args: any[]) => ResourceAction,
-  reduce: (state: ?Resource, action: ResourceAction) => ?Resource,
-};
-
-/**
- * Adds a handler for resource actions.
- *
- * @param type the type of action to be handled.
- * @param handler the handler object.
- */
-export function addResourceActionHandler(
-  handlers: {[string]: ResourceActionHandler},
-  type: string,
-) {
-  (ResourceActions: Object)[type] = handlers[type];
-}
