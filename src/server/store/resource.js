@@ -52,6 +52,15 @@ export function undoStackReducer(
  */
 export class Resource {
   /**
+   * Returns the type of the resource.
+   *
+   * @return the resource type.
+   */
+  getType(): ResourceType {
+    throw new Error('Not implemented.');
+  }
+
+  /**
    * Applies the specified action to this resource, returning a new resource.
    *
    * @param action the action to apply.

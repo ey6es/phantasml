@@ -28,7 +28,6 @@ import {
   RequestDialog,
   ErrorDialog,
   LabeledCheckbox,
-  LoadingSpinner,
   Menu,
   MenuItem,
 } from './util/ui';
@@ -657,20 +656,21 @@ export class UserDropdown extends React.Component<
   {
     userStatus: UserStatusResponse,
     setUserStatus: UserStatusResponse => void,
+    transferring: ?Object,
+    setTransferring: (Object, boolean) => void,
     locale: string,
   },
-  {loading: boolean, dialog: ?React.Element<any>},
+  {dialog: ?React.Element<any>},
 > {
-  state = {loading: false, dialog: null};
+  state = {dialog: null};
 
   render() {
     const userStatus = this.props.userStatus;
     return [
-      this.state.loading ? <LoadingSpinner key="spinner" /> : null,
       userStatus.type === 'anonymous' ? (
         <Button
           key="control"
-          disabled={this.state.loading}
+          disabled={this.props.transferring === this}
           color="info"
           onClick={() =>
             this.setState({
@@ -702,7 +702,7 @@ export class UserDropdown extends React.Component<
               {userStatus.displayName}
             </span>
           }
-          disabled={this.state.loading}>
+          disabled={this.props.transferring === this}>
           <MenuItem
             onClick={() =>
               this.setState({
@@ -732,15 +732,13 @@ export class UserDropdown extends React.Component<
   }
 
   _logout = async () => {
-    this.setState({loading: true});
+    this.props.setTransferring(this, true);
     try {
       const userStatus = await postToApi('/user/logout');
       await externalLogout();
-      this.setState({loading: false});
       this.props.setUserStatus(userStatus);
     } catch (error) {
       this.setState({
-        loading: false,
         dialog: (
           <ErrorDialog
             key="dialog"
@@ -749,6 +747,8 @@ export class UserDropdown extends React.Component<
           />
         ),
       });
+    } finally {
+      this.props.setTransferring(this, false);
     }
   };
 

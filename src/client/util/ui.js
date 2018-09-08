@@ -6,6 +6,7 @@
  */
 
 import * as React from 'react';
+import * as ReactRedux from 'react-redux';
 import * as ReactDOMServer from 'react-dom/server';
 import type {Element} from 'react';
 import {IntlProvider, FormattedMessage, injectIntl} from 'react-intl';
@@ -24,6 +25,7 @@ import {
   DropdownMenu,
   DropdownItem,
 } from 'reactstrap';
+import {store} from '../store';
 
 /**
  * Base for dialogs that make requests to the server.
@@ -209,7 +211,7 @@ export function ErrorDialog(props: {
 }) {
   return (
     <FeedbackDialog
-      title={<FormattedMessage id="error.title" defaultMessage="Error" />}
+      title={<ErrorTitle />}
       closeMessage={props.closeMessage}
       onClosed={props.onClosed}>
       <ErrorMessage
@@ -218,6 +220,13 @@ export function ErrorDialog(props: {
       />
     </FeedbackDialog>
   );
+}
+
+/**
+ * The title of the error dialog.
+ */
+export function ErrorTitle() {
+  return <FormattedMessage id="error.title" defaultMessage="Error" />;
 }
 
 /**
@@ -553,11 +562,13 @@ export class Submenu extends React.Component<
  */
 export function renderText(element: Element<*>, locale: string): string {
   return ReactDOMServer.renderToStaticMarkup(
-    <IntlProvider
-      locale={locale}
-      defaultLocale="en-US"
-      textComponent={(props: {children: string}) => props.children}>
-      {element}
-    </IntlProvider>,
+    <ReactRedux.Provider store={store}>
+      <IntlProvider
+        locale={locale}
+        defaultLocale="en-US"
+        textComponent={(props: {children: string}) => props.children}>
+        {element}
+      </IntlProvider>
+    </ReactRedux.Provider>,
   );
 }

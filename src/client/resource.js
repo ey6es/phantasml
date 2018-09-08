@@ -6,6 +6,7 @@
  */
 
 import * as React from 'react';
+import * as ReactRedux from 'react-redux';
 import {FormattedMessage, injectIntl} from 'react-intl';
 import {
   Card,
@@ -18,7 +19,7 @@ import {
   Label,
   Input,
 } from 'reactstrap';
-import {store} from './store';
+import {StoreActions, store} from './store';
 import {getFromApi, deleteFromApi, putToApi, postToApi} from './util/api';
 import {
   Menu,
@@ -88,13 +89,8 @@ export class ResourceDropdown extends React.Component<
         ) : null}
         {resource && isResourceOwned(resource, this.props.userStatus)
           ? [
-              <MenuItem
-                key="save"
-                shortcut="Ctrl+S"
-                disabled={true}
-                onClick={() => {}}>
-                <FormattedMessage id="resource.save" defaultMessage="Save" />
-              </MenuItem>,
+              <SaveItem key="save" resource={this.props.resource} />,
+              <RevertItem key="revert" resource={this.props.resource} />,
               <MenuItem
                 key="metadata"
                 onClick={() =>
@@ -151,6 +147,31 @@ export class ResourceDropdown extends React.Component<
 
   _clearDialog = () => this.setState({dialog: null});
 }
+
+const SaveItem = ReactRedux.connect(state => ({
+  disabled: !state.resourceDirty,
+}))((props: {disabled: boolean, resource: ResourceDescriptor}) => (
+  <MenuItem
+    shortcut="Ctrl+S"
+    disabled={props.disabled}
+    onClick={() =>
+      store.dispatch(StoreActions.saveResource.create(props.resource.id))
+    }>
+    <FormattedMessage id="resource.save" defaultMessage="Save" />
+  </MenuItem>
+));
+
+const RevertItem = ReactRedux.connect(state => ({
+  disabled: !state.resourceDirty,
+}))((props: {disabled: boolean, resource: ResourceDescriptor}) => (
+  <MenuItem
+    disabled={props.disabled}
+    onClick={() =>
+      store.dispatch(StoreActions.loadResource.create(props.resource.id))
+    }>
+    <FormattedMessage id="resource.revert" defaultMessage="Revert" />
+  </MenuItem>
+));
 
 /**
  * Content for browsing available resources.

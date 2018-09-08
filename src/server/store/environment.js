@@ -7,6 +7,7 @@
 
 import {Resource, addResourceTypeConstructor} from './resource';
 import type {ResourceAction} from './resource';
+import type {ResourceType} from '../api';
 
 /**
  * The state of a virtual environment.
@@ -17,6 +18,10 @@ import type {ResourceAction} from './resource';
 export class Environment extends Resource {
   constructor(json: Object) {
     super();
+  }
+
+  getType(): ResourceType {
+    return 'environment';
   }
 
   reduce(action: ResourceAction): ?Resource {
