@@ -66,12 +66,12 @@ export class Interface extends React.Component<
   };
 
   render() {
-    document.title = renderText(
-      <WindowTitle resource={this.state.resource} />,
-      this.props.locale,
-    );
     return (
       <div className="interface">
+        <WindowTitleSetter
+          resource={this.state.resource}
+          locale={this.props.locale}
+        />
         {this._createContent()}
         {this.state.loading ? (
           <div className="full-interface">
@@ -197,9 +197,29 @@ export class Interface extends React.Component<
   _setResource = (resource: ?ResourceDescriptor) => this.setState({resource});
 }
 
-const WindowTitle = ReactRedux.connect(state => ({
+const WindowTitleSetter = ReactRedux.connect(state => ({
   resourceDirty: state.resourceDirty,
-}))((props: {resource: ?ResourceDescriptor, resourceDirty: boolean}) => {
+}))(
+  (props: {
+    resource: ?ResourceDescriptor,
+    locale: string,
+    resourceDirty: boolean,
+  }) => {
+    document.title = renderText(
+      <WindowTitle
+        resource={props.resource}
+        resourceDirty={props.resourceDirty}
+      />,
+      props.locale,
+    );
+    return null;
+  },
+);
+
+function WindowTitle(props: {
+  resource: ?ResourceDescriptor,
+  resourceDirty: boolean,
+}) {
   if (!props.resource) {
     return <AppTitle />;
   }
@@ -214,7 +234,7 @@ const WindowTitle = ReactRedux.connect(state => ({
       }}
     />
   );
-});
+}
 
 const TransferSpinner = ReactRedux.connect((state, ownProps) => ({
   transferring: state.transferAction || ownProps.transferring,

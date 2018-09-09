@@ -11,10 +11,11 @@ import {getFromApi, putToApi} from './util/api';
 import type {ResourceType} from '../server/api';
 import type {Resource, ResourceAction, Entity} from '../server/store/resource';
 import {
+  ResourceActions,
   reducer as resourceReducer,
   undoStackReducer,
 } from '../server/store/resource';
-import {Environment} from '../server/store/environment';
+import {Environment, EnvironmentActions} from '../server/store/environment';
 
 type StoreAction = {type: string, [string]: any};
 
@@ -84,6 +85,7 @@ export const StoreActions = {
       );
       return (Object.assign({}, state, {
         resource: resourceReducer(state.resource, undoAction),
+        resourceDirty: true,
         undoStack: state.undoStack.slice(0, undoIndex),
         redoStack,
       }): StoreState);
@@ -104,6 +106,7 @@ export const StoreActions = {
       );
       return (Object.assign({}, state, {
         resource: resourceReducer(state.resource, redoAction),
+        resourceDirty: true,
         undoStack,
         redoStack: state.redoStack.slice(0, redoIndex),
       }): StoreState);
@@ -131,17 +134,17 @@ export const StoreActions = {
       if (!state.resource) {
         return state;
       }
-      let resource = state.resource;
-      const selection: Set<string> = new Set();
       const clipboard: Entity[] = [];
+      const map = {};
       for (const id of state.selection) {
-        const entity = resource.getEntity(id);
+        const entity = state.resource.getEntity(id);
         if (entity) {
           clipboard.push(entity);
-          resource = resource.removeEntity(id);
+          map[id] = null;
         }
       }
-      return Object.assign({}, state, {resource, selection, clipboard});
+      store.dispatch(EnvironmentActions.editEntities.create(map));
+      return Object.assign({}, state, {clipboard});
     },
   },
   copy: {
@@ -164,27 +167,26 @@ export const StoreActions = {
       if (!state.resource) {
         return state;
       }
-      let resource = state.resource;
       const selection: Set<string> = new Set();
+      const map = {};
       for (const entity of state.clipboard) {
-        resource = resource.addEntity(entity);
+        // TODO: regenerate ids and fix references
         selection.add(entity.id);
+        map[entity.id] = entity.toJSON();
       }
-      return Object.assign({}, state, {resource, selection});
+      store.dispatch(EnvironmentActions.editEntities.create(map));
+      return Object.assign({}, state, {selection});
     },
   },
   delete: {
     create: () => ({type: 'delete'}),
     reduce: (state: StoreState, action: StoreAction) => {
-      if (!state.resource) {
-        return state;
-      }
-      let resource = state.resource;
+      const map = {};
       for (const id of state.selection) {
-        resource = resource.removeEntity(id);
+        map[id] = null;
       }
-      const selection: Set<string> = new Set();
-      return Object.assign({}, state, {resource, selection});
+      store.dispatch(EnvironmentActions.editEntities.create(map));
+      return state;
     },
   },
   saveResource: {
@@ -262,13 +264,10 @@ export const StoreActions = {
     },
   },
   setResource: {
-    create: (resourceType: ResourceType, json: Object) => ({
-      type: 'setResource',
-      resourceType,
-      json,
-    }),
+    create: ResourceActions.setResource.create,
     reduce: (state: ?Resource, action: ResourceAction) => {
       return Object.assign({}, state, {
+        resourceDirty: false,
         undoStack: [],
         redoStack: [],
         selection: (new Set(): Set<string>),
@@ -276,13 +275,25 @@ export const StoreActions = {
     },
   },
   clearResource: {
-    create: () => ({type: 'clearResource'}),
+    create: ResourceActions.clearResource.create,
     reduce: (state: StoreState, action: StoreAction) => {
       return Object.assign({}, state, {
         undoStack: [],
         redoStack: [],
         selection: (new Set(): Set<string>),
       });
+    },
+  },
+  editEntities: {
+    create: EnvironmentActions.editEntities.create,
+    reduce: (state: StoreState, action: StoreAction) => {
+      const selection: Set<string> = new Set(state.selection);
+      for (const id in action.map) {
+        if (action.map[id] === null) {
+          selection.delete(id);
+        }
+      }
+      return Object.assign({}, state, {selection});
     },
   },
 };

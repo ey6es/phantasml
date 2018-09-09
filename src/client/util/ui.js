@@ -462,6 +462,100 @@ export class Menu extends React.Component<
 }
 
 /**
+ * Represents a keyboard shortcut.
+ *
+ * @param charOrCode the character string or key code for the shortcut.
+ * @param modifiers the key modifier mask.
+ * @param aliases any alternate shortcuts for the command.
+ */
+export class Shortcut {
+  static CTRL = 1 << 0;
+  static ALT = 1 << 1;
+  static SHIFT = 1 << 2;
+  static META = 1 << 3;
+
+  keyCode: number;
+  modifiers: number;
+  aliases: Shortcut[];
+
+  constructor(
+    charOrCode: string | number,
+    modifiers: number = 0,
+    aliases: Shortcut[] = [],
+  ) {
+    this.keyCode =
+      typeof charOrCode === 'string' ? charOrCode.charCodeAt(0) : charOrCode;
+    this.modifiers = modifiers;
+    this.aliases = aliases;
+  }
+
+  matches(event: KeyboardEvent): boolean {
+    for (const alias of this.aliases) {
+      if (alias.matches(event)) {
+        return true;
+      }
+    }
+    return (
+      event.keyCode === this.keyCode &&
+      event.ctrlKey === !!(this.modifiers & Shortcut.CTRL) &&
+      event.altKey === !!(this.modifiers & Shortcut.ALT) &&
+      event.shiftKey === !!(this.modifiers & Shortcut.SHIFT) &&
+      event.metaKey === !!(this.modifiers & Shortcut.META)
+    );
+  }
+
+  render() {
+    let key = this._renderKey();
+    if (this.modifiers & Shortcut.META) {
+      key = (
+        <FormattedMessage
+          id="key.modifiers.meta"
+          defaultMessage="Meta+{key}"
+          values={{key}}
+        />
+      );
+    }
+    if (this.modifiers & Shortcut.SHIFT) {
+      key = (
+        <FormattedMessage
+          id="key.modifiers.shift"
+          defaultMessage="Shift+{key}"
+          values={{key}}
+        />
+      );
+    }
+    if (this.modifiers & Shortcut.ALT) {
+      key = (
+        <FormattedMessage
+          id="key.modifiers.alt"
+          defaultMessage="Alt+{key}"
+          values={{key}}
+        />
+      );
+    }
+    if (this.modifiers & Shortcut.CTRL) {
+      key = (
+        <FormattedMessage
+          id="key.modifiers.ctrl"
+          defaultMessage="Ctrl+{key}"
+          values={{key}}
+        />
+      );
+    }
+    return key;
+  }
+
+  _renderKey() {
+    switch (this.keyCode) {
+      case 46:
+        return <FormattedMessage id="key.delete" defaultMessage="Del" />;
+      default:
+        return String.fromCharCode(this.keyCode);
+    }
+  }
+}
+
+/**
  * A simple menu item.
  *
  * @param props.shortcut the item shortcut, if any.
@@ -471,9 +565,9 @@ export class Menu extends React.Component<
  */
 export class MenuItem extends React.Component<
   {
-    shortcut?: string,
+    shortcut?: Shortcut,
     disabled?: boolean,
-    onClick?: (SyntheticEvent<>) => mixed,
+    onClick?: mixed => mixed,
     children?: any,
   },
   {},
@@ -489,7 +583,7 @@ export class MenuItem extends React.Component<
             <span className="float-left">{this.props.children}</span>
             {this.props.shortcut ? (
               <span className="float-right shortcut">
-                {this.props.shortcut}
+                {this.props.shortcut.render()}
               </span>
             ) : null}
           </DropdownItem>
@@ -497,6 +591,22 @@ export class MenuItem extends React.Component<
       </MenuContext.Consumer>
     );
   }
+
+  componentDidMount() {
+    this.props.shortcut && document.addEventListener('keydown', this._keydown);
+  }
+
+  componentWillUnmount() {
+    this.props.shortcut &&
+      document.removeEventListener('keydown', this._keydown);
+  }
+
+  _keydown = (event: KeyboardEvent) => {
+    if (this.props.shortcut && this.props.shortcut.matches(event)) {
+      this.props.onClick && this.props.onClick();
+      event.preventDefault();
+    }
+  };
 }
 
 function RawButton(props: Object) {

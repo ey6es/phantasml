@@ -24,6 +24,7 @@ import {getFromApi, deleteFromApi, putToApi, postToApi} from './util/api';
 import {
   Menu,
   MenuItem,
+  Shortcut,
   Submenu,
   ErrorDialog,
   RequestDialog,
@@ -152,7 +153,7 @@ const SaveItem = ReactRedux.connect(state => ({
   disabled: !state.resourceDirty,
 }))((props: {disabled: boolean, resource: ResourceDescriptor}) => (
   <MenuItem
-    shortcut="Ctrl+S"
+    shortcut={new Shortcut('S', Shortcut.CTRL)}
     disabled={props.disabled}
     onClick={() =>
       store.dispatch(StoreActions.saveResource.create(props.resource.id))

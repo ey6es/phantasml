@@ -10,7 +10,7 @@ import * as ReactRedux from 'react-redux';
 import {FormattedMessage} from 'react-intl';
 import {DropdownItem} from 'reactstrap';
 import {StoreActions, store} from './store';
-import {Menu, MenuItem} from './util/ui';
+import {Menu, MenuItem, Shortcut} from './util/ui';
 
 /**
  * The edit menu dropdown.
@@ -41,7 +41,7 @@ const UndoItem = ReactRedux.connect(state => ({
   disabled: state.undoStack.length === 0,
 }))(props => (
   <MenuItem
-    shortcut="Ctrl+Z"
+    shortcut={new Shortcut('Z', Shortcut.CTRL)}
     disabled={props.disabled}
     onClick={() => store.dispatch(StoreActions.undo.create())}>
     <FormattedMessage id="edit.undo" defaultMessage="Undo" />
@@ -52,7 +52,11 @@ const RedoItem = ReactRedux.connect(state => ({
   disabled: state.redoStack.length === 0,
 }))(props => (
   <MenuItem
-    shortcut="Ctrl+Y"
+    shortcut={
+      new Shortcut('Y', Shortcut.CTRL, [
+        new Shortcut('Z', Shortcut.CTRL | Shortcut.SHIFT),
+      ])
+    }
     disabled={props.disabled}
     onClick={() => store.dispatch(StoreActions.redo.create())}>
     <FormattedMessage id="edit.redo" defaultMessage="Redo" />
@@ -63,7 +67,7 @@ const CutItem = ReactRedux.connect(state => ({
   disabled: state.selection.size === 0,
 }))(props => (
   <MenuItem
-    shortcut="Ctrl+X"
+    shortcut={new Shortcut('X', Shortcut.CTRL)}
     disabled={props.disabled}
     onClick={() => store.dispatch(StoreActions.cut.create())}>
     <FormattedMessage id="edit.cut" defaultMessage="Cut" />
@@ -74,7 +78,7 @@ const CopyItem = ReactRedux.connect(state => ({
   disabled: state.selection.size === 0,
 }))(props => (
   <MenuItem
-    shortcut="Ctrl+C"
+    shortcut={new Shortcut('C', Shortcut.CTRL)}
     disabled={props.disabled}
     onClick={() => store.dispatch(StoreActions.copy.create())}>
     <FormattedMessage id="edit.copy" defaultMessage="Copy" />
@@ -85,7 +89,7 @@ const PasteItem = ReactRedux.connect(state => ({
   disabled: state.clipboard.length === 0,
 }))(props => (
   <MenuItem
-    shortcut="Ctrl+V"
+    shortcut={new Shortcut('V', Shortcut.CTRL)}
     disabled={props.disabled}
     onClick={() => store.dispatch(StoreActions.paste.create())}>
     <FormattedMessage id="edit.paste" defaultMessage="Paste" />
@@ -96,7 +100,7 @@ const DeleteItem = ReactRedux.connect(state => ({
   disabled: state.selection.size === 0,
 }))(props => (
   <MenuItem
-    shortcut="Del"
+    shortcut={new Shortcut(46)} // Delete
     disabled={props.disabled}
     onClick={() => store.dispatch(StoreActions.delete.create())}>
     <FormattedMessage id="edit.delete" defaultMessage="Delete" />
