@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import * as ReactDOM from 'react-dom';
-import {Pbrrn, StateVisualizer, TextureVisualizer} from '../models/pbrrn';
+import {Sbrrn, StateVisualizer, TextureVisualizer} from '../models/sbrrn';
 
 const STEP_DELAY = 10;
 
@@ -12,7 +12,7 @@ const REWARD_FUNCTIONS: {[string]: (boolean, boolean) => number} = {
   None: (input, output) => 0,
 };
 
-class PbrrnExercise extends React.Component<
+class SbrrnExercise extends React.Component<
   {},
   {
     width: number,
@@ -41,7 +41,7 @@ class PbrrnExercise extends React.Component<
   _modelCanvas: ?HTMLCanvasElement;
   _visualizerCanvas: ?HTMLCanvasElement;
   _textureCanvas: ?HTMLCanvasElement;
-  _model: ?Pbrrn;
+  _model: ?Sbrrn;
   _visualizer: ?StateVisualizer;
   _textureVisualizer: ?TextureVisualizer;
 
@@ -207,7 +207,7 @@ class PbrrnExercise extends React.Component<
       this.setState({running: false});
     } else {
       this._model && this._model.dispose();
-      const model = (this._model = new Pbrrn(
+      const model = (this._model = new Sbrrn(
         {
           width: this.state.width,
           height: this.state.height,
@@ -259,4 +259,4 @@ class PbrrnExercise extends React.Component<
   };
 }
 
-ReactDOM.render(<PbrrnExercise />, (document.body: any));
+ReactDOM.render(<SbrrnExercise />, (document.body: any));

@@ -1,7 +1,7 @@
 /**
- * Probabilistic binary rule reinforcement network.
+ * Stochastic binary rule reinforcement network.
  *
- * @module client/models/pbrrn
+ * @module client/models/sbrrn
  * @flow
  */
 
@@ -32,9 +32,9 @@ const OUTPUT_UNITS = {
 const INTEGER_MAX = Math.pow(2, 32);
 
 /**
- * Options for the PBRRN model.
+ * Options for the SBRRN model.
  */
-export type PbrrnOptions = {
+export type SbrrnOptions = {
   width: number,
   height: number,
   probabilityLimit?: number,
@@ -43,14 +43,14 @@ export type PbrrnOptions = {
 };
 
 /**
- * Probabilistic binary rule reinforcement network.
+ * Stochastic binary rule reinforcement network.
  *
  * @param options the options for the model.
  * @param [canvas] an existing canvas to use rather than creating a new one.
  */
-export class Pbrrn {
+export class Sbrrn {
   /** The options provided to the constructor. */
-  options: PbrrnOptions;
+  options: SbrrnOptions;
 
   /** The canvas we use for WebGL rendering. */
   canvas: HTMLCanvasElement;
@@ -112,7 +112,7 @@ export class Pbrrn {
     uvOffset: WebGLUniformLocation,
   };
 
-  constructor(options: PbrrnOptions, canvas?: ?HTMLCanvasElement) {
+  constructor(options: SbrrnOptions, canvas?: ?HTMLCanvasElement) {
     this.options = options;
     this.canvas = canvas || (document.createElement('CANVAS'): any);
     this.canvas.width = options.width;
@@ -925,12 +925,12 @@ export class TextureVisualizer {
   canvas: HTMLCanvasElement;
 
   _ctx: CanvasRenderingContext2D;
-  _model: Pbrrn;
+  _model: Sbrrn;
   _mode: TextureVisualizerMode;
   _swizzle: boolean;
 
   constructor(
-    model: Pbrrn,
+    model: Sbrrn,
     mode: TextureVisualizerMode,
     swizzle: boolean = false,
     canvas?: ?HTMLCanvasElement,
@@ -1016,7 +1016,7 @@ export class StateVisualizer {
   _backCanvas: HTMLCanvasElement;
   _ctx: CanvasRenderingContext2D;
   _backCtx: CanvasRenderingContext2D;
-  _model: Pbrrn;
+  _model: Sbrrn;
   _locations: Point[];
   _length: number;
   _fillStyle: string;
@@ -1027,7 +1027,7 @@ export class StateVisualizer {
   _averages: {states: number[], sum: number}[] = [];
 
   constructor(
-    model: Pbrrn,
+    model: Sbrrn,
     locations: Point[],
     length: number,
     fillStyle: string = '#FFF',

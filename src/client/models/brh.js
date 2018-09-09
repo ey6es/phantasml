@@ -5,10 +5,10 @@
  * @flow
  */
 
-import {Pbrrn} from './pbrrn';
-import type {PbrrnOptions} from './pbrrn';
+import {Sbrrn} from './sbrrn';
+import type {SbrrnOptions} from './sbrrn';
 
-export type BrhModelOptions = PbrrnOptions & {
+export type BrhModelOptions = SbrrnOptions & {
   parentInputBits?: number,
   parentOutputBits?: number,
 };
@@ -22,7 +22,7 @@ export type BrhModelOptions = PbrrnOptions & {
  */
 export class Brh {
   _parent: ?Brh;
-  _model: Pbrrn;
+  _model: Sbrrn;
   _parentInputBits: number;
   _parentOutputBits: number;
   _inputBuffer: Uint8Array;
@@ -32,7 +32,7 @@ export class Brh {
   constructor(modelOptions: BrhModelOptions[], parent?: Brh) {
     this._parent = parent;
     const options = modelOptions[0];
-    this._model = new Pbrrn(options);
+    this._model = new Sbrrn(options);
     this._parentInputBits = options.parentInputBits || 0;
     this._parentOutputBits = options.parentOutputBits || 0;
     this._inputBuffer = new Uint8Array(this._parentInputBits * 2 * 4);
@@ -146,7 +146,7 @@ export class Brh {
    *
    * @param address the address of the model of interest.
    */
-  getModel(address: boolean[]): Pbrrn {
+  getModel(address: boolean[]): Sbrrn {
     return address.length === 0
       ? this._model
       : this._children[Number(address[0])].getModel(address.slice(1));
