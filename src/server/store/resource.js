@@ -128,12 +128,19 @@ export class Resource {
  * Base class for all entities.
  *
  * @param id the entity's unique identifier.
+ * @param json the entity's JSON state.
  */
 export class Entity {
   id: string;
+  state: Object;
 
-  constructor(id: string) {
+  constructor(id: string, json: Object = {}) {
     this.id = id;
+    this.state = json;
+  }
+
+  toJSON(): Object {
+    return this.state;
   }
 }
 
