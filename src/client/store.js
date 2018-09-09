@@ -6,6 +6,7 @@
  */
 
 import * as Redux from 'redux';
+import uuid from 'uuid/v1';
 import {getFromApi, putToApi} from './util/api';
 import type {ResourceType} from '../server/api';
 import type {Resource, ResourceAction, Entity} from '../server/store/resource';
@@ -195,9 +196,10 @@ export const StoreActions = {
       const json = action.json || state.resource.toJSON();
       (async () => {
         try {
-          await putToApi(`/resource/${action.id}/content`, json);
+          await putToApi(`/resource/${action.id}/content`, json, false);
           store.dispatch(StoreActions.finishTransfer.create(action));
         } catch (error) {
+          console.warn(error);
           store.dispatch(
             StoreActions.finishTransfer.create(action, {
               retryAction: StoreActions.saveResource.create(action.id, json),
@@ -224,6 +226,7 @@ export const StoreActions = {
           store.dispatch(StoreActions.setResource.create(type, json));
           store.dispatch(StoreActions.finishTransfer.create(action));
         } catch (error) {
+          console.warn(error);
           store.dispatch(
             StoreActions.finishTransfer.create(action, {
               retryAction: action,
@@ -286,3 +289,15 @@ export const StoreActions = {
 
 /** The global Redux store. */
 export const store = Redux.createStore(reducer, initialState);
+
+/**
+ * Creates and returns a UUID of the format we like.
+ *
+ * @return the newly generated UUID.
+ */
+export function createUuid(): string {
+  // only 22 characters will be valid; the final two will be ==
+  return btoa(String.fromCharCode(...uuid({}, [], 0)))
+    .substring(0, 22)
+    .replace(/[+/]/g, char => (char === '+' ? '-' : '_'));
+}

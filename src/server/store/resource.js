@@ -134,9 +134,9 @@ export class Entity {
   id: string;
   state: Object;
 
-  constructor(id: string, json: Object = {}) {
+  constructor(id: string, state: Object = {}) {
     this.id = id;
-    this.state = json;
+    this.state = state;
   }
 
   toJSON(): Object {

@@ -212,6 +212,7 @@ export function putContent(
       return await getSignedUrl('putObject', {
         Bucket: RESOURCE_BUCKET,
         Key: request.id,
+        ContentType: 'application/json',
       });
     }: ResourcePutContentRequest => Promise<string>),
   );

@@ -12,6 +12,7 @@ Resources:
           -
             AllowedMethods: [GET, PUT]
             AllowedOrigins: ['*']
+            AllowedHeaders: ['*']
     
   SessionsTable:
     Type: AWS::DynamoDB::Table

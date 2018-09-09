@@ -19,6 +19,9 @@ class IdTreeNode {
   getEntity(id: string, depth: number = 0): ?Entity {
     throw new Error('Not implemented.');
   }
+  editEntity(id: string, state: Object, depth: number = 0): IdTreeNode {
+    throw new Error('Not implemented.');
+  }
   addEntity(entity: Entity, depth: number = 0): IdTreeNode {
     throw new Error('Not implemented.');
   }
@@ -38,6 +41,15 @@ class IdTreeLeafNode extends IdTreeNode {
   }
   getEntity(id: string, depth: number = 0): ?Entity {
     return this._entities.get(id);
+  }
+  editEntity(id: string, state: Object, depth: number = 0): IdTreeNode {
+    const entity = this._entities.get(id);
+    if (!entity) {
+      return this.addEntity(new Entity(id, state), depth);
+    }
+    const newEntities = new Map(this._entities);
+    newEntities.set(id, new Entity(id, mergeEntityEdits(entity.state, state)));
+    return new IdTreeLeafNode(newEntities);
   }
   addEntity(entity: Entity, depth: number = 0): IdTreeNode {
     const newEntities = new Map(this._entities);
@@ -81,6 +93,19 @@ class IdTreeInternalNode extends IdTreeNode {
       id,
       depth + 1,
     );
+  }
+  editEntity(id: string, state: Object, depth: number = 0): IdTreeNode {
+    if (isIdEven(id, depth)) {
+      return new IdTreeInternalNode(
+        this._even.editEntity(id, state, depth + 1),
+        this._odd,
+      );
+    } else {
+      return new IdTreeInternalNode(
+        this._even,
+        this._odd.editEntity(id, state, depth + 1),
+      );
+    }
   }
   addEntity(entity: Entity, depth: number = 0): IdTreeNode {
     if (isIdEven(entity.id, depth)) {
@@ -140,8 +165,8 @@ export class Environment extends Resource {
       const entities = jsonOrIdTree.entities;
       if (entities) {
         for (const id in entities) {
-          const json = entities[id];
-          this._idTree = this._idTree.addEntity(new Entity(id, json));
+          const state = entities[id];
+          this._idTree = this._idTree.addEntity(new Entity(id, state));
         }
       }
     }
@@ -194,10 +219,15 @@ export class Environment extends Resource {
    */
   createReverseEdit(map: Object): Object {
     const reversed = {};
-    for (const key in map) {
-      const value = map[key];
-      if (value === null) {
+    for (const id in map) {
+      const entity = this.getEntity(id);
+      const state = map[id];
+      if (state === null) {
+        entity && (reversed[id] = entity.state);
+      } else if (entity) {
+        reversed[id] = reverseEdit(entity.state, state);
       } else {
+        reversed[id] = null;
       }
     }
     return reversed;
@@ -210,7 +240,16 @@ export class Environment extends Resource {
    * @return the new, edited environment.
    */
   applyEdit(map: Object): Environment {
-    return this;
+    let idTree = this._idTree;
+    for (const id in map) {
+      const state = map[id];
+      if (state === null) {
+        idTree = idTree.removeEntity(id);
+      } else {
+        idTree = idTree.editEntity(id, state);
+      }
+    }
+    return new Environment(idTree);
   }
 }
 
@@ -226,6 +265,32 @@ let editNumber = 0;
  */
 export function advanceEditNumber() {
   editNumber++;
+}
+
+/**
+ * Recursively generates a reverse edit for the supplied state/edit.
+ *
+ * @param state the original state.
+ * @param edit the edit to reverse.
+ * @return the reversed edit.
+ */
+function reverseEdit(state: Object, edit: Object): Object {
+  const reversed = {};
+  for (const key in edit) {
+    const oldValue = state[key];
+    const newValue = edit[key];
+    if (oldValue === undefined || oldValue === null) {
+      reversed[key] = null;
+    } else {
+      reversed[key] =
+        typeof oldValue === 'object' &&
+        typeof newValue === 'object' &&
+        newValue !== null
+          ? reverseEdit(oldValue, newValue)
+          : oldValue;
+    }
+  }
+  return reversed;
 }
 
 /**

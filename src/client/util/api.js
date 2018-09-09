@@ -199,17 +199,29 @@ async function requestFromApi<RequestType: Object, ResponseType: Object>(
  *
  * @param path the path of the function to call.
  * @param request the request object.
+ * @param [readResponseBody=true] if false, don't bother reading the body of
+ * the response (just the status code).
  * @return a promise that will resolve to the response object.
  */
 export async function putToApi<RequestType: Object, ResponseType: Object>(
   path: string,
   request: RequestType = ({}: any),
+  readResponseBody: boolean = true,
 ): Promise<ResponseType> {
   const query = authToken ? `?authToken=${encodeURIComponent(authToken)}` : '';
   const response = await fetch(apiEndpoint + path + query, {
     method: 'PUT',
+    mode: 'cors',
+    headers: {'Content-Type': 'application/json'},
     body: JSON.stringify(request),
   });
+  if (!readResponseBody) {
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error('Put request failed: ' + text);
+    }
+    return ({}: Object);
+  }
   const data = await response.json();
   if (data.error) {
     throw new Error(data.error);
