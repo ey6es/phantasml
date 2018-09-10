@@ -18,6 +18,7 @@ import {
   createUuid,
   updateItem,
   getSettings,
+  updateSettings,
   nowInSeconds,
 } from './util/database';
 import {FROM_EMAIL, ses, renderHtml, renderText} from './util/email';
@@ -26,6 +27,7 @@ import {
   FriendlyError,
   handleQueryRequest,
   handleBodyRequest,
+  handleCombinedRequest,
 } from './util/handler';
 import {
   transferAllOwnedResources,
@@ -57,6 +59,10 @@ import type {
   UserCompleteTransferResponse,
   UserDeleteRequest,
   UserDeleteResponse,
+  UserGetPreferencesRequest,
+  UserGetPreferencesResponse,
+  UserPutPreferencesRequest,
+  UserPutPreferencesResponse,
 } from './api';
 import {
   UserStatusRequestType,
@@ -70,6 +76,8 @@ import {
   UserTransferRequestType,
   UserCompleteTransferRequestType,
   UserDeleteRequestType,
+  UserGetPreferencesRequestType,
+  UserPutPreferencesRequestType,
 } from './api';
 import {collapseWhitespace, isDisplayNameValid} from './constants';
 
@@ -756,6 +764,46 @@ async function deleteUserItem(id: string): Promise<void> {
       TableName: 'Users',
     })
     .promise();
+}
+
+export function getPreferences(
+  event: APIGatewayEvent,
+  context: Context,
+): Promise<ProxyResult> {
+  return handleQueryRequest(
+    event,
+    UserGetPreferencesRequestType,
+    (async request => {
+      const session = await requireSession(request.authToken);
+      const preferences = await getSettings(session.userId.S);
+      return {
+        autoSaveMinutes:
+          preferences &&
+          preferences.autoSaveMinutes &&
+          parseInt(preferences.autoSaveMinutes.N),
+      };
+    }: UserGetPreferencesRequest => Promise<UserGetPreferencesResponse>),
+  );
+}
+
+export function putPreferences(
+  event: APIGatewayEvent,
+  context: Context,
+): Promise<ProxyResult> {
+  return handleCombinedRequest(
+    event,
+    UserPutPreferencesRequestType,
+    (async request => {
+      const session = await requireSession(request.authToken);
+      await updateSettings(
+        {
+          autoSaveMinutes: {N: String(request.autoSaveMinutes)},
+        },
+        session.userId.S,
+      );
+      return {};
+    }: UserPutPreferencesRequest => Promise<UserPutPreferencesResponse>),
+  );
 }
 
 /**

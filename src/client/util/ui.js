@@ -602,7 +602,11 @@ export class MenuItem extends React.Component<
   }
 
   _keydown = (event: KeyboardEvent) => {
-    if (this.props.shortcut && this.props.shortcut.matches(event)) {
+    if (
+      !this.props.disabled &&
+      this.props.shortcut &&
+      this.props.shortcut.matches(event)
+    ) {
       this.props.onClick && this.props.onClick();
       event.preventDefault();
     }

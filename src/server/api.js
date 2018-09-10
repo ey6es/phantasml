@@ -115,6 +115,18 @@ export type UserDeleteRequest = ApiRequest;
 export const UserDeleteRequestType = (reify: Type<UserDeleteRequest>);
 export type UserDeleteResponse = AnonymousResponse;
 
+export type UserGetPreferencesRequest = ApiRequest;
+export const UserGetPreferencesRequestType = (reify: Type<
+  UserGetPreferencesRequest,
+>);
+export type UserGetPreferencesResponse = {autoSaveMinutes: ?number};
+
+export type UserPutPreferencesRequest = ApiRequest & {autoSaveMinutes: number};
+export const UserPutPreferencesRequestType = (reify: Type<
+  UserPutPreferencesRequest,
+>);
+export type UserPutPreferencesResponse = {};
+
 export type AdminGetSettingsRequest = ApiRequest;
 export const AdminGetSettingsRequestType = (reify: Type<
   AdminGetSettingsRequest,

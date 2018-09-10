@@ -173,6 +173,30 @@ Resources:
           Properties:
             Path: /api/user/delete
             Method: post
+  
+  UserGetPreferences:
+    Type: AWS::Serverless::Function
+    Properties:
+      Role: !Ref Role
+      Handler: user.getPreferences
+      Events:
+        Request:
+          Type: Api
+          Properties:
+            Path: /api/user/preferences
+            Method: get
+  
+  UserPutPreferences:
+    Type: AWS::Serverless::Function
+    Properties:
+      Role: !Ref Role
+      Handler: user.putPreferences
+      Events:
+        Request:
+          Type: Api
+          Properties:
+            Path: /api/user/preferences
+            Method: put
             
   AdminGetSettings:
     Type: AWS::Serverless::Function

@@ -10,13 +10,14 @@ import * as ReactRedux from 'react-redux';
 import {FormattedMessage} from 'react-intl';
 import {DropdownItem} from 'reactstrap';
 import {StoreActions, store} from './store';
-import {Menu, MenuItem, Shortcut} from './util/ui';
+import {Menu, MenuItem, Shortcut, RequestDialog} from './util/ui';
+import type {ResourceDescriptor} from '../server/api';
 
 /**
  * The edit menu dropdown.
  */
 export class EditDropdown extends React.Component<
-  {},
+  {resource: ?ResourceDescriptor},
   {dialog: ?React.Element<any>},
 > {
   state = {dialog: null};
@@ -24,17 +25,35 @@ export class EditDropdown extends React.Component<
   render() {
     return (
       <Menu label={<FormattedMessage id="edit.title" defaultMessage="Edit" />}>
-        <UndoItem />
-        <RedoItem />
-        <DropdownItem divider />
-        <CutItem />
-        <CopyItem />
-        <PasteItem />
-        <DeleteItem />
+        {this.props.resource
+          ? [
+              <UndoItem key="undo" />,
+              <RedoItem key="redo" />,
+              <DropdownItem key="firstDivider" divider />,
+              <CutItem key="cut" />,
+              <CopyItem key="copy" />,
+              <PasteItem key="paste" />,
+              <DeleteItem key="delete" />,
+              <DropdownItem key="secondDivider" divider />,
+            ]
+          : null}
+        <MenuItem
+          onClick={() =>
+            this._setDialog(<PreferencesDialog onClosed={this._clearDialog} />)
+          }>
+          <FormattedMessage
+            id="edit.preferences"
+            defaultMessage="Preferences..."
+          />
+        </MenuItem>
         {this.state.dialog}
       </Menu>
     );
   }
+
+  _setDialog = (dialog: ?React.Element<any>) => this.setState({dialog});
+
+  _clearDialog = () => this.setState({dialog: null});
 }
 
 const UndoItem = ReactRedux.connect(state => ({
@@ -106,3 +125,26 @@ const DeleteItem = ReactRedux.connect(state => ({
     <FormattedMessage id="edit.delete" defaultMessage="Delete" />
   </MenuItem>
 ));
+
+class PreferencesDialog extends React.Component<{onClosed: () => void}, {}> {
+  render() {
+    return (
+      <RequestDialog
+        header={
+          <FormattedMessage
+            id="preferences.title"
+            defaultMessage="Preferences"
+          />
+        }
+        makeRequest={this._makeRequest}
+        onClosed={this.props.onClosed}
+        applicable
+        cancelable
+      />
+    );
+  }
+
+  _makeRequest = async () => {
+    return {};
+  };
+}

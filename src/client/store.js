@@ -15,7 +15,11 @@ import {
   reducer as resourceReducer,
   undoStackReducer,
 } from '../server/store/resource';
-import {Environment, EnvironmentActions} from '../server/store/environment';
+import {
+  Environment,
+  EnvironmentActions,
+  advanceEditNumber,
+} from '../server/store/environment';
 
 type StoreAction = {type: string, [string]: any};
 
@@ -312,3 +316,7 @@ export function createUuid(): string {
     .substring(0, 22)
     .replace(/[+/]/g, char => (char === '+' ? '-' : '_'));
 }
+
+// split edits when we press a key or mouse button
+document.addEventListener('keydown', advanceEditNumber);
+document.addEventListener('mousedown', advanceEditNumber);

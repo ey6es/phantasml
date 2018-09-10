@@ -95,9 +95,9 @@ export class Interface extends React.Component<
               pushSearch={this._pushSearch}
               replaceSearch={this._replaceSearch}
             />
+            <EditDropdown resource={this.state.resource} />
             {this.state.resource
               ? [
-                  <EditDropdown key="edit" />,
                   <ViewDropdown key="view" />,
                   <EntityDropdown key="entity" />,
                   <ComponentDropdown key="component" />,
