@@ -124,6 +124,8 @@ export class Resource {
   }
 }
 
+type EntityReference = {ref: string};
+
 /**
  * Base class for all entities.
  *
@@ -139,6 +141,29 @@ export class Entity {
     this.state = state;
   }
 
+  /**
+   * Returns the entity's parent reference, if any.
+   *
+   * @return the parent reference, if parented.
+   */
+  getParent(): ?EntityReference {
+    return this.state.parent;
+  }
+
+  /**
+   * Retrieves the entity's sort order.
+   *
+   * @return the sort order (zero by default).
+   */
+  getOrder(): number {
+    return this.state.order || 0;
+  }
+
+  /**
+   * Serializes the entity to JSON.
+   *
+   * @return the JSON representation.
+   */
   toJSON(): Object {
     return this.state;
   }
