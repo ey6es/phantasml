@@ -8,16 +8,34 @@
 import * as React from 'react';
 import * as ReactRedux from 'react-redux';
 import {FormattedMessage} from 'react-intl';
-import {DropdownItem} from 'reactstrap';
+import {
+  DropdownItem,
+  Form,
+  FormGroup,
+  Label,
+  UncontrolledDropdown,
+  DropdownToggle,
+  DropdownMenu,
+} from 'reactstrap';
 import {StoreActions, store} from './store';
+import {putToApi} from './util/api';
 import {Menu, MenuItem, Shortcut, RequestDialog} from './util/ui';
-import type {ResourceDescriptor} from '../server/api';
+import {getAutoSaveMinutes} from './resource';
+import type {
+  UserGetPreferencesResponse,
+  UserPutPreferencesRequest,
+  ResourceDescriptor,
+} from '../server/api';
 
 /**
  * The edit menu dropdown.
  */
 export class EditDropdown extends React.Component<
-  {resource: ?ResourceDescriptor},
+  {
+    preferences: UserGetPreferencesResponse,
+    setPreferences: UserGetPreferencesResponse => void,
+    resource: ?ResourceDescriptor,
+  },
   {dialog: ?React.Element<any>},
 > {
   state = {dialog: null};
@@ -39,7 +57,13 @@ export class EditDropdown extends React.Component<
           : null}
         <MenuItem
           onClick={() =>
-            this._setDialog(<PreferencesDialog onClosed={this._clearDialog} />)
+            this._setDialog(
+              <PreferencesDialog
+                preferences={this.props.preferences}
+                setPreferences={this.props.setPreferences}
+                onClosed={this._clearDialog}
+              />,
+            )
           }>
           <FormattedMessage
             id="edit.preferences"
@@ -126,7 +150,18 @@ const DeleteItem = ReactRedux.connect(state => ({
   </MenuItem>
 ));
 
-class PreferencesDialog extends React.Component<{onClosed: () => void}, {}> {
+const AUTO_SAVE_MINUTES_OPTIONS = [0, 1, 5, 15];
+
+class PreferencesDialog extends React.Component<
+  {
+    preferences: UserGetPreferencesResponse,
+    setPreferences: UserGetPreferencesResponse => void,
+    onClosed: () => void,
+  },
+  {autoSaveMinutes: number},
+> {
+  state = {autoSaveMinutes: getAutoSaveMinutes(this.props.preferences)};
+
   render() {
     return (
       <RequestDialog
@@ -139,12 +174,52 @@ class PreferencesDialog extends React.Component<{onClosed: () => void}, {}> {
         makeRequest={this._makeRequest}
         onClosed={this.props.onClosed}
         applicable
-        cancelable
+        cancelable>
+        <Form>
+          <FormGroup>
+            <Label>
+              <FormattedMessage
+                id="preferences.autosave"
+                defaultMessage="Auto-Save"
+              />
+            </Label>
+            <UncontrolledDropdown>
+              <DropdownToggle caret>
+                {this._getAutoSaveMessage(this.state.autoSaveMinutes)}
+              </DropdownToggle>
+              <DropdownMenu>
+                {AUTO_SAVE_MINUTES_OPTIONS.map(autoSaveMinutes => (
+                  <DropdownItem
+                    key={autoSaveMinutes}
+                    onClick={() => this.setState({autoSaveMinutes})}>
+                    {this._getAutoSaveMessage(autoSaveMinutes)}
+                  </DropdownItem>
+                ))}
+              </DropdownMenu>
+            </UncontrolledDropdown>
+          </FormGroup>
+        </Form>
+      </RequestDialog>
+    );
+  }
+
+  _getAutoSaveMessage(autoSaveMinutes: number) {
+    return (
+      <FormattedMessage
+        id="autosave.minutes"
+        defaultMessage={`{autoSaveMinutes, plural,
+          =0 {Never} one {Every Minute} other {Every # Minutes}}`}
+        values={{autoSaveMinutes}}
       />
     );
   }
 
   _makeRequest = async () => {
+    const request: UserPutPreferencesRequest = {
+      autoSaveMinutes: this.state.autoSaveMinutes,
+    };
+    await putToApi('/user/preferences', request);
+    this.props.setPreferences((request: any));
     return {};
   };
 }

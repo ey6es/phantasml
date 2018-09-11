@@ -32,6 +32,7 @@ import {
 } from './util/ui';
 import type {
   UserStatusResponse,
+  UserGetPreferencesResponse,
   ResourceType,
   ResourceDescriptor,
   ResourceCreateRequest,
@@ -49,6 +50,18 @@ import {ResourceActions} from '../server/store/resource';
 export const RESOURCE_PARAM = 'r=';
 
 /**
+ * Retrieves the auto-save minutes setting from the preferences.
+ *
+ * @param preferences the preferences object.
+ * @return the interval in minutes at which to auto-save, or 0 to disable.
+ */
+export function getAutoSaveMinutes(
+  preferences: UserGetPreferencesResponse,
+): number {
+  return preferences.autoSaveMinutes == null ? 5 : preferences.autoSaveMinutes;
+}
+
+/**
  * The dropdown menu for resources.
  *
  * @param props.userStatus the current user status.
@@ -61,6 +74,7 @@ export const RESOURCE_PARAM = 'r=';
 export class ResourceDropdown extends React.Component<
   {
     userStatus: UserStatusResponse,
+    preferences: UserGetPreferencesResponse,
     resource: ?ResourceDescriptor,
     setResource: (?ResourceDescriptor) => void,
     setLoading: (Object, boolean) => void,
@@ -90,6 +104,11 @@ export class ResourceDropdown extends React.Component<
         ) : null}
         {resource && isResourceOwned(resource, this.props.userStatus)
           ? [
+              <AutoSaver
+                key="autosave"
+                preferences={this.props.preferences}
+                resource={this.props.resource}
+              />,
               <SaveItem key="save" resource={this.props.resource} />,
               <RevertItem key="revert" resource={this.props.resource} />,
               <MenuItem
@@ -148,6 +167,62 @@ export class ResourceDropdown extends React.Component<
 
   _clearDialog = () => this.setState({dialog: null});
 }
+
+type AutoSaverProps = {
+  preferences: UserGetPreferencesResponse,
+  resource: ResourceDescriptor,
+  dirty: boolean,
+};
+
+class AutoSaverImpl extends React.Component<AutoSaverProps, {}> {
+  _timeoutId: ?TimeoutID;
+
+  render() {
+    return null;
+  }
+
+  componentDidMount() {
+    this._maybeScheduleAutoSave();
+  }
+
+  componentDidUpdate(prevProps: AutoSaverProps) {
+    if (
+      getAutoSaveMinutes(this.props.preferences) !==
+        getAutoSaveMinutes(prevProps.preferences) ||
+      this.props.resource.id !== prevProps.resource.id ||
+      this.props.dirty !== prevProps.dirty
+    ) {
+      this._maybeClearAutoSave();
+      this._maybeScheduleAutoSave();
+    }
+  }
+
+  componentWillUnmount() {
+    this._maybeClearAutoSave();
+  }
+
+  _maybeScheduleAutoSave() {
+    const autoSaveMinutes = getAutoSaveMinutes(this.props.preferences);
+    if (autoSaveMinutes && this.props.dirty) {
+      this._timeoutId = setTimeout(this._save, autoSaveMinutes * 60 * 1000);
+    }
+  }
+
+  _maybeClearAutoSave() {
+    if (this._timeoutId) {
+      clearTimeout(this._timeoutId);
+      this._timeoutId = null;
+    }
+  }
+
+  _save = () => {
+    store.dispatch(StoreActions.saveResource.create(this.props.resource.id));
+  };
+}
+
+const AutoSaver = ReactRedux.connect(state => ({
+  dirty: state.resourceDirty,
+}))(AutoSaverImpl);
 
 const SaveItem = ReactRedux.connect(state => ({
   disabled: !state.resourceDirty,

@@ -33,6 +33,7 @@ import {EntityDropdown} from './entity';
 import {ComponentDropdown} from './component';
 import {AdminDropdown} from './admin';
 import {AppTitle, HelpDropdown} from './help';
+import {getFromApi} from './util/api';
 import {
   MenuBar,
   LoadingSpinner,
@@ -40,18 +41,25 @@ import {
   OkButton,
   renderText,
 } from './util/ui';
-import type {UserStatusResponse, ResourceDescriptor} from '../server/api';
+import type {
+  UserStatusResponse,
+  UserGetPreferencesResponse,
+  ResourceDescriptor,
+} from '../server/api';
+
+type InterfaceProps = {
+  userStatus: UserStatusResponse,
+  setUserStatus: UserStatusResponse => void,
+  locale: string,
+};
 
 /**
  * The main app interface.
  */
 export class Interface extends React.Component<
+  InterfaceProps,
   {
-    userStatus: UserStatusResponse,
-    setUserStatus: UserStatusResponse => void,
-    locale: string,
-  },
-  {
+    preferences: UserGetPreferencesResponse,
     loading: ?Object,
     transferring: ?Object,
     search: string,
@@ -59,6 +67,7 @@ export class Interface extends React.Component<
   },
 > {
   state = {
+    preferences: {},
     loading: null,
     transferring: null,
     search: location.search,
@@ -89,13 +98,20 @@ export class Interface extends React.Component<
           <Nav navbar>
             <ResourceDropdown
               userStatus={this.props.userStatus}
+              preferences={this.state.preferences}
               resource={this.state.resource}
               setResource={this._setResource}
               setLoading={this._setLoading}
               pushSearch={this._pushSearch}
               replaceSearch={this._replaceSearch}
             />
-            <EditDropdown resource={this.state.resource} />
+            {this.props.userStatus.type === 'logged-in' ? (
+              <EditDropdown
+                preferences={this.state.preferences}
+                setPreferences={this._setPreferences}
+                resource={this.state.resource}
+              />
+            ) : null}
             {this.state.resource
               ? [
                   <ViewDropdown key="view" />,
@@ -125,11 +141,32 @@ export class Interface extends React.Component<
 
   componentDidMount() {
     window.addEventListener('popstate', this._updateSearch);
+    if (this.props.userStatus.type === 'logged-in') {
+      this._fetchPreferences();
+    }
+  }
+
+  componentDidUpdate(prevProps: InterfaceProps) {
+    if (
+      this.props.userStatus.type === 'logged-in' &&
+      (prevProps.userStatus.type === 'anonymous' ||
+        this.props.userStatus.userId !== prevProps.userStatus.userId)
+    ) {
+      this._fetchPreferences();
+    }
   }
 
   componentWillUnmount() {
     window.removeEventListener('popstate', this._updateSearch);
   }
+
+  async _fetchPreferences() {
+    this._setPreferences(await getFromApi('/user/preferences'));
+  }
+
+  _setPreferences = (preferences: UserGetPreferencesResponse) => {
+    this.setState({preferences});
+  };
 
   _setLoading = (source: Object, loading: boolean) => {
     if (loading) {

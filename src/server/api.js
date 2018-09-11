@@ -119,7 +119,7 @@ export type UserGetPreferencesRequest = ApiRequest;
 export const UserGetPreferencesRequestType = (reify: Type<
   UserGetPreferencesRequest,
 >);
-export type UserGetPreferencesResponse = {autoSaveMinutes: ?number};
+export type UserGetPreferencesResponse = {autoSaveMinutes?: ?number};
 
 export type UserPutPreferencesRequest = ApiRequest & {autoSaveMinutes: number};
 export const UserPutPreferencesRequestType = (reify: Type<
