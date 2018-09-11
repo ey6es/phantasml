@@ -183,6 +183,7 @@ class AutoSaverImpl extends React.Component<AutoSaverProps, {}> {
 
   componentDidMount() {
     this._maybeScheduleAutoSave();
+    window.addEventListener('beforeunload', this._handleBeforeUnload);
   }
 
   componentDidUpdate(prevProps: AutoSaverProps) {
@@ -199,6 +200,7 @@ class AutoSaverImpl extends React.Component<AutoSaverProps, {}> {
 
   componentWillUnmount() {
     this._maybeClearAutoSave();
+    window.removeEventListener('beforeunload', this._handleBeforeUnload);
   }
 
   _maybeScheduleAutoSave() {
@@ -214,6 +216,15 @@ class AutoSaverImpl extends React.Component<AutoSaverProps, {}> {
       this._timeoutId = null;
     }
   }
+
+  _handleBeforeUnload = (event: Event) => {
+    if (this.props.dirty) {
+      // stall the user while we save
+      this._save();
+      event.preventDefault();
+      return '';
+    }
+  };
 
   _save = () => {
     store.dispatch(StoreActions.saveResource.create(this.props.resource.id));
