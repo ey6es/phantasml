@@ -160,6 +160,15 @@ export class Entity {
   }
 
   /**
+   * Retrieves the entity's name, if any.
+   *
+   * @return the entity name, if named.
+   */
+  getName(): ?string {
+    return this.state.name;
+  }
+
+  /**
    * Serializes the entity to JSON.
    *
    * @return the JSON representation.

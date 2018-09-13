@@ -19,7 +19,7 @@ import {
   Label,
   Input,
 } from 'reactstrap';
-import {StoreActions, store} from './store';
+import {StoreActions, store, setStoreResource} from './store';
 import {Toolset} from './tool';
 import {EntityTree} from './entity';
 import {SceneView} from './view';
@@ -508,9 +508,7 @@ export class ResourceContent extends React.Component<
         getFromApi(getResourceContentPath(this.props.id)),
       ]);
       this.props.setResource(resource);
-      store.dispatch(
-        ResourceActions.setResource.create(resource.type, content),
-      );
+      setStoreResource(resource.type, content);
       if (isResourceOwned(resource, this.props.userStatus) && !resource.name) {
         // ask for a name for the new resource
         this._setDialog(

@@ -193,6 +193,16 @@ class EntityHierarchyNode {
   _entity: ?Entity;
   _children: EntityHierarchyNode[];
 
+  /** Returns a reference to the entity, if any. */
+  get entity(): ?Entity {
+    return this._entity;
+  }
+
+  /** Returns a reference to the child array. */
+  get children(): EntityHierarchyNode[] {
+    return this._children;
+  }
+
   constructor(entity: ?Entity = null, children: EntityHierarchyNode[] = []) {
     this._entity = entity;
     this._children = children;
@@ -258,6 +268,11 @@ export class Scene extends Resource {
   _idTree: IdTreeNode;
   _entityHierarchy: EntityHierarchyNode;
 
+  /** Returns a reference to the entity hierarchy root node. */
+  get entityHierarchy(): EntityHierarchyNode {
+    return this._entityHierarchy;
+  }
+
   constructor(jsonOrIdTree: Object, entityHierarchy?: EntityHierarchyNode) {
     super();
     if (jsonOrIdTree instanceof IdTreeNode) {
@@ -266,26 +281,14 @@ export class Scene extends Resource {
         throw new Error('Missing entity hierarchy.');
       }
       this._entityHierarchy = entityHierarchy;
-    } else {
-      this._idTree = new IdTreeLeafNode();
-      this._entityHierarchy = new EntityHierarchyNode();
-      const entities = jsonOrIdTree.entities;
-      if (entities) {
-        // first add all the entities to the id tree
-        const createdEntities: Entity[] = [];
-        for (const id in entities) {
-          const entity = new Entity(id, entities[id]);
-          createdEntities.push(entity);
-          this._idTree = this._idTree.addEntity(entity);
-        }
-        // then to the hierarchy, now that we can look everything up by id
-        for (const entity of createdEntities) {
-          this._entityHierarchy = this._entityHierarchy.addEntity(
-            this._idTree.getEntityLineage(entity),
-          );
-        }
-      }
+      return;
     }
+    this._idTree = new IdTreeLeafNode();
+    this._entityHierarchy = new EntityHierarchyNode();
+    const storedEntities = jsonOrIdTree.entities;
+    storedEntities && this._createEntities(storedEntities);
+    // create the initial entities that don't yet exist
+    this._createEntities(this._getInitialEntities(), storedEntities);
   }
 
   reduce(action: ResourceAction): ?Resource {
@@ -396,6 +399,29 @@ export class Scene extends Resource {
     }
     return new this.constructor(newIdTree, newEntityHierarchy);
   }
+
+  _createEntities(states: Object, except: Object = {}) {
+    // first add all the entities to the id tree
+    const createdEntities: Entity[] = [];
+    for (const id in states) {
+      if (except[id]) {
+        continue;
+      }
+      const entity = new Entity(id, states[id]);
+      createdEntities.push(entity);
+      this._idTree = this._idTree.addEntity(entity);
+    }
+    // then to the hierarchy, now that we can look everything up by id
+    for (const entity of createdEntities) {
+      this._entityHierarchy = this._entityHierarchy.addEntity(
+        this._idTree.getEntityLineage(entity),
+      );
+    }
+  }
+
+  _getInitialEntities(): Object {
+    return {};
+  }
 }
 
 /**
@@ -405,6 +431,9 @@ class Environment extends Scene {
   getType(): ResourceType {
     return 'environment';
   }
+  _getInitialEntities(): Object {
+    return {default: {}};
+  }
 }
 
 /**
@@ -413,6 +442,9 @@ class Environment extends Scene {
 class Organism extends Scene {
   getType(): ResourceType {
     return 'organism';
+  }
+  _getInitialEntities(): Object {
+    return {exterior: {}, interior: {order: 1}};
   }
 }
 

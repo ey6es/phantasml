@@ -15,7 +15,7 @@ import {
   reducer as resourceReducer,
   undoStackReducer,
 } from '../server/store/resource';
-import {SceneActions, advanceEditNumber} from '../server/store/scene';
+import {Scene, SceneActions, advanceEditNumber} from '../server/store/scene';
 
 type StoreAction = {type: string, [string]: any};
 
@@ -28,6 +28,7 @@ type StoreState = {
   transferError: ?TransferError,
   undoStack: ResourceAction[],
   redoStack: ResourceAction[],
+  page: string,
   selection: Set<string>,
   clipboard: Entity[],
 };
@@ -39,6 +40,7 @@ const initialState = {
   transferError: null,
   undoStack: [],
   redoStack: [],
+  page: '',
   selection: new Set(),
   clipboard: [],
 };
@@ -225,7 +227,7 @@ export const StoreActions = {
       (async () => {
         try {
           const json = await getFromApi(`/resource/${action.id}/content`);
-          store.dispatch(StoreActions.setResource.create(type, json));
+          setStoreResource(type, json);
           store.dispatch(StoreActions.finishTransfer.create(action));
         } catch (error) {
           console.warn(error);
@@ -263,6 +265,24 @@ export const StoreActions = {
       return Object.assign({}, state, {transferError: null});
     },
   },
+  setPage: {
+    create: (page: string = '') => ({type: 'setPage', page}),
+    reduce: (state: StoreState, action: StoreAction) => {
+      const resource = state.resource;
+      if (!(resource instanceof Scene)) {
+        return state;
+      }
+      let page = action.page;
+      if (!resource.getEntity(page)) {
+        if (resource.getEntity(state.page)) {
+          return state; // continue to use the current page
+        }
+        const firstPage = resource.entityHierarchy.children[0].entity;
+        page = firstPage ? firstPage.id : '';
+      }
+      return Object.assign({}, state, {page});
+    },
+  },
   setResource: {
     create: ResourceActions.setResource.create,
     reduce: (state: ?Resource, action: ResourceAction) => {
@@ -280,6 +300,7 @@ export const StoreActions = {
       return Object.assign({}, state, {
         undoStack: [],
         redoStack: [],
+        page: '',
         selection: (new Set(): Set<string>),
       });
     },
@@ -300,6 +321,18 @@ export const StoreActions = {
 
 /** The global Redux store. */
 export const store = Redux.createStore(reducer, initialState);
+
+/**
+ * Dispatches the necessary actions to set the store resource to one loaded
+ * from JSON.
+ *
+ * @param type the resource type.
+ * @param json the resource's JSON representation.
+ */
+export function setStoreResource(type: ResourceType, json: Object) {
+  store.dispatch(StoreActions.setResource.create(type, json));
+  store.dispatch(StoreActions.setPage.create());
+}
 
 /**
  * Creates and returns a UUID of the format we like.
