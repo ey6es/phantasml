@@ -8,12 +8,12 @@
 import * as React from 'react';
 import * as ReactRedux from 'react-redux';
 import {FormattedMessage} from 'react-intl';
-import {Nav, NavItem, NavLink} from 'reactstrap';
-import {StoreActions, store} from './store';
+import {Nav, NavItem, NavLink, Button} from 'reactstrap';
+import {StoreActions, store, createUuid} from './store';
 import {EntityName} from './entity';
-import {Menu} from './util/ui';
+import {Menu, renderText} from './util/ui';
 import type {Resource} from '../server/store/resource';
-import {Scene} from '../server/store/scene';
+import {Scene, SceneActions} from '../server/store/scene';
 
 /**
  * The view menu dropdown.
@@ -36,11 +36,11 @@ export class ViewDropdown extends React.Component<
 /**
  * The 2D scene view.
  */
-export class SceneView extends React.Component<{}, {}> {
+export class SceneView extends React.Component<{locale: string}, {}> {
   render() {
     return (
       <div className="flex-grow-1">
-        <PageTabs />
+        <PageTabs locale={this.props.locale} />
       </div>
     );
   }
@@ -49,26 +49,65 @@ export class SceneView extends React.Component<{}, {}> {
 const PageTabs = ReactRedux.connect(state => ({
   resource: state.resource,
   selectedPage: state.page,
-}))((props: {resource: ?Resource, selectedPage: string}) => (
-  <Nav tabs>
-    {props.resource instanceof Scene
-      ? props.resource.entityHierarchy.children.map(node => {
-          const entity = node.entity;
-          if (!entity) {
-            return null; // shouldn't happen
-          }
-          return (
-            <NavItem key={entity.id}>
-              <NavLink
-                active={entity.id === props.selectedPage}
+}))((props: {locale: string, resource: ?Resource, selectedPage: string}) => {
+  const resource = props.resource;
+  if (!(resource instanceof Scene)) {
+    return null;
+  }
+  return (
+    <Nav tabs className="pt-1">
+      {resource.entityHierarchy.children.map(node => {
+        const entity = node.entity;
+        if (!entity) {
+          return null; // shouldn't happen
+        }
+        const removable = resource.canRemoveEntity(entity.id);
+        return (
+          <NavItem key={entity.id} className="position-relative">
+            <NavLink
+              className={removable ? 'pr-5' : null}
+              active={entity.id === props.selectedPage}
+              onClick={() =>
+                store.dispatch(StoreActions.setPage.create(entity.id))
+              }>
+              <EntityName entity={entity} />
+            </NavLink>
+            {removable ? (
+              <Button
+                className="close remove-page"
                 onClick={() =>
-                  store.dispatch(StoreActions.setPage.create(entity.id))
+                  store.dispatch(
+                    SceneActions.editEntities.create({[entity.id]: null}),
+                  )
                 }>
-                <EntityName entity={entity} />
-              </NavLink>
-            </NavItem>
-          );
-        })
-      : null}
-  </Nav>
-));
+                &times;
+              </Button>
+            ) : null}
+          </NavItem>
+        );
+      })}
+      <NavItem>
+        <NavLink
+          className="new-page"
+          onClick={() =>
+            store.dispatch(
+              SceneActions.editEntities.create({
+                [createUuid()]: {
+                  name: renderText(
+                    <FormattedMessage
+                      id="page.new"
+                      defaultMessage="New Page"
+                    />,
+                    props.locale,
+                  ),
+                  order: resource.entityHierarchy.highestChildOrder + 1,
+                },
+              }),
+            )
+          }>
+          +
+        </NavLink>
+      </NavItem>
+    </Nav>
+  );
+});

@@ -90,6 +90,8 @@ export const StoreActions = {
         resourceDirty: true,
         undoStack: state.undoStack.slice(0, undoIndex),
         redoStack,
+        page: reducePage(state, undoAction),
+        selection: reduceSelection(state, undoAction),
       }): StoreState);
     },
   },
@@ -111,6 +113,8 @@ export const StoreActions = {
         resourceDirty: true,
         undoStack,
         redoStack: state.redoStack.slice(0, redoIndex),
+        page: reducePage(state, redoAction),
+        selection: reduceSelection(state, redoAction),
       }): StoreState);
     },
   },
@@ -308,16 +312,56 @@ export const StoreActions = {
   editEntities: {
     create: SceneActions.editEntities.create,
     reduce: (state: StoreState, action: StoreAction) => {
-      const selection: Set<string> = new Set(state.selection);
-      for (const id in action.map) {
-        if (action.map[id] === null) {
-          selection.delete(id);
-        }
-      }
-      return Object.assign({}, state, {selection});
+      return Object.assign({}, state, {
+        page: reducePage(state, action),
+        selection: reduceSelection(state, action),
+      });
     },
   },
 };
+
+function reducePage(state: StoreState, action: ResourceAction): string {
+  const resource = state.resource;
+  if (!(resource instanceof Scene && action.type === 'editEntities')) {
+    return state.page;
+  }
+  let page = state.page;
+  for (const id in action.map) {
+    const state = action.map[id];
+    if (state !== null) {
+      const entity = resource.getEntity(id);
+      if (!(state.parent || (entity && entity.getParent()))) {
+        page = id; // switch to any added/edited page
+      }
+    } else if (page === id) {
+      for (const child of resource.entityHierarchy.children) {
+        if (child.id === id) {
+          break;
+        } else if (child.id && action.map[child.id] !== null) {
+          page = child.id; // switch away from deleted page
+        }
+      }
+    }
+  }
+  return page;
+}
+
+function reduceSelection(
+  state: StoreState,
+  action: ResourceAction,
+): Set<string> {
+  const resource = state.resource;
+  if (!(resource instanceof Scene && action.type === 'editEntities')) {
+    return state.selection;
+  }
+  const selection: Set<string> = new Set(state.selection);
+  for (const id in action.map) {
+    if (action.map[id] === null) {
+      selection.delete(id);
+    }
+  }
+  return selection;
+}
 
 /** The global Redux store. */
 export const store = Redux.createStore(reducer, initialState);

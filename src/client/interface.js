@@ -213,6 +213,7 @@ export class Interface extends React.Component<
             <ResourceContent
               key={id}
               id={id}
+              locale={this.props.locale}
               userStatus={this.props.userStatus}
               setLoading={this._setLoading}
               resource={this.state.resource}

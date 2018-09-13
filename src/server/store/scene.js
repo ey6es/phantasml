@@ -198,9 +198,28 @@ class EntityHierarchyNode {
     return this._entity;
   }
 
+  /** Returns the entity's id, if there's an entity. */
+  get id(): ?string {
+    return this._entity && this._entity.id;
+  }
+
+  /** Returns the entity's order, or zero if none. */
+  get order(): number {
+    return this._entity ? this._entity.getOrder() : 0;
+  }
+
   /** Returns a reference to the child array. */
   get children(): EntityHierarchyNode[] {
     return this._children;
+  }
+
+  /** Returns the highest order of all the child entities (or zero if none). */
+  get highestChildOrder(): number {
+    let highest = 0;
+    for (const child of this._children) {
+      highest = Math.max(highest, child.order);
+    }
+    return highest;
   }
 
   constructor(entity: ?Entity = null, children: EntityHierarchyNode[] = []) {
@@ -324,6 +343,17 @@ export class Scene extends Resource {
       newIdTree,
       this._entityHierarchy.addEntity(newIdTree.getEntityLineage(entity)),
     );
+  }
+
+  /**
+   * Checks whether we can remove the identified entity (that is, whether it is
+   * not one of our automatically created initial entities).
+   *
+   * @param id the id to check.
+   * @return whether or not the entity can be removed.
+   */
+  canRemoveEntity(id: string): boolean {
+    return !this._getInitialEntities()[id];
   }
 
   removeEntity(id: string): Resource {

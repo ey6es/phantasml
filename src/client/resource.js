@@ -475,6 +475,7 @@ export function ResourceTypeMessage(props: {type: ResourceType}) {
  * Content for viewing/editing resources.
  *
  * @param props.id the id of the resource to load.
+ * @param props.locale the current locale.
  * @param props.userStatus the current user status.
  * @param props.setLoading the function to set the loading state.
  * @param props.setResource the function to set the resource descriptor.
@@ -482,6 +483,7 @@ export function ResourceTypeMessage(props: {type: ResourceType}) {
 export class ResourceContent extends React.Component<
   {
     id: string,
+    locale: string,
     userStatus: UserStatusResponse,
     setLoading: (Object, boolean) => void,
     resource: ?ResourceDescriptor,
@@ -545,7 +547,7 @@ export class ResourceContent extends React.Component<
               <EntityTree />
             </div>
             <div className="flex-grow-1 d-flex flex-column">
-              <SceneView />
+              <SceneView locale={this.props.locale} />
             </div>
             <div className="d-flex flex-column">
               <ComponentEditor />
