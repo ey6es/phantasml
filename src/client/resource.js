@@ -20,6 +20,10 @@ import {
   Input,
 } from 'reactstrap';
 import {StoreActions, store} from './store';
+import {Toolset} from './tool';
+import {EntityTree} from './entity';
+import {SceneView} from './view';
+import {ComponentEditor} from './component';
 import {getFromApi, deleteFromApi, putToApi, postToApi} from './util/api';
 import {
   Menu,
@@ -455,7 +459,13 @@ export function ResourceTypeMessage(props: {type: ResourceType}) {
           defaultMessage="Environment"
         />
       );
-
+    case 'organism':
+      return (
+        <FormattedMessage
+          id="resource.type.organism"
+          defaultMessage="Organism"
+        />
+      );
     default:
       throw new Error('Unknown resource type: ' + props.type);
   }
@@ -474,6 +484,7 @@ export class ResourceContent extends React.Component<
     id: string,
     userStatus: UserStatusResponse,
     setLoading: (Object, boolean) => void,
+    resource: ?ResourceDescriptor,
     setResource: (?ResourceDescriptor) => void,
   },
   {dialog: ?React.Element<any>},
@@ -481,7 +492,12 @@ export class ResourceContent extends React.Component<
   state = {dialog: null};
 
   render() {
-    return <div>{this.state.dialog}</div>;
+    return (
+      <div>
+        {this.props.resource ? this._createLayout(this.props.resource) : null}
+        {this.state.dialog}
+      </div>
+    );
   }
 
   async componentDidMount() {
@@ -518,6 +534,29 @@ export class ResourceContent extends React.Component<
   componentWillUnmount() {
     store.dispatch(ResourceActions.clearResource.create());
     this.props.setResource(null);
+  }
+
+  _createLayout(resource: ResourceDescriptor) {
+    switch (resource.type) {
+      case 'environment':
+      case 'organism':
+        return (
+          <div className="full-interface d-flex">
+            <div className="d-flex flex-column">
+              <Toolset />
+              <EntityTree />
+            </div>
+            <div className="flex-grow-1 d-flex flex-column">
+              <SceneView />
+            </div>
+            <div className="d-flex flex-column">
+              <ComponentEditor />
+            </div>
+          </div>
+        );
+      default:
+        throw new Error('Unknown resource type: ' + resource.type);
+    }
   }
 
   _setDialog = (dialog: ?React.Element<any>) => this.setState({dialog});

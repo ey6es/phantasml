@@ -35,6 +35,6 @@ export class ComponentDropdown extends React.Component<
  */
 export class ComponentEditor extends React.Component<{}, {}> {
   render() {
-    return <div />;
+    return <div className="flex-grow-1" />;
   }
 }

@@ -32,6 +32,6 @@ export class ViewDropdown extends React.Component<
  */
 export class SceneView extends React.Component<{}, {}> {
   render() {
-    return <div />;
+    return <div className="flex-grow-1" />;
   }
 }

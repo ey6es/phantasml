@@ -15,11 +15,7 @@ import {
   reducer as resourceReducer,
   undoStackReducer,
 } from '../server/store/resource';
-import {
-  Environment,
-  EnvironmentActions,
-  advanceEditNumber,
-} from '../server/store/environment';
+import {SceneActions, advanceEditNumber} from '../server/store/scene';
 
 type StoreAction = {type: string, [string]: any};
 
@@ -147,7 +143,7 @@ export const StoreActions = {
           map[id] = null;
         }
       }
-      store.dispatch(EnvironmentActions.editEntities.create(map));
+      store.dispatch(SceneActions.editEntities.create(map));
       return Object.assign({}, state, {clipboard});
     },
   },
@@ -178,7 +174,7 @@ export const StoreActions = {
         selection.add(entity.id);
         map[entity.id] = entity.toJSON();
       }
-      store.dispatch(EnvironmentActions.editEntities.create(map));
+      store.dispatch(SceneActions.editEntities.create(map));
       return Object.assign({}, state, {selection});
     },
   },
@@ -189,7 +185,7 @@ export const StoreActions = {
       for (const id of state.selection) {
         map[id] = null;
       }
-      store.dispatch(EnvironmentActions.editEntities.create(map));
+      store.dispatch(SceneActions.editEntities.create(map));
       return state;
     },
   },
@@ -289,7 +285,7 @@ export const StoreActions = {
     },
   },
   editEntities: {
-    create: EnvironmentActions.editEntities.create,
+    create: SceneActions.editEntities.create,
     reduce: (state: StoreState, action: StoreAction) => {
       const selection: Set<string> = new Set(state.selection);
       for (const id in action.map) {

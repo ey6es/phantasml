@@ -1,7 +1,7 @@
 /**
- * Environment state model.
+ * Scene state model.
  *
- * @module server/store/environment
+ * @module server/store/scene
  * @flow
  */
 
@@ -249,12 +249,12 @@ class EntityHierarchyNode {
 }
 
 /**
- * The state of a virtual environment.
+ * The state of a virtual scene.
  *
- * @param json the JSON representation of the environment, or null to create
- * an empty environment.
+ * @param json the JSON representation of the scene, or null to create
+ * an empty scene.
  */
-export class Environment extends Resource {
+export class Scene extends Resource {
   _idTree: IdTreeNode;
   _entityHierarchy: EntityHierarchyNode;
 
@@ -288,12 +288,8 @@ export class Environment extends Resource {
     }
   }
 
-  getType(): ResourceType {
-    return 'environment';
-  }
-
   reduce(action: ResourceAction): ?Resource {
-    const handler = EnvironmentActions[action.type];
+    const handler = SceneActions[action.type];
     return handler ? handler.reduce(this, action) : this;
   }
 
@@ -301,7 +297,7 @@ export class Environment extends Resource {
     undoStack: ResourceAction[],
     action: ResourceAction,
   ): ResourceAction[] {
-    const handler = EnvironmentActions[action.type];
+    const handler = SceneActions[action.type];
     return handler && handler.reduceUndoStack
       ? handler.reduceUndoStack(this, undoStack, action)
       : undoStack;
@@ -321,7 +317,7 @@ export class Environment extends Resource {
 
   addEntity(entity: Entity): Resource {
     const newIdTree = this._idTree.addEntity(entity);
-    return new Environment(
+    return new this.constructor(
       newIdTree,
       this._entityHierarchy.addEntity(newIdTree.getEntityLineage(entity)),
     );
@@ -332,7 +328,7 @@ export class Environment extends Resource {
     if (!entity) {
       return this;
     }
-    return new Environment(
+    return new this.constructor(
       newIdTree,
       this._entityHierarchy.removeEntity(newIdTree.getEntityLineage(entity)),
     );
@@ -364,9 +360,9 @@ export class Environment extends Resource {
    * Applies an edit represented by a map.
    *
    * @param map the edit to apply.
-   * @return the new, edited environment.
+   * @return the new, edited scene.
    */
-  applyEdit(map: Object): Environment {
+  applyEdit(map: Object): Scene {
     // first apply to the id tree, remembering added and removed entities
     let newIdTree = this._idTree;
     const removedEntities: Entity[] = [];
@@ -398,12 +394,31 @@ export class Environment extends Resource {
         newIdTree.getEntityLineage(entity),
       );
     }
-    return new Environment(newIdTree, newEntityHierarchy);
+    return new this.constructor(newIdTree, newEntityHierarchy);
   }
 }
 
-// register the type constructor for deserialization
+/**
+ * A scene representing a virtual environment.
+ */
+class Environment extends Scene {
+  getType(): ResourceType {
+    return 'environment';
+  }
+}
+
+/**
+ * A scene representing a virtual organism.
+ */
+class Organism extends Scene {
+  getType(): ResourceType {
+    return 'organism';
+  }
+}
+
+// register the type constructors for deserialization
 addResourceTypeConstructor('environment', Environment);
+addResourceTypeConstructor('organism', Organism);
 
 // used to determine which edits to merge
 let editNumber = 0;
@@ -482,16 +497,16 @@ function mergeEntityEdits(first: Object, second: Object): Object {
 }
 
 /**
- * The actions that apply to environments.
+ * The actions that apply to scenes.
  */
-export const EnvironmentActions = {
+export const SceneActions = {
   editEntities: {
     create: (map: Object) => ({type: 'editEntities', editNumber, map}),
-    reduce: (state: Environment, action: ResourceAction) => {
+    reduce: (state: Scene, action: ResourceAction) => {
       return state.applyEdit(action.map);
     },
     reduceUndoStack: (
-      state: Environment,
+      state: Scene,
       undoStack: ResourceAction[],
       action: ResourceAction,
     ) => {
@@ -512,7 +527,7 @@ export const EnvironmentActions = {
         }
       }
       return (undoStack.concat([
-        EnvironmentActions.editEntities.create(reverseEdit),
+        SceneActions.editEntities.create(reverseEdit),
       ]): ResourceAction[]);
     },
   },

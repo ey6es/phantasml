@@ -215,6 +215,7 @@ export class Interface extends React.Component<
               id={id}
               userStatus={this.props.userStatus}
               setLoading={this._setLoading}
+              resource={this.state.resource}
               setResource={this._setResource}
             />
           );

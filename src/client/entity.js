@@ -6,9 +6,10 @@
  */
 
 import * as React from 'react';
+import * as ReactRedux from 'react-redux';
 import {FormattedMessage} from 'react-intl';
 import {store, createUuid} from './store';
-import {EnvironmentActions} from '../server/store/environment';
+import {SceneActions} from '../server/store/scene';
 import {Menu, MenuItem, Submenu} from './util/ui';
 
 /**
@@ -29,7 +30,7 @@ export class EntityDropdown extends React.Component<
           <MenuItem
             onClick={() =>
               store.dispatch(
-                EnvironmentActions.editEntities.create({[createUuid()]: {}}),
+                SceneActions.editEntities.create({[createUuid()]: {}}),
               )
             }>
             <FormattedMessage id="entity.empty" defaultMessage="Empty" />
@@ -46,6 +47,6 @@ export class EntityDropdown extends React.Component<
  */
 export class EntityTree extends React.Component<{}, {}> {
   render() {
-    return <div />;
+    return <div className="entity-tree" />;
   }
 }
