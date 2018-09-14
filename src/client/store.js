@@ -153,7 +153,7 @@ export const StoreActions = {
           map[id] = null;
         }
       }
-      store.dispatch(SceneActions.editEntities.create(map));
+      dispatchLater(SceneActions.editEntities.create(map));
       return Object.assign({}, state, {clipboard});
     },
   },
@@ -184,7 +184,7 @@ export const StoreActions = {
         selection.add(entity.id);
         map[entity.id] = entity.toJSON();
       }
-      store.dispatch(SceneActions.editEntities.create(map));
+      dispatchLater(SceneActions.editEntities.create(map));
       return Object.assign({}, state, {selection});
     },
   },
@@ -195,7 +195,7 @@ export const StoreActions = {
       for (const id of state.selection) {
         map[id] = null;
       }
-      store.dispatch(SceneActions.editEntities.create(map));
+      dispatchLater(SceneActions.editEntities.create(map));
       return state;
     },
   },
@@ -386,6 +386,28 @@ export const store = Redux.createStore(reducer, initialState);
 export function setStoreResource(type: ResourceType, json: Object) {
   store.dispatch(StoreActions.setResource.create(type, json));
   store.dispatch(StoreActions.setPage.create());
+}
+
+/**
+ * Dispatches one or more actions to the store after whatever we're currently
+ * doing is done.
+ *
+ * @param actions the actions to dispatch.
+ */
+async function dispatchLater(...actions: StoreAction[]) {
+  await Promise.resolve();
+  dispatch(...actions);
+}
+
+/**
+ * Dispatches one or more actions to the store.
+ *
+ * @param actions the actions to dispatch.
+ */
+export function dispatch(...actions: StoreAction[]) {
+  for (const action of actions) {
+    store.dispatch(action);
+  }
 }
 
 /**

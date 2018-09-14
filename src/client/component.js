@@ -142,7 +142,7 @@ function NameEditor(props: {
         <Input
           id="name"
           disabled={!editable}
-          value={name}
+          value={name || ''}
           maxLength={255}
           onChange={event => {
             const map = {};

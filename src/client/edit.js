@@ -26,6 +26,9 @@ import type {
   UserPutPreferencesRequest,
   ResourceDescriptor,
 } from '../server/api';
+import type {Resource} from '../server/store/resource';
+import type {EntityHierarchyNode} from '../server/store/scene';
+import {Scene} from '../server/store/scene';
 
 /**
  * The edit menu dropdown.
@@ -53,6 +56,8 @@ export class EditDropdown extends React.Component<
               <PasteItem key="paste" />,
               <DeleteItem key="delete" />,
               <DropdownItem key="secondDivider" divider />,
+              <SelectAllItem key="selectAll" />,
+              <DropdownItem key="thirdDivider" divider />,
             ]
           : null}
         <MenuItem
@@ -149,6 +154,34 @@ const DeleteItem = ReactRedux.connect(state => ({
     <FormattedMessage id="edit.delete" defaultMessage="Delete" />
   </MenuItem>
 ));
+
+const SelectAllItem = ReactRedux.connect(state => ({
+  resource: state.resource,
+  page: state.page,
+}))((props: {resource: ?Resource, page: string}) => {
+  let pageNode: ?EntityHierarchyNode;
+  const resource = props.resource;
+  if (resource instanceof Scene) {
+    pageNode = resource.entityHierarchy.getChild(props.page);
+  }
+  return (
+    <MenuItem
+      shortcut={new Shortcut('A', Shortcut.CTRL)}
+      disabled={!(pageNode && pageNode.children.length > 0)}
+      onClick={() => {
+        const map = {};
+        pageNode &&
+          pageNode.applyToEntities(entity => {
+            if (entity.id !== props.page) {
+              map[entity.id] = true;
+            }
+          });
+        store.dispatch(StoreActions.select.create(map));
+      }}>
+      <FormattedMessage id="edit.select_all" defaultMessage="Select All" />
+    </MenuItem>
+  );
+});
 
 const AUTO_SAVE_MINUTES_OPTIONS = [0, 1, 5, 15];
 

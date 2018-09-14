@@ -189,7 +189,7 @@ function isIdEven(id: string, depth: number): boolean {
 /**
  * Represents part of the entity parentage hierarchy.
  */
-class EntityHierarchyNode {
+export class EntityHierarchyNode {
   _entity: ?Entity;
   _children: EntityHierarchyNode[];
 
@@ -274,6 +274,40 @@ class EntityHierarchyNode {
       }
     }
     return new EntityHierarchyNode(this._entity, newChildren);
+  }
+
+  /**
+   * Retrieves the child node with the specified id.
+   *
+   * @param id the id of the child of interest.
+   * @return the corresponding child node, if found.
+   */
+  getChild(id: string): ?EntityHierarchyNode {
+    for (const child of this._children) {
+      if (child.id === id) {
+        return child;
+      }
+    }
+  }
+
+  /**
+   * Applies an operation to the entities in the hierarchy in depth-first
+   * order.
+   *
+   * @param op the operation to apply, which should return true/undefined to
+   * continue traversing or false to stop.
+   * @return true to continue applying, false to stop.
+   */
+  applyToEntities(op: Entity => ?boolean): boolean {
+    if (this._entity && op(this._entity) === false) {
+      return false;
+    }
+    for (const child of this._children) {
+      if (!child.applyToEntities(op)) {
+        return false;
+      }
+    }
+    return true;
   }
 }
 
