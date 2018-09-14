@@ -21,6 +21,8 @@ type StoreAction = {type: string, [string]: any};
 
 export type TransferError = {retryAction: ?ResourceAction};
 
+export type EditorTab = 'entity' | 'page';
+
 type StoreState = {
   resource: ?Resource,
   resourceDirty: boolean,
@@ -28,6 +30,7 @@ type StoreState = {
   transferError: ?TransferError,
   undoStack: ResourceAction[],
   redoStack: ResourceAction[],
+  editorTab: EditorTab,
   page: string,
   selection: Set<string>,
   clipboard: Entity[],
@@ -40,6 +43,7 @@ const initialState = {
   transferError: null,
   undoStack: [],
   redoStack: [],
+  editorTab: 'entity',
   page: '',
   selection: new Set(),
   clipboard: [],
@@ -267,6 +271,12 @@ export const StoreActions = {
     create: () => ({type: 'clearTransferError'}),
     reduce: (state: StoreState, action: StoreAction) => {
       return Object.assign({}, state, {transferError: null});
+    },
+  },
+  setEditorTab: {
+    create: (tab: EditorTab) => ({type: 'setEditorTab', tab}),
+    reduce: (state: StoreState, action: StoreAction) => {
+      return Object.assign({}, state, {editorTab: action.tab});
     },
   },
   setPage: {

@@ -55,13 +55,13 @@ const PageTabs = ReactRedux.connect(state => ({
     return null;
   }
   return (
-    <Nav tabs className="pt-1">
+    <Nav tabs className="pt-1 bg-black">
       {resource.entityHierarchy.children.map(node => {
         const entity = node.entity;
         if (!entity) {
           return null; // shouldn't happen
         }
-        const removable = resource.canRemoveEntity(entity.id);
+        const removable = !resource.isInitialEntity(entity.id);
         return (
           <NavItem key={entity.id} className="position-relative">
             <NavLink

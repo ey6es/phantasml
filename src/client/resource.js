@@ -550,7 +550,7 @@ export class ResourceContent extends React.Component<
               <SceneView locale={this.props.locale} />
             </div>
             <div className="d-flex flex-column">
-              <ComponentEditor />
+              <ComponentEditor locale={this.props.locale} />
             </div>
           </div>
         );

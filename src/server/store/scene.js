@@ -346,14 +346,14 @@ export class Scene extends Resource {
   }
 
   /**
-   * Checks whether we can remove the identified entity (that is, whether it is
-   * not one of our automatically created initial entities).
+   * Checks whether the identified entity is one of the built-in initial ones
+   * that can't be removed or renamed.
    *
    * @param id the id to check.
-   * @return whether or not the entity can be removed.
+   * @return whether or not the id corresponds to an initial entity.
    */
-  canRemoveEntity(id: string): boolean {
-    return !this._getInitialEntities()[id];
+  isInitialEntity(id: string): boolean {
+    return !!this._getInitialEntities()[id];
   }
 
   removeEntity(id: string): Resource {
