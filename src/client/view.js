@@ -39,8 +39,9 @@ export class ViewDropdown extends React.Component<
 export class SceneView extends React.Component<{locale: string}, {}> {
   render() {
     return (
-      <div className="flex-grow-1">
+      <div className="flex-grow-1 d-flex flex-column">
         <PageTabs locale={this.props.locale} />
+        <div className="flex-grow-1 border-left border-secondary" />
       </div>
     );
   }

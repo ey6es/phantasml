@@ -12,6 +12,8 @@ import * as React from 'react';
  */
 export class Toolset extends React.Component<{}, {}> {
   render() {
-    return <div />;
+    return (
+      <div className="pt-1 bg-black border-bottom border-secondary toolset" />
+    );
   }
 }
