@@ -243,10 +243,11 @@ export class EntityHierarchyNode {
         );
       }
     } else {
-      const entityOrder = entity.getOrder();
+      let entityOrder = entity.getOrder();
       for (const child of this._children) {
-        if (child._entity && entityOrder < child._entity.getOrder()) {
+        if (entityOrder < child.order) {
           newChildren.push(new EntityHierarchyNode(entity));
+          entityOrder = Infinity;
         }
         newChildren.push(child);
       }

@@ -46,12 +46,21 @@ export class EntityDropdown extends React.Component<
   }
 
   _createEntity(type: string, state: Object = {}) {
+    const storeState = store.getState();
+    const resource = storeState.resource;
+    if (!(resource instanceof Scene)) {
+      return;
+    }
+    const pageNode = resource.entityHierarchy.getChild(storeState.page);
+    if (!pageNode) {
+      return;
+    }
     store.dispatch(
       SceneActions.editEntities.create(
         Object.assign(
           {
             [createUuid()]: {
-              parent: {ref: store.getState().page},
+              parent: {ref: storeState.page},
               name: renderText(
                 <FormattedMessage
                   id="new.entity.name"
@@ -60,6 +69,7 @@ export class EntityDropdown extends React.Component<
                 />,
                 this.props.locale,
               ),
+              order: pageNode.highestChildOrder + 1,
             },
           },
           state,
