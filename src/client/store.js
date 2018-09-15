@@ -294,7 +294,8 @@ export const StoreActions = {
         const firstPage = resource.entityHierarchy.children[0].entity;
         page = firstPage ? firstPage.id : '';
       }
-      return Object.assign({}, state, {page});
+      const selection: Set<string> = new Set();
+      return Object.assign({}, state, {page, selection});
     },
   },
   setResource: {
