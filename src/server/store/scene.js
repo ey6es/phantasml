@@ -203,6 +203,11 @@ export class EntityHierarchyNode {
     return this._entity && this._entity.id;
   }
 
+  /** Returns the entity's name, if there's an entity. */
+  get name(): ?string {
+    return this._entity && this._entity.getName();
+  }
+
   /** Returns the entity's order, or zero if none. */
   get order(): number {
     return this._entity ? this._entity.getOrder() : 0;
@@ -289,6 +294,29 @@ export class EntityHierarchyNode {
         return child;
       }
     }
+  }
+
+  /**
+   * Finds a name that no child of this node has.
+   *
+   * @param baseName the name base (that is, without the number).
+   * @param [firstNumber] if specified, the first number to try.
+   * @return the locally unique name.
+   */
+  getUniqueName(baseName: string, firstNumber?: number): string {
+    // search children for the highest current number
+    let highestNumber = 0;
+    for (const child of this._children) {
+      const name = child.name;
+      if (name && name.startsWith(baseName)) {
+        const number = parseInt(name.substring(baseName.length + 1));
+        highestNumber = Math.max(highestNumber, isNaN(number) ? 1 : number);
+      }
+    }
+    if (highestNumber) {
+      return `${baseName} ${highestNumber + 1}`;
+    }
+    return firstNumber ? `${baseName} ${firstNumber}` : baseName;
   }
 
   /**
@@ -389,6 +417,22 @@ export class Scene extends Resource {
    */
   isInitialEntity(id: string): boolean {
     return !!this._getInitialEntities()[id];
+  }
+
+  /**
+   * Returns the number of initial pages.
+   *
+   * @return the initial page count.
+   */
+  getInitialPageCount(): number {
+    const initialEntities = this._getInitialEntities();
+    let count = 0;
+    for (const key in initialEntities) {
+      if (!initialEntities[key].parent) {
+        count++;
+      }
+    }
+    return count;
   }
 
   removeEntity(id: string): Resource {

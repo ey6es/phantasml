@@ -14,7 +14,7 @@ import type {Resource, Entity} from '../server/store/resource';
 import {EntityHierarchyNode, Scene, SceneActions} from '../server/store/scene';
 
 const ENTITY_TYPES = {
-  empty: {},
+  group: {},
 };
 
 /**
@@ -61,13 +61,8 @@ export class EntityDropdown extends React.Component<
           {
             [createUuid()]: {
               parent: {ref: storeState.page},
-              name: renderText(
-                <FormattedMessage
-                  id="new.entity.name"
-                  defaultMessage="New {type}"
-                  values={{type: <EntityType type={type} />}}
-                />,
-                this.props.locale,
+              name: pageNode.getUniqueName(
+                renderText(<EntityType type={type} />, this.props.locale),
               ),
               order: pageNode.highestChildOrder + 1,
             },
@@ -81,8 +76,8 @@ export class EntityDropdown extends React.Component<
 
 function EntityType(props: {type: string}) {
   switch (props.type) {
-    case 'empty':
-      return <FormattedMessage id="entity.type.empty" defaultMessage="Empty" />;
+    case 'group':
+      return <FormattedMessage id="entity.type.group" defaultMessage="Group" />;
   }
 }
 

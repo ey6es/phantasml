@@ -6,6 +6,7 @@
  */
 
 import * as React from 'react';
+import {Nav} from 'reactstrap';
 
 /**
  * The set of tools available.
@@ -13,7 +14,9 @@ import * as React from 'react';
 export class Toolset extends React.Component<{}, {}> {
   render() {
     return (
-      <div className="pt-1 bg-black border-bottom border-secondary toolset" />
+      <div>
+        <Nav tabs className="pt-2 bg-black play-controls" />
+      </div>
     );
   }
 }

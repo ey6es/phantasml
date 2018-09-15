@@ -56,7 +56,7 @@ const PageTabs = ReactRedux.connect(state => ({
     return null;
   }
   return (
-    <Nav tabs className="pt-1 bg-black">
+    <Nav tabs className="pt-2 bg-black">
       {resource.entityHierarchy.children.map(node => {
         const entity = node.entity;
         if (!entity) {
@@ -94,12 +94,15 @@ const PageTabs = ReactRedux.connect(state => ({
             store.dispatch(
               SceneActions.editEntities.create({
                 [createUuid()]: {
-                  name: renderText(
-                    <FormattedMessage
-                      id="page.new"
-                      defaultMessage="New Page"
-                    />,
-                    props.locale,
+                  name: resource.entityHierarchy.getUniqueName(
+                    renderText(
+                      <FormattedMessage
+                        id="new.page.name"
+                        defaultMessage="Page"
+                      />,
+                      props.locale,
+                    ),
+                    resource.getInitialPageCount() + 1,
                   ),
                   order: resource.entityHierarchy.highestChildOrder + 1,
                 },

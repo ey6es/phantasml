@@ -67,14 +67,14 @@ export const ComponentEditor = ReactRedux.connect(state => ({
     }
     return (
       <div className="component-editor">
-        <Nav tabs className="pt-1 bg-black">
+        <Nav tabs className="pt-2 bg-black">
           <NavItem>
             <NavLink
               active={props.editorTab === 'entity'}
               onClick={() =>
                 store.dispatch(StoreActions.setEditorTab.create('entity'))
               }>
-              <FormattedMessage id="editor.entity" defaultMessage="Entity" />
+              <FormattedMessage id="editor.entity" defaultMessage="Entities" />
             </NavLink>
           </NavItem>
           <NavItem>
