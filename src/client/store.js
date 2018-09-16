@@ -168,15 +168,32 @@ export const StoreActions = {
   paste: {
     create: () => ({type: 'paste'}),
     reduce: (state: StoreState, action: StoreAction) => {
-      if (!state.resource) {
+      const resource = state.resource;
+      if (!(resource instanceof Scene)) {
+        return state;
+      }
+      // TODO: "paste into" (as child of) selected entity
+      const parentId = state.page;
+      const parentNode = resource.getEntityHierarchyNode(parentId);
+      if (!parentNode) {
         return state;
       }
       const selection: Set<string> = new Set();
-      const map = {};
+      let map = {};
+      const ids: Map<string, string> = new Map();
       for (const entity of state.clipboard) {
-        // TODO: regenerate ids and fix references
-        selection.add(entity.id);
-        map[entity.id] = entity.toJSON();
+        const newId = createUuid();
+        ids.set(entity.id, newId);
+        selection.add(newId);
+        map[newId] = entity.toJSON();
+      }
+      map = updateRefs(map, ids, parentId);
+      let lastOrder = parentNode.highestChildOrder;
+      for (const id in map) {
+        const entity = map[id];
+        if (entity.parent && entity.parent.ref === parentId) {
+          entity.order = ++lastOrder;
+        }
       }
       dispatchLater(SceneActions.editEntities.create(map));
       return Object.assign({}, state, {selection});
@@ -325,6 +342,33 @@ export const StoreActions = {
     },
   },
 };
+
+function updateRefs(
+  map: Object,
+  ids: Map<string, string>,
+  defaultParentId: string,
+): Object {
+  const newMap = {};
+  for (const key in map) {
+    const value = map[key];
+    if (typeof value === 'object' && value !== null) {
+      const ref = value.ref;
+      if (ref !== undefined) {
+        const newId = ids.get(ref);
+        if (newId !== undefined) {
+          newMap[key] = {ref: newId};
+        } else if (key === 'parent') {
+          newMap[key] = {ref: defaultParentId};
+        }
+      } else {
+        newMap[key] = updateRefs(value, ids, defaultParentId);
+      }
+    } else {
+      newMap[key] = value;
+    }
+  }
+  return newMap;
+}
 
 function reducePage(state: StoreState, action: ResourceAction): string {
   const resource = state.resource;

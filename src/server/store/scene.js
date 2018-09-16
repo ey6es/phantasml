@@ -232,6 +232,19 @@ export class EntityHierarchyNode {
     this._children = children;
   }
 
+  getNode(lineage: Entity[], depth: number = 0): ?EntityHierarchyNode {
+    if (depth >= lineage.length) {
+      return; // invalid lineage
+    }
+    const entity = lineage[depth];
+    const node = this.getChild(entity.id);
+    const nextDepth = depth + 1;
+    if (!node || nextDepth >= lineage.length) {
+      return node;
+    }
+    return node.getNode(lineage, nextDepth);
+  }
+
   addEntity(lineage: Entity[], depth: number = 0): EntityHierarchyNode {
     if (depth >= lineage.length) {
       return this; // invalid lineage
@@ -405,6 +418,18 @@ export class Scene extends Resource {
     return new this.constructor(
       newIdTree,
       this._entityHierarchy.addEntity(newIdTree.getEntityLineage(entity)),
+    );
+  }
+
+  /**
+   * Retrieves a node in the entity hierarchy by its id.
+   *
+   * @param id the id of the node of interest.
+   * @return the node, if found.
+   */
+  getEntityHierarchyNode(id: string): ?EntityHierarchyNode {
+    return this._entityHierarchy.getNode(
+      this._idTree.getEntityLineage(this.getEntity(id)),
     );
   }
 
