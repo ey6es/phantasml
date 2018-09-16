@@ -124,7 +124,7 @@ export class Resource {
   }
 }
 
-type EntityReference = {ref: string};
+export type EntityReference = {ref: string};
 
 /**
  * Base class for all entities.

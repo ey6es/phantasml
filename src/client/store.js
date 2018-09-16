@@ -9,7 +9,12 @@ import * as Redux from 'redux';
 import uuid from 'uuid/v1';
 import {getFromApi, putToApi} from './util/api';
 import type {ResourceType} from '../server/api';
-import type {Resource, ResourceAction, Entity} from '../server/store/resource';
+import type {
+  Resource,
+  ResourceAction,
+  Entity,
+  EntityReference,
+} from '../server/store/resource';
 import {
   ResourceActions,
   reducer as resourceReducer,
@@ -63,7 +68,8 @@ function reducer(state: StoreState, action: StoreAction): StoreState {
   const undoStack = undoStackReducer(state.resource, state.undoStack, action);
   const resource = resourceReducer(state.resource, action);
   if (resource !== state.resource || undoStack !== state.undoStack) {
-    state = Object.assign({}, state, {resource, undoStack});
+    const redoStack = undoStack !== state.undoStack ? [] : state.redoStack;
+    state = Object.assign({}, state, {resource, undoStack, redoStack});
   }
   return state;
 }
@@ -147,8 +153,10 @@ export const StoreActions = {
           map[id] = null;
         }
       }
-      dispatchLater(SceneActions.editEntities.create(map));
-      return Object.assign({}, state, {clipboard});
+      return reducer(
+        Object.assign({}, state, {clipboard}),
+        SceneActions.editEntities.create(map),
+      );
     },
   },
   copy: {
@@ -178,13 +186,11 @@ export const StoreActions = {
       if (!parentNode) {
         return state;
       }
-      const selection: Set<string> = new Set();
       let map = {};
       const ids: Map<string, string> = new Map();
       for (const entity of state.clipboard) {
         const newId = createUuid();
         ids.set(entity.id, newId);
-        selection.add(newId);
         map[newId] = entity.toJSON();
       }
       map = updateRefs(map, ids, parentId);
@@ -195,8 +201,7 @@ export const StoreActions = {
           entity.order = ++lastOrder;
         }
       }
-      dispatchLater(SceneActions.editEntities.create(map));
-      return Object.assign({}, state, {selection});
+      return reducer(state, SceneActions.editEntities.create(map));
     },
   },
   delete: {
@@ -206,8 +211,7 @@ export const StoreActions = {
       for (const id of state.selection) {
         map[id] = null;
       }
-      dispatchLater(SceneActions.editEntities.create(map));
-      return state;
+      return reducer(state, SceneActions.editEntities.create(map));
     },
   },
   saveResource: {
@@ -376,22 +380,28 @@ function reducePage(state: StoreState, action: ResourceAction): string {
     return state.page;
   }
   let page = state.page;
-  for (const id in action.map) {
+  for (let id in action.map) {
     const state = action.map[id];
-    if (state !== null) {
-      const entity = resource.getEntity(id);
-      if (!(state.parent || (entity && entity.getParent()))) {
+    let parent = getParent(state, resource.getEntity(id));
+    if (!parent) {
+      if (state !== null) {
         page = id; // switch to any added/edited page
-      }
-    } else if (page === id) {
-      for (const child of resource.entityHierarchy.children) {
-        if (child.id === id) {
-          break;
-        } else if (child.id && action.map[child.id] !== null) {
-          page = child.id; // switch away from deleted page
+      } else if (page === id) {
+        for (const child of resource.entityHierarchy.children) {
+          if (child.id === id) {
+            break;
+          } else if (child.id && action.map[child.id] !== null) {
+            page = child.id; // switch away from deleted page
+          }
         }
       }
+      continue;
     }
+    do {
+      id = parent.ref;
+      parent = getParent(action.map[id], resource.getEntity(id));
+    } while (parent);
+    page = id; // switch to page with added/removed/edited entity
   }
   return page;
 }
@@ -404,13 +414,23 @@ function reduceSelection(
   if (!(resource instanceof Scene && action.type === 'editEntities')) {
     return state.selection;
   }
-  const selection: Set<string> = new Set(state.selection);
+  const selection: Set<string> = new Set();
   for (const id in action.map) {
-    if (action.map[id] === null) {
-      selection.delete(id);
+    const state = action.map[id];
+    if (state !== null) {
+      if (getParent(state, resource.getEntity(id))) {
+        selection.add(id); // add added/edited entity to selection
+      }
     }
   }
   return selection;
+}
+
+function getParent(state: ?Object, entity: ?Entity): ?EntityReference {
+  if (state && state.parent !== undefined) {
+    return state.parent;
+  }
+  return entity && entity.getParent();
 }
 
 /** The global Redux store. */
@@ -426,28 +446,6 @@ export const store = Redux.createStore(reducer, initialState);
 export function setStoreResource(type: ResourceType, json: Object) {
   store.dispatch(StoreActions.setResource.create(type, json));
   store.dispatch(StoreActions.setPage.create());
-}
-
-/**
- * Dispatches one or more actions to the store after whatever we're currently
- * doing is done.
- *
- * @param actions the actions to dispatch.
- */
-async function dispatchLater(...actions: StoreAction[]) {
-  await Promise.resolve();
-  dispatch(...actions);
-}
-
-/**
- * Dispatches one or more actions to the store.
- *
- * @param actions the actions to dispatch.
- */
-export function dispatch(...actions: StoreAction[]) {
-  for (const action of actions) {
-    store.dispatch(action);
-  }
 }
 
 /**
