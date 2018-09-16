@@ -483,7 +483,14 @@ export class Scene extends Resource {
       const entity = this.getEntity(id);
       const state = map[id];
       if (state === null) {
-        entity && (reversed[id] = entity.state);
+        // store the state of the entity and all descendants
+        const node = this._entityHierarchy.getNode(
+          this._idTree.getEntityLineage(entity),
+        );
+        node &&
+          node.applyToEntities(entity => {
+            reversed[entity.id] = entity.state;
+          });
       } else if (entity) {
         reversed[id] = reverseEdit(entity.state, state);
       } else {
@@ -508,13 +515,21 @@ export class Scene extends Resource {
       const state = map[id];
       let oldEntity: ?Entity;
       if (state === null) {
-        [newIdTree, oldEntity] = newIdTree.removeEntity(id);
+        // remove entity and all descendants
+        const node = this._entityHierarchy.getNode(
+          this._idTree.getEntityLineage(this._idTree.getEntity(id)),
+        );
+        node &&
+          node.applyToEntities(entity => {
+            [newIdTree, oldEntity] = newIdTree.removeEntity(entity.id);
+            oldEntity && removedEntities.push(oldEntity);
+          });
       } else {
         let newEntity: Entity;
         [newIdTree, oldEntity, newEntity] = newIdTree.editEntity(id, state);
         addedEntities.push(newEntity);
+        oldEntity && removedEntities.push(oldEntity);
       }
-      oldEntity && removedEntities.push(oldEntity);
     }
 
     // process hierarchy removals with old id tree
