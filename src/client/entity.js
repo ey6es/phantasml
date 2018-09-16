@@ -110,7 +110,7 @@ export function EntityName(props: {entity: Entity}) {
 }
 
 /**
- * The component editor.
+ * The tree view of the entities on the page.
  */
 export const EntityTree = ReactRedux.connect(state => ({
   resource: state.resource,

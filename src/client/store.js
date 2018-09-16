@@ -25,7 +25,7 @@ export type EditorTab = 'entity' | 'page';
 
 type StoreState = {
   resource: ?Resource,
-  resourceDirty: boolean,
+  savedEditNumber: number,
   transferAction: ?StoreAction,
   transferError: ?TransferError,
   undoStack: ResourceAction[],
@@ -38,7 +38,7 @@ type StoreState = {
 
 const initialState = {
   resource: null,
-  resourceDirty: false,
+  savedEditNumber: 0,
   transferAction: null,
   transferError: null,
   undoStack: [],
@@ -63,11 +63,7 @@ function reducer(state: StoreState, action: StoreAction): StoreState {
   const undoStack = undoStackReducer(state.resource, state.undoStack, action);
   const resource = resourceReducer(state.resource, action);
   if (resource !== state.resource || undoStack !== state.undoStack) {
-    state = Object.assign({}, state, {
-      resource,
-      resourceDirty: state.resourceDirty || undoStack !== state.undoStack,
-      undoStack,
-    });
+    state = Object.assign({}, state, {resource, undoStack});
   }
   return state;
 }
@@ -91,7 +87,6 @@ export const StoreActions = {
       );
       return (Object.assign({}, state, {
         resource: resourceReducer(state.resource, undoAction),
-        resourceDirty: true,
         undoStack: state.undoStack.slice(0, undoIndex),
         redoStack,
         page: reducePage(state, undoAction),
@@ -114,7 +109,6 @@ export const StoreActions = {
       );
       return (Object.assign({}, state, {
         resource: resourceReducer(state.resource, redoAction),
-        resourceDirty: true,
         undoStack,
         redoStack: state.redoStack.slice(0, redoIndex),
         page: reducePage(state, redoAction),
@@ -219,8 +213,9 @@ export const StoreActions = {
           );
         }
       })();
+      const lastAction = state.undoStack[state.undoStack.length - 1];
       return Object.assign({}, state, {
-        resourceDirty: false,
+        savedEditNumber: lastAction ? lastAction.editNumber : 0,
         transferAction: action,
       });
     },
@@ -302,7 +297,7 @@ export const StoreActions = {
     create: ResourceActions.setResource.create,
     reduce: (state: ?Resource, action: ResourceAction) => {
       return Object.assign({}, state, {
-        resourceDirty: false,
+        savedEditNumber: 0,
         undoStack: [],
         redoStack: [],
         selection: (new Set(): Set<string>),
@@ -426,3 +421,15 @@ export function createUuid(): string {
 // split edits when we press a key or mouse button
 document.addEventListener('keydown', advanceEditNumber);
 document.addEventListener('mousedown', advanceEditNumber);
+
+/**
+ * Checks whether the state is "dirty": whether there have been any edits since
+ * we last saved.
+ *
+ * @param state the state to examine.
+ * @return whether or not the state is dirty.
+ */
+export function isResourceDirty(state: StoreState): boolean {
+  const lastAction = state.undoStack[state.undoStack.length - 1];
+  return state.savedEditNumber !== (lastAction ? lastAction.editNumber : 0);
+}

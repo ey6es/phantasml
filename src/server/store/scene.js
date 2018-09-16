@@ -562,14 +562,14 @@ addResourceTypeConstructor('environment', Environment);
 addResourceTypeConstructor('organism', Organism);
 
 // used to determine which edits to merge
-let editNumber = 0;
+let currentEditNumber = 1;
 
 /**
  * Advances the current edit number, ensuring that future edits will not be
  * merged with previous ones.
  */
 export function advanceEditNumber() {
-  editNumber++;
+  currentEditNumber++;
 }
 
 /**
@@ -642,7 +642,11 @@ function mergeEntityEdits(first: Object, second: Object): Object {
  */
 export const SceneActions = {
   editEntities: {
-    create: (map: Object) => ({type: 'editEntities', editNumber, map}),
+    create: (map: Object, editNumber: number = currentEditNumber) => ({
+      type: 'editEntities',
+      editNumber,
+      map,
+    }),
     reduce: (state: Scene, action: ResourceAction) => {
       return state.applyEdit(action.map);
     },
@@ -668,7 +672,7 @@ export const SceneActions = {
         }
       }
       return (undoStack.concat([
-        SceneActions.editEntities.create(reverseEdit),
+        SceneActions.editEntities.create(reverseEdit, action.editNumber),
       ]): ResourceAction[]);
     },
   },

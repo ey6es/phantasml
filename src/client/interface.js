@@ -18,7 +18,7 @@ import {
   Button,
 } from 'reactstrap';
 import type {TransferError} from './store';
-import {StoreActions, store} from './store';
+import {StoreActions, store, isResourceDirty} from './store';
 import {UserDropdown} from './user';
 import {
   RESOURCE_PARAM,
@@ -237,7 +237,7 @@ export class Interface extends React.Component<
 }
 
 const WindowTitleSetter = ReactRedux.connect(state => ({
-  resourceDirty: state.resourceDirty,
+  resourceDirty: isResourceDirty(state),
 }))(
   (props: {
     resource: ?ResourceDescriptor,

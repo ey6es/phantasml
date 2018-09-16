@@ -19,7 +19,7 @@ import {
   Label,
   Input,
 } from 'reactstrap';
-import {StoreActions, store, setStoreResource} from './store';
+import {StoreActions, store, setStoreResource, isResourceDirty} from './store';
 import {Toolset} from './tool';
 import {EntityTree} from './entity';
 import {SceneView} from './view';
@@ -236,11 +236,11 @@ class AutoSaverImpl extends React.Component<AutoSaverProps, {}> {
 }
 
 const AutoSaver = ReactRedux.connect(state => ({
-  dirty: state.resourceDirty,
+  dirty: isResourceDirty(state),
 }))(AutoSaverImpl);
 
 const SaveItem = ReactRedux.connect(state => ({
-  disabled: !state.resourceDirty,
+  disabled: !isResourceDirty(state),
 }))((props: {disabled: boolean, resource: ResourceDescriptor}) => (
   <MenuItem
     shortcut={new Shortcut('S', Shortcut.CTRL)}
@@ -253,7 +253,7 @@ const SaveItem = ReactRedux.connect(state => ({
 ));
 
 const RevertItem = ReactRedux.connect(state => ({
-  disabled: !state.resourceDirty,
+  disabled: !isResourceDirty(state),
 }))((props: {disabled: boolean, resource: ResourceDescriptor}) => (
   <MenuItem
     disabled={props.disabled}
