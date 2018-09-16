@@ -47,6 +47,7 @@ class IdTreeNode {
       }
       entity = this.getEntity(parent.ref);
       if (!entity) {
+        console.warn('Invalid reference: ' + parent.ref);
         return [];
       }
       lineage.unshift(entity);
@@ -704,11 +705,10 @@ export const SceneActions = {
           lastUndo.editNumber === action.editNumber
         ) {
           // merge into existing edit
+          const map = mergeEntityEdits(lastUndo.map, reverseEdit);
           return (undoStack
             .slice(0, undoIndex)
-            .concat([
-              mergeEntityEdits(lastUndo.map, reverseEdit),
-            ]): ResourceAction[]);
+            .concat([Object.assign({}, lastUndo, {map})]): ResourceAction[]);
         }
       }
       return (undoStack.concat([

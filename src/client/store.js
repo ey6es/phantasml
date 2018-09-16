@@ -59,6 +59,10 @@ function reducer(state: StoreState, action: StoreAction): StoreState {
   if (!state) {
     state = initialState;
   }
+  // remember page/selection before action
+  const oldPage = state.page;
+  const oldSelection = state.selection;
+
   // first try the store actions
   const handler = StoreActions[action.type];
   if (handler) {
@@ -68,7 +72,16 @@ function reducer(state: StoreState, action: StoreAction): StoreState {
   const undoStack = undoStackReducer(state.resource, state.undoStack, action);
   const resource = resourceReducer(state.resource, action);
   if (resource !== state.resource || undoStack !== state.undoStack) {
-    const redoStack = undoStack !== state.undoStack ? [] : state.redoStack;
+    let redoStack = state.redoStack;
+    if (undoStack !== state.undoStack) {
+      // it's a new action, so clear the redo stack and save selection
+      redoStack = [];
+      let action = undoStack[undoStack.length - 1];
+      if (action.page === undefined) {
+        action.page = oldPage;
+        action.selection = oldSelection;
+      }
+    }
     state = Object.assign({}, state, {resource, undoStack, redoStack});
   }
   return state;
@@ -95,8 +108,8 @@ export const StoreActions = {
         resource: resourceReducer(state.resource, undoAction),
         undoStack: state.undoStack.slice(0, undoIndex),
         redoStack,
-        page: reducePage(state, undoAction),
-        selection: reduceSelection(state, undoAction),
+        page: undoAction.page,
+        selection: undoAction.selection,
       }): StoreState);
     },
   },
@@ -113,6 +126,9 @@ export const StoreActions = {
         state.undoStack,
         redoAction,
       );
+      const undoAction = undoStack[undoStack.length - 1];
+      undoAction.page = state.page;
+      undoAction.selection = state.selection;
       return (Object.assign({}, state, {
         resource: resourceReducer(state.resource, redoAction),
         undoStack,
