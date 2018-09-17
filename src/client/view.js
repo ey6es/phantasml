@@ -47,6 +47,8 @@ export class SceneView extends React.Component<{locale: string}, {}> {
   }
 }
 
+let draggingId: ?string;
+
 const PageTabs = ReactRedux.connect(state => ({
   resource: state.resource,
   selectedPage: state.page,
@@ -55,6 +57,8 @@ const PageTabs = ReactRedux.connect(state => ({
   if (!(resource instanceof Scene)) {
     return null;
   }
+  let previousOrder = resource.entityHierarchy.lowestChildOrder - 2;
+  const highestOrder = resource.entityHierarchy.highestChildOrder;
   return (
     <Nav tabs className="pt-2 bg-black">
       {resource.entityHierarchy.children.map(node => {
@@ -62,15 +66,23 @@ const PageTabs = ReactRedux.connect(state => ({
         if (!entity) {
           return null; // shouldn't happen
         }
+        const entityOrder = entity.getOrder();
+        const preOrder = (previousOrder + entityOrder) / 2;
+        previousOrder = entityOrder;
         const removable = !resource.isInitialEntity(entity.id);
         return (
           <NavItem
             key={entity.id}
             className="position-relative"
             draggable
-            onDragStart={event =>
-              event.dataTransfer.setData('text', entity.id)
-            }>
+            onDragStart={event => {
+              draggingId = entity.id;
+              event.dataTransfer.setData('text', entity.id);
+            }}
+            onDragEnd={event => {
+              draggingId = null;
+            }}>
+            <ReorderTarget order={preOrder} />
             <NavLink
               className={removable ? 'pr-5' : null}
               active={entity.id === props.selectedPage}
@@ -89,6 +101,9 @@ const PageTabs = ReactRedux.connect(state => ({
                 }>
                 &times;
               </Button>
+            ) : null}
+            {entityOrder === highestOrder ? (
+              <ReorderTarget after={true} order={entityOrder + 1} />
             ) : null}
           </NavItem>
         );
@@ -121,3 +136,42 @@ const PageTabs = ReactRedux.connect(state => ({
     </Nav>
   );
 });
+
+function ReorderTarget(props: {after?: boolean, order: number}) {
+  const baseClass = `page-reorder-target${props.after ? ' after' : ' before'}`;
+  return (
+    <div
+      className={baseClass}
+      onDragEnter={event => {
+        if (isDroppable(props.order)) {
+          event.target.className = baseClass + ' visible';
+        }
+      }}
+      onDragLeave={event => {
+        event.target.className = baseClass;
+      }}
+      onDrop={event => {
+        event.target.className = baseClass;
+        if (isDroppable(props.order) && draggingId) {
+          store.dispatch(
+            SceneActions.editEntities.create({
+              [draggingId]: {order: props.order},
+            }),
+          );
+        }
+      }}
+    />
+  );
+}
+
+function isDroppable(order: number): boolean {
+  const resource = store.getState().resource;
+  if (!(resource instanceof Scene) || !draggingId) {
+    return false;
+  }
+  const entity = resource.getEntity(draggingId);
+  if (!entity || entity.getParent()) {
+    return false;
+  }
+  return resource.entityHierarchy.entityWillMove(draggingId, order);
+}

@@ -219,13 +219,16 @@ export class EntityHierarchyNode {
     return this._children;
   }
 
+  /** Returns the lowest order of all the child entities (or zero if none). */
+  get lowestChildOrder(): number {
+    const firstChild = this._children[0];
+    return firstChild ? firstChild.order : 0;
+  }
+
   /** Returns the highest order of all the child entities (or zero if none). */
   get highestChildOrder(): number {
-    let highest = 0;
-    for (const child of this._children) {
-      highest = Math.max(highest, child.order);
-    }
-    return highest;
+    const lastChild = this._children[this._children.length - 1];
+    return lastChild ? lastChild.order : 0;
   }
 
   constructor(entity: ?Entity = null, children: EntityHierarchyNode[] = []) {
@@ -308,6 +311,25 @@ export class EntityHierarchyNode {
         return child;
       }
     }
+  }
+
+  /**
+   * Checks whether changing the order of the identified entity will move it in
+   * the child array.
+   *
+   * @param id the id of the entity.
+   * @param newOrder the new entity order.
+   * @return whether or not changing the order will reorder the children.
+   */
+  entityWillMove(id: string, newOrder: number): boolean {
+    let previousId: ?string;
+    for (const child of this._children) {
+      if (newOrder < child.order) {
+        return id !== child.id && id !== previousId;
+      }
+      previousId = child.id;
+    }
+    return id !== previousId;
   }
 
   /**

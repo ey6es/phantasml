@@ -105,6 +105,28 @@ a.navbar-brand {
   background-color: transparent !important;
 }
 
+.page-reorder-target {
+  height: 40px;
+  width: 0px;
+  padding: 0px 1px;
+  border-left: 19px solid transparent;
+  border-right: 19px solid transparent;
+  position: absolute;
+  bottom: 0px;
+  background-clip: padding-box;
+  -webkit-background-clip: padding-box;
+
+  &.visible {
+    background-color: #fff;
+  }
+  &.before {
+    left: -20px;
+  }
+  &.after {
+    right: -20px;
+  }
+}
+
 .bg-black {
   background-color: #000;
 }
