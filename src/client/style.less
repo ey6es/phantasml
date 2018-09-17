@@ -9,9 +9,17 @@
   transform: scale(0.5, 0.5) translate(-50%, -50%);
 }
 
+.unselectable {
+  -moz-user-select: none;
+  -khtml-user-select: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
 // fixes for Bootstrap/theme
 a.nav-link {
   cursor: pointer;
+  .unselectable();
 }
 .modal-content .nav-link.active {
   background-color: #303030;
@@ -21,6 +29,7 @@ a.nav-link {
 }
 a.navbar-brand {
   cursor: pointer;
+  .unselectable();
   &:hover,
   &:focus {
     color: #00bc8c !important;
@@ -107,10 +116,10 @@ a.navbar-brand {
 .entity-tree {
   flex: 1;
   width: 250px;
+  cursor: default;
 }
 
 .entity-tree-node {
-  cursor: pointer;
 }
 
 .component-editor {

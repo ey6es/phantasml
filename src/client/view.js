@@ -64,7 +64,13 @@ const PageTabs = ReactRedux.connect(state => ({
         }
         const removable = !resource.isInitialEntity(entity.id);
         return (
-          <NavItem key={entity.id} className="position-relative">
+          <NavItem
+            key={entity.id}
+            className="position-relative"
+            draggable
+            onDragStart={event =>
+              event.dataTransfer.setData('text', entity.id)
+            }>
             <NavLink
               className={removable ? 'pr-5' : null}
               active={entity.id === props.selectedPage}

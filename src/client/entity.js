@@ -133,7 +133,7 @@ export const EntityTree = ReactRedux.connect(state => ({
     <div
       className="entity-tree"
       onMouseDown={event => {
-        if (!event.defaultPrevented && props.selection.size > 0) {
+        if (props.selection.size > 0) {
           // deselect
           store.dispatch(StoreActions.select.create({}));
         }
@@ -187,7 +187,7 @@ function EntityTreeNode(props: {
       <div
         className={`entity-tree-node${selected ? ' bg-dark' : ''}`}
         onMouseDown={event => {
-          event.preventDefault();
+          event.stopPropagation();
           if (event.shiftKey && props.selection.size > 0) {
             const map = {};
             let adding = false;
@@ -214,6 +214,32 @@ function EntityTreeNode(props: {
           } else {
             store.dispatch(StoreActions.select.create({[entity.id]: true}));
           }
+        }}
+        draggable
+        onDragStart={event => {
+          event.dataTransfer.setData('text', entity.id);
+        }}
+        onDragOver={event => {
+          event.preventDefault();
+          const resource = store.getState().resource;
+          if (!(resource instanceof Scene)) {
+            return;
+          }
+          // we can drop if nothing in the lineage is in the selection
+          for (const ancestor of resource.getEntityLineage(entity)) {
+            if (props.selection.has(ancestor.id)) {
+              return;
+            }
+          }
+        }}
+        onDrop={event => {
+          event.preventDefault();
+          const map = {};
+          let lastOrder = props.node.highestChildOrder;
+          for (const id of props.selection) {
+            map[id] = {parent: {ref: entity.id}, order: ++lastOrder};
+          }
+          store.dispatch(SceneActions.editEntities.create(map));
         }}>
         <EntityName entity={entity} />
       </div>

@@ -446,7 +446,8 @@ export class Menu extends React.Component<
               caret
               onMouseOver={event =>
                 menuBar.state.active && event.target.focus()
-              }>
+              }
+              onDragStart={event => event.preventDefault()}>
               {this.props.label}
             </DropdownToggle>
             <DropdownMenu>
@@ -686,3 +687,8 @@ export function renderText(element: Element<*>, locale: string): string {
     </ReactRedux.Provider>,
   );
 }
+
+// we never want the default, "open dragged link" behavior
+const defaultPreventer = (event: Event) => event.preventDefault();
+document.addEventListener('dragover', defaultPreventer);
+document.addEventListener('drop', defaultPreventer);

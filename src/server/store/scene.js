@@ -423,6 +423,16 @@ export class Scene extends Resource {
   }
 
   /**
+   * Gets the full lineage of an entity.
+   *
+   * @param entity the entity whose lineage is desired.
+   * @return the entities in the lineage.
+   */
+  getEntityLineage(entity: ?Entity): Entity[] {
+    return this._idTree.getEntityLineage(entity);
+  }
+
+  /**
    * Retrieves a node in the entity hierarchy by its id.
    *
    * @param id the id of the node of interest.
