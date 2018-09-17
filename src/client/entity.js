@@ -122,12 +122,9 @@ export const EntityTree = ReactRedux.connect(state => ({
     return null; // shouldn't happen
   }
   // locate the page entity in the hierarchy
-  let root: ?EntityHierarchyNode;
-  for (const child of resource.entityHierarchy.children) {
-    if (child.id === props.page) {
-      root = child;
-      break;
-    }
+  const root = resource.entityHierarchy.getChild(props.page);
+  if (!root) {
+    return null; // shouldn't happen
   }
   return (
     <div
@@ -137,14 +134,14 @@ export const EntityTree = ReactRedux.connect(state => ({
           // deselect
           store.dispatch(StoreActions.select.create({}));
         }
+      }}
+      onDrop={event => {
+        if (isDroppable(props.page, null, root.highestChildOrder)) {
+          event.stopPropagation();
+          drop(props.page, null, root.highestChildOrder);
+        }
       }}>
-      {root ? (
-        <EntityTreeChildren
-          root={root}
-          node={root}
-          selection={props.selection}
-        />
-      ) : null}
+      <EntityTreeChildren root={root} node={root} selection={props.selection} />
     </div>
   );
 });
@@ -160,12 +157,16 @@ function EntityTreeChildren(props: {
   }
   return (
     <div className="pl-2">
-      {children.map(child => (
+      {children.map((child, index) => (
         <EntityTreeNode
           key={child.id}
           root={props.root}
           node={child}
           selection={props.selection}
+          previousOrder={index === 0 ? null : children[index - 1].order}
+          nextOrder={
+            index === children.length - 1 ? null : children[index + 1].order
+          }
         />
       ))}
     </div>
@@ -176,16 +177,23 @@ function EntityTreeNode(props: {
   root: EntityHierarchyNode,
   node: EntityHierarchyNode,
   selection: Set<string>,
+  previousOrder: ?number,
+  nextOrder: ?number,
 }) {
   const entity = props.node.entity;
   if (!entity) {
     return null; // shouldn't happen
   }
+  const parent = entity.getParent();
+  if (!parent) {
+    return null; // also shouldn't happen
+  }
   const selected = props.selection.has(entity.id);
+  const baseClass = `position-relative${selected ? ' bg-dark' : ''}`;
   return (
     <div>
       <div
-        className={`entity-tree-node${selected ? ' bg-dark' : ''}`}
+        className={baseClass}
         onMouseDown={event => {
           event.stopPropagation();
           if (event.shiftKey && props.selection.size > 0) {
@@ -219,29 +227,37 @@ function EntityTreeNode(props: {
         onDragStart={event => {
           event.dataTransfer.setData('text', entity.id);
         }}
-        onDragOver={event => {
-          event.preventDefault();
-          const resource = store.getState().resource;
-          if (!(resource instanceof Scene)) {
-            return;
-          }
-          // we can drop if nothing in the lineage is in the selection
-          for (const ancestor of resource.getEntityLineage(entity)) {
-            if (props.selection.has(ancestor.id)) {
-              return;
-            }
+        onDragEnter={event => {
+          if (isDroppable(entity.id, null, props.node.highestChildOrder)) {
+            event.stopPropagation();
+            event.target.className = baseClass + ' entity-drag-hover';
           }
         }}
+        onDragLeave={event => {
+          event.stopPropagation();
+          event.target.className = baseClass;
+        }}
         onDrop={event => {
-          event.preventDefault();
-          const map = {};
-          let lastOrder = props.node.highestChildOrder;
-          for (const id of props.selection) {
-            map[id] = {parent: {ref: entity.id}, order: ++lastOrder};
+          event.target.className = baseClass;
+          if (isDroppable(entity.id, null, props.node.highestChildOrder)) {
+            event.stopPropagation();
+            drop(entity.id, null, props.node.highestChildOrder);
           }
-          store.dispatch(SceneActions.editEntities.create(map));
         }}>
+        <ReorderTarget
+          parentId={parent.ref}
+          beforeOrder={entity.getOrder()}
+          afterOrder={props.previousOrder}
+        />
         <EntityName entity={entity} />
+        {props.nextOrder == null ? (
+          <ReorderTarget
+            parentId={parent.ref}
+            after={true}
+            afterOrder={entity.getOrder()}
+            beforeOrder={null}
+          />
+        ) : null}
       </div>
       <EntityTreeChildren
         root={props.root}
@@ -250,4 +266,47 @@ function EntityTreeNode(props: {
       />
     </div>
   );
+}
+
+function ReorderTarget(props: {
+  parentId: string,
+  after?: boolean,
+  beforeOrder: ?number,
+  afterOrder: ?number,
+}) {
+  const baseClass = `entity-reorder-target${
+    props.after ? ' after' : ' before'
+  }`;
+  return (
+    <div
+      className={baseClass}
+      onDragEnter={event => {
+        if (isDroppable(props.parentId, props.beforeOrder, props.afterOrder)) {
+          event.stopPropagation();
+          event.target.className = baseClass + ' visible';
+        }
+      }}
+      onDragLeave={event => {
+        event.stopPropagation();
+        event.target.className = baseClass;
+      }}
+      onDrop={event => {
+        event.target.className = baseClass;
+        if (isDroppable(props.parentId, props.beforeOrder, props.afterOrder)) {
+          event.stopPropagation();
+          drop(props.parentId, props.beforeOrder, props.afterOrder);
+        }
+      }}
+    />
+  );
+}
+
+function drop(parentId: string, beforeOrder: ?number, afterOrder: ?number) {}
+
+function isDroppable(
+  parentId: string,
+  beforeOrder: ?number,
+  afterOrder: ?number,
+): boolean {
+  return true;
 }
