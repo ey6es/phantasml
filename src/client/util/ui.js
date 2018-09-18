@@ -355,6 +355,7 @@ function ErrorMessage(props: {
         />
       );
     default:
+      console.warn(props.error);
       return (
         <FormattedMessage
           id="error.server"

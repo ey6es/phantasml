@@ -136,8 +136,8 @@ export const EntityTree = ReactRedux.connect(state => ({
         }
       }}
       onDrop={event => {
+        event.stopPropagation();
         if (isDroppable(props.page, null, root.highestChildOrder)) {
-          event.stopPropagation();
           drop(props.page, null, root.highestChildOrder);
         }
       }}>
@@ -219,7 +219,7 @@ function EntityTreeNode(props: {
             store.dispatch(
               StoreActions.select.create({[entity.id]: !selected}, true),
             );
-          } else {
+          } else if (!props.selection.has(entity.id)) {
             store.dispatch(StoreActions.select.create({[entity.id]: true}));
           }
         }}
@@ -228,8 +228,8 @@ function EntityTreeNode(props: {
           event.dataTransfer.setData('text', entity.id);
         }}
         onDragEnter={event => {
+          event.stopPropagation();
           if (isDroppable(entity.id, null, props.node.highestChildOrder)) {
-            event.stopPropagation();
             event.target.className = baseClass + ' entity-drag-hover';
           }
         }}
@@ -238,9 +238,9 @@ function EntityTreeNode(props: {
           event.target.className = baseClass;
         }}
         onDrop={event => {
+          event.stopPropagation();
           event.target.className = baseClass;
           if (isDroppable(entity.id, null, props.node.highestChildOrder)) {
-            event.stopPropagation();
             drop(entity.id, null, props.node.highestChildOrder);
           }
         }}>
@@ -281,8 +281,8 @@ function ReorderTarget(props: {
     <div
       className={baseClass}
       onDragEnter={event => {
+        event.stopPropagation();
         if (isDroppable(props.parentId, props.beforeOrder, props.afterOrder)) {
-          event.stopPropagation();
           event.target.className = baseClass + ' visible';
         }
       }}
@@ -291,9 +291,9 @@ function ReorderTarget(props: {
         event.target.className = baseClass;
       }}
       onDrop={event => {
+        event.stopPropagation();
         event.target.className = baseClass;
         if (isDroppable(props.parentId, props.beforeOrder, props.afterOrder)) {
-          event.stopPropagation();
           drop(props.parentId, props.beforeOrder, props.afterOrder);
         }
       }}
@@ -356,10 +356,8 @@ function isDroppable(
     const previousChildNode = parentNode.children[firstChildIndex - 1];
     const nextChildNode = parentNode.children[lastChildIndex + 1];
     return (
-      !previousChildNode ||
-      !nextChildNode ||
-      previousChildNode.order !== afterOrder ||
-      nextChildNode.order !== beforeOrder
+      (previousChildNode && previousChildNode.order >= beforeOrder) ||
+      (nextChildNode && nextChildNode.order <= afterOrder)
     );
   } else if (afterOrder != null) {
     // moving to end

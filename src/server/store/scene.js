@@ -47,7 +47,11 @@ class IdTreeNode {
       }
       entity = this.getEntity(parent.ref);
       if (!entity) {
-        console.warn('Invalid reference: ' + parent.ref);
+        console.warn(
+          'Invalid reference: ' +
+            parent.ref +
+            ` (${lineage.map(entity => entity.getName()).join(' ')})`,
+        );
         return [];
       }
       lineage.unshift(entity);
@@ -414,6 +418,10 @@ export class Scene extends Resource {
         throw new Error('Missing entity hierarchy.');
       }
       this._entityHierarchy = entityHierarchy;
+      // TODO: remove when we're sure there won't be any orphans
+      this._idTree.applyToEntities(entity => {
+        this._idTree.getEntityLineage(entity);
+      });
       return;
     }
     this._idTree = new IdTreeLeafNode();
@@ -576,7 +584,22 @@ export class Scene extends Resource {
         let newEntity: Entity;
         [newIdTree, oldEntity, newEntity] = newIdTree.editEntity(id, state);
         addedEntities.push(newEntity);
-        oldEntity && removedEntities.push(oldEntity);
+        if (oldEntity) {
+          removedEntities.push(oldEntity);
+          // if the parent changed, we need to readd descendants
+          // (unless they are being removed/edited)
+          if (state.parent !== undefined) {
+            const node = this._entityHierarchy.getNode(
+              this._idTree.getEntityLineage(oldEntity),
+            );
+            node &&
+              node.applyToEntities(entity => {
+                if (map[entity.id] === undefined) {
+                  addedEntities.push(entity);
+                }
+              });
+          }
+        }
       }
     }
 
@@ -610,9 +633,14 @@ export class Scene extends Resource {
     }
     // then to the hierarchy, now that we can look everything up by id
     for (const entity of createdEntities) {
-      this._entityHierarchy = this._entityHierarchy.addEntity(
-        this._idTree.getEntityLineage(entity),
-      );
+      const lineage = this._idTree.getEntityLineage(entity);
+      if (lineage.length === 0) {
+        // we'll have logged a warning
+        const [newIdTree, oldEntity] = this._idTree.removeEntity(entity.id);
+        this._idTree = newIdTree;
+      } else {
+        this._entityHierarchy = this._entityHierarchy.addEntity(lineage);
+      }
     }
   }
 
