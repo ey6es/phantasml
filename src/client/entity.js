@@ -301,12 +301,98 @@ function ReorderTarget(props: {
   );
 }
 
-function drop(parentId: string, beforeOrder: ?number, afterOrder: ?number) {}
-
 function isDroppable(
   parentId: string,
   beforeOrder: ?number,
   afterOrder: ?number,
 ): boolean {
-  return true;
+  const resource = store.getState().resource;
+  if (!(resource instanceof Scene)) {
+    return false;
+  }
+  const parentEntity = resource.getEntity(parentId);
+  if (!parentEntity) {
+    return false;
+  }
+  const selection = store.getState().selection;
+  const parentLineage = resource.getEntityLineage(parentEntity);
+  for (const entity of parentLineage) {
+    if (selection.has(entity.id)) {
+      return false; // can't parent to self or descendants
+    }
+  }
+  for (const id of selection) {
+    const entity = resource.getEntity(id);
+    if (entity) {
+      const parent = entity.getParent();
+      if (!parent || parent.ref !== parentId) {
+        return true; // reparenting something
+      }
+    }
+  }
+  // if we get here, we're just reordering; figure out if the order will change
+  const parentNode = resource.entityHierarchy.getNode(parentLineage);
+  if (!parentNode) {
+    return false; // shouldn't happen
+  }
+  // see if everything's already in a contiguous block in the same order
+  let lastChildIndex: ?number;
+  for (const id of selection) {
+    if (lastChildIndex == null) {
+      lastChildIndex = parentNode.getChildIndex(id);
+    } else {
+      const child = parentNode.children[++lastChildIndex];
+      if (!child || child.id !== id) {
+        return true;
+      }
+    }
+  }
+  if (lastChildIndex == null) {
+    return false; // shouldn't happen
+  }
+  const firstChildIndex = lastChildIndex - selection.size + 1;
+  if (beforeOrder != null && afterOrder != null) {
+    // moving to middle
+    const previousChildNode = parentNode.children[firstChildIndex - 1];
+    const nextChildNode = parentNode.children[lastChildIndex + 1];
+    return (
+      !previousChildNode ||
+      !nextChildNode ||
+      previousChildNode.order !== afterOrder ||
+      nextChildNode.order !== beforeOrder
+    );
+  } else if (afterOrder != null) {
+    // moving to end
+    return lastChildIndex !== parentNode.children.length - 1;
+  } else if (beforeOrder != null) {
+    // moving to beginning
+    return firstChildIndex !== 0;
+  } else {
+    throw new Error('Unbounded interval.');
+  }
+}
+
+function drop(parentId: string, beforeOrder: ?number, afterOrder: ?number) {
+  const map = {};
+  const parent = {ref: parentId};
+  const selection = store.getState().selection;
+  let order: number;
+  let orderIncrement: number;
+  if (beforeOrder != null && afterOrder != null) {
+    orderIncrement = (beforeOrder - afterOrder) / (selection.size + 1);
+    order = afterOrder + orderIncrement;
+  } else if (afterOrder != null) {
+    order = afterOrder + 1;
+    orderIncrement = 1;
+  } else if (beforeOrder != null) {
+    order = beforeOrder - selection.size;
+    orderIncrement = 1;
+  } else {
+    throw new Error('Unbounded interval.');
+  }
+  for (const id of selection) {
+    map[id] = {parent, order};
+    order += orderIncrement;
+  }
+  store.dispatch(SceneActions.editEntities.create(map));
 }

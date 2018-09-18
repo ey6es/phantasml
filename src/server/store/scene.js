@@ -314,6 +314,21 @@ export class EntityHierarchyNode {
   }
 
   /**
+   * Retrieves the index of the child with the specified id.
+   *
+   * @param id the id of the child of interest.
+   * @return the child index, or -1 if not found.
+   */
+  getChildIndex(id: string): number {
+    for (let ii = 0; ii < this._children.length; ii++) {
+      if (this._children[ii].id === id) {
+        return ii;
+      }
+    }
+    return -1;
+  }
+
+  /**
    * Checks whether changing the order of the identified entity will move it in
    * the child array.
    *
