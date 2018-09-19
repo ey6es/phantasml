@@ -65,12 +65,13 @@ export const ComponentEditor = ReactRedux.connect(state => ({
         entity && entities.push(entity);
       }
     }
+    const page = props.editorTab === 'page';
     return (
       <div className="component-editor">
         <Nav tabs className="pt-2 bg-black">
           <NavItem>
             <NavLink
-              active={props.editorTab === 'entity'}
+              active={!page}
               onClick={() =>
                 store.dispatch(StoreActions.setEditorTab.create('entity'))
               }>
@@ -79,7 +80,7 @@ export const ComponentEditor = ReactRedux.connect(state => ({
           </NavItem>
           <NavItem>
             <NavLink
-              active={props.editorTab === 'page'}
+              active={page}
               onClick={() =>
                 store.dispatch(StoreActions.setEditorTab.create('page'))
               }>
@@ -91,6 +92,7 @@ export const ComponentEditor = ReactRedux.connect(state => ({
           locale={props.locale}
           resource={resource}
           entities={entities}
+          page={page}
         />
       </div>
     );
@@ -101,7 +103,30 @@ function EntityEditor(props: {
   locale: string,
   resource: Scene,
   entities: Entity[],
+  page: boolean,
 }) {
+  // get intersection state
+  let original: ?Object;
+  let intersection: ?Object;
+  for (const entity of props.entities) {
+    if (!(original && intersection)) {
+      original = entity.state;
+      intersection = entity.state;
+    } else {
+      intersection = intersectState(original, intersection, entity.state);
+    }
+  }
+  let components: [string, any][] = [];
+  if (intersection) {
+    components = (Object.entries(intersection): [string, any][]);
+    if (!(intersection.transform || props.page)) {
+      components.unshift(['transform', {}]);
+    }
+    components.sort(
+      ([keyA, valueA], [keyB, valueB]) =>
+        (valueA.order || 0) - (valueB.order || 0),
+    );
+  }
   return (
     <div className="entity-editor border-left border-secondary flex-grow-1 p-2">
       <Form>
@@ -110,9 +135,50 @@ function EntityEditor(props: {
           resource={props.resource}
           entities={props.entities}
         />
+        {components.map(([key, value]) => (
+          <ComponentPanel
+            key={key}
+            entities={props.entities}
+            id={key}
+            value={value}
+          />
+        ))}
       </Form>
     </div>
   );
+}
+
+function intersectState(
+  original: Object,
+  intersection: Object,
+  state: Object,
+): Object {
+  let newIntersection = intersection;
+  for (const key in intersection) {
+    const intersectionValue = intersection[key];
+    const stateValue = state[key];
+    if (intersectionValue === stateValue) {
+      continue;
+    }
+    if (newIntersection === original) {
+      newIntersection = Object.assign({}, original);
+    }
+    if (
+      typeof intersectionValue === 'object' &&
+      typeof stateValue === 'object' &&
+      intersectionValue !== null &&
+      stateValue !== null
+    ) {
+      newIntersection[key] = intersectState(
+        original[key],
+        intersectionValue,
+        stateValue,
+      );
+    } else {
+      delete newIntersection[key];
+    }
+  }
+  return newIntersection;
 }
 
 function NameEditor(props: {
@@ -157,3 +223,38 @@ function NameEditor(props: {
     </FormGroup>
   );
 }
+
+function ComponentPanel(props: {entities: Entity[], id: string, value: any}) {
+  return null;
+}
+
+const Components = {
+  transform: {
+    metadata: {
+      translation: {
+        type: 'vector',
+        label: (
+          <FormattedMessage
+            id="transform.translation"
+            defaultMessage="Translation:"
+          />
+        ),
+      },
+      rotation: {
+        type: 'rotation',
+        label: (
+          <FormattedMessage
+            id="transform.rotation"
+            defaultMessage="Rotation:"
+          />
+        ),
+      },
+      scale: {
+        type: 'vector',
+        label: (
+          <FormattedMessage id="transform.scale" defaultMessage="Scale:" />
+        ),
+      },
+    },
+  },
+};

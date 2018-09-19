@@ -605,6 +605,14 @@ export class MenuItem extends React.Component<
 
   _keydown = (event: KeyboardEvent) => {
     if (this.props.shortcut && this.props.shortcut.matches(event)) {
+      // don't consume events from dialogs
+      let element: ?HTMLElement = (event.target: any);
+      while (element) {
+        if (element.getAttribute('role') === 'dialog') {
+          return;
+        }
+        element = (element.parentElement: any);
+      }
       event.preventDefault();
       this.props.disabled || !this.props.onClick || this.props.onClick();
     }
