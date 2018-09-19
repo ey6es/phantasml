@@ -202,8 +202,10 @@ export const StoreActions = {
       if (!(resource instanceof Scene)) {
         return state;
       }
-      // TODO: "paste into" (as child of) selected entity
-      const parentId = state.page;
+      const parentId =
+        state.selection.size === 1
+          ? (state.selection.values().next().value: any)
+          : state.page;
       const parentNode = resource.getEntityHierarchyNode(parentId);
       if (!parentNode) {
         return state;

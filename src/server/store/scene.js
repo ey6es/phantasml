@@ -596,17 +596,15 @@ export class Scene extends Resource {
           removedEntities.push(oldEntity);
           // if the parent changed, we need to readd descendants
           // (unless they are being removed/edited)
-          if (state.parent !== undefined) {
-            const node = this._entityHierarchy.getNode(
-              this._idTree.getEntityLineage(oldEntity),
-            );
-            node &&
-              node.applyToEntities(entity => {
-                if (map[entity.id] === undefined) {
-                  addedEntities.push(entity);
-                }
-              });
-          }
+          const node = this._entityHierarchy.getNode(
+            this._idTree.getEntityLineage(oldEntity),
+          );
+          node &&
+            node.applyToEntities(entity => {
+              if (map[entity.id] === undefined) {
+                addedEntities.push(entity);
+              }
+            });
         }
       }
     }
