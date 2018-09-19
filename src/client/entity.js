@@ -115,40 +115,54 @@ export function EntityName(props: {entity: Entity}) {
 export const EntityTree = ReactRedux.connect(state => ({
   resource: state.resource,
   page: state.page,
+  expanded: state.expanded,
   selection: state.selection,
-}))((props: {resource: ?Resource, page: string, selection: Set<string>}) => {
-  const resource = props.resource;
-  if (!(resource instanceof Scene)) {
-    return null; // shouldn't happen
-  }
-  // locate the page entity in the hierarchy
-  const root = resource.entityHierarchy.getChild(props.page);
-  if (!root) {
-    return null; // shouldn't happen
-  }
-  return (
-    <div
-      className="entity-tree"
-      onMouseDown={event => {
-        if (props.selection.size > 0) {
-          // deselect
-          store.dispatch(StoreActions.select.create({}));
-        }
-      }}
-      onDrop={event => {
-        event.stopPropagation();
-        if (isDroppable(props.page, null, root.highestChildOrder)) {
-          drop(props.page, null, root.highestChildOrder);
-        }
-      }}>
-      <EntityTreeChildren root={root} node={root} selection={props.selection} />
-    </div>
-  );
-});
+}))(
+  (props: {
+    resource: ?Resource,
+    page: string,
+    expanded: Set<string>,
+    selection: Set<string>,
+  }) => {
+    const resource = props.resource;
+    if (!(resource instanceof Scene)) {
+      return null; // shouldn't happen
+    }
+    // locate the page entity in the hierarchy
+    const root = resource.entityHierarchy.getChild(props.page);
+    if (!root) {
+      return null; // shouldn't happen
+    }
+    return (
+      <div
+        className="entity-tree"
+        onMouseDown={event => {
+          if (props.selection.size > 0) {
+            // deselect
+            store.dispatch(StoreActions.select.create({}));
+          }
+        }}
+        onDrop={event => {
+          event.stopPropagation();
+          if (isDroppable(props.page, null, root.highestChildOrder)) {
+            drop(props.page, null, root.highestChildOrder);
+          }
+        }}>
+        <EntityTreeChildren
+          root={root}
+          node={root}
+          expanded={props.expanded}
+          selection={props.selection}
+        />
+      </div>
+    );
+  },
+);
 
 function EntityTreeChildren(props: {
   root: EntityHierarchyNode,
   node: EntityHierarchyNode,
+  expanded: Set<string>,
   selection: Set<string>,
 }) {
   const children = props.node.children;
@@ -156,12 +170,13 @@ function EntityTreeChildren(props: {
     return null;
   }
   return (
-    <div className="pl-2">
+    <div>
       {children.map((child, index) => (
         <EntityTreeNode
           key={child.id}
           root={props.root}
           node={child}
+          expanded={props.expanded}
           selection={props.selection}
           previousOrder={index === 0 ? null : children[index - 1].order}
           nextOrder={
@@ -176,6 +191,7 @@ function EntityTreeChildren(props: {
 function EntityTreeNode(props: {
   root: EntityHierarchyNode,
   node: EntityHierarchyNode,
+  expanded: Set<string>,
   selection: Set<string>,
   previousOrder: ?number,
   nextOrder: ?number,
@@ -189,81 +205,101 @@ function EntityTreeNode(props: {
     return null; // also shouldn't happen
   }
   const selected = props.selection.has(entity.id);
-  const baseClass = `position-relative${selected ? ' bg-dark' : ''}`;
+  const baseClass = `pl-1 position-relative${selected ? ' bg-dark' : ''}`;
+  const expanded = props.expanded.has(entity.id);
   return (
-    <div>
-      <div
-        className={baseClass}
-        onMouseDown={event => {
-          event.stopPropagation();
-          if (event.shiftKey && props.selection.size > 0) {
-            const map = {};
-            let adding = false;
-            props.root.applyToEntities(otherEntity => {
-              if (
-                props.selection.has(otherEntity.id) ||
-                otherEntity.id === entity.id
-              ) {
-                map[otherEntity.id] = true;
-                if (adding) {
-                  return false;
-                } else {
-                  adding = true;
-                }
-              } else if (adding) {
-                map[otherEntity.id] = true;
-              }
-            });
-            store.dispatch(StoreActions.select.create(map));
-          } else if (event.ctrlKey) {
-            store.dispatch(
-              StoreActions.select.create({[entity.id]: !selected}, true),
-            );
-          } else if (!props.selection.has(entity.id)) {
-            store.dispatch(StoreActions.select.create({[entity.id]: true}));
-          }
-        }}
-        draggable
-        onDragStart={event => {
-          event.dataTransfer.setData('text', entity.id);
-        }}
-        onDragEnter={event => {
-          event.stopPropagation();
-          if (isDroppable(entity.id, null, props.node.highestChildOrder)) {
-            event.target.className = baseClass + ' entity-drag-hover';
-          }
-        }}
-        onDragLeave={event => {
-          event.stopPropagation();
-          event.target.className = baseClass;
-        }}
-        onDrop={event => {
-          event.stopPropagation();
-          event.target.className = baseClass;
-          if (isDroppable(entity.id, null, props.node.highestChildOrder)) {
-            drop(entity.id, null, props.node.highestChildOrder);
-          }
-        }}>
-        <ReorderTarget
-          parentId={parent.ref}
-          beforeOrder={entity.getOrder()}
-          afterOrder={props.previousOrder}
-        />
-        <EntityName entity={entity} />
-        {props.nextOrder == null ? (
-          <ReorderTarget
-            parentId={parent.ref}
-            after={true}
-            afterOrder={entity.getOrder()}
-            beforeOrder={null}
+    <div className="d-flex">
+      <div className="entity-expand-container">
+        {props.node.children.length > 0 ? (
+          <div
+            className={expanded ? 'entity-contract' : 'entity-expand'}
+            onClick={() =>
+              store.dispatch(
+                StoreActions.setExpanded.create({
+                  [entity.id]: !expanded,
+                }),
+              )
+            }
           />
         ) : null}
       </div>
-      <EntityTreeChildren
-        root={props.root}
-        node={props.node}
-        selection={props.selection}
-      />
+      <div className="flex-grow-1">
+        <div
+          className={baseClass}
+          onMouseDown={event => {
+            event.stopPropagation();
+            if (event.shiftKey && props.selection.size > 0) {
+              const map = {};
+              let adding = false;
+              props.root.applyToEntities(otherEntity => {
+                if (
+                  props.selection.has(otherEntity.id) ||
+                  otherEntity.id === entity.id
+                ) {
+                  map[otherEntity.id] = true;
+                  if (adding) {
+                    return false;
+                  } else {
+                    adding = true;
+                  }
+                } else if (adding) {
+                  map[otherEntity.id] = true;
+                }
+              });
+              store.dispatch(StoreActions.select.create(map));
+            } else if (event.ctrlKey) {
+              store.dispatch(
+                StoreActions.select.create({[entity.id]: !selected}, true),
+              );
+            } else if (!props.selection.has(entity.id)) {
+              store.dispatch(StoreActions.select.create({[entity.id]: true}));
+            }
+          }}
+          draggable
+          onDragStart={event => {
+            event.dataTransfer.setData('text', entity.id);
+          }}
+          onDragEnter={event => {
+            event.stopPropagation();
+            if (isDroppable(entity.id, null, props.node.highestChildOrder)) {
+              event.target.className = baseClass + ' entity-drag-hover';
+            }
+          }}
+          onDragLeave={event => {
+            event.stopPropagation();
+            event.target.className = baseClass;
+          }}
+          onDrop={event => {
+            event.stopPropagation();
+            event.target.className = baseClass;
+            if (isDroppable(entity.id, null, props.node.highestChildOrder)) {
+              drop(entity.id, null, props.node.highestChildOrder);
+            }
+          }}>
+          <ReorderTarget
+            parentId={parent.ref}
+            beforeOrder={entity.getOrder()}
+            afterOrder={props.previousOrder}
+          />
+          <EntityName entity={entity} />
+          {props.nextOrder == null ? (
+            <ReorderTarget
+              parentId={parent.ref}
+              after={true}
+              afterOrder={entity.getOrder()}
+              beforeOrder={null}
+            />
+          ) : null}
+        </div>
+        {expanded ? (
+          <EntityTreeChildren
+            root={props.root}
+            node={props.node}
+            expanded={props.expanded}
+            selection={props.selection}
+          />
+        ) : null}
+      </div>
     </div>
   );
 }

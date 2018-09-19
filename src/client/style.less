@@ -134,9 +134,57 @@ a.navbar-brand {
   flex: 1;
   width: 250px;
   cursor: default;
-  .p-1();
+  padding: 8px 8px 8px 2px;
   overflow-y: auto;
   overflow-x: hidden;
+}
+
+.entity-expand-container {
+  width: 16px;
+}
+
+.entity-expand {
+  width: 16px;
+  height: 16px;
+
+  &:hover {
+    color: #00bc8c;
+  }
+
+  &::after {
+    display: inline-block;
+    width: 0;
+    height: 0;
+    margin-left: 0.3em;
+    vertical-align: 0.1em;
+    content: '';
+    border-top: 0.3em solid transparent;
+    border-right: 0;
+    border-bottom: 0.3em solid transparent;
+    border-left: 0.3em solid;
+  }
+}
+
+.entity-contract {
+  width: 16px;
+  height: 16px;
+
+  &:hover {
+    color: #00bc8c;
+  }
+
+  &::after {
+    display: inline-block;
+    width: 0;
+    height: 0;
+    margin-left: 0.255em;
+    vertical-align: 0.255em;
+    content: '';
+    border-top: 0.3em solid;
+    border-right: 0.3em solid transparent;
+    border-bottom: 0;
+    border-left: 0.3em solid transparent;
+  }
 }
 
 .entity-drag-hover {

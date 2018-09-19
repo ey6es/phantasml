@@ -37,6 +37,7 @@ type StoreState = {
   redoStack: ResourceAction[],
   editorTab: EditorTab,
   page: string,
+  expanded: Set<string>,
   selection: Set<string>,
   clipboard: Map<string, Object>,
 };
@@ -50,6 +51,7 @@ const initialState = {
   redoStack: [],
   editorTab: 'entity',
   page: '',
+  expanded: new Set(),
   selection: new Set(),
   clipboard: new Map(),
 };
@@ -59,8 +61,9 @@ function reducer(state: StoreState, action: StoreAction): StoreState {
   if (!state) {
     state = initialState;
   }
-  // remember page/selection before action
+  // remember page/expansion/selection before action
   const oldPage = state.page;
+  const oldExpanded = state.expanded;
   const oldSelection = state.selection;
 
   // first try the store actions
@@ -79,6 +82,7 @@ function reducer(state: StoreState, action: StoreAction): StoreState {
       let action = undoStack[undoStack.length - 1];
       if (action.page === undefined) {
         action.page = oldPage;
+        action.expanded = oldExpanded;
         action.selection = oldSelection;
       }
     }
@@ -128,12 +132,14 @@ export const StoreActions = {
       );
       const undoAction = undoStack[undoStack.length - 1];
       undoAction.page = state.page;
+      undoAction.expanded = state.expanded;
       undoAction.selection = state.selection;
       return (Object.assign({}, state, {
         resource: resourceReducer(state.resource, redoAction),
         undoStack,
         redoStack: state.redoStack.slice(0, redoIndex),
         page: reducePage(state, redoAction),
+        expanded: reduceExpanded(state, redoAction),
         selection: reduceSelection(state, redoAction),
       }): StoreState);
     },
@@ -338,6 +344,20 @@ export const StoreActions = {
       return Object.assign({}, state, {page, selection});
     },
   },
+  setExpanded: {
+    create: (map: Object) => ({type: 'setExpanded', map}),
+    reduce: (state: StoreState, action: StoreAction) => {
+      const expanded: Set<string> = new Set(state.expanded);
+      for (const id in action.map) {
+        if (action.map[id]) {
+          expanded.add(id);
+        } else {
+          expanded.delete(id);
+        }
+      }
+      return Object.assign({}, state, {expanded});
+    },
+  },
   setResource: {
     create: ResourceActions.setResource.create,
     reduce: (state: ?Resource, action: ResourceAction) => {
@@ -345,6 +365,7 @@ export const StoreActions = {
         savedEditNumber: 0,
         undoStack: [],
         redoStack: [],
+        expanded: (new Set(): Set<string>),
         selection: (new Set(): Set<string>),
       });
     },
@@ -356,6 +377,7 @@ export const StoreActions = {
         undoStack: [],
         redoStack: [],
         page: '',
+        expanded: (new Set(): Set<string>),
         selection: (new Set(): Set<string>),
       });
     },
@@ -365,6 +387,7 @@ export const StoreActions = {
     reduce: (state: StoreState, action: StoreAction) => {
       return Object.assign({}, state, {
         page: reducePage(state, action),
+        expanded: reduceExpanded(state, action),
         selection: reduceSelection(state, action),
       });
     },
@@ -428,6 +451,39 @@ function reducePage(state: StoreState, action: ResourceAction): string {
     page = id; // switch to page with added/removed/edited entity
   }
   return page;
+}
+
+function reduceExpanded(
+  state: StoreState,
+  action: ResourceAction,
+): Set<string> {
+  const resource = state.resource;
+  if (!(resource instanceof Scene && action.type === 'editEntities')) {
+    return state.selection;
+  }
+  const expanded = new Set(state.expanded);
+  for (const id in action.map) {
+    const state = action.map[id];
+    if (state === null) {
+      expanded.delete(id);
+    } else if (state.parent) {
+      const newParentEntity = resource.getEntity(state.parent.ref);
+      if (!newParentEntity || newParentEntity.getParent()) {
+        expanded.add(state.parent.ref);
+      }
+    }
+    const oldEntity = resource.getEntity(id);
+    if (oldEntity) {
+      const oldParent = oldEntity.getParent();
+      if (oldParent) {
+        const oldParentEntity = resource.getEntity(oldParent.ref);
+        if (!oldParentEntity || oldParentEntity.getParent()) {
+          expanded.add(oldParent.ref);
+        }
+      }
+    }
+  }
+  return expanded;
 }
 
 function reduceSelection(
