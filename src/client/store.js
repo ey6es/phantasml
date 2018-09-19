@@ -38,7 +38,7 @@ type StoreState = {
   editorTab: EditorTab,
   page: string,
   selection: Set<string>,
-  clipboard: Entity[],
+  clipboard: Map<string, Object>,
 };
 
 const initialState = {
@@ -51,7 +51,7 @@ const initialState = {
   editorTab: 'entity',
   page: '',
   selection: new Set(),
-  clipboard: [],
+  clipboard: new Map(),
 };
 
 function reducer(state: StoreState, action: StoreAction): StoreState {
@@ -157,17 +157,19 @@ export const StoreActions = {
   cut: {
     create: () => ({type: 'cut'}),
     reduce: (state: StoreState, action: StoreAction) => {
-      if (!state.resource) {
+      const resource = state.resource;
+      if (!(resource instanceof Scene)) {
         return state;
       }
-      const clipboard: Entity[] = [];
+      const clipboard: Map<string, Object> = new Map();
       const map = {};
       for (const id of state.selection) {
-        const entity = state.resource.getEntity(id);
-        if (entity) {
-          clipboard.push(entity);
-          map[id] = null;
-        }
+        const node = resource.getEntityHierarchyNode(id);
+        node &&
+          node.applyToEntities(entity => {
+            clipboard.set(entity.id, entity.state);
+            map[entity.id] = null;
+          });
       }
       return reducer(
         Object.assign({}, state, {clipboard}),
@@ -178,13 +180,17 @@ export const StoreActions = {
   copy: {
     create: () => ({type: 'copy'}),
     reduce: (state: StoreState, action: StoreAction) => {
-      if (!state.resource) {
+      const resource = state.resource;
+      if (!(resource instanceof Scene)) {
         return state;
       }
-      const clipboard: Entity[] = [];
+      const clipboard: Map<string, Object> = new Map();
       for (const id of state.selection) {
-        const entity = state.resource.getEntity(id);
-        entity && clipboard.push(entity);
+        const node = resource.getEntityHierarchyNode(id);
+        node &&
+          node.applyToEntities(entity => {
+            clipboard.set(entity.id, entity.state);
+          });
       }
       return Object.assign({}, state, {clipboard});
     },
@@ -204,10 +210,10 @@ export const StoreActions = {
       }
       let map = {};
       const ids: Map<string, string> = new Map();
-      for (const entity of state.clipboard) {
+      for (const [id, json] of state.clipboard) {
         const newId = createUuid();
-        ids.set(entity.id, newId);
-        map[newId] = entity.toJSON();
+        ids.set(id, newId);
+        map[newId] = json;
       }
       map = updateRefs(map, ids, parentId);
       let lastOrder = parentNode.highestChildOrder;

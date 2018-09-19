@@ -47,11 +47,6 @@ class IdTreeNode {
       }
       entity = this.getEntity(parent.ref);
       if (!entity) {
-        console.warn(
-          'Invalid reference: ' +
-            parent.ref +
-            ` (${lineage.map(entity => entity.getName()).join(' ')})`,
-        );
         return [];
       }
       lineage.unshift(entity);
@@ -260,26 +255,32 @@ export class EntityHierarchyNode {
     const entity = lineage[depth];
     let newChildren: EntityHierarchyNode[] = [];
     const nextDepth = depth + 1;
-    if (nextDepth < lineage.length) {
-      for (const child of this._children) {
-        newChildren.push(
-          child._entity === entity
-            ? child.addEntity(lineage, nextDepth)
-            : child,
-        );
-      }
-    } else {
-      let entityOrder = entity.getOrder();
-      for (const child of this._children) {
-        if (entityOrder < child.order) {
-          newChildren.push(new EntityHierarchyNode(entity));
-          entityOrder = Infinity;
+    let foundEntity = false;
+    const entityOrder = entity.getOrder();
+    for (let child of this._children) {
+      if (!foundEntity) {
+        if (child._entity === entity) {
+          foundEntity = true;
+          if (nextDepth < lineage.length) {
+            child = child.addEntity(lineage, nextDepth);
+          }
+        } else if (entityOrder < child.order) {
+          foundEntity = true;
+          let newChild = new EntityHierarchyNode(entity);
+          if (nextDepth < lineage.length) {
+            newChild = newChild.addEntity(lineage, nextDepth);
+          }
+          newChildren.push(newChild);
         }
-        newChildren.push(child);
       }
-      if (newChildren.length === this._children.length) {
-        newChildren.push(new EntityHierarchyNode(entity));
+      newChildren.push(child);
+    }
+    if (!foundEntity) {
+      let newChild = new EntityHierarchyNode(entity);
+      if (nextDepth < lineage.length) {
+        newChild = newChild.addEntity(lineage, nextDepth);
       }
+      newChildren.push(newChild);
     }
     return new EntityHierarchyNode(this._entity, newChildren);
   }
@@ -420,7 +421,14 @@ export class Scene extends Resource {
       this._entityHierarchy = entityHierarchy;
       // TODO: remove when we're sure there won't be any orphans
       this._idTree.applyToEntities(entity => {
-        this._idTree.getEntityLineage(entity);
+        const lineage = this._idTree.getEntityLineage(entity);
+        if (lineage.length === 0) {
+          const parent = entity.getParent();
+          console.warn(
+            `Invalid lineage: ${entity.id} ${String(entity.getName())} ` +
+              String(parent && parent.ref),
+          );
+        }
       });
       return;
     }
@@ -635,7 +643,11 @@ export class Scene extends Resource {
     for (const entity of createdEntities) {
       const lineage = this._idTree.getEntityLineage(entity);
       if (lineage.length === 0) {
-        // we'll have logged a warning
+        const parent = entity.getParent();
+        console.warn(
+          `Invalid lineage: ${entity.id} ${String(entity.getName())} ` +
+            String(parent && parent.ref),
+        );
         const [newIdTree, oldEntity] = this._idTree.removeEntity(entity.id);
         this._idTree = newIdTree;
       } else {

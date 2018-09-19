@@ -134,7 +134,7 @@ const CopyItem = ReactRedux.connect(state => ({
 ));
 
 const PasteItem = ReactRedux.connect(state => ({
-  disabled: state.clipboard.length === 0,
+  disabled: state.clipboard.size === 0,
 }))(props => (
   <MenuItem
     shortcut={new Shortcut('V', Shortcut.CTRL)}

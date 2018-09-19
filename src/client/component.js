@@ -103,7 +103,7 @@ function EntityEditor(props: {
   entities: Entity[],
 }) {
   return (
-    <div className="border-left border-secondary flex-grow-1 p-2">
+    <div className="entity-editor border-left border-secondary flex-grow-1 p-2">
       <Form>
         <NameEditor
           locale={props.locale}
