@@ -8,7 +8,17 @@
 import * as React from 'react';
 import * as ReactRedux from 'react-redux';
 import {FormattedMessage} from 'react-intl';
-import {Nav, NavItem, NavLink, Form, FormGroup, Label, Input} from 'reactstrap';
+import {
+  Nav,
+  NavItem,
+  NavLink,
+  Form,
+  FormGroup,
+  Label,
+  Input,
+  Card,
+  Button,
+} from 'reactstrap';
 import type {EditorTab} from './store';
 import {StoreActions, store} from './store';
 import {EntityName} from './entity';
@@ -127,6 +137,13 @@ function EntityEditor(props: {
         (valueA.order || 0) - (valueB.order || 0),
     );
   }
+  const editEntities = (values: Object) => {
+    const map = {};
+    for (const entity of props.entities) {
+      map[entity.id] = values;
+    }
+    store.dispatch(SceneActions.editEntities.create(map));
+  };
   return (
     <div className="entity-editor border-left border-secondary flex-grow-1 p-2">
       <Form>
@@ -134,13 +151,14 @@ function EntityEditor(props: {
           locale={props.locale}
           resource={props.resource}
           entities={props.entities}
+          editEntities={editEntities}
         />
         {components.map(([key, value]) => (
           <ComponentPanel
             key={key}
-            entities={props.entities}
             id={key}
             value={value}
+            editEntities={editEntities}
           />
         ))}
       </Form>
@@ -185,6 +203,7 @@ function NameEditor(props: {
   locale: string,
   resource: Scene,
   entities: Entity[],
+  editEntities: Object => void,
 }) {
   if (props.entities.length === 0) {
     return null;
@@ -210,27 +229,83 @@ function NameEditor(props: {
           disabled={!editable}
           value={name || ''}
           maxLength={255}
-          onChange={event => {
-            const map = {};
-            const name = event.target.value;
-            for (const entity of props.entities) {
-              map[entity.id] = {name};
-            }
-            store.dispatch(SceneActions.editEntities.create(map));
-          }}
+          onChange={event => props.editEntities({name: event.target.value})}
         />
       </div>
     </FormGroup>
   );
 }
 
-function ComponentPanel(props: {entities: Entity[], id: string, value: any}) {
-  return null;
+function ComponentPanel(props: {
+  id: string,
+  value: any,
+  editEntities: Object => void,
+}) {
+  const component = Components[props.id];
+  if (!component) {
+    return null;
+  }
+  const properties: [string, PropertyData][] = (Object.entries(
+    component.properties,
+  ): [string, any][]);
+  return (
+    <Card
+      className="p-1"
+      body={true}
+      draggable
+      onDragStart={event => {
+        event.dataTransfer.setData('text', props.id);
+      }}>
+      {properties.map(([key, property]) => {
+        const PropertyEditor = PropertyEditors[property.type];
+        return (
+          <FormGroup key={key} className="mb-0" row>
+            <Label for={key} className="text-left" sm={5}>
+              {property.label}
+            </Label>
+            <PropertyEditor
+              id={key}
+              value={props.value[key]}
+              setValue={value => {
+                props.editEntities({[props.id]: {[key]: value}});
+              }}
+            />
+          </FormGroup>
+        );
+      })}
+      {component.removable !== false ? (
+        <Button
+          className="close remove-component"
+          onClick={() => props.editEntities({[props.id]: null})}>
+          &times;
+        </Button>
+      ) : null}
+    </Card>
+  );
 }
 
-const Components = {
+const PropertyEditors = {
+  vector: (props: {id: string, value: Object, setValue: Object => void}) => {
+    return <div className="col-sm-7" />;
+  },
+  rotation: (props: {id: string, value: number, setValue: number => void}) => {
+    return <div className="col-sm-7" />;
+  },
+};
+
+type PropertyData = {
+  type: $Keys<typeof PropertyEditors>,
+  label: React.Element<any>,
+};
+
+type ComponentData = {
+  properties: {[string]: PropertyData},
+  removable?: boolean,
+};
+
+const Components: {[string]: ComponentData} = {
   transform: {
-    metadata: {
+    properties: {
       translation: {
         type: 'vector',
         label: (
@@ -256,5 +331,6 @@ const Components = {
         ),
       },
     },
+    removable: false,
   },
 };
