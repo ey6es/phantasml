@@ -633,7 +633,7 @@ function RawButton(props: Object) {
  * @param props.children the menu contents.
  */
 export class Submenu extends React.Component<
-  {label: React.Element<any>, children?: mixed},
+  {label: React.Element<any>, disabled?: boolean, children?: mixed},
   {hoverItem: ?React.Component<any, any>},
 > {
   state = {hoverItem: null};
@@ -646,7 +646,10 @@ export class Submenu extends React.Component<
             {menu => (
               <Dropdown
                 direction="right"
-                onMouseOver={event => menu.setState({hoverItem: this})}
+                disabled={this.props.disabled}
+                onMouseOver={event =>
+                  this.props.disabled || menu.setState({hoverItem: this})
+                }
                 isOpen={menu.state.hoverItem === this}
                 toggle={() =>
                   menuBar.setState({
@@ -658,6 +661,7 @@ export class Submenu extends React.Component<
                     'dropdown-item dropdown-toggle submenu-toggle' +
                     (menu.state.hoverItem === this ? ' active' : '')
                   }
+                  disabled={this.props.disabled}
                   tag={RawButton}>
                   {this.props.label}
                 </DropdownToggle>

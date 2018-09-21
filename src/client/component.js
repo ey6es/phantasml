@@ -20,13 +20,17 @@ import {
   CardHeader,
   CardBody,
   Button,
+  Dropdown,
+  DropdownToggle,
+  DropdownMenu,
+  DropdownItem,
 } from 'reactstrap';
 import type {EditorTab} from './store';
 import {StoreActions, store} from './store';
 import {EntityName} from './entity';
 import type {Vector2} from './util/math';
 import {radians, degrees, normalizeAngle, roundToPrecision} from './util/math';
-import {Menu, NumberField, renderText} from './util/ui';
+import {Menu, Submenu, NumberField, renderText} from './util/ui';
 import type {Resource, Entity} from '../server/store/resource';
 import {Scene, SceneActions} from '../server/store/scene';
 
@@ -45,6 +49,10 @@ export class ComponentDropdown extends React.Component<
         label={
           <FormattedMessage id="component.title" defaultMessage="Component" />
         }>
+        <Submenu
+          disabled={store.getState().selection.size === 0}
+          label={<FormattedMessage id="component.new" defaultMessage="New" />}
+        />
         {this.state.dialog}
       </Menu>
     );
@@ -166,6 +174,7 @@ function EntityEditor(props: {
           />
         ))}
       </Form>
+      {props.entities.length > 0 ? <AddComponentDropdown /> : null}
     </div>
   );
 }
@@ -253,7 +262,7 @@ function ComponentPanel(props: {
     component.properties,
   ): [string, any][]);
   return (
-    <Card>
+    <Card className="mb-3">
       <CardHeader
         className="p-2 unselectable"
         draggable
@@ -290,6 +299,28 @@ function ComponentPanel(props: {
       </CardBody>
     </Card>
   );
+}
+
+class AddComponentDropdown extends React.Component<{}, {open: boolean}> {
+  state = {open: false};
+
+  render() {
+    return (
+      <Dropdown
+        className="text-center"
+        isOpen={this.state.open}
+        toggle={this._toggle}>
+        <DropdownToggle caret>
+          <FormattedMessage id="component.add" defaultMessage="Add Component" />
+        </DropdownToggle>
+        <DropdownMenu>
+          <div />
+        </DropdownMenu>
+      </Dropdown>
+    );
+  }
+
+  _toggle = () => this.setState({open: !this.state.open});
 }
 
 const PropertyEditors = {

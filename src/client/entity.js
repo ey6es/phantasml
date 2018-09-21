@@ -117,12 +117,14 @@ export const EntityTree = ReactRedux.connect(state => ({
   page: state.page,
   expanded: state.expanded,
   selection: state.selection,
+  dragging: state.draggingSelection,
 }))(
   (props: {
     resource: ?Resource,
     page: string,
     expanded: Set<string>,
     selection: Set<string>,
+    dragging: boolean,
   }) => {
     const resource = props.resource;
     if (!(resource instanceof Scene)) {
@@ -153,6 +155,7 @@ export const EntityTree = ReactRedux.connect(state => ({
           node={root}
           expanded={props.expanded}
           selection={props.selection}
+          dragging={props.dragging}
         />
       </div>
     );
@@ -164,6 +167,7 @@ function EntityTreeChildren(props: {
   node: EntityHierarchyNode,
   expanded: Set<string>,
   selection: Set<string>,
+  dragging: boolean,
 }) {
   const children = props.node.children;
   if (children.length === 0) {
@@ -178,6 +182,7 @@ function EntityTreeChildren(props: {
           node={child}
           expanded={props.expanded}
           selection={props.selection}
+          dragging={props.dragging}
           previousOrder={index === 0 ? null : children[index - 1].order}
           nextOrder={
             index === children.length - 1 ? null : children[index + 1].order
@@ -193,6 +198,7 @@ function EntityTreeNode(props: {
   node: EntityHierarchyNode,
   expanded: Set<string>,
   selection: Set<string>,
+  dragging: boolean,
   previousOrder: ?number,
   nextOrder: ?number,
 }) {
@@ -258,6 +264,10 @@ function EntityTreeNode(props: {
           draggable
           onDragStart={event => {
             event.dataTransfer.setData('text', entity.id);
+            store.dispatch(StoreActions.setDraggingSelection.create(true));
+          }}
+          onDragEnd={event => {
+            store.dispatch(StoreActions.setDraggingSelection.create(false));
           }}
           onDragEnter={event => {
             event.stopPropagation();
@@ -276,13 +286,15 @@ function EntityTreeNode(props: {
               drop(entity.id, null, props.node.highestChildOrder);
             }
           }}>
-          <ReorderTarget
-            parentId={parent.ref}
-            beforeOrder={entity.getOrder()}
-            afterOrder={props.previousOrder}
-          />
+          {props.dragging ? (
+            <ReorderTarget
+              parentId={parent.ref}
+              beforeOrder={entity.getOrder()}
+              afterOrder={props.previousOrder}
+            />
+          ) : null}
           <EntityName entity={entity} />
-          {props.nextOrder == null ? (
+          {props.dragging && props.nextOrder == null ? (
             <ReorderTarget
               parentId={parent.ref}
               after={true}
@@ -297,6 +309,7 @@ function EntityTreeNode(props: {
             node={props.node}
             expanded={props.expanded}
             selection={props.selection}
+            dragging={props.dragging}
           />
         ) : null}
       </div>

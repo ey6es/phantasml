@@ -37,8 +37,10 @@ type StoreState = {
   redoStack: ResourceAction[],
   editorTab: EditorTab,
   page: string,
+  draggingPage: ?string,
   expanded: Set<string>,
   selection: Set<string>,
+  draggingSelection: boolean,
   clipboard: Map<string, Object>,
 };
 
@@ -51,8 +53,10 @@ const initialState = {
   redoStack: [],
   editorTab: 'entity',
   page: '',
+  draggingPage: null,
   expanded: new Set(),
   selection: new Set(),
+  draggingSelection: false,
   clipboard: new Map(),
 };
 
@@ -342,6 +346,18 @@ export const StoreActions = {
       }
       const selection: Set<string> = new Set();
       return Object.assign({}, state, {page, selection});
+    },
+  },
+  setDraggingPage: {
+    create: (page: ?string) => ({type: 'setDraggingPage', page}),
+    reduce: (state: StoreState, action: StoreAction) => {
+      return Object.assign({}, state, {draggingPage: action.page});
+    },
+  },
+  setDraggingSelection: {
+    create: (value: boolean) => ({type: 'setDraggingSelection', value}),
+    reduce: (state: StoreState, action: StoreAction) => {
+      return Object.assign({}, state, {draggingSelection: action.value});
     },
   },
   setExpanded: {
