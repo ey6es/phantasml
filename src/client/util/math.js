@@ -5,6 +5,9 @@
  * @flow
  */
 
+/** Basic two-element vector type. */
+export type Vector2 = {x: number, y: number};
+
 /**
  * Converts a value in degrees to radians.
  *

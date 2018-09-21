@@ -17,13 +17,16 @@ import {
   Label,
   Input,
   Card,
+  CardHeader,
+  CardBody,
   Button,
 } from 'reactstrap';
 import type {EditorTab} from './store';
 import {StoreActions, store} from './store';
 import {EntityName} from './entity';
+import type {Vector2} from './util/math';
 import {radians, degrees, normalizeAngle, roundToPrecision} from './util/math';
-import {Menu, renderText} from './util/ui';
+import {Menu, NumberField, renderText} from './util/ui';
 import type {Resource, Entity} from '../server/store/resource';
 import {Scene, SceneActions} from '../server/store/scene';
 
@@ -250,37 +253,41 @@ function ComponentPanel(props: {
     component.properties,
   ): [string, any][]);
   return (
-    <Card
-      className="p-1"
-      body={true}
-      draggable
-      onDragStart={event => {
-        event.dataTransfer.setData('text', props.id);
-      }}>
-      {properties.map(([key, property]) => {
-        const PropertyEditor = PropertyEditors[property.type];
-        return (
-          <FormGroup key={key} className="mb-0" row>
-            <Label for={key} className="text-left pr-0" sm={4}>
-              {property.label}
-            </Label>
-            <PropertyEditor
-              id={key}
-              value={props.value[key]}
-              setValue={value => {
-                props.editEntities({[props.id]: {[key]: value}});
-              }}
-            />
-          </FormGroup>
-        );
-      })}
-      {component.removable !== false ? (
-        <Button
-          className="close remove-component"
-          onClick={() => props.editEntities({[props.id]: null})}>
-          &times;
-        </Button>
-      ) : null}
+    <Card>
+      <CardHeader
+        className="p-2 unselectable"
+        draggable
+        onDragStart={event => {
+          event.dataTransfer.setData('text', props.id);
+        }}>
+        {component.label}
+        {component.removable !== false ? (
+          <Button
+            className="close float-right"
+            onClick={() => props.editEntities({[props.id]: null})}>
+            &times;
+          </Button>
+        ) : null}
+      </CardHeader>
+      <CardBody className="p-2">
+        {properties.map(([key, property]) => {
+          const PropertyEditor = PropertyEditors[property.type];
+          return (
+            <FormGroup key={key} className="mb-1" row>
+              <Label for={key} className="pr-0 unselectable" sm={4}>
+                {property.label}
+              </Label>
+              <PropertyEditor
+                id={key}
+                value={props.value[key]}
+                setValue={value => {
+                  props.editEntities({[props.id]: {[key]: value}});
+                }}
+              />
+            </FormGroup>
+          );
+        })}
+      </CardBody>
     </Card>
   );
 }
@@ -288,77 +295,59 @@ function ComponentPanel(props: {
 const PropertyEditors = {
   vector: (props: {id: string, value: ?Object, setValue: Object => void}) => {
     const vector = props.value || {x: 0.0, y: 0.0};
-    const setValue = props.setValue;
-    const VectorComponent = (props: {className: string, name: string}) => (
-      <div className={props.className}>
-        <NumberField
-          value={vector[props.name]}
-          setValue={value =>
-            setValue(Object.assign({}, vector, {[props.name]: value}))
-          }
-          step={0.01}
-          precision={2}
-        />
-      </div>
-    );
     return [
-      <VectorComponent key="x" className="col-sm-4 pr-1" name="x" />,
-      <VectorComponent key="y" className="col-sm-4 pl-0" name="y" />,
+      <VectorComponent
+        key="x"
+        className="col-sm-4 pr-1"
+        name="x"
+        vector={vector}
+        setVector={props.setValue}
+      />,
+      <VectorComponent
+        key="y"
+        className="col-sm-4 pl-0"
+        name="y"
+        vector={vector}
+        setVector={props.setValue}
+      />,
     ];
   },
   rotation: (props: {id: string, value: ?number, setValue: number => void}) => {
     return (
       <div className="col-sm-8">
-        <Input
+        <NumberField
           id={props.id}
-          type="number"
-          value={roundToPrecision(degrees(props.value || 0), 2)}
-          max={180}
+          initialValue={props.value && degrees(props.value)}
+          setValue={value => props.setValue(radians(value))}
+          precision={2}
           min={-180}
-          onChange={event => {
-            const value = parseFloat(event.target.value);
-            isNaN(value) || props.setValue(radians(value));
-          }}
-          onWheel={event => {
-            if (event.deltaY === 0) {
-              return;
-            }
-            event.preventDefault();
-            const delta = event.deltaY > 0 ? -1 : 1;
-            const value = parseFloat(event.target.value) + delta;
-            props.setValue(normalizeAngle(radians(value)));
-          }}
+          max={180}
+          circular={true}
         />
       </div>
     );
   },
 };
 
-function NumberField(props: {
-  value: ?number,
-  setValue: number => void,
-  step: number,
-  precision: number,
+function VectorComponent(props: {
+  className: string,
+  name: string,
+  vector: Object,
+  setVector: Object => void,
 }) {
   return (
-    <Input
-      type="number"
-      value={roundToPrecision(props.value || 0, props.precision)}
-      step={props.step}
-      onChange={event => {
-        const value = parseFloat(event.target.value);
-        isNaN(value) || props.setValue(value);
-      }}
-      onWheel={event => {
-        if (event.deltaY === 0) {
-          return;
+    <div className={props.className}>
+      <NumberField
+        initialValue={props.vector[props.name]}
+        setValue={value =>
+          props.setVector(
+            Object.assign({}, props.vector, {[props.name]: value}),
+          )
         }
-        event.preventDefault();
-        const delta = event.deltaY > 0 ? -props.step : props.step;
-        const value = parseFloat(event.target.value) + delta;
-        props.setValue(value);
-      }}
-    />
+        step={0.01}
+        precision={2}
+      />
+    </div>
   );
 }
 
@@ -368,12 +357,14 @@ type PropertyData = {
 };
 
 type ComponentData = {
+  label: React.Element<any>,
   properties: {[string]: PropertyData},
   removable?: boolean,
 };
 
 const Components: {[string]: ComponentData} = {
   transform: {
+    label: <FormattedMessage id="transform.title" defaultMessage="Transform" />,
     properties: {
       translation: {
         type: 'vector',

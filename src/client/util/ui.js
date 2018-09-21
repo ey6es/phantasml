@@ -24,7 +24,9 @@ import {
   DropdownToggle,
   DropdownMenu,
   DropdownItem,
+  Input,
 } from 'reactstrap';
+import {roundToPrecision} from './math';
 import {store} from '../store';
 
 /**
@@ -670,6 +672,100 @@ export class Submenu extends React.Component<
         )}
       </MenuBarContext.Consumer>
     );
+  }
+}
+
+type NumberFieldProps = {
+  initialValue?: ?number,
+  setValue: number => void,
+  step?: ?number,
+  precision?: ?number,
+  circular?: boolean,
+  [string]: any,
+};
+
+/**
+ * A number field with some customizations.
+ *
+ * @param initialValue the initial value of the field.
+ * @param setValue the function to set the new value.
+ * @param step the step size.
+ * @param precision the precision at which to display the number.
+ */
+export class NumberField extends React.Component<
+  NumberFieldProps,
+  {value: string},
+> {
+  state = {value: String(this._getRoundedInitialValue())};
+
+  render() {
+    const {initialValue, setValue, precision, circular, ...props} = this.props;
+    const step = props.step || 1;
+    return (
+      <Input
+        type="number"
+        value={this.state.value}
+        onChange={event => this._setValue(event.target.value)}
+        onWheel={event => {
+          if (event.deltaY === 0) {
+            return;
+          }
+          event.preventDefault();
+          let numberValue = parseFloat(this.state.value);
+          if (isNaN(numberValue)) {
+            numberValue = 0.0;
+          }
+          const delta = event.deltaY > 0 ? -step : step;
+          let newValue = numberValue + delta;
+          const minimum = this.props.min;
+          const maximum = this.props.max;
+          if (circular && minimum != null && maximum != null) {
+            while (newValue < minimum) {
+              newValue += maximum - minimum;
+            }
+            while (newValue > maximum) {
+              newValue -= maximum - minimum;
+            }
+          } else {
+            if (minimum != null) {
+              newValue = Math.max(minimum, newValue);
+            }
+            if (maximum != null) {
+              newValue = Math.min(maximum, newValue);
+            }
+          }
+          this._setValue(
+            String(roundToPrecision(newValue, this._getPrecision())),
+          );
+        }}
+        {...props}
+      />
+    );
+  }
+
+  componentDidUpdate(prevProps: NumberFieldProps) {
+    if (prevProps.initialValue === this.props.initialValue) {
+      return;
+    }
+    const currentValue = parseFloat(this.state.value);
+    const newValue = this._getRoundedInitialValue();
+    if (currentValue !== newValue) {
+      this.setState({value: String(newValue)});
+    }
+  }
+
+  _getRoundedInitialValue(): number {
+    return roundToPrecision(this.props.initialValue || 0, this._getPrecision());
+  }
+
+  _getPrecision(): number {
+    return this.props.precision || 1;
+  }
+
+  _setValue(value: string) {
+    this.setState({value});
+    const numberValue = parseFloat(value);
+    isNaN(numberValue) || this.props.setValue(numberValue);
   }
 }
 
