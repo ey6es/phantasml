@@ -773,6 +773,72 @@ export class NumberField extends React.Component<
   }
 }
 
+type ColorFieldProps = {
+  initialValue?: ?string,
+  setValue: string => void,
+  defaultValue: string,
+  [string]: any,
+};
+
+/**
+ * A field for editing a color (as a hex string).
+ *
+ * @param initialValue the initial value of the field.
+ * @param setValue the function to set the new value.
+ */
+export class ColorField extends React.Component<
+  ColorFieldProps,
+  {value: string},
+> {
+  state = {value: this._getInitialValue()};
+
+  render() {
+    const {initialValue, setValue, defaultValue, ...props} = this.props;
+    return (
+      <div className="d-flex">
+        <Input
+          className="flex-grow-1"
+          type="text"
+          size={8}
+          value={this.state.value}
+          onChange={event => this._setValue(event.target.value)}
+          {...props}
+        />
+        <Input
+          className="color-picker"
+          type="color"
+          value={this.state.value}
+          onChange={event => this._setValue(event.target.value)}
+        />
+      </div>
+    );
+  }
+
+  componentDidUpdate(prevProps: ColorFieldProps) {
+    if (prevProps.initialValue === this.props.initialValue) {
+      return;
+    }
+    const newValue = this._getInitialValue();
+    if (this.state.value !== newValue) {
+      this.setState({value: newValue});
+    }
+  }
+
+  _getInitialValue(): string {
+    return this.props.initialValue || this.props.defaultValue;
+  }
+
+  _setValue(value: string) {
+    if (!/^#[0-9a-fA-F]*$/.test(value)) {
+      return;
+    }
+    this.setState({value});
+    if (value.length === 7) {
+      this.props.setValue(value);
+    }
+  }
+}
+
 /**
  * Renders a React element to text with appropriate i18n.
  *

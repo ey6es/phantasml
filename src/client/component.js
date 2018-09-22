@@ -30,7 +30,8 @@ import {StoreActions, store} from './store';
 import {EntityName} from './entity';
 import type {Vector2} from './util/math';
 import {radians, degrees, normalizeAngle, roundToPrecision} from './util/math';
-import {Menu, Submenu, NumberField, renderText} from './util/ui';
+import {Menu, Submenu, NumberField, ColorField, renderText} from './util/ui';
+import {RendererComponents} from './renderer/components';
 import type {Resource, Entity} from '../server/store/resource';
 import {Scene, SceneActions} from '../server/store/scene';
 
@@ -149,8 +150,10 @@ function EntityEditor(props: {
     components = (Object.entries(intersection): [string, any][]).filter(
       ([key, value]) => Components[key],
     );
-    if (!(intersection.transform || props.page)) {
-      components.unshift(['transform', {}]);
+    // special handling for our built-in components
+    const automaticComponent = props.page ? 'background' : 'transform';
+    if (!intersection[automaticComponent]) {
+      components.unshift([automaticComponent, {}]);
     }
     if (components.length > 0) {
       components.sort(
@@ -327,6 +330,7 @@ function ComponentPanel(props: {
               </Label>
               <PropertyEditor
                 id={key}
+                property={property}
                 value={props.value[key]}
                 setValue={value => {
                   props.editEntities({[props.id]: {[key]: value}});
@@ -418,7 +422,49 @@ class AddComponentDropdown extends React.Component<{}, {open: boolean}> {
 }
 
 const PropertyEditors = {
-  vector: (props: {id: string, value: ?Object, setValue: Object => void}) => {
+  color: (props: {
+    id: string,
+    property: PropertyData,
+    value: ?string,
+    setValue: string => void,
+  }) => {
+    return (
+      <div className="col-sm-8">
+        <ColorField
+          id={props.id}
+          initialValue={props.value}
+          defaultValue={props.property.defaultValue || '#000000'}
+          setValue={props.setValue}
+        />
+      </div>
+    );
+  },
+  rotation: (props: {
+    id: string,
+    property: PropertyData,
+    value: ?number,
+    setValue: number => void,
+  }) => {
+    return (
+      <div className="col-sm-8">
+        <NumberField
+          id={props.id}
+          initialValue={props.value && degrees(props.value)}
+          setValue={value => props.setValue(radians(value))}
+          precision={2}
+          min={-180}
+          max={180}
+          circular={true}
+        />
+      </div>
+    );
+  },
+  vector: (props: {
+    id: string,
+    property: PropertyData,
+    value: ?Object,
+    setValue: Object => void,
+  }) => {
     const vector = props.value || {x: 0.0, y: 0.0};
     return [
       <VectorComponent
@@ -436,21 +482,6 @@ const PropertyEditors = {
         setVector={props.setValue}
       />,
     ];
-  },
-  rotation: (props: {id: string, value: ?number, setValue: number => void}) => {
-    return (
-      <div className="col-sm-8">
-        <NumberField
-          id={props.id}
-          initialValue={props.value && degrees(props.value)}
-          setValue={value => props.setValue(radians(value))}
-          precision={2}
-          min={-180}
-          max={180}
-          circular={true}
-        />
-      </div>
-    );
   },
 };
 
@@ -479,9 +510,10 @@ function VectorComponent(props: {
 type PropertyData = {
   type: $Keys<typeof PropertyEditors>,
   label: React.Element<any>,
+  [string]: any,
 };
 
-type ComponentData = {
+export type ComponentData = {
   label: React.Element<any>,
   properties: {[string]: PropertyData},
   removable?: boolean,
@@ -518,4 +550,5 @@ const Components: {[string]: ComponentData} = {
     },
     removable: false,
   },
+  ...RendererComponents,
 };
