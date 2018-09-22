@@ -157,27 +157,26 @@ function ReorderTarget(props: {
   after?: boolean,
   order: number,
 }) {
+  if (!isDroppable(props.draggingPage, props.order)) {
+    return null;
+  }
   const baseClass = `page-reorder-target${props.after ? ' after' : ' before'}`;
   return (
     <div
       className={baseClass}
       onDragEnter={event => {
-        if (isDroppable(props.draggingPage, props.order)) {
-          event.target.className = baseClass + ' visible';
-        }
+        event.target.className = baseClass + ' visible';
       }}
       onDragLeave={event => {
         event.target.className = baseClass;
       }}
       onDrop={event => {
         event.target.className = baseClass;
-        if (isDroppable(props.draggingPage, props.order)) {
-          store.dispatch(
-            SceneActions.editEntities.create({
-              [props.draggingPage]: {order: props.order},
-            }),
-          );
-        }
+        store.dispatch(
+          SceneActions.editEntities.create({
+            [props.draggingPage]: {order: props.order},
+          }),
+        );
       }}
     />
   );

@@ -41,6 +41,7 @@ type StoreState = {
   expanded: Set<string>,
   selection: Set<string>,
   draggingSelection: boolean,
+  draggingComponent: ?string,
   clipboard: Map<string, Object>,
 };
 
@@ -57,6 +58,7 @@ const initialState = {
   expanded: new Set(),
   selection: new Set(),
   draggingSelection: false,
+  draggingComponent: null,
   clipboard: new Map(),
 };
 
@@ -358,6 +360,12 @@ export const StoreActions = {
     create: (value: boolean) => ({type: 'setDraggingSelection', value}),
     reduce: (state: StoreState, action: StoreAction) => {
       return Object.assign({}, state, {draggingSelection: action.value});
+    },
+  },
+  setDraggingComponent: {
+    create: (key: ?string) => ({type: 'setDraggingComponent', key}),
+    reduce: (state: StoreState, action: StoreAction) => {
+      return Object.assign({}, state, {draggingComponent: action.key});
     },
   },
   setExpanded: {

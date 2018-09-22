@@ -323,6 +323,9 @@ function ReorderTarget(props: {
   beforeOrder: ?number,
   afterOrder: ?number,
 }) {
+  if (!isDroppable(props.parentId, props.beforeOrder, props.afterOrder)) {
+    return null;
+  }
   const baseClass = `entity-reorder-target${
     props.after ? ' after' : ' before'
   }`;
@@ -331,9 +334,7 @@ function ReorderTarget(props: {
       className={baseClass}
       onDragEnter={event => {
         event.stopPropagation();
-        if (isDroppable(props.parentId, props.beforeOrder, props.afterOrder)) {
-          event.target.className = baseClass + ' visible';
-        }
+        event.target.className = baseClass + ' visible';
       }}
       onDragLeave={event => {
         event.stopPropagation();
@@ -342,9 +343,7 @@ function ReorderTarget(props: {
       onDrop={event => {
         event.stopPropagation();
         event.target.className = baseClass;
-        if (isDroppable(props.parentId, props.beforeOrder, props.afterOrder)) {
-          drop(props.parentId, props.beforeOrder, props.afterOrder);
-        }
+        drop(props.parentId, props.beforeOrder, props.afterOrder);
       }}
     />
   );

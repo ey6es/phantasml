@@ -66,12 +66,14 @@ export const ComponentEditor = ReactRedux.connect(state => ({
   editorTab: state.editorTab,
   resource: state.resource,
   entityIds: state.editorTab === 'entity' ? state.selection : state.page,
+  draggingComponent: state.draggingComponent,
 }))(
   (props: {
     locale: string,
     editorTab: EditorTab,
     resource: ?Resource,
     entityIds: string | Set<string>,
+    draggingComponent: ?string,
   }) => {
     const resource = props.resource;
     if (!(resource instanceof Scene)) {
@@ -115,6 +117,7 @@ export const ComponentEditor = ReactRedux.connect(state => ({
           resource={resource}
           entities={entities}
           page={page}
+          draggingComponent={props.draggingComponent}
         />
       </div>
     );
@@ -126,6 +129,7 @@ function EntityEditor(props: {
   resource: Scene,
   entities: Entity[],
   page: boolean,
+  draggingComponent: ?string,
 }) {
   // get intersection state
   let original: ?Object;
@@ -139,15 +143,23 @@ function EntityEditor(props: {
     }
   }
   let components: [string, any][] = [];
+  let previousOrder: number = 0;
+  let highestOrder: number = 0;
   if (intersection) {
-    components = (Object.entries(intersection): [string, any][]);
+    components = (Object.entries(intersection): [string, any][]).filter(
+      ([key, value]) => Components[key],
+    );
     if (!(intersection.transform || props.page)) {
       components.unshift(['transform', {}]);
     }
-    components.sort(
-      ([keyA, valueA], [keyB, valueB]) =>
-        (valueA.order || 0) - (valueB.order || 0),
-    );
+    if (components.length > 0) {
+      components.sort(
+        ([keyA, valueA], [keyB, valueB]) =>
+          (valueA.order || 0) - (valueB.order || 0),
+      );
+      previousOrder = (components[0][1].order || 0) - 2;
+      highestOrder = components[components.length - 1][1].order || 0;
+    }
   }
   const editEntities = (values: Object) => {
     const map = {};
@@ -165,14 +177,25 @@ function EntityEditor(props: {
           entities={props.entities}
           editEntities={editEntities}
         />
-        {components.map(([key, value]) => (
-          <ComponentPanel
-            key={key}
-            id={key}
-            value={value}
-            editEntities={editEntities}
-          />
-        ))}
+        {components.map(([key, value]) => {
+          const componentOrder = value.order || 0;
+          const preOrder = (previousOrder + componentOrder) / 2;
+          previousOrder = componentOrder;
+          return (
+            <ComponentPanel
+              key={key}
+              id={key}
+              value={value}
+              editEntities={editEntities}
+              draggingComponent={props.draggingComponent}
+              components={components}
+              preOrder={preOrder}
+              postOrder={
+                componentOrder === highestOrder ? highestOrder + 1 : null
+              }
+            />
+          );
+        })}
       </Form>
       {props.entities.length > 0 ? <AddComponentDropdown /> : null}
     </div>
@@ -253,6 +276,10 @@ function ComponentPanel(props: {
   id: string,
   value: any,
   editEntities: Object => void,
+  draggingComponent: ?string,
+  components: [string, any][],
+  preOrder: number,
+  postOrder: ?number,
 }) {
   const component = Components[props.id];
   if (!component) {
@@ -263,11 +290,23 @@ function ComponentPanel(props: {
   ): [string, any][]);
   return (
     <Card className="mb-3">
+      {props.draggingComponent ? (
+        <ReorderTarget
+          draggingComponent={props.draggingComponent}
+          components={props.components}
+          order={props.preOrder}
+          editEntities={props.editEntities}
+        />
+      ) : null}
       <CardHeader
         className="p-2 unselectable"
         draggable
         onDragStart={event => {
           event.dataTransfer.setData('text', props.id);
+          store.dispatch(StoreActions.setDraggingComponent.create(props.id));
+        }}
+        onDragEnd={event => {
+          store.dispatch(StoreActions.setDraggingComponent.create(null));
         }}>
         {component.label}
         {component.removable !== false ? (
@@ -297,8 +336,63 @@ function ComponentPanel(props: {
           );
         })}
       </CardBody>
+      {props.draggingComponent && props.postOrder != null ? (
+        <ReorderTarget
+          draggingComponent={props.draggingComponent}
+          components={props.components}
+          after={true}
+          order={props.postOrder}
+          editEntities={props.editEntities}
+        />
+      ) : null}
     </Card>
   );
+}
+
+function ReorderTarget(props: {
+  draggingComponent: string,
+  components: [string, any][],
+  after?: boolean,
+  order: number,
+  editEntities: Object => void,
+}) {
+  if (!isDroppable(props.draggingComponent, props.components, props.order)) {
+    return null;
+  }
+  const baseClass = `component-reorder-target${
+    props.after ? ' after' : ' before'
+  }`;
+  return (
+    <div
+      className={baseClass}
+      onDragEnter={event => {
+        event.target.className = baseClass + ' visible';
+      }}
+      onDragLeave={event => {
+        event.target.className = baseClass;
+      }}
+      onDrop={event => {
+        event.target.className = baseClass;
+        props.editEntities({[props.draggingComponent]: {order: props.order}});
+      }}
+    />
+  );
+}
+
+function isDroppable(
+  draggingComponent: string,
+  components: [string, any][],
+  order: number,
+): boolean {
+  let previousKey: ?string;
+  for (const [key, value] of components) {
+    const componentOrder = value.order || 0;
+    if (order < componentOrder) {
+      return draggingComponent !== key && draggingComponent !== previousKey;
+    }
+    previousKey = key;
+  }
+  return draggingComponent !== previousKey;
 }
 
 class AddComponentDropdown extends React.Component<{}, {open: boolean}> {
