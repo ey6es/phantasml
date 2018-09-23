@@ -829,7 +829,7 @@ export class ColorField extends React.Component<
   }
 
   _setValue(value: string) {
-    if (!/^#[0-9a-fA-F]*$/.test(value)) {
+    if (!/^#[0-9a-fA-F]*$/.test(value) || value.length > 7) {
       return;
     }
     this.setState({value});
