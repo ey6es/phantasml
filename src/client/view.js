@@ -12,6 +12,7 @@ import {Nav, NavItem, NavLink, Button} from 'reactstrap';
 import {StoreActions, store, createUuid} from './store';
 import {EntityName} from './entity';
 import {Menu, renderText} from './util/ui';
+import {RenderCanvas} from './renderer/canvas';
 import type {Resource} from '../server/store/resource';
 import {Scene, SceneActions} from '../server/store/scene';
 
@@ -41,7 +42,9 @@ export class SceneView extends React.Component<{locale: string}, {}> {
     return (
       <div className="flex-grow-1 d-flex flex-column">
         <PageTabs locale={this.props.locale} />
-        <div className="flex-grow-1 border-left border-secondary" />
+        <div className="flex-grow-1 border-left border-secondary">
+          <RenderCanvas />
+        </div>
       </div>
     );
   }

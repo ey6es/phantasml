@@ -20,6 +20,7 @@ export const RendererComponents: {[string]: ComponentData} = {
         label: (
           <FormattedMessage id="background.color" defaultMessage="Color:" />
         ),
+        defaultValue: '#222222',
       },
       gridColor: {
         type: 'color',
@@ -29,6 +30,7 @@ export const RendererComponents: {[string]: ComponentData} = {
             defaultMessage="Grid Color:"
           />
         ),
+        defaultValue: '#303030',
       },
     },
     removable: false,

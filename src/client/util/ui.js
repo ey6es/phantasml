@@ -799,7 +799,7 @@ export class ColorField extends React.Component<
         <Input
           className="flex-grow-1"
           type="text"
-          size={8}
+          size="8"
           value={this.state.value}
           onChange={event => this._setValue(event.target.value)}
           {...props}
