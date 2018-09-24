@@ -517,6 +517,7 @@ export type ComponentData = {
   label: React.Element<any>,
   properties: {[string]: PropertyData},
   removable?: boolean,
+  [string]: any,
 };
 
 const Components: {[string]: ComponentData} = {

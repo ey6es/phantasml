@@ -7,14 +7,16 @@
 
 import * as React from 'react';
 import * as ReactRedux from 'react-redux';
+import {renderBackground} from './background';
+import {Renderer} from './util';
 import type {Resource} from '../../server/store/resource';
+import {Scene} from '../../server/store/scene';
 
 class RenderCanvasImpl extends React.Component<
   {resource: ?Resource, page: string},
   {},
 > {
-  _canvas: ?HTMLCanvasElement;
-  _gl: ?WebGLRenderingContext;
+  _renderer: ?Renderer;
 
   render() {
     return <canvas ref={this._setCanvas} className="render-canvas" />;
@@ -33,27 +35,36 @@ class RenderCanvasImpl extends React.Component<
   }
 
   _setCanvas = (canvas: ?HTMLCanvasElement) => {
-    this._canvas = canvas;
+    if (this._renderer) {
+      this._renderer.dispose();
+      this._renderer = null;
+    }
     if (canvas) {
-      this._gl = canvas.getContext('webgl', {alpha: false, depth: false});
-    } else {
-      this._gl = null;
+      this._renderer = new Renderer(canvas);
     }
   };
 
   _renderScene = () => {
-    const canvas = this._canvas;
-    if (!canvas) {
+    const renderer = this._renderer;
+    if (!renderer) {
       return;
     }
-    // make sure canvas dimensions match layout ones
+    // make sure canvas/viewport dimensions match layout ones
     if (
-      canvas.clientWidth !== canvas.width ||
-      canvas.clientHeight !== canvas.height
+      renderer.canvas.clientWidth !== renderer.canvas.width ||
+      renderer.canvas.clientHeight !== renderer.canvas.height
     ) {
-      canvas.width = canvas.clientWidth;
-      canvas.height = canvas.clientHeight;
+      renderer.canvas.width = renderer.canvas.clientWidth;
+      renderer.canvas.height = renderer.canvas.clientHeight;
     }
+    renderer.setViewport(0, 0, renderer.canvas.width, renderer.canvas.height);
+    const resource = this.props.resource;
+    if (!(resource instanceof Scene)) {
+      return;
+    }
+    // render background
+    const pageEntity = resource.getEntity(this.props.page);
+    pageEntity && renderBackground(renderer, pageEntity.state.background);
   };
 }
 
