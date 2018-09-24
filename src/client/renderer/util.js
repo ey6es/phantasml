@@ -5,7 +5,20 @@
  * @flow
  */
 
-type TypedArray = Float32Array;
+/**
+ * Converts a hex color string to an array of floats that we can use as a
+ * uniform value.
+ *
+ * @param value the hex color string.
+ * @return the corresponding array of floats.
+ */
+export function getColorArray(value: string): number[] {
+  return [
+    parseInt(value.substring(1, 3), 16) / 255.0,
+    parseInt(value.substring(3, 5), 16) / 255.0,
+    parseInt(value.substring(5, 7), 16) / 255.0,
+  ];
+}
 
 /**
  * Wraps a WebGL program, keeping track of uniform locations.
@@ -19,6 +32,7 @@ export class Program {
   program: WebGLProgram;
 
   _attribLocations: Map<string, number> = new Map();
+  _uniformValues: Map<string, mixed> = new Map();
   _uniformLocations: Map<string, WebGLUniformLocation> = new Map();
 
   constructor(
@@ -58,6 +72,46 @@ export class Program {
       );
     }
     return location;
+  }
+
+  /**
+   * Sets a uniform from a hex color string.
+   *
+   * @param name the name of the uniform to set.
+   * @param value the hex color string.
+   */
+  setUniformColor(name: string, value: string) {
+    this.setUniform(name, value, getColorArray);
+  }
+
+  /**
+   * Sets the value of a uniform.
+   *
+   * @param name the name of the uniform to set.
+   * @param key the value key.
+   * @param getValue the function to generate the value from the key.
+   */
+  setUniform<T>(name: string, key: T, getValue: T => number[] | Float32Array) {
+    if (this._uniformValues.get(name) !== key) {
+      const value = getValue(key);
+      switch (value.length) {
+        case 1:
+          this.gl.uniform1fv(this.getUniformLocation(name), value);
+          break;
+        case 2:
+          this.gl.uniform2fv(this.getUniformLocation(name), value);
+          break;
+        case 3:
+          this.gl.uniform3fv(this.getUniformLocation(name), value);
+          break;
+        case 4:
+          this.gl.uniform4fv(this.getUniformLocation(name), value);
+          break;
+        default:
+          throw new Error('Invalid uniform array size: ' + value.length);
+      }
+      this._uniformValues.set(name, key);
+    }
   }
 
   /**

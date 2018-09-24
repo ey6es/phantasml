@@ -5,7 +5,8 @@
  * @flow
  */
 
-import type {Renderer} from './util';
+import {RendererComponents} from './components';
+import type {Renderer, getColorArray} from './util';
 
 type BackgroundData = {color?: string, gridColor?: string};
 
@@ -18,8 +19,10 @@ const VERTEX_SHADER = `
 
 const FRAGMENT_SHADER = `
   precision mediump float;
-   void main(void) {
-    gl_FragColor = vec4(0.01, 0.01, 0.01, 1.0);
+  uniform vec3 color;
+  uniform vec3 gridColor;
+  void main(void) {
+    gl_FragColor = vec4(color, 1.0);
   }
 `;
 
@@ -41,6 +44,12 @@ export function renderBackground(
     renderer.getFragmentShader(renderBackground, FRAGMENT_SHADER),
   );
   renderer.bindProgram(program);
+  const props = RendererComponents.background.properties;
+  program.setUniformColor('color', data.color || props.color.defaultValue);
+  program.setUniformColor(
+    'gridColor',
+    data.gridColor || props.gridColor.defaultValue,
+  );
   renderer.bindArrayBuffer(renderer.getBuffer(renderBackground, ARRAY_BUFFER));
   const attribLocation = program.getAttribLocation('vertex');
   renderer.enableVertexAttribArray(attribLocation);
