@@ -28,6 +28,14 @@ export type TransferError = {retryAction: ?ResourceAction};
 
 export type EditorTab = 'entity' | 'page';
 
+export type PageState = {
+  x?: number,
+  y?: number,
+  size?: number,
+};
+
+export const DEFAULT_PAGE_SIZE = 20.0;
+
 type StoreState = {
   resource: ?Resource,
   savedEditNumber: number,
@@ -37,6 +45,7 @@ type StoreState = {
   redoStack: ResourceAction[],
   editorTab: EditorTab,
   page: string,
+  pageStates: Map<string, PageState>,
   draggingPage: ?string,
   expanded: Set<string>,
   selection: Set<string>,
@@ -54,6 +63,7 @@ const initialState = {
   redoStack: [],
   editorTab: 'entity',
   page: '',
+  pageStates: new Map(),
   draggingPage: null,
   expanded: new Set(),
   selection: new Set(),
@@ -382,6 +392,31 @@ export const StoreActions = {
       return Object.assign({}, state, {expanded});
     },
   },
+  setPagePosition: {
+    create: (x: number, y: number) => ({type: 'setPagePosition', x, y}),
+    reduce: (state: StoreState, action: StoreAction) => {
+      const pageStates: Map<string, PageState> = new Map(state.pageStates);
+      pageStates.set(
+        state.page,
+        Object.assign({}, pageStates.get(state.page), {
+          x: action.x,
+          y: action.y,
+        }),
+      );
+      return Object.assign({}, state, {pageStates});
+    },
+  },
+  setPageSize: {
+    create: (size: number) => ({type: 'setPageSize', size}),
+    reduce: (state: StoreState, action: StoreAction) => {
+      const pageStates: Map<string, PageState> = new Map(state.pageStates);
+      pageStates.set(
+        state.page,
+        Object.assign({}, pageStates.get(state.page), {size: action.size}),
+      );
+      return Object.assign({}, state, {pageStates});
+    },
+  },
   setResource: {
     create: ResourceActions.setResource.create,
     reduce: (state: ?Resource, action: ResourceAction) => {
@@ -401,6 +436,7 @@ export const StoreActions = {
         undoStack: [],
         redoStack: [],
         page: '',
+        pageStates: (new Map(): Map<string, PageState>),
         expanded: (new Set(): Set<string>),
         selection: (new Set(): Set<string>),
       });

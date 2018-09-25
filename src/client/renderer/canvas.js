@@ -9,11 +9,13 @@ import * as React from 'react';
 import * as ReactRedux from 'react-redux';
 import {renderBackground} from './background';
 import {Renderer} from './util';
+import {DEFAULT_PAGE_SIZE} from '../store';
+import type {PageState} from '../store';
 import type {Resource} from '../../server/store/resource';
 import {Scene} from '../../server/store/scene';
 
 class RenderCanvasImpl extends React.Component<
-  {resource: ?Resource, page: string},
+  {resource: ?Resource, page: string, pageState: ?PageState},
   {},
 > {
   _renderer: ?Renderer;
@@ -62,6 +64,15 @@ class RenderCanvasImpl extends React.Component<
     if (!(resource instanceof Scene)) {
       return;
     }
+    // set camera properties from page state
+    const pageState = this.props.pageState || {};
+    renderer.setCamera(
+      pageState.x || 0,
+      pageState.y || 0,
+      pageState.size || DEFAULT_PAGE_SIZE,
+      renderer.canvas.width / renderer.canvas.height,
+    );
+
     // render background
     const pageEntity = resource.getEntity(this.props.page);
     pageEntity && renderBackground(renderer, pageEntity.state.background);
@@ -74,4 +85,5 @@ class RenderCanvasImpl extends React.Component<
 export const RenderCanvas = ReactRedux.connect(state => ({
   resource: state.resource,
   page: state.page,
+  pageState: state.pageStates.get(state.page),
 }))(RenderCanvasImpl);

@@ -20,6 +20,8 @@ export function getColorArray(value: string): number[] {
   ];
 }
 
+type ValueArray = number[] | Float32Array;
+
 /**
  * Wraps a WebGL program, keeping track of uniform locations.
  *
@@ -81,19 +83,36 @@ export class Program {
    * @param value the hex color string.
    */
   setUniformColor(name: string, value: string) {
-    this.setUniform(name, value, getColorArray);
+    this.setUniformArray(name, value, getColorArray);
   }
 
   /**
-   * Sets the value of a uniform.
+   * Sets the value of a uniform to a single float.
+   *
+   * @param name the name of the uniform to set.
+   * @param value the value to set.
+   */
+  setUniformFloat(name: string, value: number) {
+    if (this._uniformValues.get(name) !== value) {
+      this.gl.uniform1f(this.getUniformLocation(name), value);
+      this._uniformValues.set(name, value);
+    }
+  }
+
+  /**
+   * Sets the value of a uniform to an array.
    *
    * @param name the name of the uniform to set.
    * @param key the value key.
-   * @param getValue the function to generate the value from the key.
+   * @param content the value or value generator.
    */
-  setUniform<T>(name: string, key: T, getValue: T => number[] | Float32Array) {
+  setUniformArray<T>(
+    name: string,
+    key: T,
+    content: ValueArray | (T => ValueArray),
+  ) {
     if (this._uniformValues.get(name) !== key) {
-      const value = getValue(key);
+      const value = typeof content === 'function' ? content(key) : content;
       switch (value.length) {
         case 1:
           this.gl.uniform1fv(this.getUniformLocation(name), value);
@@ -109,6 +128,37 @@ export class Program {
           break;
         default:
           throw new Error('Invalid uniform array size: ' + value.length);
+      }
+      this._uniformValues.set(name, key);
+    }
+  }
+
+  /**
+   * Sets the value of a uniform to a matrix.
+   *
+   * @param name the name of the uniform to set.
+   * @param key the value key.
+   * @param content the value or value generator.
+   */
+  setUniformMatrix<T>(
+    name: string,
+    key: T,
+    content: ValueArray | (T => ValueArray),
+  ) {
+    if (this._uniformValues.get(name) !== key) {
+      const value = typeof content === 'function' ? content(key) : content;
+      switch (value.length) {
+        case 4:
+          this.gl.uniformMatrix2fv(this.getUniformLocation(name), false, value);
+          break;
+        case 9:
+          this.gl.uniformMatrix3fv(this.getUniformLocation(name), false, value);
+          break;
+        case 16:
+          this.gl.uniformMatrix4fv(this.getUniformLocation(name), false, value);
+          break;
+        default:
+          throw new Error('Invalid uniform matrix size: ' + value.length);
       }
       this._uniformValues.set(name, key);
     }
@@ -132,6 +182,8 @@ export class Program {
   }
 }
 
+export type Camera = {x: number, y: number, size: number, aspect: number};
+
 /**
  * Minimal wrapper around GL context providing caching and state tracking.
  *
@@ -149,6 +201,12 @@ export class Renderer {
   _boundProgram: ?Program;
   _vertexAttribArraysEnabled: boolean[] = [];
   _viewport: {x?: number, y?: number, width?: number, height?: number} = {};
+  _camera: Camera = {x: 0.0, y: 0.0, size: 1.0, aspect: 1.0};
+
+  /** Returns a reference to the camera state. */
+  get camera(): Camera {
+    return this._camera;
+  }
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
@@ -334,6 +392,25 @@ export class Renderer {
     ) {
       this.gl.viewport(x, y, width, height);
       this._viewport = {x, y, width, height};
+    }
+  }
+
+  /**
+   * Sets the camera parameters.
+   *
+   * @param x the x coordinate of the camera position.
+   * @param y the y coordinate of the camera position.
+   * @param size the vertical size of the camera window.
+   * @param aspect the camera window aspect ratio.
+   */
+  setCamera(x: number, y: number, size: number, aspect: number) {
+    if (
+      this._camera.x !== x ||
+      this._camera.y !== y ||
+      this._camera.size !== size ||
+      this._camera.aspect !== aspect
+    ) {
+      this._camera = {x, y, size, aspect};
     }
   }
 }
