@@ -75,7 +75,7 @@ export function renderBackground(
   );
   program.setUniformFloat(
     'pixelSize',
-    renderer.camera.size / renderer.canvas.height,
+    (2.0 * renderer.camera.size) / renderer.canvas.height,
   );
   renderer.bindArrayBuffer(renderer.getBuffer(renderBackground, ARRAY_BUFFER));
   const attribLocation = program.getAttribLocation('vertex');

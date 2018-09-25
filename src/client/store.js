@@ -34,7 +34,7 @@ export type PageState = {
   size?: number,
 };
 
-export const DEFAULT_PAGE_SIZE = 20.0;
+export const DEFAULT_PAGE_SIZE = 30.0;
 
 type StoreState = {
   resource: ?Resource,

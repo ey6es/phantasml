@@ -9,9 +9,9 @@ import * as React from 'react';
 import * as ReactRedux from 'react-redux';
 import {FormattedMessage} from 'react-intl';
 import {Nav, NavItem, NavLink, Button} from 'reactstrap';
-import {StoreActions, store, createUuid} from './store';
+import {DEFAULT_PAGE_SIZE, StoreActions, store, createUuid} from './store';
 import {EntityName} from './entity';
-import {Menu, renderText} from './util/ui';
+import {Menu, Submenu, MenuItem, Shortcut, renderText} from './util/ui';
 import {RenderCanvas} from './renderer/canvas';
 import type {Resource} from '../server/store/resource';
 import {Scene, SceneActions} from '../server/store/scene';
@@ -28,6 +28,58 @@ export class ViewDropdown extends React.Component<
   render() {
     return (
       <Menu label={<FormattedMessage id="view.title" defaultMessage="View" />}>
+        <MenuItem
+          onClick={() =>
+            store.dispatch(StoreActions.setPagePosition.create(0.0, 0.0))
+          }>
+          <FormattedMessage id="view.recenter" defaultMessage="Recenter" />
+        </MenuItem>
+        <Submenu
+          label={<FormattedMessage id="view.zoom" defaultMessage="Zoom" />}>
+          <MenuItem
+            shortcut={new Shortcut('3')}
+            onClick={() =>
+              store.dispatch(
+                StoreActions.setPageSize.create(DEFAULT_PAGE_SIZE * 0.25),
+              )
+            }>
+            <FormattedMessage id="view.zoom.4_1" defaultMessage="4:1" />
+          </MenuItem>
+          <MenuItem
+            shortcut={new Shortcut('2')}
+            onClick={() =>
+              store.dispatch(
+                StoreActions.setPageSize.create(DEFAULT_PAGE_SIZE * 0.5),
+              )
+            }>
+            <FormattedMessage id="view.zoom.2_1" defaultMessage="2:1" />
+          </MenuItem>
+          <MenuItem
+            shortcut={new Shortcut('1')}
+            onClick={() =>
+              store.dispatch(StoreActions.setPageSize.create(DEFAULT_PAGE_SIZE))
+            }>
+            <FormattedMessage id="view.zoom.1_1" defaultMessage="1:1" />
+          </MenuItem>
+          <MenuItem
+            shortcut={new Shortcut('2', Shortcut.SHIFT)}
+            onClick={() =>
+              store.dispatch(
+                StoreActions.setPageSize.create(DEFAULT_PAGE_SIZE * 2.0),
+              )
+            }>
+            <FormattedMessage id="view.zoom.1_2" defaultMessage="1:2" />
+          </MenuItem>
+          <MenuItem
+            shortcut={new Shortcut('3', Shortcut.SHIFT)}
+            onClick={() =>
+              store.dispatch(
+                StoreActions.setPageSize.create(DEFAULT_PAGE_SIZE * 4.0),
+              )
+            }>
+            <FormattedMessage id="view.zoom.1_4" defaultMessage="1:4" />
+          </MenuItem>
+        </Submenu>
         {this.state.dialog}
       </Menu>
     );
@@ -42,7 +94,10 @@ export class SceneView extends React.Component<{locale: string}, {}> {
     return (
       <div className="flex-grow-1 d-flex flex-column">
         <PageTabs locale={this.props.locale} />
-        <div className="flex-grow-1 border-left border-secondary">
+        <div
+          className={
+            'flex-grow-1 border-left border-secondary position-relative'
+          }>
           <RenderCanvas />
         </div>
       </div>

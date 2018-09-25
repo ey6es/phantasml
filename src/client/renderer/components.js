@@ -30,7 +30,7 @@ export const RendererComponents: {[string]: ComponentData} = {
             defaultMessage="Grid Color:"
           />
         ),
-        defaultValue: '#292929',
+        defaultValue: '#282828',
       },
     },
     removable: false,

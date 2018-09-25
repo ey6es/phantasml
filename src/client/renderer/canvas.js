@@ -52,14 +52,14 @@ class RenderCanvasImpl extends React.Component<
       return;
     }
     // make sure canvas/viewport dimensions match layout ones
-    if (
-      renderer.canvas.clientWidth !== renderer.canvas.width ||
-      renderer.canvas.clientHeight !== renderer.canvas.height
-    ) {
-      renderer.canvas.width = renderer.canvas.clientWidth;
-      renderer.canvas.height = renderer.canvas.clientHeight;
+    const pixelRatio = window.devicePixelRatio || 1.0;
+    const width = Math.round(renderer.canvas.clientWidth * pixelRatio);
+    const height = Math.round(renderer.canvas.clientHeight * pixelRatio);
+    if (renderer.canvas.width !== width || renderer.canvas.height !== height) {
+      renderer.canvas.width = width;
+      renderer.canvas.height = height;
     }
-    renderer.setViewport(0, 0, renderer.canvas.width, renderer.canvas.height);
+    renderer.setViewport(0, 0, width, height);
     const resource = this.props.resource;
     if (!(resource instanceof Scene)) {
       return;
@@ -70,7 +70,7 @@ class RenderCanvasImpl extends React.Component<
       pageState.x || 0,
       pageState.y || 0,
       pageState.size || DEFAULT_PAGE_SIZE,
-      renderer.canvas.width / renderer.canvas.height,
+      width / height,
     );
 
     // render background
