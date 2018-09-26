@@ -36,6 +36,14 @@ export type PageState = {
 
 export const DEFAULT_PAGE_SIZE = 30.0;
 
+export type ToolType =
+  | 'selectPan'
+  | 'rectSelect'
+  | 'translate'
+  | 'rotate'
+  | 'scale'
+  | 'erase';
+
 type StoreState = {
   resource: ?Resource,
   savedEditNumber: number,
@@ -47,6 +55,7 @@ type StoreState = {
   page: string,
   pageStates: Map<string, PageState>,
   draggingPage: ?string,
+  tool: ToolType,
   expanded: Set<string>,
   selection: Set<string>,
   draggingSelection: boolean,
@@ -65,6 +74,7 @@ const initialState = {
   page: '',
   pageStates: new Map(),
   draggingPage: null,
+  tool: 'selectPan',
   expanded: new Set(),
   selection: new Set(),
   draggingSelection: false,
@@ -415,6 +425,12 @@ export const StoreActions = {
         Object.assign({}, pageStates.get(state.page), {size: action.size}),
       );
       return Object.assign({}, state, {pageStates});
+    },
+  },
+  setTool: {
+    create: (tool: ToolType) => ({type: 'setTool', tool}),
+    reduce: (state: StoreState, action: StoreAction) => {
+      return Object.assign({}, state, {tool: action.tool});
     },
   },
   setResource: {
