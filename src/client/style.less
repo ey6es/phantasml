@@ -139,6 +139,9 @@ a.navbar-brand {
 .tool-grid > .btn-group {
   display: block;
 
+  & .btn {
+    height: 45px;
+  }
   &:not(:first-child) > .btn {
     border-top-left-radius: 0;
     border-top-right-radius: 0;
@@ -151,6 +154,8 @@ a.navbar-brand {
 .tool-grid .btn,
 .play-controls .btn {
   width: 45px;
+  display: inline-flex;
+  justify-content: center;
 }
 
 .entity-tree {
