@@ -130,6 +130,22 @@ a.navbar-brand {
   height: 48px;
 }
 
+.tool-grid > .btn-group {
+  display: block;
+
+  &:not(:first-child) > .btn {
+    border-top-left-radius: 0;
+    border-top-right-radius: 0;
+  }
+  &:not(:last-child) > .btn {
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+  }
+}
+.tool-grid .btn {
+  width: 45px;
+}
+
 .entity-tree {
   flex: 1;
   width: 250px;

@@ -39,10 +39,19 @@ export const DEFAULT_PAGE_SIZE = 30.0;
 export type ToolType =
   | 'selectPan'
   | 'rectSelect'
+  | 'contiguousSelect'
   | 'translate'
   | 'rotate'
   | 'scale'
-  | 'erase';
+  | 'erase'
+  | 'point'
+  | 'line'
+  | 'lineGroup'
+  | 'polygon'
+  | 'rectangle'
+  | 'ellipseArc'
+  | 'bezier'
+  | 'stamp';
 
 type StoreState = {
   resource: ?Resource,

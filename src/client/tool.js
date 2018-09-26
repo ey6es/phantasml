@@ -13,20 +13,38 @@ import {library} from '@fortawesome/fontawesome-svg-core';
 import {FontAwesomeIcon} from '@fortawesome/react-fontawesome';
 import {faMousePointer} from '@fortawesome/free-solid-svg-icons/faMousePointer';
 import {faExpand} from '@fortawesome/free-solid-svg-icons/faExpand';
+import {faMagic} from '@fortawesome/free-solid-svg-icons/faMagic';
 import {faArrowsAlt} from '@fortawesome/free-solid-svg-icons/faArrowsAlt';
-import {faSync} from '@fortawesome/free-solid-svg-icons/faSync';
+import {faSyncAlt} from '@fortawesome/free-solid-svg-icons/faSyncAlt';
 import {faCompress} from '@fortawesome/free-solid-svg-icons/faCompress';
 import {faEraser} from '@fortawesome/free-solid-svg-icons/faEraser';
+import {faDotCircle} from '@fortawesome/free-solid-svg-icons/faDotCircle';
+import {faPencilAlt} from '@fortawesome/free-solid-svg-icons/faPencilAlt';
+import {faDrawPolygon} from '@fortawesome/free-solid-svg-icons/faDrawPolygon';
+import {faCircleNotch} from '@fortawesome/free-solid-svg-icons/faCircleNotch';
+import {faBezierCurve} from '@fortawesome/free-solid-svg-icons/faBezierCurve';
+import {faProjectDiagram} from '@fortawesome/free-solid-svg-icons/faProjectDiagram';
+import {faVectorSquare} from '@fortawesome/free-solid-svg-icons/faVectorSquare';
+import {faStamp} from '@fortawesome/free-solid-svg-icons/faStamp';
 import type {ToolType} from './store';
 import {StoreActions, store} from './store';
 import type {Renderer} from './renderer/util';
 
 library.add(faMousePointer);
 library.add(faExpand);
+library.add(faMagic);
 library.add(faArrowsAlt);
-library.add(faSync);
+library.add(faSyncAlt);
 library.add(faCompress);
 library.add(faEraser);
+library.add(faDotCircle);
+library.add(faPencilAlt);
+library.add(faDrawPolygon);
+library.add(faCircleNotch);
+library.add(faBezierCurve);
+library.add(faProjectDiagram);
+library.add(faVectorSquare);
+library.add(faStamp);
 
 /**
  * The set of tools available.
@@ -38,14 +56,32 @@ export const Toolset = ReactRedux.connect(state => ({
     <div>
       <Nav tabs className="pt-2 bg-black play-controls" />
       <div className="border-bottom border-secondary text-center pt-3 pb-3">
-        <ButtonGroup>
-          <SelectPanTool activeTool={props.tool} renderer={props.renderer} />
-          <RectSelectTool activeTool={props.tool} renderer={props.renderer} />
-          <TranslateTool activeTool={props.tool} renderer={props.renderer} />
-          <RotateTool activeTool={props.tool} renderer={props.renderer} />
-          <ScaleTool activeTool={props.tool} renderer={props.renderer} />
-          <EraseTool activeTool={props.tool} renderer={props.renderer} />
-        </ButtonGroup>
+        <div className="tool-grid">
+          <ButtonGroup>
+            <SelectPanTool activeTool={props.tool} renderer={props.renderer} />
+            <RectSelectTool activeTool={props.tool} renderer={props.renderer} />
+            <ContiguousSelectTool
+              activeTool={props.tool}
+              renderer={props.renderer}
+            />
+            <TranslateTool activeTool={props.tool} renderer={props.renderer} />
+            <RotateTool activeTool={props.tool} renderer={props.renderer} />
+          </ButtonGroup>
+          <ButtonGroup>
+            <ScaleTool activeTool={props.tool} renderer={props.renderer} />
+            <EraseTool activeTool={props.tool} renderer={props.renderer} />
+            <PointTool activeTool={props.tool} renderer={props.renderer} />
+            <LineTool activeTool={props.tool} renderer={props.renderer} />
+            <LineGroupTool activeTool={props.tool} renderer={props.renderer} />
+          </ButtonGroup>
+          <ButtonGroup>
+            <PolygonTool activeTool={props.tool} renderer={props.renderer} />
+            <RectangleTool activeTool={props.tool} renderer={props.renderer} />
+            <EllipseArcTool activeTool={props.tool} renderer={props.renderer} />
+            <BezierTool activeTool={props.tool} renderer={props.renderer} />
+            <StampTool activeTool={props.tool} renderer={props.renderer} />
+          </ButtonGroup>
+        </div>
       </div>
     </div>
   );
@@ -205,6 +241,20 @@ class RectSelectTool extends Tool {
   }
 }
 
+class ContiguousSelectTool extends Tool {
+  constructor(...args: any[]) {
+    super(
+      'contiguousSelect',
+      'magic',
+      <FormattedMessage
+        id="tool.contiguous_select"
+        defaultMessage="Contiguous Select"
+      />,
+      ...args,
+    );
+  }
+}
+
 class TranslateTool extends Tool {
   constructor(...args: any[]) {
     super(
@@ -220,7 +270,7 @@ class RotateTool extends Tool {
   constructor(...args: any[]) {
     super(
       'rotate',
-      'sync',
+      'sync-alt',
       <FormattedMessage id="tool.rotate" defaultMessage="Rotate" />,
       ...args,
     );
@@ -244,6 +294,94 @@ class EraseTool extends Tool {
       'erase',
       'eraser',
       <FormattedMessage id="tool.erase" defaultMessage="Erase" />,
+      ...args,
+    );
+  }
+}
+
+class PointTool extends Tool {
+  constructor(...args: any[]) {
+    super(
+      'point',
+      'dot-circle',
+      <FormattedMessage id="tool.point" defaultMessage="Point" />,
+      ...args,
+    );
+  }
+}
+
+class LineTool extends Tool {
+  constructor(...args: any[]) {
+    super(
+      'line',
+      'pencil-alt',
+      <FormattedMessage id="tool.line" defaultMessage="Line" />,
+      ...args,
+    );
+  }
+}
+
+class LineGroupTool extends Tool {
+  constructor(...args: any[]) {
+    super(
+      'lineGroup',
+      'project-diagram',
+      <FormattedMessage id="tool.line_group" defaultMessage="Line Group" />,
+      ...args,
+    );
+  }
+}
+
+class PolygonTool extends Tool {
+  constructor(...args: any[]) {
+    super(
+      'polygon',
+      'draw-polygon',
+      <FormattedMessage id="tool.polygon" defaultMessage="Polygon" />,
+      ...args,
+    );
+  }
+}
+
+class RectangleTool extends Tool {
+  constructor(...args: any[]) {
+    super(
+      'rectangle',
+      'vector-square',
+      <FormattedMessage id="tool.rectangle" defaultMessage="Rectangle" />,
+      ...args,
+    );
+  }
+}
+
+class EllipseArcTool extends Tool {
+  constructor(...args: any[]) {
+    super(
+      'ellipseArc',
+      'circle-notch',
+      <FormattedMessage id="tool.ellipse_arc" defaultMessage="Ellipse/Arc" />,
+      ...args,
+    );
+  }
+}
+
+class BezierTool extends Tool {
+  constructor(...args: any[]) {
+    super(
+      'bezier',
+      'bezier-curve',
+      <FormattedMessage id="tool.bezier" defaultMessage="Bezier" />,
+      ...args,
+    );
+  }
+}
+
+class StampTool extends Tool {
+  constructor(...args: any[]) {
+    super(
+      'stamp',
+      'stamp',
+      <FormattedMessage id="tool.stamp" defaultMessage="Clone Stamp" />,
       ...args,
     );
   }
