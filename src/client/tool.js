@@ -19,6 +19,7 @@ import {faCompress} from '@fortawesome/free-solid-svg-icons/faCompress';
 import {faEraser} from '@fortawesome/free-solid-svg-icons/faEraser';
 import type {ToolType} from './store';
 import {StoreActions, store} from './store';
+import type {Renderer} from './renderer/util';
 
 library.add(faMousePointer);
 library.add(faExpand);
@@ -32,28 +33,35 @@ library.add(faEraser);
  */
 export const Toolset = ReactRedux.connect(state => ({
   tool: state.tool,
-}))((props: {tool: ToolType}) => {
+}))((props: {tool: ToolType, renderer: ?Renderer}) => {
   return (
     <div>
       <Nav tabs className="pt-2 bg-black play-controls" />
       <div className="border-bottom border-secondary text-center pt-3 pb-3">
         <ButtonGroup>
-          <SelectPanTool activeTool={props.tool} />
-          <RectSelectTool activeTool={props.tool} />
-          <TranslateTool activeTool={props.tool} />
-          <RotateTool activeTool={props.tool} />
-          <ScaleTool activeTool={props.tool} />
-          <EraseTool activeTool={props.tool} />
+          <SelectPanTool activeTool={props.tool} renderer={props.renderer} />
+          <RectSelectTool activeTool={props.tool} renderer={props.renderer} />
+          <TranslateTool activeTool={props.tool} renderer={props.renderer} />
+          <RotateTool activeTool={props.tool} renderer={props.renderer} />
+          <ScaleTool activeTool={props.tool} renderer={props.renderer} />
+          <EraseTool activeTool={props.tool} renderer={props.renderer} />
         </ButtonGroup>
       </div>
     </div>
   );
 });
 
-class Tool extends React.Component<{activeTool: ToolType}, {}> {
+type ToolProps = {activeTool: ToolType, renderer: ?Renderer};
+
+class Tool extends React.Component<ToolProps, {}> {
   _type: ToolType;
   _icon: string;
   _name: React.Element<any>;
+
+  /** Checks whether the tool is active. */
+  get active(): boolean {
+    return this.props.activeTool === this._type;
+  }
 
   constructor(
     type: ToolType,
@@ -73,7 +81,7 @@ class Tool extends React.Component<{activeTool: ToolType}, {}> {
         key="button"
         id={this._type}
         color="primary"
-        active={this.props.activeTool === this._type}
+        active={this.active}
         onClick={() => store.dispatch(StoreActions.setTool.create(this._type))}>
         <FontAwesomeIcon icon={this._icon} />
       </Button>,
@@ -85,9 +93,56 @@ class Tool extends React.Component<{activeTool: ToolType}, {}> {
       </UncontrolledTooltip>,
     ];
   }
+
+  componentDidMount() {
+    this.props.renderer && this._subscribeToRenderer(this.props.renderer);
+  }
+
+  componentWillUnmount() {
+    this.props.renderer && this._unsubscribeFromRenderer(this.props.renderer);
+  }
+
+  componentDidUpdate(prevProps: ToolProps) {
+    if (prevProps.renderer !== this.props.renderer) {
+      prevProps.renderer && this._unsubscribeFromRenderer(prevProps.renderer);
+      this.props.renderer && this._subscribeToRenderer(this.props.renderer);
+    }
+  }
+
+  _subscribeToRenderer(renderer: Renderer) {
+    renderer.canvas.addEventListener('mousedown', this._onMouseDown);
+    renderer.canvas.addEventListener('mouseup', this._onMouseUp);
+    renderer.canvas.addEventListener('mousemove', this._onMouseMove);
+    renderer.canvas.addEventListener('wheel', this._onWheel);
+  }
+
+  _unsubscribeFromRenderer(renderer: Renderer) {
+    renderer.canvas.removeEventListener('mousedown', this._onMouseDown);
+    renderer.canvas.removeEventListener('mouseup', this._onMouseUp);
+    renderer.canvas.removeEventListener('mousemove', this._onMouseMove);
+    renderer.canvas.removeEventListener('wheel', this._onWheel);
+  }
+
+  _onMouseDown = (event: MouseEvent) => {
+    // nothing by default
+  };
+
+  _onMouseUp = (event: MouseEvent) => {
+    // nothing by default
+  };
+
+  _onMouseMove = (event: MouseEvent) => {
+    // nothing by default
+  };
+
+  _onWheel = (event: WheelEvent) => {
+    // nothing by default
+  };
 }
 
 class SelectPanTool extends Tool {
+  _panning = false;
+
   constructor(...args: any[]) {
     super(
       'selectPan',
@@ -96,6 +151,47 @@ class SelectPanTool extends Tool {
       ...args,
     );
   }
+
+  _onMouseDown = (event: MouseEvent) => {
+    if (this.active && event.button === 0) {
+      (event.target: any).style.cursor = 'all-scroll';
+      this._panning = true;
+    }
+  };
+
+  _onMouseUp = (event: MouseEvent) => {
+    if (this._panning) {
+      (event.target: any).style.cursor = null;
+      this._panning = false;
+    }
+  };
+
+  _onMouseMove = (event: MouseEvent) => {
+    const renderer = this.props.renderer;
+    if (!(renderer && this._panning)) {
+      return;
+    }
+    const camera = renderer.camera;
+    const pixelsToWorldUnits = renderer.pixelsToWorldUnits;
+    store.dispatch(
+      StoreActions.setPagePosition.create(
+        camera.x - event.movementX * pixelsToWorldUnits,
+        camera.y + event.movementY * pixelsToWorldUnits,
+      ),
+    );
+  };
+
+  _onWheel = (event: WheelEvent) => {
+    const renderer = this.props.renderer;
+    if (!renderer) {
+      return;
+    }
+    store.dispatch(
+      StoreActions.setPageSize.create(
+        renderer.camera.size * Math.pow(1.01, event.deltaY),
+      ),
+    );
+  };
 }
 
 class RectSelectTool extends Tool {

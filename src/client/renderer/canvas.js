@@ -15,7 +15,12 @@ import type {Resource} from '../../server/store/resource';
 import {Scene} from '../../server/store/scene';
 
 class RenderCanvasImpl extends React.Component<
-  {resource: ?Resource, page: string, pageState: ?PageState},
+  {
+    resource: ?Resource,
+    page: string,
+    pageState: ?PageState,
+    setRenderer: (?Renderer) => void,
+  },
   {},
 > {
   _renderer: ?Renderer;
@@ -39,10 +44,10 @@ class RenderCanvasImpl extends React.Component<
   _setCanvas = (canvas: ?HTMLCanvasElement) => {
     if (this._renderer) {
       this._renderer.dispose();
-      this._renderer = null;
+      this.props.setRenderer((this._renderer = null));
     }
     if (canvas) {
-      this._renderer = new Renderer(canvas);
+      this.props.setRenderer((this._renderer = new Renderer(canvas)));
     }
   };
 

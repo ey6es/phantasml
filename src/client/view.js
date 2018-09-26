@@ -13,6 +13,7 @@ import {DEFAULT_PAGE_SIZE, StoreActions, store, createUuid} from './store';
 import {EntityName} from './entity';
 import {Menu, Submenu, MenuItem, Shortcut, renderText} from './util/ui';
 import {RenderCanvas} from './renderer/canvas';
+import type {Renderer} from './renderer/util';
 import type {Resource} from '../server/store/resource';
 import {Scene, SceneActions} from '../server/store/scene';
 
@@ -89,7 +90,10 @@ export class ViewDropdown extends React.Component<
 /**
  * The 2D scene view.
  */
-export class SceneView extends React.Component<{locale: string}, {}> {
+export class SceneView extends React.Component<
+  {locale: string, setRenderer: (?Renderer) => void},
+  {},
+> {
   render() {
     return (
       <div className="flex-grow-1 d-flex flex-column">
@@ -98,7 +102,7 @@ export class SceneView extends React.Component<{locale: string}, {}> {
           className={
             'flex-grow-1 border-left border-secondary position-relative'
           }>
-          <RenderCanvas />
+          <RenderCanvas setRenderer={this.props.setRenderer} />
         </div>
       </div>
     );

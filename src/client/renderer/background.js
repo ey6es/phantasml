@@ -46,7 +46,7 @@ function getWorldMatrix(camera: Camera): number[] {
   return [
     halfSize * camera.aspect, 0.0, 0.0,
     0.0, halfSize, 0.0,
-    0.0, 0.0, 1.0,
+    camera.x, camera.y, 1.0,
   ];
 }
 

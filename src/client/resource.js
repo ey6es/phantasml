@@ -34,6 +34,7 @@ import {
   RequestDialog,
   renderText,
 } from './util/ui';
+import type {Renderer} from './renderer/util';
 import type {
   UserStatusResponse,
   UserGetPreferencesResponse,
@@ -489,9 +490,9 @@ export class ResourceContent extends React.Component<
     resource: ?ResourceDescriptor,
     setResource: (?ResourceDescriptor) => void,
   },
-  {dialog: ?React.Element<any>},
+  {dialog: ?React.Element<any>, renderer: ?Renderer},
 > {
-  state = {dialog: null};
+  state = {dialog: null, renderer: null};
 
   render() {
     return (
@@ -543,11 +544,14 @@ export class ResourceContent extends React.Component<
         return (
           <div className="full-interface d-flex">
             <div className="d-flex flex-column">
-              <Toolset />
+              <Toolset renderer={this.state.renderer} />
               <EntityTree />
             </div>
             <div className="flex-grow-1 d-flex flex-column">
-              <SceneView locale={this.props.locale} />
+              <SceneView
+                locale={this.props.locale}
+                setRenderer={this._setRenderer}
+              />
             </div>
             <div className="d-flex flex-column">
               <ComponentEditor locale={this.props.locale} />
@@ -562,6 +566,8 @@ export class ResourceContent extends React.Component<
   _setDialog = (dialog: ?React.Element<any>) => this.setState({dialog});
 
   _clearDialog = () => this.setState({dialog: null});
+
+  _setRenderer = (renderer: ?Renderer) => this.setState({renderer});
 }
 
 function isResourceOwned(

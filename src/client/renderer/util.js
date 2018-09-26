@@ -208,6 +208,11 @@ export class Renderer {
     return this._camera;
   }
 
+  /** Returns the ratio of pixels to world units. */
+  get pixelsToWorldUnits(): number {
+    return this._camera.size / this.canvas.clientHeight;
+  }
+
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
     const gl = canvas.getContext('webgl', {alpha: false, depth: false});
