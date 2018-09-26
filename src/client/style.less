@@ -128,6 +128,12 @@ a.navbar-brand {
 
 .play-controls {
   height: 48px;
+  & .btn {
+    color: #fff;
+    &:hover {
+      color: #00bc8c;
+    }
+  }
 }
 
 .tool-grid > .btn-group {
@@ -142,7 +148,8 @@ a.navbar-brand {
     border-bottom-right-radius: 0;
   }
 }
-.tool-grid .btn {
+.tool-grid .btn,
+.play-controls .btn {
   width: 45px;
 }
 

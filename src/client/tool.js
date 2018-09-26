@@ -11,6 +11,11 @@ import {FormattedMessage} from 'react-intl';
 import {Nav, Button, ButtonGroup, UncontrolledTooltip} from 'reactstrap';
 import {library} from '@fortawesome/fontawesome-svg-core';
 import {FontAwesomeIcon} from '@fortawesome/react-fontawesome';
+import {faPlay} from '@fortawesome/free-solid-svg-icons/faPlay';
+import {faPause} from '@fortawesome/free-solid-svg-icons/faPause';
+import {faStop} from '@fortawesome/free-solid-svg-icons/faStop';
+import {faFastBackward} from '@fortawesome/free-solid-svg-icons/faFastBackward';
+import {faFastForward} from '@fortawesome/free-solid-svg-icons/faFastForward';
 import {faMousePointer} from '@fortawesome/free-solid-svg-icons/faMousePointer';
 import {faExpand} from '@fortawesome/free-solid-svg-icons/faExpand';
 import {faMagic} from '@fortawesome/free-solid-svg-icons/faMagic';
@@ -30,6 +35,11 @@ import type {ToolType} from './store';
 import {StoreActions, store} from './store';
 import type {Renderer} from './renderer/util';
 
+library.add(faPlay);
+library.add(faPause);
+library.add(faStop);
+library.add(faFastBackward);
+library.add(faFastForward);
 library.add(faMousePointer);
 library.add(faExpand);
 library.add(faMagic);
@@ -54,7 +64,15 @@ export const Toolset = ReactRedux.connect(state => ({
 }))((props: {tool: ToolType, renderer: ?Renderer}) => {
   return (
     <div>
-      <Nav tabs className="pt-2 bg-black play-controls" />
+      <Nav tabs className="pt-2 bg-black play-controls justify-content-center">
+        <ButtonGroup>
+          <PlayControl icon="play" />
+          <PlayControl icon="pause" disabled />
+          <PlayControl icon="stop" disabled />
+          <PlayControl icon="fast-backward" disabled />
+          <PlayControl icon="fast-forward" disabled />
+        </ButtonGroup>
+      </Nav>
       <div className="border-bottom border-secondary text-center pt-3 pb-3">
         <div className="tool-grid">
           <ButtonGroup>
@@ -86,6 +104,14 @@ export const Toolset = ReactRedux.connect(state => ({
     </div>
   );
 });
+
+function PlayControl(props: {icon: string, disabled?: boolean}) {
+  return (
+    <Button color="link" disabled={props.disabled}>
+      <FontAwesomeIcon icon={props.icon} />
+    </Button>
+  );
+}
 
 type ToolProps = {activeTool: ToolType, renderer: ?Renderer};
 
