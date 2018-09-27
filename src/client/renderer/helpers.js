@@ -12,7 +12,9 @@ const RECTANGLE_VERTEX_SHADER = `
   uniform mat3 modelMatrix;
   uniform mat3 viewProjectionMatrix;
   attribute vec2 vertex;
+  varying vec2 modelPosition;
   void main(void) {
+    modelPosition = vertex;
     vec3 position = viewProjectionMatrix * (modelMatrix * vec3(vertex, 1.0));
     gl_Position = vec4(position.xy, 0.0, 1.0);
   }
@@ -21,8 +23,17 @@ const RECTANGLE_VERTEX_SHADER = `
 const RECTANGLE_FRAGMENT_SHADER = `
   precision mediump float;
   uniform vec3 color;
+  uniform vec2 size;
+  uniform float pixelSize;
+  varying vec2 modelPosition;
   void main(void) {
-    gl_FragColor = vec4(color, 0.25);
+    vec2 edgeSize = vec2(2.0 * pixelSize) / size;
+    vec2 edge0 = step(edgeSize, modelPosition);
+    vec2 edge1 = step(modelPosition, vec2(1.0, 1.0) - edgeSize);
+    gl_FragColor = vec4(
+      color,
+      mix(1.0, 0.1, edge0.x * edge0.y * edge1.x * edge1.y)
+    );
   }
 `;
 
@@ -34,6 +45,13 @@ function getRectangleModelMatrix(rect: LineSegment): number[] {
     rect.end.x - rect.start.x, 0.0, 0.0,
     0.0, rect.end.y - rect.start.y, 0.0,
     rect.start.x, rect.start.y, 1.0,
+  ];
+}
+
+function getRectangleSize(rect: LineSegment): number[] {
+  return [
+    Math.abs(rect.end.x - rect.start.x),
+    Math.abs(rect.end.y - rect.start.y),
   ];
 }
 
@@ -60,6 +78,8 @@ export function renderRectangle(
   program.setUniformViewProjectionMatrix('viewProjectionMatrix');
   program.setUniformMatrix('modelMatrix', rect, getRectangleModelMatrix);
   program.setUniformColor('color', color);
+  program.setUniformArray('size', rect, getRectangleSize);
+  program.setUniformFloat('pixelSize', renderer.pixelsToWorldUnits);
   renderer.bindArrayBuffer(
     renderer.getBuffer(renderRectangle, RECTANGLE_ARRAY_BUFFER),
   );

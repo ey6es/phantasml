@@ -297,7 +297,7 @@ class RectSelectTool extends Tool {
   }
 
   _onDeactivate(renderer: Renderer) {
-    renderer.canvas.style.cursor = 'auto';
+    renderer.canvas.style.cursor = 'inherit';
   }
 
   _renderHelpers = (renderer: Renderer) => {
