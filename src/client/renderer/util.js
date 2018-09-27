@@ -5,6 +5,8 @@
  * @flow
  */
 
+import type {Vector2} from '../util/math';
+
 /**
  * Converts a hex color string to an array of floats that we can use as a
  * uniform value.
@@ -30,7 +32,7 @@ type ValueArray = number[] | Float32Array;
  * @param fragmentShader the fragment shader to use for the program.
  */
 export class Program {
-  gl: WebGLRenderingContext;
+  renderer: Renderer;
   program: WebGLProgram;
 
   _attribLocations: Map<string, number> = new Map();
@@ -38,11 +40,12 @@ export class Program {
   _uniformLocations: Map<string, WebGLUniformLocation> = new Map();
 
   constructor(
-    gl: WebGLRenderingContext,
+    renderer: Renderer,
     vertexShader: WebGLShader,
     fragmentShader: WebGLShader,
   ) {
-    this.gl = gl;
+    this.renderer = renderer;
+    const gl = renderer.gl;
     this.program = gl.createProgram();
     gl.attachShader(this.program, vertexShader);
     gl.attachShader(this.program, fragmentShader);
@@ -56,7 +59,7 @@ export class Program {
    * Releases the resources associated with the program.
    */
   dispose() {
-    this.gl.deleteProgram(this.program);
+    this.renderer.gl.deleteProgram(this.program);
   }
 
   /**
@@ -70,7 +73,7 @@ export class Program {
     if (location === undefined) {
       this._attribLocations.set(
         name,
-        (location = this.gl.getAttribLocation(this.program, name)),
+        (location = this.renderer.gl.getAttribLocation(this.program, name)),
       );
     }
     return location;
@@ -94,7 +97,7 @@ export class Program {
    */
   setUniformFloat(name: string, value: number) {
     if (this._uniformValues.get(name) !== value) {
-      this.gl.uniform1f(this.getUniformLocation(name), value);
+      this.renderer.gl.uniform1f(this.getUniformLocation(name), value);
       this._uniformValues.set(name, value);
     }
   }
@@ -115,22 +118,31 @@ export class Program {
       const value = typeof content === 'function' ? content(key) : content;
       switch (value.length) {
         case 1:
-          this.gl.uniform1fv(this.getUniformLocation(name), value);
+          this.renderer.gl.uniform1fv(this.getUniformLocation(name), value);
           break;
         case 2:
-          this.gl.uniform2fv(this.getUniformLocation(name), value);
+          this.renderer.gl.uniform2fv(this.getUniformLocation(name), value);
           break;
         case 3:
-          this.gl.uniform3fv(this.getUniformLocation(name), value);
+          this.renderer.gl.uniform3fv(this.getUniformLocation(name), value);
           break;
         case 4:
-          this.gl.uniform4fv(this.getUniformLocation(name), value);
+          this.renderer.gl.uniform4fv(this.getUniformLocation(name), value);
           break;
         default:
           throw new Error('Invalid uniform array size: ' + value.length);
       }
       this._uniformValues.set(name, key);
     }
+  }
+
+  /**
+   * Sets the value of a uniform to the renderer's view-projection matrix.
+   *
+   * @param name the name of the uniform to set.
+   */
+  setUniformViewProjectionMatrix(name: string) {
+    this.setUniformMatrix(name, this.renderer.camera, getViewProjectionMatrix);
   }
 
   /**
@@ -149,13 +161,25 @@ export class Program {
       const value = typeof content === 'function' ? content(key) : content;
       switch (value.length) {
         case 4:
-          this.gl.uniformMatrix2fv(this.getUniformLocation(name), false, value);
+          this.renderer.gl.uniformMatrix2fv(
+            this.getUniformLocation(name),
+            false,
+            value,
+          );
           break;
         case 9:
-          this.gl.uniformMatrix3fv(this.getUniformLocation(name), false, value);
+          this.renderer.gl.uniformMatrix3fv(
+            this.getUniformLocation(name),
+            false,
+            value,
+          );
           break;
         case 16:
-          this.gl.uniformMatrix4fv(this.getUniformLocation(name), false, value);
+          this.renderer.gl.uniformMatrix4fv(
+            this.getUniformLocation(name),
+            false,
+            value,
+          );
           break;
         default:
           throw new Error('Invalid uniform matrix size: ' + value.length);
@@ -175,7 +199,7 @@ export class Program {
     if (location === undefined) {
       this._uniformLocations.set(
         name,
-        (location = this.gl.getUniformLocation(this.program, name)),
+        (location = this.renderer.gl.getUniformLocation(this.program, name)),
       );
     }
     return location;
@@ -183,6 +207,19 @@ export class Program {
 }
 
 export type Camera = {x: number, y: number, size: number, aspect: number};
+
+function getViewProjectionMatrix(camera: Camera): number[] {
+  const halfSize = camera.size * 0.5;
+  const scaleX = 1.0 / (halfSize * camera.aspect);
+  const scaleY = 1.0 / halfSize;
+
+  // prettier-ignore
+  return [
+    scaleX, 0.0, 0.0,
+    0.0, scaleY, 0.0,
+    -camera.x * scaleX, -camera.y * scaleY, 1.0,
+  ];
+}
 
 /**
  * Minimal wrapper around GL context providing caching and state tracking.
@@ -197,9 +234,14 @@ export class Renderer {
   fragmentShaders: Map<mixed, WebGLShader> = new Map();
   programs: Map<mixed, Program> = new Map();
 
+  _renderCallbacks: ((Renderer) => void)[] = [];
+  _frameDirty = false;
+
   _boundArrayBuffer: ?WebGLBuffer;
   _boundProgram: ?Program;
   _vertexAttribArraysEnabled: boolean[] = [];
+  _capsEnabled: Set<number> = new Set();
+  _blendFunc: {sfactor?: number, dfactor?: number} = {};
   _viewport: {x?: number, y?: number, width?: number, height?: number} = {};
   _camera: Camera = {x: 0.0, y: 0.0, size: 1.0, aspect: 1.0};
 
@@ -220,6 +262,9 @@ export class Renderer {
       throw new Error('Failed to create WebGL context.');
     }
     this.gl = gl;
+
+    // only one blend function at the moment
+    this.setBlendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
   }
 
   /**
@@ -238,6 +283,66 @@ export class Renderer {
     for (const buffer of this.buffers.values()) {
       this.gl.deleteBuffer(buffer);
     }
+    this._frameDirty = false;
+  }
+
+  /**
+   * Returns the world position corresponding to the specified pixel coords.
+   *
+   * @param offsetX the x coordinate relative to the canvas.
+   * @param offsetY the y coordinate relative to the canvas.
+   * @return the world position.
+   */
+  getWorldPosition(offsetX: number, offsetY: number): Vector2 {
+    const camera = this._camera;
+    const canvas = this.canvas;
+    return {
+      x:
+        camera.x +
+        (offsetX / canvas.clientWidth - 0.5) * camera.size * camera.aspect,
+      y: camera.y + (0.5 - offsetY / canvas.clientHeight) * camera.size,
+    };
+  }
+
+  /**
+   * Requests that the renderer render a frame at the earliest opportunity.
+   * To be called when we need to update but aren't changing the store state
+   * (as with tool helpers).
+   */
+  requestFrameRender() {
+    this._frameDirty = true;
+    requestAnimationFrame(() => {
+      this._frameDirty && this.renderFrame();
+    });
+  }
+
+  /**
+   * Adds a render callback to the list.
+   *
+   * @param callback the callback to add.
+   */
+  addRenderCallback(callback: Renderer => void) {
+    this._renderCallbacks.push(callback);
+  }
+
+  /**
+   * Removes a render callback from the list.
+   *
+   * @param callback the callback to remove.
+   */
+  removeRenderCallback(callback: Renderer => void) {
+    const index = this._renderCallbacks.indexOf(callback);
+    index === -1 || this._renderCallbacks.splice(index, 1);
+  }
+
+  /**
+   * Renders a frame by calling all of our render callbacks in order.
+   */
+  renderFrame() {
+    for (const callback of this._renderCallbacks) {
+      callback(this);
+    }
+    this._frameDirty = false;
   }
 
   /**
@@ -306,7 +411,7 @@ export class Renderer {
     if (!program) {
       this.programs.set(
         key,
-        (program = new Program(this.gl, vertexShader, fragmentShader)),
+        (program = new Program(this, vertexShader, fragmentShader)),
       );
     }
     return program;
@@ -377,6 +482,41 @@ export class Renderer {
     if (!this._vertexAttribArraysEnabled[location]) {
       this.gl.enableVertexAttribArray(location);
       this._vertexAttribArraysEnabled[location] = true;
+    }
+  }
+
+  /**
+   * Enables or disables a GL state capability.
+   *
+   * @param cap the capability to enable or disable.
+   * @param enable whether or not to enable the capability.
+   */
+  setEnabled(cap: number, enable: boolean) {
+    if (this._capsEnabled.has(cap) !== enable) {
+      if (enable) {
+        this.gl.enable(cap);
+        this._capsEnabled.add(cap);
+      } else {
+        this.gl.disable(cap);
+        this._capsEnabled.delete(cap);
+      }
+    }
+  }
+
+  /**
+   * Sets the GL blend function parameters.
+   *
+   * @param sfactor the source blend factor.
+   * @param dfactor the dest blend factor.
+   */
+  setBlendFunc(sfactor: number, dfactor: number) {
+    if (
+      this._blendFunc.sfactor !== sfactor ||
+      this._blendFunc.dfactor !== dfactor
+    ) {
+      this.gl.blendFunc(sfactor, dfactor);
+      this._blendFunc.sfactor = sfactor;
+      this._blendFunc.dfactor = dfactor;
     }
   }
 

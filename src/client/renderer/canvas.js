@@ -30,15 +30,15 @@ class RenderCanvasImpl extends React.Component<
   }
 
   componentDidMount() {
-    window.addEventListener('resize', this._renderScene);
+    window.addEventListener('resize', this._renderFrame);
   }
 
   componentWillUnmount() {
-    window.removeEventListener('resize', this._renderScene);
+    window.removeEventListener('resize', this._renderFrame);
   }
 
   componentDidUpdate() {
-    this._renderScene();
+    this._renderFrame();
   }
 
   _setCanvas = (canvas: ?HTMLCanvasElement) => {
@@ -47,15 +47,17 @@ class RenderCanvasImpl extends React.Component<
       this.props.setRenderer((this._renderer = null));
     }
     if (canvas) {
-      this.props.setRenderer((this._renderer = new Renderer(canvas)));
+      const renderer = (this._renderer = new Renderer(canvas));
+      renderer.addRenderCallback(this._renderScene);
+      this.props.setRenderer(renderer);
     }
   };
 
-  _renderScene = () => {
-    const renderer = this._renderer;
-    if (!renderer) {
-      return;
-    }
+  _renderFrame = () => {
+    this._renderer && this._renderer.renderFrame();
+  };
+
+  _renderScene = (renderer: Renderer) => {
     // make sure canvas/viewport dimensions match layout ones
     const pixelRatio = window.devicePixelRatio || 1.0;
     const width = Math.round(renderer.canvas.clientWidth * pixelRatio);

@@ -33,7 +33,9 @@ import {faVectorSquare} from '@fortawesome/free-solid-svg-icons/faVectorSquare';
 import {faStamp} from '@fortawesome/free-solid-svg-icons/faStamp';
 import type {ToolType} from './store';
 import {StoreActions, store} from './store';
+import type {LineSegment} from './util/math';
 import type {Renderer} from './renderer/util';
+import {renderRectangle} from './renderer/helpers';
 
 library.add(faPlay);
 library.add(faPause);
@@ -165,25 +167,47 @@ class Tool extends React.Component<ToolProps, {}> {
   }
 
   componentDidUpdate(prevProps: ToolProps) {
-    if (prevProps.renderer !== this.props.renderer) {
+    const renderer = this.props.renderer;
+    if (prevProps.renderer !== renderer) {
       prevProps.renderer && this._unsubscribeFromRenderer(prevProps.renderer);
-      this.props.renderer && this._subscribeToRenderer(this.props.renderer);
+      renderer && this._subscribeToRenderer(renderer);
+    } else if (renderer) {
+      const wasActive = prevProps.activeTool === this._type;
+      if (wasActive !== this.active) {
+        wasActive ? this._onDeactivate(renderer) : this._onActivate(renderer);
+      }
     }
   }
 
   _subscribeToRenderer(renderer: Renderer) {
+    renderer.addRenderCallback(this._renderHelpers);
     renderer.canvas.addEventListener('mousedown', this._onMouseDown);
-    renderer.canvas.addEventListener('mouseup', this._onMouseUp);
-    renderer.canvas.addEventListener('mousemove', this._onMouseMove);
+    document.addEventListener('mouseup', this._onMouseUp);
+    document.addEventListener('mousemove', this._onMouseMove);
     renderer.canvas.addEventListener('wheel', this._onWheel);
+    this.active && this._onActivate(renderer);
   }
 
   _unsubscribeFromRenderer(renderer: Renderer) {
+    renderer.removeRenderCallback(this._renderHelpers);
     renderer.canvas.removeEventListener('mousedown', this._onMouseDown);
-    renderer.canvas.removeEventListener('mouseup', this._onMouseUp);
-    renderer.canvas.removeEventListener('mousemove', this._onMouseMove);
+    document.removeEventListener('mouseup', this._onMouseUp);
+    document.removeEventListener('mousemove', this._onMouseMove);
     renderer.canvas.removeEventListener('wheel', this._onWheel);
+    this.active && this._onDeactivate(renderer);
   }
+
+  _onActivate(renderer: Renderer) {
+    // nothing by default
+  }
+
+  _onDeactivate(renderer: Renderer) {
+    // nothing by default
+  }
+
+  _renderHelpers = (renderer: Renderer) => {
+    // nothing by default
+  };
 
   _onMouseDown = (event: MouseEvent) => {
     // nothing by default
@@ -216,14 +240,14 @@ class SelectPanTool extends Tool {
 
   _onMouseDown = (event: MouseEvent) => {
     if (this.active && event.button === 0) {
-      (event.target: any).style.cursor = 'all-scroll';
+      (document.body: any).style.cursor = 'all-scroll';
       this._panning = true;
     }
   };
 
   _onMouseUp = (event: MouseEvent) => {
     if (this._panning) {
-      (event.target: any).style.cursor = null;
+      (document.body: any).style.cursor = null;
       this._panning = false;
     }
   };
@@ -257,6 +281,8 @@ class SelectPanTool extends Tool {
 }
 
 class RectSelectTool extends Tool {
+  _rect: ?LineSegment;
+
   constructor(...args: any[]) {
     super(
       'rectSelect',
@@ -265,6 +291,47 @@ class RectSelectTool extends Tool {
       ...args,
     );
   }
+
+  _onActivate(renderer: Renderer) {
+    renderer.canvas.style.cursor = 'crosshair';
+  }
+
+  _onDeactivate(renderer: Renderer) {
+    renderer.canvas.style.cursor = 'auto';
+  }
+
+  _renderHelpers = (renderer: Renderer) => {
+    this._rect && renderRectangle(renderer, this._rect, '#00bc8c');
+  };
+
+  _onMouseDown = (event: MouseEvent) => {
+    const renderer = this.props.renderer;
+    if (this.active && event.button === 0 && renderer) {
+      const position = renderer.getWorldPosition(event.offsetX, event.offsetY);
+      this._rect = {start: position, end: position};
+    }
+  };
+
+  _onMouseUp = (event: MouseEvent) => {
+    if (this._rect && this.props.renderer) {
+      this._rect = null;
+      this.props.renderer.requestFrameRender();
+    }
+  };
+
+  _onMouseMove = (event: MouseEvent) => {
+    const renderer = this.props.renderer;
+    if (!(renderer && this._rect)) {
+      return;
+    }
+    const canvasRect = renderer.canvas.getBoundingClientRect();
+    const position = renderer.getWorldPosition(
+      event.clientX - canvasRect.left,
+      event.clientY - canvasRect.top,
+    );
+    this._rect = Object.assign({}, this._rect, {end: position});
+    renderer.requestFrameRender();
+  };
 }
 
 class ContiguousSelectTool extends Tool {

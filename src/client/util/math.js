@@ -8,6 +8,9 @@
 /** Basic two-element vector type. */
 export type Vector2 = {x: number, y: number};
 
+/** A basic line segment type. */
+export type LineSegment = {start: Vector2, end: Vector2};
+
 /**
  * Converts a value in degrees to radians.
  *

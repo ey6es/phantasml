@@ -60,6 +60,7 @@ export function renderBackground(
   renderer: Renderer,
   data: BackgroundData = {},
 ) {
+  // we use our function pointer as a cache key
   const program = renderer.getProgram(
     renderBackground,
     renderer.getVertexShader(renderBackground, VERTEX_SHADER),
@@ -81,6 +82,7 @@ export function renderBackground(
   const attribLocation = program.getAttribLocation('vertex');
   renderer.enableVertexAttribArray(attribLocation);
   const gl = renderer.gl;
+  renderer.setEnabled(gl.BLEND, false);
   gl.vertexAttribPointer(attribLocation, 2, gl.FLOAT, false, 0, 0);
   gl.drawArrays(gl.TRIANGLE_FAN, 0, 4);
 }
