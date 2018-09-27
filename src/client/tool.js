@@ -35,7 +35,21 @@ import type {ToolType} from './store';
 import {StoreActions, store} from './store';
 import type {LineSegment} from './util/math';
 import type {Renderer} from './renderer/util';
-import {renderRectangle} from './renderer/helpers';
+import type {HoverType} from './renderer/helpers';
+import {
+  renderRectangle,
+  renderTranslationHandle,
+  renderRotationHandle,
+  renderScaleHandle,
+} from './renderer/helpers';
+import type {Resource} from '../server/store/resource';
+import {Scene} from '../server/store/scene';
+import type {Transform} from '../server/store/math';
+import {
+  getTransformTranslation,
+  addToVector,
+  scaleVector,
+} from '../server/store/math';
 
 library.add(faPlay);
 library.add(faPause);
@@ -62,50 +76,59 @@ library.add(faStamp);
  * The set of tools available.
  */
 export const Toolset = ReactRedux.connect(state => ({
+  resource: state.resource,
+  selection: state.selection,
   tool: state.tool,
-}))((props: {tool: ToolType, renderer: ?Renderer}) => {
-  return (
-    <div>
-      <Nav tabs className="pt-2 bg-black play-controls justify-content-center">
-        <ButtonGroup>
-          <PlayControl icon="play" />
-          <PlayControl icon="pause" disabled />
-          <PlayControl icon="stop" disabled />
-          <PlayControl icon="fast-backward" disabled />
-          <PlayControl icon="fast-forward" disabled />
-        </ButtonGroup>
-      </Nav>
-      <div className="border-bottom border-secondary text-center pt-3 pb-3">
-        <div className="tool-grid">
+}))(
+  (props: {
+    resource: ?Resource,
+    selection: Set<string>,
+    tool: ToolType,
+    renderer: ?Renderer,
+  }) => {
+    const {tool, ...toolProps} = props;
+    return (
+      <div>
+        <Nav
+          tabs
+          className="pt-2 bg-black play-controls justify-content-center">
           <ButtonGroup>
-            <SelectPanTool activeTool={props.tool} renderer={props.renderer} />
-            <RectSelectTool activeTool={props.tool} renderer={props.renderer} />
-            <ContiguousSelectTool
-              activeTool={props.tool}
-              renderer={props.renderer}
-            />
-            <TranslateTool activeTool={props.tool} renderer={props.renderer} />
-            <RotateTool activeTool={props.tool} renderer={props.renderer} />
+            <PlayControl icon="play" />
+            <PlayControl icon="pause" disabled />
+            <PlayControl icon="stop" disabled />
+            <PlayControl icon="fast-backward" disabled />
+            <PlayControl icon="fast-forward" disabled />
           </ButtonGroup>
-          <ButtonGroup>
-            <ScaleTool activeTool={props.tool} renderer={props.renderer} />
-            <EraseTool activeTool={props.tool} renderer={props.renderer} />
-            <PointTool activeTool={props.tool} renderer={props.renderer} />
-            <LineTool activeTool={props.tool} renderer={props.renderer} />
-            <LineGroupTool activeTool={props.tool} renderer={props.renderer} />
-          </ButtonGroup>
-          <ButtonGroup>
-            <PolygonTool activeTool={props.tool} renderer={props.renderer} />
-            <RectangleTool activeTool={props.tool} renderer={props.renderer} />
-            <EllipseArcTool activeTool={props.tool} renderer={props.renderer} />
-            <BezierTool activeTool={props.tool} renderer={props.renderer} />
-            <StampTool activeTool={props.tool} renderer={props.renderer} />
-          </ButtonGroup>
+        </Nav>
+        <div className="border-bottom border-secondary text-center pt-3 pb-3">
+          <div className="tool-grid">
+            <ButtonGroup>
+              <SelectPanTool activeTool={tool} {...toolProps} />
+              <RectSelectTool activeTool={tool} {...toolProps} />
+              <ContiguousSelectTool activeTool={tool} {...toolProps} />
+              <TranslateTool activeTool={tool} {...toolProps} />
+              <RotateTool activeTool={tool} {...toolProps} />
+            </ButtonGroup>
+            <ButtonGroup>
+              <ScaleTool activeTool={tool} {...toolProps} />
+              <EraseTool activeTool={tool} {...toolProps} />
+              <PointTool activeTool={tool} {...toolProps} />
+              <LineTool activeTool={tool} {...toolProps} />
+              <LineGroupTool activeTool={tool} {...toolProps} />
+            </ButtonGroup>
+            <ButtonGroup>
+              <PolygonTool activeTool={tool} {...toolProps} />
+              <RectangleTool activeTool={tool} {...toolProps} />
+              <EllipseArcTool activeTool={tool} {...toolProps} />
+              <BezierTool activeTool={tool} {...toolProps} />
+              <StampTool activeTool={tool} {...toolProps} />
+            </ButtonGroup>
+          </div>
         </div>
       </div>
-    </div>
-  );
-});
+    );
+  },
+);
 
 function PlayControl(props: {icon: string, disabled?: boolean}) {
   return (
@@ -115,7 +138,12 @@ function PlayControl(props: {icon: string, disabled?: boolean}) {
   );
 }
 
-type ToolProps = {activeTool: ToolType, renderer: ?Renderer};
+type ToolProps = {
+  activeTool: ToolType,
+  resource: ?Resource,
+  selection: Set<string>,
+  renderer: ?Renderer,
+};
 
 class Tool extends React.Component<ToolProps, {}> {
   _type: ToolType;
@@ -348,7 +376,44 @@ class ContiguousSelectTool extends Tool {
   }
 }
 
-class TranslateTool extends Tool {
+class HandleTool extends Tool {
+  get _shouldRender(): boolean {
+    return this.active;
+  }
+
+  _renderHelpers = (renderer: Renderer) => {
+    const resource = this.props.resource;
+    const selectionSize = this.props.selection.size;
+    if (
+      !(this._shouldRender && selectionSize > 0 && resource instanceof Scene)
+    ) {
+      return;
+    }
+    const transforms: Transform[] = [];
+    const totalTranslation = {x: 0.0, y: 0.0};
+    for (const id of this.props.selection) {
+      const transform = resource.getWorldTransform(id);
+      addToVector(totalTranslation, getTransformTranslation(transform));
+    }
+    this._renderHandle(
+      renderer,
+      {translation: scaleVector(totalTranslation, 1.0 / selectionSize)},
+      null,
+    );
+  };
+
+  _renderHandle(renderer: Renderer, transform: Transform, hover: ?HoverType) {
+    throw new Error('Not implemented.');
+  }
+}
+
+class TranslateTool extends HandleTool {
+  get _shouldRender(): boolean {
+    return (
+      this.props.activeTool !== 'rotate' && this.props.activeTool !== 'scale'
+    );
+  }
+
   constructor(...args: any[]) {
     super(
       'translate',
@@ -357,9 +422,13 @@ class TranslateTool extends Tool {
       ...args,
     );
   }
+
+  _renderHandle(renderer: Renderer, transform: Transform, hover: ?HoverType) {
+    renderTranslationHandle(renderer, transform, hover);
+  }
 }
 
-class RotateTool extends Tool {
+class RotateTool extends HandleTool {
   constructor(...args: any[]) {
     super(
       'rotate',
@@ -368,9 +437,13 @@ class RotateTool extends Tool {
       ...args,
     );
   }
+
+  _renderHandle(renderer: Renderer, transform: Transform, hover: ?HoverType) {
+    renderRotationHandle(renderer, transform, hover);
+  }
 }
 
-class ScaleTool extends Tool {
+class ScaleTool extends HandleTool {
   constructor(...args: any[]) {
     super(
       'scale',
@@ -378,6 +451,10 @@ class ScaleTool extends Tool {
       <FormattedMessage id="tool.scale" defaultMessage="Scale" />,
       ...args,
     );
+  }
+
+  _renderHandle(renderer: Renderer, transform: Transform, hover: ?HoverType) {
+    renderScaleHandle(renderer, transform, hover);
   }
 }
 

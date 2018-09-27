@@ -7,6 +7,8 @@
 
 import type {LineSegment} from '../util/math';
 import type {Renderer} from './util';
+import type {Transform} from '../../server/store/math';
+import {getTransformMatrix} from '../../server/store/math';
 
 const RECTANGLE_VERTEX_SHADER = `
   uniform mat3 modelMatrix;
@@ -90,3 +92,77 @@ export function renderRectangle(
   gl.vertexAttribPointer(attribLocation, 2, gl.FLOAT, false, 0, 0);
   gl.drawArrays(gl.TRIANGLE_FAN, 0, 4);
 }
+
+const HANDLE_VERTEX_SHADER = `
+  uniform mat3 modelMatrix;
+  uniform mat3 viewProjectionMatrix;
+  attribute vec2 vertex;
+  void main(void) {
+    vec3 position = viewProjectionMatrix * (modelMatrix * vec3(vertex, 1.0));
+    gl_Position = vec4(position.xy, 0.0, 1.0);
+  }
+`;
+
+const HANDLE_FRAGMENT_SHADER = `
+  precision mediump float;
+  void main(void) {
+    gl_FragColor = vec4(1.0, 1.0, 1.0, 1.0);
+  }
+`;
+
+/** The hover states for handles. */
+export type HoverType = 'x' | 'y' | 'xy';
+
+const HandleKey = {};
+
+/**
+ * Renders a translation handle.
+ *
+ * @param renderer the renderer to use.
+ * @param transform the handle transform in world space (used as a cache key,
+ * so treat as immutable).
+ * @param hover the handle hover state.
+ */
+export function renderTranslationHandle(
+  renderer: Renderer,
+  transform: Transform,
+  hover: ?HoverType,
+) {
+  // use our function pointer as a cache key
+  const program = renderer.getProgram(
+    HandleKey,
+    renderer.getVertexShader(HandleKey, HANDLE_VERTEX_SHADER),
+    renderer.getFragmentShader(HandleKey, HANDLE_FRAGMENT_SHADER),
+  );
+  renderer.bindProgram(program);
+  program.setUniformViewProjectionMatrix('viewProjectionMatrix');
+  program.setUniformMatrix('modelMatrix', transform, getTransformMatrix);
+  const gl = renderer.gl;
+  renderer.setEnabled(gl.BLEND, false);
+}
+
+/**
+ * Renders a rotation handle.
+ *
+ * @param renderer the renderer to use.
+ * @param transform the handle transform in world space (used as a cache key,
+ * so treat as immutable).
+ */
+export function renderRotationHandle(
+  renderer: Renderer,
+  transform: Transform,
+  hover: ?HoverType,
+) {}
+
+/**
+ * Renders a scale handle.
+ *
+ * @param renderer the renderer to use.
+ * @param transform the handle transform in world space (used as a cache key,
+ * so treat as immutable).
+ */
+export function renderScaleHandle(
+  renderer: Renderer,
+  transform: Transform,
+  hover: ?HoverType,
+) {}

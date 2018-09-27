@@ -219,7 +219,8 @@ function EntityTreeNode(props: {
         {props.node.children.length > 0 ? (
           <div
             className={expanded ? 'entity-contract' : 'entity-expand'}
-            onClick={() =>
+            onMouseDown={event => event.stopPropagation()}
+            onClick={event =>
               store.dispatch(
                 StoreActions.setExpanded.create({
                   [entity.id]: !expanded,

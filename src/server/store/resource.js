@@ -136,6 +136,9 @@ export class Entity {
   id: string;
   state: Object;
 
+  _derivedValues: ?Map<string, mixed>;
+  _derivedLineage: ?(Entity[]);
+
   constructor(id: string, state: Object = {}) {
     this.id = id;
     this.state = state;
@@ -169,6 +172,34 @@ export class Entity {
   }
 
   /**
+   * Gets a value derived from the entity's lineage through the cache.
+   *
+   * @param lineage the entity's current lineage.
+   * @param name the name of the desired value.
+   * @param fn the function to compute the desired value from the lineage.
+   */
+  getDerivedValue<T>(lineage: Entity[], name: string, fn: (Entity[]) => T): T {
+    // clear the cache if the lineage has changed
+    const currentLineage = this._derivedLineage;
+    if (currentLineage && !lineagesEqual(currentLineage, lineage)) {
+      this._derivedValues = null;
+      this._derivedLineage = lineage;
+    }
+    let derivedValues = this._derivedValues;
+    if (derivedValues) {
+      const value = derivedValues.get(name);
+      if (value !== undefined) {
+        return (value: any);
+      }
+    } else {
+      derivedValues = this._derivedValues = new Map();
+    }
+    const value = fn(lineage);
+    derivedValues.set(name, value);
+    return value;
+  }
+
+  /**
    * Serializes the entity to JSON.
    *
    * @return the JSON representation.
@@ -176,6 +207,18 @@ export class Entity {
   toJSON(): Object {
     return this.state;
   }
+}
+
+function lineagesEqual(first: Entity[], second: Entity[]): boolean {
+  if (first.length !== second.length) {
+    return false;
+  }
+  for (let ii = 0; ii < first.length; ii++) {
+    if (first[ii] !== second[ii]) {
+      return false;
+    }
+  }
+  return true;
 }
 
 // the map from resource type to constructor

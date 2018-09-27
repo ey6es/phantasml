@@ -7,6 +7,8 @@
 
 import {Resource, Entity, addResourceTypeConstructor} from './resource';
 import type {ResourceAction} from './resource';
+import type {Transform} from './math';
+import {composeTransforms} from './math';
 import type {ResourceType} from '../api';
 
 const LEAF_EXPAND_SIZE = 16;
@@ -419,17 +421,6 @@ export class Scene extends Resource {
         throw new Error('Missing entity hierarchy.');
       }
       this._entityHierarchy = entityHierarchy;
-      // TODO: remove when we're sure there won't be any orphans
-      this._idTree.applyToEntities(entity => {
-        const lineage = this._idTree.getEntityLineage(entity);
-        if (lineage.length === 0) {
-          const parent = entity.getParent();
-          console.warn(
-            `Invalid lineage: ${entity.id} ${String(entity.getName())} ` +
-              String(parent && parent.ref),
-          );
-        }
-      });
       return;
     }
     this._idTree = new IdTreeLeafNode();
@@ -474,6 +465,41 @@ export class Scene extends Resource {
       this._entityHierarchy.addEntity(newIdTree.getEntityLineage(entity)),
     );
   }
+
+  /**
+   * Given an entity id, returns its world transform.
+   *
+   * @param id the id of the entity of interest.
+   * @return the entity's world transform.
+   */
+  getWorldTransform(id: string): Transform {
+    const entity = this.getEntity(id);
+    if (!entity) {
+      return null;
+    }
+    return entity.getDerivedValue(
+      this.getEntityLineage(entity),
+      'worldTransform',
+      this._computeWorldTransform,
+    );
+  }
+
+  _computeWorldTransform = (lineage: Entity[]) => {
+    const lastIndex = lineage.length - 1;
+    const lastEntity = lineage[lastIndex];
+    const localTransform = lastEntity.state.transform;
+    if (lastIndex === 0) {
+      return localTransform;
+    }
+    return composeTransforms(
+      lineage[lastIndex - 1].getDerivedValue(
+        lineage.slice(0, lastIndex),
+        'worldTransform',
+        this._computeWorldTransform,
+      ),
+      localTransform,
+    );
+  };
 
   /**
    * Gets the full lineage of an entity.
@@ -790,7 +816,7 @@ export const SceneActions = {
           lastUndo.editNumber === action.editNumber
         ) {
           // merge into existing edit
-          const map = mergeEntityEdits(lastUndo.map, reverseEdit);
+          const map = mergeEntityEdits(reverseEdit, lastUndo.map);
           return (undoStack
             .slice(0, undoIndex)
             .concat([Object.assign({}, lastUndo, {map})]): ResourceAction[]);
