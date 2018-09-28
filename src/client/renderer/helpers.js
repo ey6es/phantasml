@@ -7,6 +7,7 @@
 
 import type {LineSegment} from '../util/math';
 import type {Renderer} from './util';
+import {Geometry} from './util';
 import type {Transform} from '../../server/store/math';
 import {getTransformMatrix} from '../../server/store/math';
 
@@ -39,7 +40,11 @@ const RECTANGLE_FRAGMENT_SHADER = `
   }
 `;
 
-const RECTANGLE_ARRAY_BUFFER = new Float32Array([0, 0, 1, 0, 1, 1, 0, 1]);
+const RectangleGeometry = new Geometry(
+  new Float32Array([0, 0, 1, 0, 1, 1, 0, 1]),
+  new Uint16Array([0, 1, 2, 2, 3, 0]),
+  {vertex: 2},
+);
 
 function getRectangleModelMatrix(rect: LineSegment): number[] {
   // prettier-ignore
@@ -76,21 +81,13 @@ export function renderRectangle(
     renderer.getVertexShader(renderRectangle, RECTANGLE_VERTEX_SHADER),
     renderer.getFragmentShader(renderRectangle, RECTANGLE_FRAGMENT_SHADER),
   );
-  renderer.bindProgram(program);
   program.setUniformViewProjectionMatrix('viewProjectionMatrix');
   program.setUniformMatrix('modelMatrix', rect, getRectangleModelMatrix);
   program.setUniformColor('color', color);
   program.setUniformArray('size', rect, getRectangleSize);
   program.setUniformFloat('pixelSize', renderer.pixelsToWorldUnits);
-  renderer.bindArrayBuffer(
-    renderer.getArrayBuffer(renderRectangle, RECTANGLE_ARRAY_BUFFER),
-  );
-  const attribLocation = program.getAttribLocation('vertex');
-  renderer.enableVertexAttribArray(attribLocation);
-  const gl = renderer.gl;
-  renderer.setEnabled(gl.BLEND, true);
-  gl.vertexAttribPointer(attribLocation, 2, gl.FLOAT, false, 0, 0);
-  gl.drawArrays(gl.TRIANGLE_FAN, 0, 4);
+  renderer.setEnabled(renderer.gl.BLEND, true);
+  RectangleGeometry.draw(program);
 }
 
 /** The hover states for handles. */
@@ -170,9 +167,7 @@ function renderHandle(
     renderer.getVertexShader(renderHandle, HANDLE_VERTEX_SHADER),
     renderer.getFragmentShader(renderHandle, HANDLE_FRAGMENT_SHADER),
   );
-  renderer.bindProgram(program);
   program.setUniformViewProjectionMatrix('viewProjectionMatrix');
   program.setUniformMatrix('modelMatrix', transform, getTransformMatrix);
-  const gl = renderer.gl;
-  renderer.setEnabled(gl.BLEND, true);
+  renderer.setEnabled(renderer.gl.BLEND, true);
 }

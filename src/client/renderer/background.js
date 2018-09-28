@@ -6,6 +6,7 @@
  */
 
 import {RendererComponents} from './components';
+import {Geometry} from './util';
 import type {Camera, Renderer, getColorArray} from './util';
 
 type BackgroundData = {color?: string, gridColor?: string};
@@ -38,7 +39,11 @@ const FRAGMENT_SHADER = `
   }
 `;
 
-const ARRAY_BUFFER = new Float32Array([-1, -1, 1, -1, 1, 1, -1, 1]);
+const BackgroundGeometry = new Geometry(
+  new Float32Array([-1, -1, 1, -1, 1, 1, -1, 1]),
+  new Uint16Array([0, 1, 2, 2, 3, 0]),
+  {vertex: 2},
+);
 
 function getWorldMatrix(camera: Camera): number[] {
   const halfSize = camera.size * 0.5;
@@ -66,7 +71,6 @@ export function renderBackground(
     renderer.getVertexShader(renderBackground, VERTEX_SHADER),
     renderer.getFragmentShader(renderBackground, FRAGMENT_SHADER),
   );
-  renderer.bindProgram(program);
   const props = RendererComponents.background.properties;
   program.setUniformMatrix('worldMatrix', renderer.camera, getWorldMatrix);
   program.setUniformColor('color', data.color || props.color.defaultValue);
@@ -78,13 +82,6 @@ export function renderBackground(
     'pixelSize',
     (2.0 * renderer.camera.size) / renderer.canvas.height,
   );
-  renderer.bindArrayBuffer(
-    renderer.getArrayBuffer(renderBackground, ARRAY_BUFFER),
-  );
-  const attribLocation = program.getAttribLocation('vertex');
-  renderer.enableVertexAttribArray(attribLocation);
-  const gl = renderer.gl;
-  renderer.setEnabled(gl.BLEND, false);
-  gl.vertexAttribPointer(attribLocation, 2, gl.FLOAT, false, 0, 0);
-  gl.drawArrays(gl.TRIANGLE_FAN, 0, 4);
+  renderer.setEnabled(renderer.gl.BLEND, false);
+  BackgroundGeometry.draw(program);
 }

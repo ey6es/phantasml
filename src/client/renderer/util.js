@@ -63,6 +63,13 @@ export class Program {
   }
 
   /**
+   * Binds this program to its renderer.
+   */
+  bind() {
+    this.renderer.bindProgram(this);
+  }
+
+  /**
    * Gets the location of an attribute through the cache.
    *
    * @param name the name of the attribute.
@@ -97,6 +104,7 @@ export class Program {
    */
   setUniformFloat(name: string, value: number) {
     if (this._uniformValues.get(name) !== value) {
+      this.bind();
       this.renderer.gl.uniform1f(this.getUniformLocation(name), value);
       this._uniformValues.set(name, value);
     }
@@ -115,6 +123,7 @@ export class Program {
     content: ValueArray | (T => ValueArray),
   ) {
     if (this._uniformValues.get(name) !== key) {
+      this.bind();
       const value = typeof content === 'function' ? content(key) : content;
       switch (value.length) {
         case 1:
@@ -158,6 +167,7 @@ export class Program {
     content: ValueArray | (T => ValueArray),
   ) {
     if (this._uniformValues.get(name) !== key) {
+      this.bind();
       const value = typeof content === 'function' ? content(key) : content;
       switch (value.length) {
         case 4:
@@ -206,23 +216,84 @@ export class Program {
   }
 }
 
+type ElementArrayBufferDataSource = Uint16Array | Uint32Array;
+
 /**
  * A basic geometry wrapper.
+ *
+ * @param array the array of vertex data.
+ * @param elementArray the array of indices.
  */
 export class Geometry {
+  _array: BufferDataSource;
+  _elementArray: ElementArrayBufferDataSource;
+  _attributeSizes: {[string]: number};
+  _stride = 0;
+  _renderers: Set<Renderer> = new Set();
+
+  constructor(
+    array: BufferDataSource,
+    elementArray: ElementArrayBufferDataSource,
+    attributeSizes: {[string]: number},
+  ) {
+    this._array = array;
+    this._elementArray = elementArray;
+    this._attributeSizes = attributeSizes;
+    for (const name in attributeSizes) {
+      this._stride += attributeSizes[name] * 4;
+    }
+  }
+
   /**
    * Draws the geometry with the supplied program.
    *
    * @param program the program to use to draw the geometry.
    */
   draw(program: Program) {
-    program.renderer.bindProgram(program);
+    const renderer = program.renderer;
+    this._renderers.add(renderer);
+    renderer.bindProgram(program);
+    renderer.bindArrayBuffer(renderer.getArrayBuffer(this, this._array));
+    renderer.bindElementArrayBuffer(
+      renderer.getElementArrayBuffer(this, this._elementArray),
+    );
+    const gl = renderer.gl;
+    let offset = 0;
+    const vertexAttribArraysEnabled: Set<number> = new Set();
+    for (const name in this._attributeSizes) {
+      const size = this._attributeSizes[name];
+      const location = program.getAttribLocation(name);
+      vertexAttribArraysEnabled.add(location);
+      gl.vertexAttribPointer(
+        location,
+        size,
+        gl.FLOAT,
+        false,
+        this._stride,
+        offset,
+      );
+      offset += size * 4;
+    }
+    renderer.setVertexAttribArraysEnabled(vertexAttribArraysEnabled);
+    gl.drawElements(
+      gl.TRIANGLES,
+      this._elementArray.length,
+      this._elementArray instanceof Uint32Array
+        ? gl.UNSIGNED_INT
+        : gl.UNSIGNED_SHORT,
+      0,
+    );
   }
 
   /**
    * Releases the resources associated with this geometry.
    */
-  dispose() {}
+  dispose() {
+    for (const renderer of this._renderers) {
+      renderer.clearArrayBuffer(this);
+      renderer.clearElementArrayBuffer(this);
+    }
+  }
 }
 
 export type Camera = {x: number, y: number, size: number, aspect: number};
@@ -248,6 +319,7 @@ function getViewProjectionMatrix(camera: Camera): number[] {
 export class Renderer {
   canvas: HTMLCanvasElement;
   gl: WebGLRenderingContext;
+  elementIndexUint: boolean;
   arrayBuffers: Map<mixed, WebGLBuffer> = new Map();
   elementArrayBuffers: Map<mixed, WebGLBuffer> = new Map();
   vertexShaders: Map<mixed, WebGLShader> = new Map();
@@ -260,7 +332,7 @@ export class Renderer {
   _boundArrayBuffer: ?WebGLBuffer;
   _boundElementArrayBuffer: ?WebGLBuffer;
   _boundProgram: ?Program;
-  _vertexAttribArraysEnabled: boolean[] = [];
+  _vertexAttribArraysEnabled: Set<number> = new Set();
   _capsEnabled: Set<number> = new Set();
   _blendFunc: {sfactor?: number, dfactor?: number} = {};
   _viewport: {x?: number, y?: number, width?: number, height?: number} = {};
@@ -283,6 +355,7 @@ export class Renderer {
       throw new Error('Failed to create WebGL context.');
     }
     this.gl = gl;
+    this.elementIndexUint = !!gl.getExtension('OES_element_index_uint');
 
     // only one blend function at the moment
     this.setBlendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
@@ -381,7 +454,12 @@ export class Renderer {
     key: T,
     content: BufferDataSource | (T => BufferDataSource),
   ): WebGLBuffer {
-    return this._getBuffer(this.arrayBuffers, key, content);
+    return this._getBuffer(
+      this.arrayBuffers,
+      this.gl.ARRAY_BUFFER,
+      key,
+      content,
+    );
   }
 
   /**
@@ -396,25 +474,49 @@ export class Renderer {
     key: T,
     content: BufferDataSource | (T => BufferDataSource),
   ): WebGLBuffer {
-    return this._getBuffer(this.elementArrayBuffers, key, content);
+    return this._getBuffer(
+      this.elementArrayBuffers,
+      this.gl.ELEMENT_ARRAY_BUFFER,
+      key,
+      content,
+    );
   }
 
   _getBuffer<T>(
     buffers: Map<mixed, WebGLBuffer>,
+    target: number,
     key: T,
     content: BufferDataSource | (T => BufferDataSource),
   ): WebGLBuffer {
     let buffer = buffers.get(key);
     if (!buffer) {
       buffers.set(key, (buffer = this.gl.createBuffer()));
-      this.bindArrayBuffer(buffer);
+      target === this.gl.ARRAY_BUFFER
+        ? this.bindArrayBuffer(buffer)
+        : this.bindElementArrayBuffer(buffer);
       this.gl.bufferData(
-        this.gl.ARRAY_BUFFER,
+        target,
         typeof content === 'function' ? content(key) : content,
         this.gl.STATIC_DRAW,
       );
     }
     return buffer;
+  }
+
+  clearArrayBuffer(key: mixed) {
+    this._clearBuffer(this.arrayBuffers, key);
+  }
+
+  clearElementArrayBuffer(key: mixed) {
+    this._clearBuffer(this.elementArrayBuffers, key);
+  }
+
+  _clearBuffer(buffers: Map<mixed, WebGLBuffer>, key: mixed) {
+    const buffer = buffers.get(key);
+    if (buffer) {
+      buffers.delete(key);
+      this.gl.deleteBuffer(buffer);
+    }
   }
 
   /**
@@ -533,15 +635,22 @@ export class Renderer {
   }
 
   /**
-   * Enables the vertex attribute array at the specified location.
+   * Sets the enabled set of vertex attribute arrays.
    *
-   * @param location the location to enable.
+   * @param locations the set of locations to enable.
    */
-  enableVertexAttribArray(location: number) {
-    if (!this._vertexAttribArraysEnabled[location]) {
-      this.gl.enableVertexAttribArray(location);
-      this._vertexAttribArraysEnabled[location] = true;
+  setVertexAttribArraysEnabled(locations: Set<number>) {
+    for (const location of locations) {
+      if (!this._vertexAttribArraysEnabled.has(location)) {
+        this.gl.enableVertexAttribArray(location);
+      }
     }
+    for (const location of this._vertexAttribArraysEnabled) {
+      if (!locations.has(location)) {
+        this.gl.disableVertexAttribArray(location);
+      }
+    }
+    this._vertexAttribArraysEnabled = locations;
   }
 
   /**
