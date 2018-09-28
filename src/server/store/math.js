@@ -7,6 +7,8 @@
 
 export type Vector2 = {x: number, y: number};
 
+export type Plane = {normal: Vector2, constant: number};
+
 /** General transform type. */
 export type Transform = ?{
   translation?: Vector2 | {x?: number, y?: number},
