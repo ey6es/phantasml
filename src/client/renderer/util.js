@@ -206,6 +206,25 @@ export class Program {
   }
 }
 
+/**
+ * A basic geometry wrapper.
+ */
+export class Geometry {
+  /**
+   * Draws the geometry with the supplied program.
+   *
+   * @param program the program to use to draw the geometry.
+   */
+  draw(program: Program) {
+    program.renderer.bindProgram(program);
+  }
+
+  /**
+   * Releases the resources associated with this geometry.
+   */
+  dispose() {}
+}
+
 export type Camera = {x: number, y: number, size: number, aspect: number};
 
 function getViewProjectionMatrix(camera: Camera): number[] {
@@ -229,7 +248,8 @@ function getViewProjectionMatrix(camera: Camera): number[] {
 export class Renderer {
   canvas: HTMLCanvasElement;
   gl: WebGLRenderingContext;
-  buffers: Map<mixed, WebGLBuffer> = new Map();
+  arrayBuffers: Map<mixed, WebGLBuffer> = new Map();
+  elementArrayBuffers: Map<mixed, WebGLBuffer> = new Map();
   vertexShaders: Map<mixed, WebGLShader> = new Map();
   fragmentShaders: Map<mixed, WebGLShader> = new Map();
   programs: Map<mixed, Program> = new Map();
@@ -238,6 +258,7 @@ export class Renderer {
   _frameDirty = false;
 
   _boundArrayBuffer: ?WebGLBuffer;
+  _boundElementArrayBuffer: ?WebGLBuffer;
   _boundProgram: ?Program;
   _vertexAttribArraysEnabled: boolean[] = [];
   _capsEnabled: Set<number> = new Set();
@@ -280,7 +301,10 @@ export class Renderer {
     for (const shader of this.fragmentShaders.values()) {
       this.gl.deleteShader(shader);
     }
-    for (const buffer of this.buffers.values()) {
+    for (const buffer of this.arrayBuffers.values()) {
+      this.gl.deleteBuffer(buffer);
+    }
+    for (const buffer of this.elementArrayBuffers.values()) {
       this.gl.deleteBuffer(buffer);
     }
     this._frameDirty = false;
@@ -346,20 +370,43 @@ export class Renderer {
   }
 
   /**
-   * Retrieves a (static) buffer through the cache, creating/populating it if
-   * necessary.
+   * Retrieves a (static) array buffer through the cache, creating/populating
+   * it if necessary.
    *
    * @param key the cache key under which to look for the buffer.
    * @param content the buffer content or content generator.
    * @return the now-cached buffer.
    */
-  getBuffer<T>(
+  getArrayBuffer<T>(
     key: T,
     content: BufferDataSource | (T => BufferDataSource),
   ): WebGLBuffer {
-    let buffer = this.buffers.get(key);
+    return this._getBuffer(this.arrayBuffers, key, content);
+  }
+
+  /**
+   * Retrieves a (static) element array buffer through the cache,
+   * creating/populating it if necessary.
+   *
+   * @param key the cache key under which to look for the buffer.
+   * @param content the buffer content or content generator.
+   * @return the now-cached buffer.
+   */
+  getElementArrayBuffer<T>(
+    key: T,
+    content: BufferDataSource | (T => BufferDataSource),
+  ): WebGLBuffer {
+    return this._getBuffer(this.elementArrayBuffers, key, content);
+  }
+
+  _getBuffer<T>(
+    buffers: Map<mixed, WebGLBuffer>,
+    key: T,
+    content: BufferDataSource | (T => BufferDataSource),
+  ): WebGLBuffer {
+    let buffer = buffers.get(key);
     if (!buffer) {
-      this.buffers.set(key, (buffer = this.gl.createBuffer()));
+      buffers.set(key, (buffer = this.gl.createBuffer()));
       this.bindArrayBuffer(buffer);
       this.gl.bufferData(
         this.gl.ARRAY_BUFFER,
@@ -379,6 +426,18 @@ export class Renderer {
     if (this._boundArrayBuffer !== buffer) {
       this.gl.bindBuffer(this.gl.ARRAY_BUFFER, buffer);
       this._boundArrayBuffer = buffer;
+    }
+  }
+
+  /**
+   * Binds an element array buffer (or clears the binding).
+   *
+   * @param buffer the buffer to bind.
+   */
+  bindElementArrayBuffer(buffer: ?WebGLBuffer) {
+    if (this._boundElementArrayBuffer !== buffer) {
+      this.gl.bindBuffer(this.gl.ELEMENT_ARRAY_BUFFER, buffer);
+      this._boundElementArrayBuffer = buffer;
     }
   }
 

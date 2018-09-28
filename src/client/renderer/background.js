@@ -78,7 +78,9 @@ export function renderBackground(
     'pixelSize',
     (2.0 * renderer.camera.size) / renderer.canvas.height,
   );
-  renderer.bindArrayBuffer(renderer.getBuffer(renderBackground, ARRAY_BUFFER));
+  renderer.bindArrayBuffer(
+    renderer.getArrayBuffer(renderBackground, ARRAY_BUFFER),
+  );
   const attribLocation = program.getAttribLocation('vertex');
   renderer.enableVertexAttribArray(attribLocation);
   const gl = renderer.gl;

@@ -83,7 +83,7 @@ export function renderRectangle(
   program.setUniformArray('size', rect, getRectangleSize);
   program.setUniformFloat('pixelSize', renderer.pixelsToWorldUnits);
   renderer.bindArrayBuffer(
-    renderer.getBuffer(renderRectangle, RECTANGLE_ARRAY_BUFFER),
+    renderer.getArrayBuffer(renderRectangle, RECTANGLE_ARRAY_BUFFER),
   );
   const attribLocation = program.getAttribLocation('vertex');
   renderer.enableVertexAttribArray(attribLocation);
@@ -91,6 +91,55 @@ export function renderRectangle(
   renderer.setEnabled(gl.BLEND, true);
   gl.vertexAttribPointer(attribLocation, 2, gl.FLOAT, false, 0, 0);
   gl.drawArrays(gl.TRIANGLE_FAN, 0, 4);
+}
+
+/** The hover states for handles. */
+export type HoverType = 'x' | 'y' | 'xy';
+
+/**
+ * Renders a translation handle.
+ *
+ * @param renderer the renderer to use.
+ * @param transform the handle transform in world space (used as a cache key,
+ * so treat as immutable).
+ * @param hover the handle hover state.
+ */
+export function renderTranslationHandle(
+  renderer: Renderer,
+  transform: Transform,
+  hover: ?HoverType,
+) {
+  renderHandle(renderer, transform, hover);
+}
+
+/**
+ * Renders a rotation handle.
+ *
+ * @param renderer the renderer to use.
+ * @param transform the handle transform in world space (used as a cache key,
+ * so treat as immutable).
+ */
+export function renderRotationHandle(
+  renderer: Renderer,
+  transform: Transform,
+  hover: ?HoverType,
+) {
+  renderHandle(renderer, transform, hover);
+}
+
+/**
+ * Renders a scale handle.
+ *
+ * @param renderer the renderer to use.
+ * @param transform the handle transform in world space (used as a cache key,
+ * so treat as immutable).
+ */
+export function renderScaleHandle(
+  renderer: Renderer,
+  transform: Transform,
+  hover: ?HoverType,
+) {
+  renderHandle(renderer, transform, hover);
 }
 
 const HANDLE_VERTEX_SHADER = `
@@ -110,59 +159,20 @@ const HANDLE_FRAGMENT_SHADER = `
   }
 `;
 
-/** The hover states for handles. */
-export type HoverType = 'x' | 'y' | 'xy';
-
-const HandleKey = {};
-
-/**
- * Renders a translation handle.
- *
- * @param renderer the renderer to use.
- * @param transform the handle transform in world space (used as a cache key,
- * so treat as immutable).
- * @param hover the handle hover state.
- */
-export function renderTranslationHandle(
+function renderHandle(
   renderer: Renderer,
   transform: Transform,
   hover: ?HoverType,
 ) {
   // use our function pointer as a cache key
   const program = renderer.getProgram(
-    HandleKey,
-    renderer.getVertexShader(HandleKey, HANDLE_VERTEX_SHADER),
-    renderer.getFragmentShader(HandleKey, HANDLE_FRAGMENT_SHADER),
+    renderHandle,
+    renderer.getVertexShader(renderHandle, HANDLE_VERTEX_SHADER),
+    renderer.getFragmentShader(renderHandle, HANDLE_FRAGMENT_SHADER),
   );
   renderer.bindProgram(program);
   program.setUniformViewProjectionMatrix('viewProjectionMatrix');
   program.setUniformMatrix('modelMatrix', transform, getTransformMatrix);
   const gl = renderer.gl;
-  renderer.setEnabled(gl.BLEND, false);
+  renderer.setEnabled(gl.BLEND, true);
 }
-
-/**
- * Renders a rotation handle.
- *
- * @param renderer the renderer to use.
- * @param transform the handle transform in world space (used as a cache key,
- * so treat as immutable).
- */
-export function renderRotationHandle(
-  renderer: Renderer,
-  transform: Transform,
-  hover: ?HoverType,
-) {}
-
-/**
- * Renders a scale handle.
- *
- * @param renderer the renderer to use.
- * @param transform the handle transform in world space (used as a cache key,
- * so treat as immutable).
- */
-export function renderScaleHandle(
-  renderer: Renderer,
-  transform: Transform,
-  hover: ?HoverType,
-) {}
