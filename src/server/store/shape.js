@@ -148,6 +148,7 @@ class Path {
         vertexSize,
         tessellation,
         edge,
+        firstArrayIndex,
         previousCommand && previousCommand.dest,
         closeLoop,
       );
@@ -162,10 +163,22 @@ class Path {
     ) {
       // examine the current vertex and its neighbors
       const currentIndex = index + attributeOffsets.vertex;
-      const fromIndex =
-        currentIndex - (index === firstArrayIndex ? 0 : vertexSpan);
-      const toIndex =
-        currentIndex + (index === lastArrayIndex ? 0 : vertexSpan);
+      let fromIndex = currentIndex - vertexSpan;
+      if (index === firstArrayIndex) {
+        if (this.loop || edge) {
+          fromIndex = lastArrayIndex + attributeOffsets.vertex;
+        } else {
+          fromIndex = currentIndex;
+        }
+      }
+      let toIndex = currentIndex + vertexSpan;
+      if (index === lastArrayIndex) {
+        if (this.loop || edge) {
+          toIndex = firstArrayIndex + attributeOffsets.vertex;
+        } else {
+          toIndex = currentIndex;
+        }
+      }
 
       // find the plane coefficients for the vertex
       const x = arrayBuffer[toIndex + 1] - arrayBuffer[fromIndex + 1];
@@ -233,6 +246,7 @@ class PathCommand {
     vertexSize: number,
     tessellation: number,
     edge: boolean,
+    firstArrayIndex: number,
     previous: ?Vector2,
     closeLoop: boolean,
   ): [number, number] {
@@ -245,17 +259,18 @@ class PathCommand {
     attributeOffsets: {[string]: number},
     vertexSize: number,
     edge: boolean,
-    vertex: Vector2,
+    vx: number,
+    vy: number,
   ): number {
     let vertexIndex = arrayIndex + attributeOffsets.vertex;
-    arrayBuffer[vertexIndex] = vertex.x;
-    arrayBuffer[vertexIndex + 1] = vertex.y;
+    arrayBuffer[vertexIndex] = vx;
+    arrayBuffer[vertexIndex + 1] = vy;
     this._writeAttributes(arrayBuffer, arrayIndex, attributeOffsets);
     arrayIndex += vertexSize;
     if (!edge) {
       vertexIndex = arrayIndex + attributeOffsets.vertex;
-      arrayBuffer[vertexIndex] = vertex.x;
-      arrayBuffer[vertexIndex + 1] = vertex.y;
+      arrayBuffer[vertexIndex] = vx;
+      arrayBuffer[vertexIndex + 1] = vy;
       this._writeAttributes(arrayBuffer, arrayIndex, attributeOffsets);
       arrayIndex += vertexSize;
     }
@@ -281,6 +296,23 @@ class PathCommand {
       }
     }
   }
+
+  _writeIndices(
+    elementArrayBuffer: Uint32Array,
+    elementArrayIndex: number,
+    fromIndex: number,
+    toIndex: number,
+  ): number {
+    elementArrayBuffer[elementArrayIndex++] = fromIndex;
+    elementArrayBuffer[elementArrayIndex++] = toIndex;
+    elementArrayBuffer[elementArrayIndex++] = fromIndex + 1;
+
+    elementArrayBuffer[elementArrayIndex++] = toIndex;
+    elementArrayBuffer[elementArrayIndex++] = toIndex + 1;
+    elementArrayBuffer[elementArrayIndex++] = fromIndex + 1;
+
+    return elementArrayIndex;
+  }
 }
 
 class MoveTo extends PathCommand {
@@ -304,6 +336,7 @@ class MoveTo extends PathCommand {
     vertexSize: number,
     tessellation: number,
     edge: boolean,
+    firstArrayIndex: number,
     previous: ?Vector2,
     closeLoop: boolean,
   ): [number, number] {
@@ -313,7 +346,8 @@ class MoveTo extends PathCommand {
       attributeOffsets,
       vertexSize,
       edge,
-      this.dest,
+      this.dest.x,
+      this.dest.y,
     );
     return [arrayIndex, elementArrayIndex];
   }
@@ -345,9 +379,19 @@ class LineTo extends PathCommand {
     vertexSize: number,
     tessellation: number,
     edge: boolean,
+    firstArrayIndex: number,
     previous: ?Vector2,
     closeLoop: boolean,
   ): [number, number] {
+    if (!edge) {
+      const currentIndex = arrayIndex / vertexSize;
+      elementArrayIndex = this._writeIndices(
+        elementArrayBuffer,
+        elementArrayIndex,
+        currentIndex - 2,
+        closeLoop ? firstArrayIndex / vertexSize : currentIndex,
+      );
+    }
     if (!closeLoop) {
       arrayIndex = this._writeVertices(
         arrayBuffer,
@@ -355,7 +399,8 @@ class LineTo extends PathCommand {
         attributeOffsets,
         vertexSize,
         edge,
-        this.dest,
+        this.dest.x,
+        this.dest.y,
       );
     }
     return [arrayIndex, elementArrayIndex];
@@ -378,11 +423,11 @@ class ArcTo extends PathCommand {
     closeLoop: boolean,
   ) {
     super.updateStats(stats, tessellation, edge, previous, closeLoop);
-    const divisions = 1 - (closeLoop ? 1 : 0);
-    stats.vertices += (edge ? 1 : 2) * divisions;
+    const divisions = this._getDivisions(tessellation, previous);
     if (!edge) {
       stats.indices += 6 * divisions;
     }
+    stats.vertices += (edge ? 1 : 2) * (closeLoop ? divisions - 1 : divisions);
   }
 
   populateBuffers(
@@ -394,31 +439,44 @@ class ArcTo extends PathCommand {
     vertexSize: number,
     tessellation: number,
     edge: boolean,
+    firstArrayIndex: number,
     previous: ?Vector2,
     closeLoop: boolean,
   ): [number, number] {
-    let divisions = 1;
+    const divisions = this._getDivisions(tessellation, previous);
     const parameterIncrement = 1.0 / divisions;
-    if (closeLoop) {
-      divisions--;
-    }
-    const fn = (parameter: number) => {
-      return {x: 0.0, y: 0.0};
-    };
+    let cx = 0.0;
+    let cy = 0.0;
     let parameter = parameterIncrement;
     for (let ii = 0; ii < divisions; ii++) {
-      const current = fn(parameter);
-      arrayIndex = this._writeVertices(
-        arrayBuffer,
-        arrayIndex,
-        attributeOffsets,
-        vertexSize,
-        edge,
-        current,
-      );
+      const closing = closeLoop && ii === divisions - 1;
+      if (!edge) {
+        const currentIndex = arrayIndex / vertexSize;
+        elementArrayIndex = this._writeIndices(
+          elementArrayBuffer,
+          elementArrayIndex,
+          currentIndex - 2,
+          closing ? firstArrayIndex / vertexSize : currentIndex,
+        );
+      }
+      if (!closing) {
+        arrayIndex = this._writeVertices(
+          arrayBuffer,
+          arrayIndex,
+          attributeOffsets,
+          vertexSize,
+          edge,
+          cx + this.radius * Math.cos(parameter),
+          cy + this.radius * Math.sin(parameter),
+        );
+      }
       parameter += parameterIncrement;
     }
     return [arrayIndex, elementArrayIndex];
+  }
+
+  _getDivisions(tessellation: number, previous: ?Vector2): number {
+    return 1;
   }
 }
 
@@ -445,11 +503,11 @@ class CurveTo extends PathCommand {
     closeLoop: boolean,
   ) {
     super.updateStats(stats, tessellation, edge, previous, closeLoop);
-    const divisions = 1 - (closeLoop ? 1 : 0);
-    stats.vertices += (edge ? 1 : 2) * divisions;
+    const divisions = this._getDivisions(tessellation, previous);
     if (!edge) {
       stats.indices += 6 * divisions;
     }
+    stats.vertices += (edge ? 1 : 2) * (closeLoop ? divisions - 1 : divisions);
   }
 
   populateBuffers(
@@ -461,31 +519,42 @@ class CurveTo extends PathCommand {
     vertexSize: number,
     tessellation: number,
     edge: boolean,
+    firstArrayIndex: number,
     previous: ?Vector2,
     closeLoop: boolean,
   ): [number, number] {
-    let divisions = 1;
+    const divisions = this._getDivisions(tessellation, previous);
     const parameterIncrement = 1.0 / divisions;
-    if (closeLoop) {
-      divisions--;
-    }
-    const fn = (parameter: number) => {
-      return {x: 0.0, y: 0.0};
-    };
     let parameter = parameterIncrement;
     for (let ii = 0; ii < divisions; ii++) {
-      const current = fn(parameter);
-      arrayIndex = this._writeVertices(
-        arrayBuffer,
-        arrayIndex,
-        attributeOffsets,
-        vertexSize,
-        edge,
-        current,
-      );
+      const closing = closeLoop && ii === divisions - 1;
+      if (!edge) {
+        const currentIndex = arrayIndex / vertexSize;
+        elementArrayIndex = this._writeIndices(
+          elementArrayBuffer,
+          elementArrayIndex,
+          currentIndex - 2,
+          closing ? firstArrayIndex / vertexSize : currentIndex,
+        );
+      }
+      if (!closing) {
+        arrayIndex = this._writeVertices(
+          arrayBuffer,
+          arrayIndex,
+          attributeOffsets,
+          vertexSize,
+          edge,
+          0.0,
+          0.0,
+        );
+      }
       parameter += parameterIncrement;
     }
     return [arrayIndex, elementArrayIndex];
+  }
+
+  _getDivisions(tessellation: number, previous: ?Vector2): number {
+    return 1;
   }
 }
 
