@@ -6,6 +6,7 @@
  */
 
 import type {Vector2, Plane} from './math';
+import {subtractVectors, orthoNormalizeVector, getDotProduct} from './math';
 
 type VertexAttributes = {[string]: number | number[]};
 
@@ -123,21 +124,20 @@ class Path {
     tessellation: number,
     edge: boolean = false,
   ): [number, number] {
+    // start with just the vertices/attributes
+    const firstArrayIndex = arrayIndex;
     for (let ii = 0; ii < this.commands.length; ii++) {
       const command = this.commands[ii];
       let previousCommand: ?PathCommand;
-      let nextCommand: ?PathCommand;
       let closeLoop = false;
       if (this.loop || edge) {
         const lastIndex = this.commands.length - 1;
         previousCommand = this.commands[
           (ii + lastIndex) % this.commands.length
         ];
-        nextCommand = this.commands[(ii + 1) % this.commands.length];
         closeLoop = ii === lastIndex;
       } else {
         previousCommand = this.commands[ii - 1];
-        nextCommand = this.commands[ii + 1];
       }
       [arrayIndex, elementArrayIndex] = command.populateBuffers(
         arrayBuffer,
@@ -149,9 +149,49 @@ class Path {
         tessellation,
         edge,
         previousCommand && previousCommand.dest,
-        nextCommand && nextCommand.dest,
         closeLoop,
       );
+    }
+    // fill in the plane attributes now that we have all vertices
+    const vertexSpan = edge ? vertexSize : vertexSize * 2;
+    const lastArrayIndex = arrayIndex - vertexSpan;
+    for (
+      let index = firstArrayIndex;
+      index <= lastArrayIndex;
+      index += vertexSpan
+    ) {
+      // examine the current vertex and its neighbors
+      const currentIndex = index + attributeOffsets.vertex;
+      const fromIndex =
+        currentIndex - (index === firstArrayIndex ? 0 : vertexSpan);
+      const toIndex =
+        currentIndex + (index === lastArrayIndex ? 0 : vertexSpan);
+
+      // find the plane coefficients for the vertex
+      const x = arrayBuffer[toIndex + 1] - arrayBuffer[fromIndex + 1];
+      const y = arrayBuffer[fromIndex] - arrayBuffer[toIndex];
+      const length = Math.sqrt(x * x + y * y);
+      const scale = length === 0.0 ? 1.0 : 1.0 / length;
+      const nx = x * scale;
+      const ny = y * scale;
+      const constant = -(
+        nx * arrayBuffer[currentIndex] +
+        ny * arrayBuffer[currentIndex + 1]
+      );
+
+      // set them for the current vertex
+      let planeIndex = index + attributeOffsets.plane;
+      arrayBuffer[planeIndex] = nx;
+      arrayBuffer[planeIndex + 1] = ny;
+      arrayBuffer[planeIndex + 2] = constant;
+
+      // for non-edges, also set the other side
+      if (!edge) {
+        planeIndex += vertexSize;
+        arrayBuffer[planeIndex] = -nx;
+        arrayBuffer[planeIndex + 1] = -ny;
+        arrayBuffer[planeIndex + 2] = -constant;
+      }
     }
     return [arrayIndex, elementArrayIndex];
   }
@@ -194,7 +234,6 @@ class PathCommand {
     tessellation: number,
     edge: boolean,
     previous: ?Vector2,
-    next: ?Vector2,
     closeLoop: boolean,
   ): [number, number] {
     return [arrayIndex, elementArrayIndex];
@@ -207,25 +246,16 @@ class PathCommand {
     vertexSize: number,
     edge: boolean,
     vertex: Vector2,
-    plane: Plane,
   ): number {
     let vertexIndex = arrayIndex + attributeOffsets.vertex;
     arrayBuffer[vertexIndex] = vertex.x;
     arrayBuffer[vertexIndex + 1] = vertex.y;
-    let planeIndex = arrayIndex + attributeOffsets.plane;
-    arrayBuffer[planeIndex] = plane.normal.x;
-    arrayBuffer[planeIndex + 1] = plane.normal.y;
-    arrayBuffer[planeIndex + 2] = plane.constant;
     this._writeAttributes(arrayBuffer, arrayIndex, attributeOffsets);
     arrayIndex += vertexSize;
     if (!edge) {
       vertexIndex = arrayIndex + attributeOffsets.vertex;
       arrayBuffer[vertexIndex] = vertex.x;
       arrayBuffer[vertexIndex + 1] = vertex.y;
-      planeIndex = arrayIndex + attributeOffsets.plane;
-      arrayBuffer[planeIndex] = -plane.normal.x;
-      arrayBuffer[planeIndex + 1] = -plane.normal.y;
-      arrayBuffer[planeIndex + 2] = -plane.constant;
       this._writeAttributes(arrayBuffer, arrayIndex, attributeOffsets);
       arrayIndex += vertexSize;
     }
@@ -251,10 +281,6 @@ class PathCommand {
       }
     }
   }
-
-  _getPlane(previous: ?Vector2, current: Vector2, next: ?Vector2): Plane {
-    return {normal: {x: 1.0, y: 0.0}, constant: 0.0};
-  }
 }
 
 class MoveTo extends PathCommand {
@@ -279,7 +305,6 @@ class MoveTo extends PathCommand {
     tessellation: number,
     edge: boolean,
     previous: ?Vector2,
-    next: ?Vector2,
     closeLoop: boolean,
   ): [number, number] {
     arrayIndex = this._writeVertices(
@@ -289,7 +314,6 @@ class MoveTo extends PathCommand {
       vertexSize,
       edge,
       this.dest,
-      this._getPlane(previous, this.dest, next),
     );
     return [arrayIndex, elementArrayIndex];
   }
@@ -322,7 +346,6 @@ class LineTo extends PathCommand {
     tessellation: number,
     edge: boolean,
     previous: ?Vector2,
-    next: ?Vector2,
     closeLoop: boolean,
   ): [number, number] {
     if (!closeLoop) {
@@ -333,7 +356,6 @@ class LineTo extends PathCommand {
         vertexSize,
         edge,
         this.dest,
-        this._getPlane(previous, this.dest, next),
       );
     }
     return [arrayIndex, elementArrayIndex];
@@ -373,9 +395,29 @@ class ArcTo extends PathCommand {
     tessellation: number,
     edge: boolean,
     previous: ?Vector2,
-    next: ?Vector2,
     closeLoop: boolean,
   ): [number, number] {
+    let divisions = 1;
+    const parameterIncrement = 1.0 / divisions;
+    if (closeLoop) {
+      divisions--;
+    }
+    const fn = (parameter: number) => {
+      return {x: 0.0, y: 0.0};
+    };
+    let parameter = parameterIncrement;
+    for (let ii = 0; ii < divisions; ii++) {
+      const current = fn(parameter);
+      arrayIndex = this._writeVertices(
+        arrayBuffer,
+        arrayIndex,
+        attributeOffsets,
+        vertexSize,
+        edge,
+        current,
+      );
+      parameter += parameterIncrement;
+    }
     return [arrayIndex, elementArrayIndex];
   }
 }
@@ -420,9 +462,29 @@ class CurveTo extends PathCommand {
     tessellation: number,
     edge: boolean,
     previous: ?Vector2,
-    next: ?Vector2,
     closeLoop: boolean,
   ): [number, number] {
+    let divisions = 1;
+    const parameterIncrement = 1.0 / divisions;
+    if (closeLoop) {
+      divisions--;
+    }
+    const fn = (parameter: number) => {
+      return {x: 0.0, y: 0.0};
+    };
+    let parameter = parameterIncrement;
+    for (let ii = 0; ii < divisions; ii++) {
+      const current = fn(parameter);
+      arrayIndex = this._writeVertices(
+        arrayBuffer,
+        arrayIndex,
+        attributeOffsets,
+        vertexSize,
+        edge,
+        current,
+      );
+      parameter += parameterIncrement;
+    }
     return [arrayIndex, elementArrayIndex];
   }
 }
@@ -443,9 +505,9 @@ class Shape {
   }
 
   updateStats(stats: GeometryStats, tessellation: number) {
-    this.exterior.updateStats(stats, tessellation);
+    this.exterior.updateStats(stats, tessellation, true);
     for (const hole of this.holes) {
-      hole.updateStats(stats, tessellation);
+      hole.updateStats(stats, tessellation, true);
     }
   }
 
@@ -458,6 +520,28 @@ class Shape {
     vertexSize: number,
     tessellation: number,
   ): [number, number] {
+    [arrayIndex, elementArrayIndex] = this.exterior.populateBuffers(
+      arrayBuffer,
+      elementArrayBuffer,
+      arrayIndex,
+      elementArrayIndex,
+      attributeOffsets,
+      vertexSize,
+      tessellation,
+      true,
+    );
+    for (const hole of this.holes) {
+      [arrayIndex, elementArrayIndex] = hole.populateBuffers(
+        arrayBuffer,
+        elementArrayBuffer,
+        arrayIndex,
+        elementArrayIndex,
+        attributeOffsets,
+        vertexSize,
+        tessellation,
+        true,
+      );
+    }
     return [arrayIndex, elementArrayIndex];
   }
 }

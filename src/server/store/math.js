@@ -139,6 +139,51 @@ export function addToVector(dest: Vector2, source: Vector2): Vector2 {
 }
 
 /**
+ * Subtracts the second vector from the first.
+ *
+ * @param first the vector to subtract from.
+ * @param second the vector to subtract.
+ * @return a new vector containing the result.
+ */
+export function subtractVectors(first: Vector2, second: Vector2): Vector2 {
+  return {x: second.x - first.x, y: second.y - first.y};
+}
+
+/**
+ * Sets a vector to its normalized orthogonal version.
+ *
+ * @param dest the vector to orthonormalize.
+ * @return a reference to the destination vector, for chaining.
+ */
+export function orthoNormalizeVector(dest: Vector2): Vector2 {
+  return normalizeVector(orthogonalizeVector(dest));
+}
+
+/**
+ * Sets a vector to its orthogonal version (that is, rotates it ninety degrees
+ * clockwise).
+ *
+ * @param dest the vector to orthogonalize.
+ * @return a reference to the destination vector, for chaining.
+ */
+export function orthogonalizeVector(dest: Vector2): Vector2 {
+  const tmpX = dest.x;
+  dest.x = dest.y;
+  dest.y = -tmpX;
+  return dest;
+}
+
+/**
+ * Normalizes a vector.
+ *
+ * @param dest the vector to normalize.
+ * @return a reference to the destination vector, for chaining.
+ */
+export function normalizeVector(dest: Vector2): Vector2 {
+  return scaleVector(dest, 1.0 / getVectorLength(dest));
+}
+
+/**
  * Multiplies a vector by a scalar.
  *
  * @param dest the vector to modify.
@@ -149,4 +194,36 @@ export function scaleVector(dest: Vector2, scale: number): Vector2 {
   dest.x *= scale;
   dest.y *= scale;
   return dest;
+}
+
+/**
+ * Computes the length of a vector.
+ *
+ * @param vector the vector.
+ * @return the vector's length.
+ */
+export function getVectorLength(vector: Vector2): number {
+  return Math.sqrt(getDotProduct(vector, vector));
+}
+
+/**
+ * Gets the signed distance from a plane to a point.
+ *
+ * @param plane the plane to use.
+ * @param point the point to check.
+ * @return the signed distance.
+ */
+export function getSignedDistance(plane: Plane, point: Vector2): number {
+  return getDotProduct(plane.normal, point) + plane.constant;
+}
+
+/**
+ * Computes and returns the dot product of two vectors.
+ *
+ * @param first the first vector.
+ * @param second the second vector.
+ * @return the dot product.
+ */
+export function getDotProduct(first: Vector2, second: Vector2): number {
+  return first.x * second.x + first.y * second.y;
 }
