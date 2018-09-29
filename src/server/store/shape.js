@@ -6,7 +6,7 @@
  */
 
 import type {Vector2, Plane} from './math';
-import {distance, clamp} from './math';
+import {distance, clamp, minus, minusEquals, dot} from './math';
 
 type VertexAttributes = {[string]: number | number[]};
 
@@ -569,7 +569,23 @@ class CurveTo extends PathCommand {
   }
 
   _getDivisions(tessellation: number, previous: ?Vector2): number {
-    return 1;
+    if (!previous) {
+      return 1;
+    }
+    const [a, b, c, d] = this._getSplineCoefficients(previous);
+    const length =
+      0.5 * dot(a, a) + 0.5 * dot(b, b) + dot(a, b) + dot(a, c) + dot(c, b);
+    return Math.ceil(length * tessellation);
+  }
+
+  _getSplineCoefficients(
+    previous: Vector2,
+  ): [Vector2, Vector2, Vector2, Vector2] {
+    const d = previous;
+    const c = minus(this.c1, previous);
+    const b = minus(this.c2, previous);
+    const a = minusEquals(minusEquals(minus(this.dest, b), c), d);
+    return [a, b, c, d];
   }
 }
 

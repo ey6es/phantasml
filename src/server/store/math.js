@@ -126,16 +126,38 @@ export function getTransformTranslation(transform: Transform): Vector2 {
 }
 
 /**
- * Adds a source vector to a destination vector.
+ * Adds two vectors, returning a new result.
  *
- * @param dest the vector to modify.
- * @param soure the vector to add.
- * @return a reference to the destination vector, for chaining.
+ * @param first the first vector to add.
+ * @param second the second vector to add.
+ * @return a new vector containing the result.
  */
-export function addToVector(dest: Vector2, source: Vector2): Vector2 {
-  dest.x += source.x;
-  dest.y += source.y;
-  return dest;
+export function plus(first: Vector2, second: Vector2): Vector2 {
+  return {x: first.x + second.x, y: first.y + second.y};
+}
+
+/**
+ * Adds the second vector to the first.
+ *
+ * @param first the vector to add to.
+ * @param second the vector to add.
+ * @return a reference to the first vector, for chaining.
+ */
+export function plusEquals(first: Vector2, second: Vector2): Vector2 {
+  first.x += second.x;
+  first.y += second.y;
+  return first;
+}
+
+/**
+ * Subtracts the second vector from the first, returning a new result.
+ *
+ * @param first the vector to subtract from.
+ * @param second the vector to subtract.
+ * @return a new vector containing the result.
+ */
+export function minus(first: Vector2, second: Vector2): Vector2 {
+  return {x: first.x - second.x, y: first.y - second.y};
 }
 
 /**
@@ -143,57 +165,36 @@ export function addToVector(dest: Vector2, source: Vector2): Vector2 {
  *
  * @param first the vector to subtract from.
  * @param second the vector to subtract.
+ * @return a reference to the first vector, for chaining.
+ */
+export function minusEquals(first: Vector2, second: Vector2): Vector2 {
+  first.x -= second.x;
+  first.y -= second.y;
+  return first;
+}
+
+/**
+ * Multiplies a vector by a scalar, returning a new result.
+ *
+ * @param vector the vector to scale.
+ * @param scalar the scale factor.
  * @return a new vector containing the result.
  */
-export function subtractVectors(first: Vector2, second: Vector2): Vector2 {
-  return {x: second.x - first.x, y: second.y - first.y};
-}
-
-/**
- * Sets a vector to its normalized orthogonal version.
- *
- * @param dest the vector to orthonormalize.
- * @return a reference to the destination vector, for chaining.
- */
-export function orthoNormalizeVector(dest: Vector2): Vector2 {
-  return normalizeVector(orthogonalizeVector(dest));
-}
-
-/**
- * Sets a vector to its orthogonal version (that is, rotates it ninety degrees
- * clockwise).
- *
- * @param dest the vector to orthogonalize.
- * @return a reference to the destination vector, for chaining.
- */
-export function orthogonalizeVector(dest: Vector2): Vector2 {
-  const tmpX = dest.x;
-  dest.x = dest.y;
-  dest.y = -tmpX;
-  return dest;
-}
-
-/**
- * Normalizes a vector.
- *
- * @param dest the vector to normalize.
- * @return a reference to the destination vector, for chaining.
- */
-export function normalizeVector(dest: Vector2): Vector2 {
-  return scaleVector(dest, 1.0 / length(dest));
+export function times(vector: Vector2, scalar: number): Vector2 {
+  return {x: vector.x * scalar, y: vector.y * scalar};
 }
 
 /**
  * Multiplies a vector by a scalar.
  *
- * @param dest the vector to modify.
- * @param scale the scale factor.
- * @return a reference to the destination vector, for chaining.
+ * @param vector the vector to scale.
+ * @param scalar the scale factor.
+ * @return a reference to the vector, for chaining.
  */
-export function scaleVector(dest: Vector2, scale: number): Vector2 {
-  dest.x *= scale;
-  dest.y *= scale;
-  return dest;
+export function timesEquals(vector: Vector2, scalar: number): Vector2 {
+  vector.x *= scalar;
+  vector.y *= scalar;
+  return vector;
 }
 
 /**
@@ -217,17 +218,6 @@ export function distance(from: Vector2, to: Vector2): number {
   const vx = to.x - from.x;
   const vy = to.y - from.y;
   return Math.sqrt(vx * vx + vy * vy);
-}
-
-/**
- * Gets the signed distance from a plane to a point.
- *
- * @param plane the plane to use.
- * @param point the point to check.
- * @return the signed distance.
- */
-export function signedDistance(plane: Plane, point: Vector2): number {
-  return dot(plane.normal, point) + plane.constant;
 }
 
 /**

@@ -47,8 +47,8 @@ import {Scene} from '../server/store/scene';
 import type {Transform} from '../server/store/math';
 import {
   getTransformTranslation,
-  addToVector,
-  scaleVector,
+  plusEquals,
+  timesEquals,
 } from '../server/store/math';
 
 library.add(faPlay);
@@ -393,11 +393,11 @@ class HandleTool extends Tool {
     const totalTranslation = {x: 0.0, y: 0.0};
     for (const id of this.props.selection) {
       const transform = resource.getWorldTransform(id);
-      addToVector(totalTranslation, getTransformTranslation(transform));
+      plusEquals(totalTranslation, getTransformTranslation(transform));
     }
     this._renderHandle(
       renderer,
-      {translation: scaleVector(totalTranslation, 1.0 / selectionSize)},
+      {translation: timesEquals(totalTranslation, 1.0 / selectionSize)},
       null,
     );
   };
