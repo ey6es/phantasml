@@ -180,7 +180,7 @@ export function orthogonalizeVector(dest: Vector2): Vector2 {
  * @return a reference to the destination vector, for chaining.
  */
 export function normalizeVector(dest: Vector2): Vector2 {
-  return scaleVector(dest, 1.0 / getVectorLength(dest));
+  return scaleVector(dest, 1.0 / length(dest));
 }
 
 /**
@@ -202,8 +202,21 @@ export function scaleVector(dest: Vector2, scale: number): Vector2 {
  * @param vector the vector.
  * @return the vector's length.
  */
-export function getVectorLength(vector: Vector2): number {
-  return Math.sqrt(getDotProduct(vector, vector));
+export function length(vector: Vector2): number {
+  return Math.sqrt(dot(vector, vector));
+}
+
+/**
+ * Computes the distance between two points.
+ *
+ * @param from the source point.
+ * @param to the destination point.
+ * @return the distance between the points.
+ */
+export function distance(from: Vector2, to: Vector2): number {
+  const vx = to.x - from.x;
+  const vy = to.y - from.y;
+  return Math.sqrt(vx * vx + vy * vy);
 }
 
 /**
@@ -213,8 +226,8 @@ export function getVectorLength(vector: Vector2): number {
  * @param point the point to check.
  * @return the signed distance.
  */
-export function getSignedDistance(plane: Plane, point: Vector2): number {
-  return getDotProduct(plane.normal, point) + plane.constant;
+export function signedDistance(plane: Plane, point: Vector2): number {
+  return dot(plane.normal, point) + plane.constant;
 }
 
 /**
@@ -224,6 +237,18 @@ export function getSignedDistance(plane: Plane, point: Vector2): number {
  * @param second the second vector.
  * @return the dot product.
  */
-export function getDotProduct(first: Vector2, second: Vector2): number {
+export function dot(first: Vector2, second: Vector2): number {
   return first.x * second.x + first.y * second.y;
+}
+
+/**
+ * Clamps a value between a minimum and a maximum.
+ *
+ * @param value the value to clamp.
+ * @param min the minimum boundary.
+ * @param max the maximum boundary.
+ * @return the clamped value.
+ */
+export function clamp(value: number, min: number, max: number): number {
+  return value < min ? min : value > max ? max : value;
 }

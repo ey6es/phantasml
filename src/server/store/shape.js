@@ -6,7 +6,7 @@
  */
 
 import type {Vector2, Plane} from './math';
-import {subtractVectors, orthoNormalizeVector, getDotProduct} from './math';
+import {distance, clamp} from './math';
 
 type VertexAttributes = {[string]: number | number[]};
 
@@ -49,6 +49,7 @@ class Path {
    * @return a reference to this path, for chaining.
    */
   lineTo(dest: Vector2, attributes?: VertexAttributes): Path {
+    this._ensureStartPosition(attributes);
     this.commands.push(new LineTo(dest, attributes));
     return this;
   }
@@ -63,6 +64,7 @@ class Path {
    * @return a reference to this path, for chaining.
    */
   arcTo(dest: Vector2, radius: number, attributes?: VertexAttributes): Path {
+    this._ensureStartPosition(attributes);
     this.commands.push(new ArcTo(dest, radius, attributes));
     return this;
   }
@@ -82,8 +84,15 @@ class Path {
     c2: Vector2,
     attributes?: VertexAttributes,
   ): Path {
+    this._ensureStartPosition(attributes);
     this.commands.push(new CurveTo(dest, c1, c2, attributes));
     return this;
+  }
+
+  _ensureStartPosition(attributes: ?VertexAttributes) {
+    if (this.commands.length === 0) {
+      this.commands.push(new MoveTo({x: 0.0, y: 0.0}, attributes));
+    }
   }
 
   updateStats(
@@ -476,7 +485,13 @@ class ArcTo extends PathCommand {
   }
 
   _getDivisions(tessellation: number, previous: ?Vector2): number {
-    return 1;
+    if (!previous) {
+      return 1;
+    }
+    const height = distance(previous, this.dest) / 2.0;
+    const length =
+      2.0 * this.radius * Math.asin(clamp(height / this.radius, -1.0, 1.0));
+    return Math.ceil(length * tessellation);
   }
 }
 
