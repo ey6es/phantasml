@@ -10,6 +10,7 @@ import type {Renderer} from './util';
 import {Geometry} from './util';
 import type {Transform} from '../../server/store/math';
 import {getTransformMatrix} from '../../server/store/math';
+import {ShapeList} from '../../server/store/shape';
 
 const RECTANGLE_VERTEX_SHADER = `
   uniform mat3 modelMatrix;
@@ -88,6 +89,22 @@ export function renderRectangle(
   program.setUniformFloat('pixelSize', renderer.pixelsToWorldUnits);
   renderer.setEnabled(renderer.gl.BLEND, true);
   RectangleGeometry.draw(program);
+}
+
+const TranslationHandleShapeList = createHandleShapeList(shapeList => {
+  // arrow
+});
+const RotationHandleShapeList = createHandleShapeList(shapeList => {
+  // circle
+});
+const ScaleHandleShapeList = createHandleShapeList(shapeList => {
+  // square
+});
+
+function createHandleShapeList(knobFn: ShapeList => void): ShapeList {
+  const shapeList = new ShapeList();
+
+  return shapeList;
 }
 
 /** The hover states for handles. */

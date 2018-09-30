@@ -12,26 +12,6 @@ export type Vector2 = {x: number, y: number};
 export type LineSegment = {start: Vector2, end: Vector2};
 
 /**
- * Converts a value in degrees to radians.
- *
- * @param value the value in degrees.
- * @return the value in radians.
- */
-export function radians(value: number): number {
-  return (value * Math.PI) / 180.0;
-}
-
-/**
- * Converts a value in radians to degrees.
- *
- * @param value the value in radians.
- * @return the value in degrees.
- */
-export function degrees(value: number): number {
-  return (value * 180.0) / Math.PI;
-}
-
-/**
  * Normalizes an angle to [-pi, pi].
  *
  * @param angle the angle to normalize.

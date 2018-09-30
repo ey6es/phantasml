@@ -128,13 +128,13 @@ export function getTransformTranslation(transform: Transform): Vector2 {
 /**
  * Creates a new vector or assigns a new value to an existing one.
  *
- * @param x the x component.
- * @param y the y component.
+ * @param [x=0] the x component.
+ * @param [y=0] the y component.
  * @param [result] the vector in which to store the result (otherwise, a new
  * vector will be created).
  * @return a reference to the result vector, for chaining.
  */
-export function vec2(x: number, y: number, result?: Vector2): Vector2 {
+export function vec2(x: number = 0, y: number = 0, result?: Vector2): Vector2 {
   if (!result) {
     return {x, y};
   }
@@ -455,4 +455,24 @@ export function clamp(value: number, min: number, max: number): number {
  */
 export function mix(start: number, end: number, parameter: number): number {
   return start + parameter * (end - start);
+}
+
+/**
+ * Converts a value in degrees to radians.
+ *
+ * @param value the value in degrees.
+ * @return the value in radians.
+ */
+export function radians(value: number): number {
+  return (value * Math.PI) / 180.0;
+}
+
+/**
+ * Converts a value in radians to degrees.
+ *
+ * @param value the value in radians.
+ * @return the value in degrees.
+ */
+export function degrees(value: number): number {
+  return (value * 180.0) / Math.PI;
 }

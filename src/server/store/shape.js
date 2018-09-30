@@ -7,8 +7,11 @@
 
 import type {Vector2, Plane} from './math';
 import {
+  radians,
   distance,
   clamp,
+  vec2,
+  equals,
   plus,
   plusEquals,
   minus,
@@ -833,18 +836,204 @@ class Shape {
 }
 
 /**
- * A general collection of shapes and paths.
+ * A general collection of shapes and paths with Logo-like builder tools.
  *
- * @param shapes the shapes to include in the collection.
+ * @param [shapes] the shapes to include in the collection, if any.
  * @param [paths] the paths to include in the collection, if any.
  */
-class ShapeList {
+export class ShapeList {
   shapes: Shape[];
   paths: Path[];
 
-  constructor(shapes: Shape[], paths: Path[] = []) {
+  position = vec2();
+  rotation = 0.0;
+  attributes: VertexAttributes = {};
+
+  _drawingPath: ?Path;
+
+  constructor(shapes: Shape[] = [], paths: Path[] = []) {
     this.shapes = shapes;
     this.paths = paths;
+  }
+
+  /**
+   * Rotates the turtle left or right.
+   *
+   * @param angle the amount to rotate, in radians (positive for CCW).
+   * @return a reference to the list, for chaining.
+   */
+  rotate(angle: number): ShapeList {
+    this.rotation += angle;
+    return this;
+  }
+
+  /**
+   * Moves the turtle forward.
+   *
+   * @param distance the distance to advance.
+   * @param [attributes] optional attributes for the new position.
+   * @return a reference to the list, for chaining.
+   */
+  advance(distance: number, attributes?: VertexAttributes): ShapeList {
+    this.position.x += distance * Math.cos(this.rotation);
+    this.position.y += distance * Math.sin(this.rotation);
+    attributes && Object.assign(this.attributes, attributes);
+    if (this._drawingPath) {
+      this._drawingPath.lineTo(
+        equals(this.position),
+        Object.assign({}, this.attributes),
+      );
+    }
+    return this;
+  }
+
+  /**
+   * Jumps to a new location.
+   *
+   * @param x the x coordinate to jump to.
+   * @param y the y coordinate to jump to.
+   * @param [attributes] optional attributes for the new position.
+   * @return a reference to the list, for chaining.
+   */
+  jump(x: number, y: number, attributes?: VertexAttributes): ShapeList {
+    this.position.x = x;
+    this.position.y = y;
+    attributes && Object.assign(this.attributes, attributes);
+    if (this._drawingPath) {
+      this._drawingPath.lineTo(vec2(x, y), Object.assign({}, this.attributes));
+    }
+    return this;
+  }
+
+  /**
+   * Moves the turtle forward in an arc specified in degrees.
+   *
+   * @param angle the angle to turn in degrees.
+   * @param radius the radius of the arc.
+   * @param [attributes] optional attributes for the new position.
+   * @return a reference to the list, for chaining.
+   */
+  turn(
+    angle: number,
+    radius: number,
+    attributes?: VertexAttributes,
+  ): ShapeList {
+    return this.arc(radians(angle), radius, attributes);
+  }
+
+  /**
+   * Moves the turtle forward in an arc.
+   *
+   * @param angle the angle to turn in radians.
+   * @param radius the radius of the arc.
+   * @param [attributes] optional attributes for the new position.
+   * @return a reference to the list, for chaining.
+   */
+  arc(
+    angle: number,
+    radius: number,
+    attributes?: ?VertexAttributes,
+  ): ShapeList {
+    if (angle > Math.PI || angle < -Math.PI) {
+      // angles must be <= 180 degrees
+      const halfAngle = angle * 0.5;
+      return this.arc(halfAngle, radius, attributes).arc(
+        halfAngle,
+        radius,
+        attributes,
+      );
+    }
+    const nextRotation = this.rotation + angle;
+    this.position.x +=
+      radius * (Math.sin(nextRotation) - Math.sin(this.rotation));
+    this.position.y +=
+      radius * (Math.cos(this.rotation) - Math.cos(nextRotation));
+    this.rotation = nextRotation;
+    attributes && Object.assign(this.attributes, attributes);
+    if (this._drawingPath) {
+      this._drawingPath.arcTo(
+        equals(this.position),
+        radius,
+        Object.assign({}, this.attributes),
+      );
+    }
+    return this;
+  }
+
+  /**
+   * Moves the turtle forward in a cubic spline curve.
+   *
+   * @param firstDistance the distance to the first control point.
+   * @param firstAngle the angle to turn after the first control point.
+   * @param secondDistance the distance to the second control point.
+   * @param secondAngle the angle to turn after the second control point.
+   * @param thirdDistance the distance to the final destination.
+   * @param [attributes] optional attributes for the new position.
+   * @return a reference to the list, for chaining.
+   */
+  curve(
+    firstDistance: number,
+    firstAngle: number,
+    secondDistance: number,
+    secondAngle: number,
+    thirdDistance: number,
+    attributes?: VertexAttributes,
+  ): ShapeList {
+    this.position.x += firstDistance * Math.cos(this.rotation);
+    this.position.y += firstDistance * Math.sin(this.rotation);
+    const c1 = equals(this.position);
+    this.rotation += firstAngle;
+    this.position.x += secondDistance * Math.cos(this.rotation);
+    this.position.y += secondDistance * Math.sin(this.rotation);
+    const c2 = equals(this.position);
+    this.rotation += secondAngle;
+    this.position.x += thirdDistance * Math.cos(this.rotation);
+    this.position.y += thirdDistance * Math.sin(this.rotation);
+    attributes && Object.assign(this.attributes, attributes);
+    if (this._drawingPath) {
+      this._drawingPath.curveTo(
+        equals(this.position),
+        c1,
+        c2,
+        Object.assign({}, this.attributes),
+      );
+    }
+    return this;
+  }
+
+  /**
+   * Puts the pen down (starts drawing).
+   *
+   * @param [shape=false] if true, draw a filled shape rather than a path.
+   * @return a reference to the list, for chaining.
+   */
+  penDown(shape: boolean = false): ShapeList {
+    this._drawingPath = new Path();
+    if (shape) {
+      this.shapes.push(new Shape(this._drawingPath));
+    } else {
+      this.paths.push(this._drawingPath);
+    }
+    this._drawingPath.moveTo(
+      equals(this.position),
+      Object.assign(this.attributes),
+    );
+    return this;
+  }
+
+  /**
+   * Picks the pen up (stops drawing).
+   *
+   * @param [closeLoop=false] if true and we were drawing a path, make that
+   * path a closed loop.
+   * @return a reference to the list, for chaining.
+   */
+  penUp(closeLoop: boolean = false): ShapeList {
+    if (this._drawingPath) {
+      this._drawingPath.loop = closeLoop;
+      this._drawingPath = null;
+    }
+    return this;
   }
 
   /**

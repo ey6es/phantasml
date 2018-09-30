@@ -29,11 +29,12 @@ import type {EditorTab} from './store';
 import {StoreActions, store} from './store';
 import {EntityName} from './entity';
 import type {Vector2} from './util/math';
-import {radians, degrees, normalizeAngle, roundToPrecision} from './util/math';
+import {normalizeAngle, roundToPrecision} from './util/math';
 import {Menu, Submenu, NumberField, ColorField, renderText} from './util/ui';
 import {RendererComponents} from './renderer/components';
 import type {Resource, Entity} from '../server/store/resource';
 import {Scene, SceneActions} from '../server/store/scene';
+import {radians, degrees} from '../server/store/math';
 
 /**
  * The component menu dropdown.
