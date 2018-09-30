@@ -593,8 +593,14 @@ class CurveTo extends PathCommand {
       tessellation,
       previous,
     );
+    // get the coefficients of the quartic length function for normalization
+    const aa = 0.5 * dot(a, a);
+    const bb = dot(a, b);
+    const cc = dot(a, c) + 0.5 * dot(b, b);
+    const dd = dot(c, b);
     const parameterIncrement = 1.0 / divisions;
     let parameter = parameterIncrement;
+    const point = {x: 0.0, y: 0.0};
     for (let ii = 0; ii < divisions; ii++) {
       const closing = closeLoop && ii === divisions - 1;
       if (!edge) {
@@ -607,14 +613,27 @@ class CurveTo extends PathCommand {
         );
       }
       if (!closing) {
-        const t = 0.0;
+        // approximate the normalized spline parameter using Newton's method
+        const ee = -(length * parameter);
+        let t = parameter;
+        const ITERATIONS = 3;
+        for (let jj = 0; jj < ITERATIONS; jj++) {
+          const value = t * (t * (t * (t * aa + bb) + cc) + dd) + ee;
+          const derivative = t * (t * (4 * t * aa + 3 * bb) + 2 * cc) + dd;
+          if (derivative !== 0.0) {
+            t -= value / derivative;
+          }
+        }
+        t = clamp(t, 0.0, 1.0);
+        point.x = t * (t * (t * a.x + b.x) + c.x) + d.x;
+        point.y = t * (t * (t * a.y + b.y) + c.y) + d.y;
         arrayIndex = this._writeVertices(
           arrayBuffer,
           arrayIndex,
           attributeOffsets,
           vertexSize,
           edge,
-          {x: 0.0, y: 0.0},
+          point,
           parameter,
           previous,
         );
