@@ -6,7 +6,7 @@
  */
 
 import type {Vector2, Plane} from './math';
-import {distance, clamp, minus, minusEquals, dot} from './math';
+import {distance, clamp, minus, minusEquals, dot, mix} from './math';
 
 type VertexAttributes = {[string]: number | number[]};
 
@@ -102,24 +102,16 @@ class Path {
   ) {
     for (let ii = 0; ii < this.commands.length; ii++) {
       const command = this.commands[ii];
-      let previousCommand: ?PathCommand;
+      let previous: ?PathCommand;
       let closeLoop = false;
       if (this.loop || edge) {
         const lastIndex = this.commands.length - 1;
-        previousCommand = this.commands[
-          (ii + lastIndex) % this.commands.length
-        ];
+        previous = this.commands[(ii + lastIndex) % this.commands.length];
         closeLoop = ii === lastIndex;
       } else {
-        previousCommand = this.commands[ii - 1];
+        previous = this.commands[ii - 1];
       }
-      command.updateStats(
-        stats,
-        tessellation,
-        edge,
-        previousCommand && previousCommand.dest,
-        closeLoop,
-      );
+      command.updateStats(stats, tessellation, edge, previous, closeLoop);
     }
   }
 
@@ -137,16 +129,14 @@ class Path {
     const firstArrayIndex = arrayIndex;
     for (let ii = 0; ii < this.commands.length; ii++) {
       const command = this.commands[ii];
-      let previousCommand: ?PathCommand;
+      let previous: ?PathCommand;
       let closeLoop = false;
       if (this.loop || edge) {
         const lastIndex = this.commands.length - 1;
-        previousCommand = this.commands[
-          (ii + lastIndex) % this.commands.length
-        ];
+        previous = this.commands[(ii + lastIndex) % this.commands.length];
         closeLoop = ii === lastIndex;
       } else {
-        previousCommand = this.commands[ii - 1];
+        previous = this.commands[ii - 1];
       }
       [arrayIndex, elementArrayIndex] = command.populateBuffers(
         arrayBuffer,
@@ -158,7 +148,7 @@ class Path {
         tessellation,
         edge,
         firstArrayIndex,
-        previousCommand && previousCommand.dest,
+        previous,
         closeLoop,
       );
     }
@@ -232,7 +222,7 @@ class PathCommand {
     stats: GeometryStats,
     tessellation: number,
     edge: boolean,
-    previous: ?Vector2,
+    previous: ?PathCommand,
     closeLoop: boolean,
   ) {
     if (this.attributes) {
@@ -256,7 +246,7 @@ class PathCommand {
     tessellation: number,
     edge: boolean,
     firstArrayIndex: number,
-    previous: ?Vector2,
+    previous: ?PathCommand,
     closeLoop: boolean,
   ): [number, number] {
     return [arrayIndex, elementArrayIndex];
@@ -268,19 +258,32 @@ class PathCommand {
     attributeOffsets: {[string]: number},
     vertexSize: number,
     edge: boolean,
-    vx: number,
-    vy: number,
+    position: Vector2,
+    parameter: number = 1.0,
+    previous?: PathCommand,
   ): number {
     let vertexIndex = arrayIndex + attributeOffsets.vertex;
-    arrayBuffer[vertexIndex] = vx;
-    arrayBuffer[vertexIndex + 1] = vy;
-    this._writeAttributes(arrayBuffer, arrayIndex, attributeOffsets);
+    arrayBuffer[vertexIndex] = position.x;
+    arrayBuffer[vertexIndex + 1] = position.y;
+    this._writeAttributes(
+      arrayBuffer,
+      arrayIndex,
+      attributeOffsets,
+      parameter,
+      previous,
+    );
     arrayIndex += vertexSize;
     if (!edge) {
       vertexIndex = arrayIndex + attributeOffsets.vertex;
-      arrayBuffer[vertexIndex] = vx;
-      arrayBuffer[vertexIndex + 1] = vy;
-      this._writeAttributes(arrayBuffer, arrayIndex, attributeOffsets);
+      arrayBuffer[vertexIndex] = position.x;
+      arrayBuffer[vertexIndex + 1] = position.y;
+      this._writeAttributes(
+        arrayBuffer,
+        arrayIndex,
+        attributeOffsets,
+        parameter,
+        previous,
+      );
       arrayIndex += vertexSize;
     }
     return arrayIndex;
@@ -290,9 +293,43 @@ class PathCommand {
     arrayBuffer: Float32Array,
     arrayIndex: number,
     attributeOffsets: {[string]: number},
+    parameter: number,
+    previous: ?PathCommand,
   ) {
+    const previousAttributes = previous && previous.attributes;
+    if (previousAttributes) {
+      for (const name in previousAttributes) {
+        const previousValue: any = previousAttributes[name];
+        const nextValue: any = this.attributes && this.attributes[name];
+        const attributeIndex = arrayIndex + attributeOffsets[name];
+        const previousArray = Array.isArray(previousValue);
+        const nextArray = Array.isArray(nextValue);
+        if (previousArray || nextArray) {
+          const totalLength = Math.max(
+            previousArray ? previousValue.length : 1,
+            nextArray ? nextValue.length : 1,
+          );
+          for (let ii = 0; ii < totalLength; ii++) {
+            arrayBuffer[attributeIndex + ii] = mix(
+              (previousArray ? previousValue[ii] : previousValue) || 0,
+              (nextArray ? nextValue[ii] : nextValue) || 0,
+              parameter,
+            );
+          }
+        } else {
+          arrayBuffer[attributeIndex] = mix(
+            previousValue,
+            nextValue || 0,
+            parameter,
+          );
+        }
+      }
+    }
     if (this.attributes) {
       for (const name in this.attributes) {
+        if (previousAttributes && previousAttributes[name] !== undefined) {
+          continue; // already written
+        }
         const value = this.attributes[name];
         const attributeIndex = arrayIndex + attributeOffsets[name];
         if (Array.isArray(value)) {
@@ -329,7 +366,7 @@ class MoveTo extends PathCommand {
     stats: GeometryStats,
     tessellation: number,
     edge: boolean,
-    previous: ?Vector2,
+    previous: ?PathCommand,
     closeLoop: boolean,
   ) {
     super.updateStats(stats, tessellation, edge, previous, closeLoop);
@@ -346,7 +383,7 @@ class MoveTo extends PathCommand {
     tessellation: number,
     edge: boolean,
     firstArrayIndex: number,
-    previous: ?Vector2,
+    previous: ?PathCommand,
     closeLoop: boolean,
   ): [number, number] {
     arrayIndex = this._writeVertices(
@@ -355,8 +392,7 @@ class MoveTo extends PathCommand {
       attributeOffsets,
       vertexSize,
       edge,
-      this.dest.x,
-      this.dest.y,
+      this.dest,
     );
     return [arrayIndex, elementArrayIndex];
   }
@@ -367,7 +403,7 @@ class LineTo extends PathCommand {
     stats: GeometryStats,
     tessellation: number,
     edge: boolean,
-    previous: ?Vector2,
+    previous: ?PathCommand,
     closeLoop: boolean,
   ) {
     super.updateStats(stats, tessellation, edge, previous, closeLoop);
@@ -389,7 +425,7 @@ class LineTo extends PathCommand {
     tessellation: number,
     edge: boolean,
     firstArrayIndex: number,
-    previous: ?Vector2,
+    previous: ?PathCommand,
     closeLoop: boolean,
   ): [number, number] {
     if (!edge) {
@@ -408,8 +444,7 @@ class LineTo extends PathCommand {
         attributeOffsets,
         vertexSize,
         edge,
-        this.dest.x,
-        this.dest.y,
+        this.dest,
       );
     }
     return [arrayIndex, elementArrayIndex];
@@ -428,9 +463,12 @@ class ArcTo extends PathCommand {
     stats: GeometryStats,
     tessellation: number,
     edge: boolean,
-    previous: ?Vector2,
+    previous: ?PathCommand,
     closeLoop: boolean,
   ) {
+    if (!previous) {
+      throw new Error('Missing previous command.');
+    }
     super.updateStats(stats, tessellation, edge, previous, closeLoop);
     const divisions = this._getDivisions(tessellation, previous);
     if (!edge) {
@@ -449,9 +487,12 @@ class ArcTo extends PathCommand {
     tessellation: number,
     edge: boolean,
     firstArrayIndex: number,
-    previous: ?Vector2,
+    previous: ?PathCommand,
     closeLoop: boolean,
   ): [number, number] {
+    if (!previous) {
+      throw new Error('Missing previous command.');
+    }
     const divisions = this._getDivisions(tessellation, previous);
     const parameterIncrement = 1.0 / divisions;
     let cx = 0.0;
@@ -475,8 +516,12 @@ class ArcTo extends PathCommand {
           attributeOffsets,
           vertexSize,
           edge,
-          cx + this.radius * Math.cos(parameter),
-          cy + this.radius * Math.sin(parameter),
+          {
+            x: cx + this.radius * Math.cos(parameter),
+            y: cy + this.radius * Math.sin(parameter),
+          },
+          parameter,
+          previous,
         );
       }
       parameter += parameterIncrement;
@@ -484,11 +529,8 @@ class ArcTo extends PathCommand {
     return [arrayIndex, elementArrayIndex];
   }
 
-  _getDivisions(tessellation: number, previous: ?Vector2): number {
-    if (!previous) {
-      return 1;
-    }
-    const height = distance(previous, this.dest) / 2.0;
+  _getDivisions(tessellation: number, previous: PathCommand): number {
+    const height = distance(previous.dest, this.dest) / 2.0;
     const length =
       2.0 * this.radius * Math.asin(clamp(height / this.radius, -1.0, 1.0));
     return Math.ceil(length * tessellation);
@@ -514,11 +556,17 @@ class CurveTo extends PathCommand {
     stats: GeometryStats,
     tessellation: number,
     edge: boolean,
-    previous: ?Vector2,
+    previous: ?PathCommand,
     closeLoop: boolean,
   ) {
+    if (!previous) {
+      throw new Error('Missing previous command.');
+    }
     super.updateStats(stats, tessellation, edge, previous, closeLoop);
-    const divisions = this._getDivisions(tessellation, previous);
+    const [a, b, c, d, length, divisions] = this._getSplineParameters(
+      tessellation,
+      previous,
+    );
     if (!edge) {
       stats.indices += 6 * divisions;
     }
@@ -535,10 +583,16 @@ class CurveTo extends PathCommand {
     tessellation: number,
     edge: boolean,
     firstArrayIndex: number,
-    previous: ?Vector2,
+    previous: ?PathCommand,
     closeLoop: boolean,
   ): [number, number] {
-    const divisions = this._getDivisions(tessellation, previous);
+    if (!previous) {
+      throw new Error('Missing previous command.');
+    }
+    const [a, b, c, d, length, divisions] = this._getSplineParameters(
+      tessellation,
+      previous,
+    );
     const parameterIncrement = 1.0 / divisions;
     let parameter = parameterIncrement;
     for (let ii = 0; ii < divisions; ii++) {
@@ -553,14 +607,16 @@ class CurveTo extends PathCommand {
         );
       }
       if (!closing) {
+        const t = 0.0;
         arrayIndex = this._writeVertices(
           arrayBuffer,
           arrayIndex,
           attributeOffsets,
           vertexSize,
           edge,
-          0.0,
-          0.0,
+          {x: 0.0, y: 0.0},
+          parameter,
+          previous,
         );
       }
       parameter += parameterIncrement;
@@ -568,24 +624,18 @@ class CurveTo extends PathCommand {
     return [arrayIndex, elementArrayIndex];
   }
 
-  _getDivisions(tessellation: number, previous: ?Vector2): number {
-    if (!previous) {
-      return 1;
-    }
-    const [a, b, c, d] = this._getSplineCoefficients(previous);
+  _getSplineParameters(
+    tessellation: number,
+    previous: PathCommand,
+  ): [Vector2, Vector2, Vector2, Vector2, number, number] {
+    const d = previous.dest;
+    const c = minus(this.c1, previous.dest);
+    const b = minus(this.c2, previous.dest);
+    const a = minusEquals(minusEquals(minus(this.dest, b), c), d);
     const length =
       0.5 * dot(a, a) + 0.5 * dot(b, b) + dot(a, b) + dot(a, c) + dot(c, b);
-    return Math.ceil(length * tessellation);
-  }
-
-  _getSplineCoefficients(
-    previous: Vector2,
-  ): [Vector2, Vector2, Vector2, Vector2] {
-    const d = previous;
-    const c = minus(this.c1, previous);
-    const b = minus(this.c2, previous);
-    const a = minusEquals(minusEquals(minus(this.dest, b), c), d);
-    return [a, b, c, d];
+    const divisions = Math.ceil(length * tessellation);
+    return [a, b, c, d, length, divisions];
   }
 }
 

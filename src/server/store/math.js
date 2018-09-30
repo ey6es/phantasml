@@ -126,14 +126,25 @@ export function getTransformTranslation(transform: Transform): Vector2 {
 }
 
 /**
- * Adds two vectors, returning a new result.
+ * Adds two vectors.
  *
  * @param first the first vector to add.
  * @param second the second vector to add.
- * @return a new vector containing the result.
+ * @param [result] the vector in which to store the result (otherwise, a new
+ * vector will be created).
+ * @return a reference to the result vector, for chaining.
  */
-export function plus(first: Vector2, second: Vector2): Vector2 {
-  return {x: first.x + second.x, y: first.y + second.y};
+export function plus(
+  first: Vector2,
+  second: Vector2,
+  result: ?Vector2,
+): Vector2 {
+  if (!result) {
+    return {x: first.x + second.x, y: first.y + second.y};
+  }
+  result.x = first.x + second.x;
+  result.y = first.y + second.y;
+  return result;
 }
 
 /**
@@ -144,20 +155,29 @@ export function plus(first: Vector2, second: Vector2): Vector2 {
  * @return a reference to the first vector, for chaining.
  */
 export function plusEquals(first: Vector2, second: Vector2): Vector2 {
-  first.x += second.x;
-  first.y += second.y;
-  return first;
+  return plus(first, second, first);
 }
 
 /**
- * Subtracts the second vector from the first, returning a new result.
+ * Subtracts the second vector from the first.
  *
  * @param first the vector to subtract from.
  * @param second the vector to subtract.
- * @return a new vector containing the result.
+ * @param [result] the vector in which to store the result (otherwise, a new
+ * vector will be created).
+ * @return a reference to the result vector, for chaining.
  */
-export function minus(first: Vector2, second: Vector2): Vector2 {
-  return {x: first.x - second.x, y: first.y - second.y};
+export function minus(
+  first: Vector2,
+  second: Vector2,
+  result: ?Vector2,
+): Vector2 {
+  if (!result) {
+    return {x: first.x - second.x, y: first.y - second.y};
+  }
+  result.x = first.x - second.x;
+  result.y = first.y - second.y;
+  return result;
 }
 
 /**
@@ -168,20 +188,29 @@ export function minus(first: Vector2, second: Vector2): Vector2 {
  * @return a reference to the first vector, for chaining.
  */
 export function minusEquals(first: Vector2, second: Vector2): Vector2 {
-  first.x -= second.x;
-  first.y -= second.y;
-  return first;
+  return minus(first, second, first);
 }
 
 /**
- * Multiplies a vector by a scalar, returning a new result.
+ * Multiplies a vector by a scalar.
  *
  * @param vector the vector to scale.
  * @param scalar the scale factor.
- * @return a new vector containing the result.
+ * @param [result] the vector in which to store the result (otherwise, a new
+ * vector will be created).
+ * @return a reference to the result vector, for chaining.
  */
-export function times(vector: Vector2, scalar: number): Vector2 {
-  return {x: vector.x * scalar, y: vector.y * scalar};
+export function times(
+  vector: Vector2,
+  scalar: number,
+  result: ?Vector2,
+): Vector2 {
+  if (!result) {
+    return {x: vector.x * scalar, y: vector.y * scalar};
+  }
+  result.x = vector.x * scalar;
+  result.y = vector.y * scalar;
+  return result;
 }
 
 /**
@@ -192,9 +221,7 @@ export function times(vector: Vector2, scalar: number): Vector2 {
  * @return a reference to the vector, for chaining.
  */
 export function timesEquals(vector: Vector2, scalar: number): Vector2 {
-  vector.x *= scalar;
-  vector.y *= scalar;
-  return vector;
+  return times(vector, scalar, vector);
 }
 
 /**
@@ -241,4 +268,16 @@ export function dot(first: Vector2, second: Vector2): number {
  */
 export function clamp(value: number, min: number, max: number): number {
   return value < min ? min : value > max ? max : value;
+}
+
+/**
+ * Linearly interpolates between a start and an end value.
+ *
+ * @param start the starting point.
+ * @param end the ending point.
+ * @param parameter the interpolation parameter.
+ * @return the interpolated value.
+ */
+export function mix(start: number, end: number, parameter: number): number {
+  return start + parameter * (end - start);
 }
