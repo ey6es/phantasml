@@ -192,6 +192,57 @@ export function minusEquals(first: Vector2, second: Vector2): Vector2 {
 }
 
 /**
+ * Normalizes a vector.
+ *
+ * @param vector the vector to normalize.
+ * @param [result] the vector in which to store the result (otherwise, a new
+ * vector will be created).
+ * @return a reference to the result vector, for chaining.
+ */
+export function normalize(vector: Vector2, result: ?Vector2): Vector2 {
+  return times(vector, 1.0 / length(vector), result);
+}
+
+/**
+ * Normalizes a vector.
+ *
+ * @param vector the vector to normalize.
+ * @return a reference to the vector, for chaining.
+ */
+export function normalizeEquals(vector: Vector2): Vector2 {
+  return normalize(vector, vector);
+}
+
+/**
+ * Orthogonalizes a vector (rotates it ninety degrees CCW).
+ *
+ * @param vector the vector to orthogonalize.
+ * @param [result] the vector in which to store the result (otherwise, a new
+ * vector will be created).
+ * @return a reference to the result vector, for chaining.
+ */
+export function orthogonalize(vector: Vector2, result: ?Vector2): Vector2 {
+  if (!result) {
+    return {x: -vector.y, y: vector.x};
+  }
+  // result might be same as vector
+  const tmp = vector.x;
+  result.x = -vector.y;
+  result.y = tmp;
+  return result;
+}
+
+/**
+ * Orthogonalizes a vector.
+ *
+ * @param vector the vector to orthogonalize.
+ * @return a reference to the vector, for chaining.
+ */
+export function orthogonalizeEquals(vector: Vector2): Vector2 {
+  return orthogonalize(vector, vector);
+}
+
+/**
  * Multiplies a vector by a scalar.
  *
  * @param vector the vector to scale.

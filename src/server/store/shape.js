@@ -6,7 +6,20 @@
  */
 
 import type {Vector2, Plane} from './math';
-import {distance, clamp, minus, minusEquals, dot, mix} from './math';
+import {
+  distance,
+  clamp,
+  plus,
+  plusEquals,
+  minus,
+  minusEquals,
+  times,
+  timesEquals,
+  normalizeEquals,
+  orthogonalizeEquals,
+  dot,
+  mix,
+} from './math';
 
 type VertexAttributes = {[string]: number | number[]};
 
@@ -470,7 +483,7 @@ class ArcTo extends PathCommand {
       throw new Error('Missing previous command.');
     }
     super.updateStats(stats, tessellation, edge, previous, closeLoop);
-    const divisions = this._getDivisions(tessellation, previous);
+    const [length, divisions] = this._getArcParameters(tessellation, previous);
     if (!edge) {
       stats.indices += 6 * divisions;
     }
@@ -493,11 +506,24 @@ class ArcTo extends PathCommand {
     if (!previous) {
       throw new Error('Missing previous command.');
     }
-    const divisions = this._getDivisions(tessellation, previous);
+    const [length, divisions] = this._getArcParameters(tessellation, previous);
+    const angle = length / this.radius;
+    const midpoint = timesEquals(plus(this.dest, previous.dest), 0.5);
+    const distanceToCenter = this.radius * Math.cos(angle * 0.5);
+    const directionToCenter = orthogonalizeEquals(
+      normalizeEquals(minus(this.dest, previous.dest)),
+    );
+    const center = plusEquals(
+      times(directionToCenter, distanceToCenter),
+      midpoint,
+    );
+    const a0 = Math.atan2(
+      previous.dest.y - center.y,
+      previous.dest.x - center.x,
+    );
     const parameterIncrement = 1.0 / divisions;
-    let cx = 0.0;
-    let cy = 0.0;
     let parameter = parameterIncrement;
+    const point = {x: 0.0, y: 0.0};
     for (let ii = 0; ii < divisions; ii++) {
       const closing = closeLoop && ii === divisions - 1;
       if (!edge) {
@@ -510,16 +536,16 @@ class ArcTo extends PathCommand {
         );
       }
       if (!closing) {
+        const a = a0 + parameter * angle;
+        point.x = center.x + this.radius * Math.cos(a);
+        point.y = center.y + this.radius * Math.sin(a);
         arrayIndex = this._writeVertices(
           arrayBuffer,
           arrayIndex,
           attributeOffsets,
           vertexSize,
           edge,
-          {
-            x: cx + this.radius * Math.cos(parameter),
-            y: cy + this.radius * Math.sin(parameter),
-          },
+          point,
           parameter,
           previous,
         );
@@ -534,6 +560,17 @@ class ArcTo extends PathCommand {
     const length =
       2.0 * this.radius * Math.asin(clamp(height / this.radius, -1.0, 1.0));
     return Math.ceil(length * tessellation);
+  }
+
+  _getArcParameters(
+    tessellation: number,
+    previous: PathCommand,
+  ): [number, number] {
+    const height = distance(previous.dest, this.dest) / 2.0;
+    const length =
+      2.0 * this.radius * Math.asin(clamp(height / this.radius, -1.0, 1.0));
+    const divisions = Math.ceil(length * tessellation);
+    return [length, divisions];
   }
 }
 
