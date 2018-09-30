@@ -15,9 +15,11 @@ import {
   minusEquals,
   times,
   timesEquals,
-  normalizeEquals,
-  orthogonalizeEquals,
+  orthonormalizeEquals,
   dot,
+  cross,
+  planeFromPoints,
+  signedDistance,
   mix,
 } from './math';
 
@@ -510,8 +512,8 @@ class ArcTo extends PathCommand {
     const angle = length / this.radius;
     const midpoint = timesEquals(plus(this.dest, previous.dest), 0.5);
     const distanceToCenter = this.radius * Math.cos(angle * 0.5);
-    const directionToCenter = orthogonalizeEquals(
-      normalizeEquals(minus(this.dest, previous.dest)),
+    const directionToCenter = orthonormalizeEquals(
+      minus(this.dest, previous.dest),
     );
     const center = plusEquals(
       times(directionToCenter, distanceToCenter),
@@ -699,22 +701,21 @@ class CurveTo extends PathCommand {
  * A general representation of a shape.
  *
  * @param exterior the path defining the shape's exterior boundary.
- * @param holes paths representing interior holes in the shape.
  */
 class Shape {
   exterior: Path;
-  holes: Path[];
 
-  constructor(exterior: Path, ...holes: Path[]) {
+  constructor(exterior: Path) {
     this.exterior = exterior;
-    this.holes = holes;
   }
 
   updateStats(stats: GeometryStats, tessellation: number) {
+    let previousVertices = stats.vertices;
     this.exterior.updateStats(stats, tessellation, true);
-    for (const hole of this.holes) {
-      hole.updateStats(stats, tessellation, true);
-    }
+    const exteriorVertices = stats.vertices - previousVertices;
+    const triangles = exteriorVertices - 2;
+    const indices = 3 * triangles;
+    stats.indices += indices;
   }
 
   populateBuffers(
@@ -726,6 +727,7 @@ class Shape {
     vertexSize: number,
     tessellation: number,
   ): [number, number] {
+    const firstIndex = arrayIndex / vertexSize;
     [arrayIndex, elementArrayIndex] = this.exterior.populateBuffers(
       arrayBuffer,
       elementArrayBuffer,
@@ -736,17 +738,95 @@ class Shape {
       tessellation,
       true,
     );
-    for (const hole of this.holes) {
-      [arrayIndex, elementArrayIndex] = hole.populateBuffers(
-        arrayBuffer,
-        elementArrayBuffer,
-        arrayIndex,
-        elementArrayIndex,
-        attributeOffsets,
-        vertexSize,
-        tessellation,
-        true,
-      );
+    const lastIndex = arrayIndex / vertexSize;
+    const vertexCount = lastIndex - firstIndex;
+    const vertexOffset = attributeOffsets.vertex;
+    const p0 = {x: 0.0, y: 0.0};
+    const p1 = {x: 0.0, y: 0.0};
+    const p2 = {x: 0.0, y: 0.0};
+    const v0 = {x: 0.0, y: 0.0};
+    const v1 = {x: 0.0, y: 0.0};
+    const convexIndices: Set<number> = new Set();
+    const concaveIndices: Set<number> = new Set();
+    for (let ii = 0; ii < vertexCount; ii++) {
+      const i0 = firstIndex + ((ii + vertexCount - 1) % vertexCount);
+      const i1 = firstIndex + ii;
+      const i2 = firstIndex + ((ii + 1) % vertexCount);
+
+      const a0 = i0 * vertexSize + vertexOffset;
+      const a1 = i1 * vertexSize + vertexOffset;
+      const a2 = i2 * vertexSize + vertexOffset;
+
+      p0.x = arrayBuffer[a0];
+      p0.y = arrayBuffer[a0 + 1];
+
+      p1.x = arrayBuffer[a1];
+      p1.y = arrayBuffer[a1 + 1];
+
+      p2.x = arrayBuffer[a2];
+      p2.y = arrayBuffer[a2 + 1];
+
+      if (cross(minus(p2, p1, v0), minus(p0, p1, v1)) >= 0.0) {
+        convexIndices.add(ii);
+      } else {
+        concaveIndices.add(ii);
+      }
+    }
+    const plane = {normal: {x: 0.0, y: 0.0}, constant: 0.0};
+    let remainingTriangles = vertexCount - 2;
+    while (remainingTriangles > 0) {
+      convexIndexLoop: for (const middle of convexIndices) {
+        let left = middle;
+        let right = middle;
+        do {
+          left = (left + vertexCount - 1) % vertexCount;
+        } while (!(convexIndices.has(left) || concaveIndices.has(left)));
+        do {
+          right = (right + 1) % vertexCount;
+        } while (!(convexIndices.has(left) || concaveIndices.has(left)));
+
+        const i0 = firstIndex + left;
+        const i1 = firstIndex + middle;
+        const i2 = firstIndex + right;
+
+        const a0 = i0 * vertexSize + vertexOffset;
+        const a2 = i2 * vertexSize + vertexOffset;
+
+        p0.x = arrayBuffer[a0];
+        p0.y = arrayBuffer[a0 + 1];
+
+        p2.x = arrayBuffer[a2];
+        p2.y = arrayBuffer[a2 + 1];
+
+        planeFromPoints(p0, p2, plane);
+
+        for (const indices of [convexIndices, concaveIndices]) {
+          for (const index of indices) {
+            if (index === left || index === middle || index === right) {
+              continue;
+            }
+            const a1 = index * vertexSize + vertexOffset;
+            p1.x = arrayBuffer[a1];
+            p1.y = arrayBuffer[a1 + 1];
+            if (signedDistance(plane, p1) < 0.0) {
+              continue convexIndexLoop; // not an ear
+            }
+          }
+        }
+
+        convexIndices.delete(middle);
+        concaveIndices.delete(left);
+        convexIndices.add(left);
+        concaveIndices.delete(right);
+        convexIndices.add(right);
+
+        elementArrayBuffer[elementArrayIndex++] = i0;
+        elementArrayBuffer[elementArrayIndex++] = i1;
+        elementArrayBuffer[elementArrayIndex++] = i2;
+
+        remainingTriangles--;
+        break;
+      }
     }
     return [arrayIndex, elementArrayIndex];
   }

@@ -126,6 +126,41 @@ export function getTransformTranslation(transform: Transform): Vector2 {
 }
 
 /**
+ * Creates a new vector or assigns a new value to an existing one.
+ *
+ * @param x the x component.
+ * @param y the y component.
+ * @param [result] the vector in which to store the result (otherwise, a new
+ * vector will be created).
+ * @return a reference to the result vector, for chaining.
+ */
+export function vec2(x: number, y: number, result?: Vector2): Vector2 {
+  if (!result) {
+    return {x, y};
+  }
+  result.x = x;
+  result.y = y;
+  return result;
+}
+
+/**
+ * Copies a vector.
+ *
+ * @param vector the vector to copy.
+ * @param [result] the vector in which to store the result (otherwise, a new
+ * vector will be created).
+ * @return a reference to the result vector, for chaining.
+ */
+export function equals(vector: Vector2, result?: Vector2): Vector2 {
+  if (!result) {
+    return {x: vector.x, y: vector.y};
+  }
+  result.x = vector.x;
+  result.y = vector.y;
+  return result;
+}
+
+/**
  * Adds two vectors.
  *
  * @param first the first vector to add.
@@ -137,7 +172,7 @@ export function getTransformTranslation(transform: Transform): Vector2 {
 export function plus(
   first: Vector2,
   second: Vector2,
-  result: ?Vector2,
+  result?: Vector2,
 ): Vector2 {
   if (!result) {
     return {x: first.x + second.x, y: first.y + second.y};
@@ -170,7 +205,7 @@ export function plusEquals(first: Vector2, second: Vector2): Vector2 {
 export function minus(
   first: Vector2,
   second: Vector2,
-  result: ?Vector2,
+  result?: Vector2,
 ): Vector2 {
   if (!result) {
     return {x: first.x - second.x, y: first.y - second.y};
@@ -192,6 +227,28 @@ export function minusEquals(first: Vector2, second: Vector2): Vector2 {
 }
 
 /**
+ * Orthogonalizes and normalizes a vector.
+ *
+ * @param vector the vector to orthonormalize.
+ * @param [result] the vector in which to store the result (otherwise, a new
+ * vector will be created).
+ * @return a reference to the result vector, for chaining.
+ */
+export function orthonormalize(vector: Vector2, result?: Vector2): Vector2 {
+  return normalizeEquals(orthogonalize(vector, result));
+}
+
+/**
+ *  Orthogonalizes and normalizes a vector.
+ *
+ * @param vector the vector to orthonormalize.
+ * @return a reference to the vector, for chaining.
+ */
+export function orthonormalizeEquals(vector: Vector2): Vector2 {
+  return orthonormalize(vector, vector);
+}
+
+/**
  * Normalizes a vector.
  *
  * @param vector the vector to normalize.
@@ -199,7 +256,7 @@ export function minusEquals(first: Vector2, second: Vector2): Vector2 {
  * vector will be created).
  * @return a reference to the result vector, for chaining.
  */
-export function normalize(vector: Vector2, result: ?Vector2): Vector2 {
+export function normalize(vector: Vector2, result?: Vector2): Vector2 {
   return times(vector, 1.0 / length(vector), result);
 }
 
@@ -221,7 +278,7 @@ export function normalizeEquals(vector: Vector2): Vector2 {
  * vector will be created).
  * @return a reference to the result vector, for chaining.
  */
-export function orthogonalize(vector: Vector2, result: ?Vector2): Vector2 {
+export function orthogonalize(vector: Vector2, result?: Vector2): Vector2 {
   if (!result) {
     return {x: -vector.y, y: vector.x};
   }
@@ -254,7 +311,7 @@ export function orthogonalizeEquals(vector: Vector2): Vector2 {
 export function times(
   vector: Vector2,
   scalar: number,
-  result: ?Vector2,
+  result?: Vector2,
 ): Vector2 {
   if (!result) {
     return {x: vector.x * scalar, y: vector.y * scalar};
@@ -307,6 +364,73 @@ export function distance(from: Vector2, to: Vector2): number {
  */
 export function dot(first: Vector2, second: Vector2): number {
   return first.x * second.x + first.y * second.y;
+}
+
+/**
+ * Computes and returns the cross product of two vectors.
+ *
+ * @param first the first vector.
+ * @param second the second vector.
+ * @return the cross product.
+ */
+export function cross(first: Vector2, second: Vector2): number {
+  return first.x * second.y - first.y * second.x;
+}
+
+/**
+ * Creates a plane from a pair of points.
+ *
+ * @param first the first point on the plane.
+ * @param second the second point on the plane.
+ * @param [result] the plane in which to store the result (otherwise, a new
+ * plane will be created).
+ * @return a reference to the result plane, for chaining.
+ */
+export function planeFromPoints(
+  first: Vector2,
+  second: Vector2,
+  result?: Plane,
+): Plane {
+  if (!result) {
+    const normal = orthonormalizeEquals(minus(second, first));
+    return {normal, constant: -dot(normal, first)};
+  }
+  orthonormalizeEquals(minus(second, first, result.normal));
+  result.constant = -dot(result.normal, first);
+  return result;
+}
+
+/**
+ * Creates a plane from a point and the plane normal.
+ *
+ * @param point the point on the plane.
+ * @param normal the plane normal.
+ * @param [result] the plane in which to store the result (otherwise, a new
+ * plane will be created).
+ * @return a reference to the result plane, for chaining.
+ */
+export function planeFromPointNormal(
+  point: Vector2,
+  normal: Vector2,
+  result?: Plane,
+): Plane {
+  if (!result) {
+    return {normal: equals(normal), constant: -dot(normal, point)};
+  }
+  equals(normal, result.normal);
+  result.constant = -dot(normal, point);
+  return result;
+}
+
+/**
+ * Computes the signed distance from a plane to a point.
+ *
+ * @param plane the plane to check against.
+ * @param point the point to check.
+ * @return the signed distance to the plane.
+ */
+export function signedDistance(plane: Plane, point: Vector2): number {
+  return dot(plane.normal, point) + plane.constant;
 }
 
 /**
