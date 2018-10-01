@@ -84,8 +84,8 @@ export function getTransformMatrix(transform: Transform): number[] {
       sx = transform.scale.x;
       sy = transform.scale.y;
     }
-    sx = sx || 0;
-    sy = sy || 0;
+    sx = sx == null ? 1.0 : sx;
+    sy = sy == null ? 1.0 : sy;
     const rotation = transform.rotation || 0;
     const cr = Math.cos(rotation);
     const sr = Math.sin(rotation);

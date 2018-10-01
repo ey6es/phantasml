@@ -263,15 +263,17 @@ export class Geometry {
     for (const name in this._attributeSizes) {
       const size = this._attributeSizes[name];
       const location = program.getAttribLocation(name);
-      vertexAttribArraysEnabled.add(location);
-      gl.vertexAttribPointer(
-        location,
-        size,
-        gl.FLOAT,
-        false,
-        this._stride,
-        offset,
-      );
+      if (location !== -1) {
+        vertexAttribArraysEnabled.add(location);
+        gl.vertexAttribPointer(
+          location,
+          size,
+          gl.FLOAT,
+          false,
+          this._stride,
+          offset,
+        );
+      }
       offset += size * 4;
     }
     renderer.setVertexAttribArraysEnabled(vertexAttribArraysEnabled);

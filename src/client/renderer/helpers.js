@@ -91,20 +91,61 @@ export function renderRectangle(
   RectangleGeometry.draw(program);
 }
 
-const TranslationHandleShapeList = createHandleShapeList(shapeList => {
-  // arrow
-});
-const RotationHandleShapeList = createHandleShapeList(shapeList => {
-  // circle
-});
-const ScaleHandleShapeList = createHandleShapeList(shapeList => {
-  // square
-});
+const TranslationHandleGeometry = createHandleGeometry(
+  (
+    shapeList, // arrow
+  ) => shapeList,
+);
+const RotationHandleGeometry = createHandleGeometry(
+  (
+    shapeList, // circle
+  ) => shapeList,
+);
+const ScaleHandleGeometry = createHandleGeometry((
+  shapeList, // square
+) =>
+  shapeList
+    .pivot(-90)
+    .advance(1.0)
+    .pivot(90)
+    .advance(1.0)
+    .pivot(90)
+    .advance(3.0)
+    .pivot(90)
+    .advance(1.0)
+    .pivot(90)
+    .advance(1.0)
+    .pivot(-90),
+);
 
-function createHandleShapeList(knobFn: ShapeList => void): ShapeList {
+function createHandleGeometry(knobFn: ShapeList => mixed): Geometry {
   const shapeList = new ShapeList();
 
-  return shapeList;
+  shapeList.jump(0.5, -1.5, {part: 0});
+  shapeList.penDown();
+  for (let ii = 0; ii < 4; ii++) {
+    shapeList
+      .advance(1.0)
+      .pivot(90)
+      .advance(1.0)
+      .advance(1.0);
+  }
+  shapeList.penUp();
+
+  for (let ii = 0; ii < 4; ii++) {
+    shapeList
+      .advance(1.0, {part: ii & 1 ? 1.0 : 0.5})
+      .pivot(90)
+      .advance(1.0)
+      .pivot(-90)
+      .penDown()
+      .advance(1.0)
+      .apply(knobFn)
+      .advance(1.0)
+      .penUp()
+      .pivot(-90);
+  }
+  return new Geometry(...shapeList.createGeometry(4.0));
 }
 
 /** The hover states for handles. */
@@ -123,7 +164,7 @@ export function renderTranslationHandle(
   transform: Transform,
   hover: ?HoverType,
 ) {
-  renderHandle(renderer, transform, hover);
+  renderHandle(renderer, transform, hover, ScaleHandleGeometry);
 }
 
 /**
@@ -138,7 +179,7 @@ export function renderRotationHandle(
   transform: Transform,
   hover: ?HoverType,
 ) {
-  renderHandle(renderer, transform, hover);
+  renderHandle(renderer, transform, hover, ScaleHandleGeometry);
 }
 
 /**
@@ -153,23 +194,36 @@ export function renderScaleHandle(
   transform: Transform,
   hover: ?HoverType,
 ) {
-  renderHandle(renderer, transform, hover);
+  renderHandle(renderer, transform, hover, ScaleHandleGeometry);
 }
 
 const HANDLE_VERTEX_SHADER = `
   uniform mat3 modelMatrix;
   uniform mat3 viewProjectionMatrix;
+  uniform float thickness;
   attribute vec2 vertex;
+  attribute vec3 plane;
+  varying vec2 modelPosition;
+  varying vec3 interpolatedPlane;
   void main(void) {
-    vec3 position = viewProjectionMatrix * (modelMatrix * vec3(vertex, 1.0));
+    interpolatedPlane = plane;
+    vec2 expandedVertex = vertex + thickness * plane.xy;
+    modelPosition = expandedVertex;
+    vec3 position =
+      viewProjectionMatrix * (modelMatrix * vec3(expandedVertex, 1.0));
     gl_Position = vec4(position.xy, 0.0, 1.0);
   }
 `;
 
 const HANDLE_FRAGMENT_SHADER = `
   precision mediump float;
+  uniform highp float thickness;
+  varying vec2 modelPosition;
+  varying vec3 interpolatedPlane;
   void main(void) {
-    gl_FragColor = vec4(1.0, 1.0, 1.0, 1.0);
+    float signedDistance = dot(vec3(modelPosition, 1.0), interpolatedPlane);
+    float inside = step(signedDistance, thickness);
+    gl_FragColor = vec4(1.0, 1.0, 1.0, inside);
   }
 `;
 
@@ -177,6 +231,7 @@ function renderHandle(
   renderer: Renderer,
   transform: Transform,
   hover: ?HoverType,
+  geometry: Geometry,
 ) {
   // use our function pointer as a cache key
   const program = renderer.getProgram(
@@ -186,5 +241,7 @@ function renderHandle(
   );
   program.setUniformViewProjectionMatrix('viewProjectionMatrix');
   program.setUniformMatrix('modelMatrix', transform, getTransformMatrix);
+  program.setUniformFloat('thickness', 0.5);
   renderer.setEnabled(renderer.gl.BLEND, true);
+  geometry.draw(program);
 }

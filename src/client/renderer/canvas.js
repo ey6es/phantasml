@@ -19,6 +19,7 @@ class RenderCanvasImpl extends React.Component<
     resource: ?Resource,
     page: string,
     pageState: ?PageState,
+    selection: Set<string>,
     setRenderer: (?Renderer) => void,
   },
   {},
@@ -93,4 +94,5 @@ export const RenderCanvas = ReactRedux.connect(state => ({
   resource: state.resource,
   page: state.page,
   pageState: state.pageStates.get(state.page),
+  selection: state.selection,
 }))(RenderCanvasImpl);

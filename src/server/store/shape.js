@@ -857,6 +857,16 @@ export class ShapeList {
   }
 
   /**
+   * Rotates the turtle left or right in degrees.
+   *
+   * @param angle the amount to rotate, in degrees (positive for CCW).
+   * @return a reference to the list, for chaining.
+   */
+  pivot(angle: number): ShapeList {
+    return this.rotate(radians(angle));
+  }
+
+  /**
    * Rotates the turtle left or right.
    *
    * @param angle the amount to rotate, in radians (positive for CCW).
@@ -1037,16 +1047,25 @@ export class ShapeList {
   }
 
   /**
+   * Applies an operation to the shape list.
+   *
+   * @param op the operation to apply.
+   * @return a reference to the list, for chaining.
+   */
+  apply(op: ShapeList => mixed): ShapeList {
+    op(this);
+    return this;
+  }
+
+  /**
    * Creates the indexed triangle geometry for this shape list.
    *
    * @param tessellation the tessellation level.
-   * @param thickness the thickness of the edges.
    * @return a tuple consisting of the array buffer (vertex data),
    * element array buffer (indices), and the attribute sizes.
    */
   createGeometry(
     tessellation: number,
-    thickness: number,
   ): [Float32Array, Uint32Array, {[string]: number}] {
     // first pass: get stats
     const stats: GeometryStats = {
