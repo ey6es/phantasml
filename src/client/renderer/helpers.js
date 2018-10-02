@@ -121,6 +121,20 @@ const ScaleHandleGeometry = createHandleGeometry((
 function createHandleGeometry(knobFn: ShapeList => mixed): Geometry {
   const shapeList = new ShapeList();
 
+  shapeList
+    .jump(-2.5, -2.5, {part: 0})
+    .penDown()
+    .advance(5)
+    .pivot(90)
+    .advance(5)
+    .pivot(90)
+    .advance(5)
+    .pivot(90)
+    .advance(5)
+    .penUp(true);
+
+  /*
+
   shapeList.jump(0.5, -1.5, {part: 0});
   shapeList.penDown();
   for (let ii = 0; ii < 4; ii++) {
@@ -145,6 +159,8 @@ function createHandleGeometry(knobFn: ShapeList => mixed): Geometry {
       .penUp()
       .pivot(-90);
   }
+  */
+
   return new Geometry(...shapeList.createGeometry(4.0));
 }
 
@@ -203,11 +219,14 @@ const HANDLE_VERTEX_SHADER = `
   uniform float thickness;
   attribute vec2 vertex;
   attribute vec3 plane;
+  attribute float part;
   varying vec2 modelPosition;
   varying vec3 interpolatedPlane;
+  varying float interpolatedPart;
   void main(void) {
     interpolatedPlane = plane;
-    vec2 expandedVertex = vertex + thickness * plane.xy;
+    interpolatedPart = part;
+    vec2 expandedVertex = vertex + 2.0 * thickness * plane.xy;
     modelPosition = expandedVertex;
     vec3 position =
       viewProjectionMatrix * (modelMatrix * vec3(expandedVertex, 1.0));
@@ -220,10 +239,20 @@ const HANDLE_FRAGMENT_SHADER = `
   uniform highp float thickness;
   varying vec2 modelPosition;
   varying vec3 interpolatedPlane;
+  varying float interpolatedPart;
   void main(void) {
     float signedDistance = dot(vec3(modelPosition, 1.0), interpolatedPlane);
-    float inside = step(signedDistance, thickness);
-    gl_FragColor = vec4(1.0, 1.0, 1.0, inside);
+    float inside = step(abs(signedDistance), thickness);
+    vec3 color = mix(
+      vec3(1.0, 1.0, 0.0),
+      mix(
+        vec3(1.0, 0.0, 0.0),
+        vec3(0.0, 1.0, 0.0),
+        step(0.75, interpolatedPart)
+      ),
+      step(0.25, interpolatedPart)
+    );
+    gl_FragColor = vec4(color, inside);
   }
 `;
 
@@ -241,7 +270,7 @@ function renderHandle(
   );
   program.setUniformViewProjectionMatrix('viewProjectionMatrix');
   program.setUniformMatrix('modelMatrix', transform, getTransformMatrix);
-  program.setUniformFloat('thickness', 0.5);
+  program.setUniformFloat('thickness', 0.2);
   renderer.setEnabled(renderer.gl.BLEND, true);
   geometry.draw(program);
 }

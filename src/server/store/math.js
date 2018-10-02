@@ -257,7 +257,8 @@ export function orthonormalizeEquals(vector: Vector2): Vector2 {
  * @return a reference to the result vector, for chaining.
  */
 export function normalize(vector: Vector2, result?: Vector2): Vector2 {
-  return times(vector, 1.0 / length(vector), result);
+  const len = length(vector);
+  return times(vector, len === 0.0 ? 0.0 : 1.0 / len, result);
 }
 
 /**
