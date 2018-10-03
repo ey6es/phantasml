@@ -121,24 +121,6 @@ const ScaleHandleGeometry = createHandleGeometry((
 function createHandleGeometry(knobFn: ShapeList => mixed): Geometry {
   const shapeList = new ShapeList();
 
-  shapeList
-    .jump(-2.5, -2.5, {part: 0})
-    .penDown()
-    .advance(5)
-    .pivot(90)
-    .advance(5)
-    .pivot(90)
-    .advance(5)
-    .pivot(-90)
-    .advance(5)
-    .pivot(-90)
-    .advance(5)
-    .pivot(90)
-    .advance(5)
-    .penUp();
-
-  /*
-
   shapeList.jump(0.5, -1.5, {part: 0});
   shapeList.penDown();
   for (let ii = 0; ii < 4; ii++) {
@@ -163,7 +145,6 @@ function createHandleGeometry(knobFn: ShapeList => mixed): Geometry {
       .penUp()
       .pivot(-90);
   }
-  */
 
   return new Geometry(...shapeList.createGeometry(4.0));
 }
@@ -257,9 +238,9 @@ const HANDLE_FRAGMENT_SHADER = `
       ),
       step(0.25, interpolatedPart)
     );
-    //gl_FragColor = vec4(color, inside);
-    vec2 normal = normalize(interpolatedPlane.xy);
-    gl_FragColor = vec4(normal * 0.5 + vec2(0.5, 0.5), 0.0, 1.0);
+    gl_FragColor = vec4(color, inside);
+    //vec2 normal = normalize(interpolatedPlane.xy);
+    //gl_FragColor = vec4(normal * 0.5 + vec2(0.5, 0.5), 0.0, 1.0);
   }
 `;
 
