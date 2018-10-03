@@ -108,11 +108,11 @@ const ScaleHandleGeometry = createHandleGeometry((
     .pivot(-90)
     .advance(1.0)
     .pivot(90)
-    .advance(1.0)
+    .advance(3.0)
     .pivot(90)
     .advance(3.0)
     .pivot(90)
-    .advance(1.0)
+    .advance(3.0)
     .pivot(90)
     .advance(1.0)
     .pivot(-90),
@@ -122,7 +122,7 @@ function createHandleGeometry(knobFn: ShapeList => mixed): Geometry {
   const shapeList = new ShapeList();
 
   shapeList.jump(0.5, -1.5, {part: 0});
-  shapeList.penDown();
+  shapeList.penDown().raise();
   for (let ii = 0; ii < 4; ii++) {
     shapeList
       .advance(1.0)
@@ -130,7 +130,7 @@ function createHandleGeometry(knobFn: ShapeList => mixed): Geometry {
       .advance(1.0)
       .advance(1.0);
   }
-  shapeList.penUp();
+  shapeList.penUp().lower();
 
   for (let ii = 0; ii < 4; ii++) {
     shapeList

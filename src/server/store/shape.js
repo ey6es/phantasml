@@ -32,10 +32,13 @@ import {
 
 type VertexAttributes = {[string]: number | number[]};
 
+type GeometryGroup = {start: number, end: number, zOrder: number};
+
 type GeometryStats = {
   attributeSizes: {[string]: number},
   vertices: number,
   indices: number,
+  groups: GeometryGroup[],
 };
 
 /**
@@ -55,11 +58,16 @@ class Path {
    * Adds a command to move to a destination point.
    *
    * @param dest the point to move to.
+   * @param [zOrder=0] z order to use.
    * @param [attributes] optional additional vertex attributes.
    * @return a reference to this path, for chaining.
    */
-  moveTo(dest: Vector2, attributes?: VertexAttributes): Path {
-    this.commands.push(new MoveTo(dest, attributes));
+  moveTo(
+    dest: Vector2,
+    zOrder: number = 0,
+    attributes?: VertexAttributes,
+  ): Path {
+    this.commands.push(new MoveTo(dest, zOrder, attributes));
     return this;
   }
 
@@ -68,11 +76,16 @@ class Path {
    *
    * @param dest the point to draw to.
    * @param [attributes] optional additional vertex attributes.
+   * @param [zOrder=0] z order to use for the line.
    * @return a reference to this path, for chaining.
    */
-  lineTo(dest: Vector2, attributes?: VertexAttributes): Path {
-    this._ensureStartPosition(attributes);
-    this.commands.push(new LineTo(dest, attributes));
+  lineTo(
+    dest: Vector2,
+    zOrder: number = 0,
+    attributes?: VertexAttributes,
+  ): Path {
+    this._ensureStartPosition(zOrder, attributes);
+    this.commands.push(new LineTo(dest, zOrder, attributes));
     return this;
   }
 
@@ -82,12 +95,18 @@ class Path {
    * @param dest the point to draw to.
    * @param radius the signed radius of the arc (a negative value indicates
    * a left rather than right turn).
+   * @param [zOrder=0] z order to use for the arc.
    * @param [attributes] optional additional vertex attributes.
    * @return a reference to this path, for chaining.
    */
-  arcTo(dest: Vector2, radius: number, attributes?: VertexAttributes): Path {
-    this._ensureStartPosition(attributes);
-    this.commands.push(new ArcTo(dest, radius, attributes));
+  arcTo(
+    dest: Vector2,
+    radius: number,
+    zOrder: number = 0,
+    attributes?: VertexAttributes,
+  ): Path {
+    this._ensureStartPosition(zOrder, attributes);
+    this.commands.push(new ArcTo(dest, radius, zOrder, attributes));
     return this;
   }
 
@@ -97,6 +116,7 @@ class Path {
    * @param dest the point to draw to.
    * @param c1 the first internal control point.
    * @param c2 the second internal control point.
+   * @param [zOrder=0] z order to use for the curve.
    * @param [attributes] optional additional vertex attributes.
    * @return a reference to this path, for chaining.
    */
@@ -104,16 +124,17 @@ class Path {
     dest: Vector2,
     c1: Vector2,
     c2: Vector2,
+    zOrder: number = 0,
     attributes?: VertexAttributes,
   ): Path {
-    this._ensureStartPosition(attributes);
-    this.commands.push(new CurveTo(dest, c1, c2, attributes));
+    this._ensureStartPosition(zOrder, attributes);
+    this.commands.push(new CurveTo(dest, c1, c2, zOrder, attributes));
     return this;
   }
 
-  _ensureStartPosition(attributes: ?VertexAttributes) {
+  _ensureStartPosition(zOrder: number, attributes: ?VertexAttributes) {
     if (this.commands.length === 0) {
-      this.commands.push(new MoveTo({x: 0.0, y: 0.0}, attributes));
+      this.commands.push(new MoveTo({x: 0.0, y: 0.0}, zOrder, attributes));
     }
   }
 
@@ -139,7 +160,8 @@ class Path {
     arrayBuffer: Float32Array,
     elementArrayBuffer: Uint32Array,
     arrayIndex: number,
-    elementArrayIndex: number,
+    groups: GeometryGroup[],
+    groupIndex: number,
     attributeOffsets: {[string]: number},
     vertexSize: number,
     tessellation: number,
@@ -150,6 +172,7 @@ class Path {
       attributeSizes: {vertex: 2, plane: 3},
       vertices: 0,
       indices: 0,
+      groups: [],
     };
     this.updateStats(stats, tessellation, edge);
     const vertexCount = stats.vertices;
@@ -165,11 +188,12 @@ class Path {
       } else {
         previous = this.commands[ii - 1];
       }
-      [arrayIndex, elementArrayIndex] = command.populateBuffers(
+      [arrayIndex, groupIndex] = command.populateBuffers(
         arrayBuffer,
         elementArrayBuffer,
         arrayIndex,
-        elementArrayIndex,
+        groups,
+        groupIndex,
         attributeOffsets,
         vertexSize,
         vertexCount,
@@ -261,16 +285,18 @@ class Path {
         arrayBuffer[planeIndex + 2] = -toFromPlane.constant;
       }
     }
-    return [arrayIndex, elementArrayIndex];
+    return [arrayIndex, groupIndex];
   }
 }
 
 class PathCommand {
   dest: Vector2;
+  zOrder: number;
   attributes: ?VertexAttributes;
 
-  constructor(dest: Vector2, attributes: ?VertexAttributes) {
+  constructor(dest: Vector2, zOrder: number, attributes: ?VertexAttributes) {
     this.dest = dest;
+    this.zOrder = zOrder;
     this.attributes = attributes;
   }
 
@@ -291,6 +317,15 @@ class PathCommand {
     }
   }
 
+  _addToStats(stats: GeometryStats, edge: boolean, divisions: number) {
+    stats.vertices += this._getVerticesForDivisions(divisions, edge);
+    if (!edge) {
+      const start = stats.indices;
+      stats.indices += 18 * divisions;
+      stats.groups.push({start, end: stats.indices, zOrder: this.zOrder});
+    }
+  }
+
   _getVerticesForDivisions(divisions: number, edge: boolean): number {
     return (edge ? 3 : 6) * divisions;
   }
@@ -299,7 +334,8 @@ class PathCommand {
     arrayBuffer: Float32Array,
     elementArrayBuffer: Uint32Array,
     arrayIndex: number,
-    elementArrayIndex: number,
+    groups: GeometryGroup[],
+    groupIndex: number,
     attributeOffsets: {[string]: number},
     vertexSize: number,
     vertexCount: number,
@@ -309,7 +345,7 @@ class PathCommand {
     firstArrayIndex: number,
     previous: ?PathCommand,
   ): [number, number] {
-    return [arrayIndex, elementArrayIndex];
+    return [arrayIndex, groupIndex];
   }
 
   _writeVertices(
@@ -399,7 +435,7 @@ class PathCommand {
     vertexCount: number,
     vertexOffset: number,
     loop: boolean,
-  ): number {
+  ) {
     const offsetVertex = firstVertex + vertexOffset;
     let v6: number, v7: number;
     if (loop) {
@@ -433,8 +469,6 @@ class PathCommand {
     elementArrayBuffer[elementArrayIndex++] = offsetVertex + 4;
     elementArrayBuffer[elementArrayIndex++] = v7;
     elementArrayBuffer[elementArrayIndex++] = offsetVertex + 5;
-
-    return elementArrayIndex;
   }
 }
 
@@ -448,17 +482,15 @@ class LineTo extends PathCommand {
     previous: ?PathCommand,
   ) {
     super.updateStats(stats, tessellation, edge, previous);
-    stats.vertices += this._getVerticesForDivisions(1, edge);
-    if (!edge) {
-      stats.indices += 18;
-    }
+    this._addToStats(stats, edge, 1);
   }
 
   populateBuffers(
     arrayBuffer: Float32Array,
     elementArrayBuffer: Uint32Array,
     arrayIndex: number,
-    elementArrayIndex: number,
+    groups: GeometryGroup[],
+    groupIndex: number,
     attributeOffsets: {[string]: number},
     vertexSize: number,
     vertexCount: number,
@@ -472,9 +504,9 @@ class LineTo extends PathCommand {
       throw new Error('Missing previous command.');
     }
     if (!edge) {
-      elementArrayIndex = this._writeIndices(
+      this._writeIndices(
         elementArrayBuffer,
-        elementArrayIndex,
+        groups[groupIndex++].start,
         firstArrayIndex / vertexSize,
         vertexCount,
         (arrayIndex - firstArrayIndex) / vertexSize,
@@ -499,15 +531,20 @@ class LineTo extends PathCommand {
       vertexSize,
       this.dest,
     );
-    return [arrayIndex, elementArrayIndex];
+    return [arrayIndex, groupIndex];
   }
 }
 
 class ArcTo extends PathCommand {
   radius: number;
 
-  constructor(dest: Vector2, radius: number, attributes: ?VertexAttributes) {
-    super(dest, attributes);
+  constructor(
+    dest: Vector2,
+    radius: number,
+    zOrder: number,
+    attributes: ?VertexAttributes,
+  ) {
+    super(dest, zOrder, attributes);
     this.radius = radius;
   }
 
@@ -522,17 +559,15 @@ class ArcTo extends PathCommand {
     }
     super.updateStats(stats, tessellation, edge, previous);
     const [length, divisions] = this._getArcParameters(tessellation, previous);
-    stats.vertices += this._getVerticesForDivisions(divisions, edge);
-    if (!edge) {
-      stats.indices += 18 * divisions;
-    }
+    this._addToStats(stats, edge, divisions);
   }
 
   populateBuffers(
     arrayBuffer: Float32Array,
     elementArrayBuffer: Uint32Array,
     arrayIndex: number,
-    elementArrayIndex: number,
+    groups: GeometryGroup[],
+    groupIndex: number,
     attributeOffsets: {[string]: number},
     vertexSize: number,
     vertexCount: number,
@@ -569,9 +604,9 @@ class ArcTo extends PathCommand {
     const firstVertex = firstArrayIndex / vertexSize;
     for (let ii = 0; ii < divisions; ii++) {
       if (!edge) {
-        elementArrayIndex = this._writeIndices(
+        this._writeIndices(
           elementArrayBuffer,
-          elementArrayIndex,
+          groups[groupIndex++].start,
           firstVertex,
           vertexCount,
           (arrayIndex - firstArrayIndex) / vertexSize,
@@ -603,7 +638,7 @@ class ArcTo extends PathCommand {
         previous,
       );
     }
-    return [arrayIndex, elementArrayIndex];
+    return [arrayIndex, groupIndex];
   }
 
   _getArcParameters(
@@ -626,9 +661,10 @@ class CurveTo extends PathCommand {
     dest: Vector2,
     c1: Vector2,
     c2: Vector2,
+    zOrder: number,
     attributes: ?VertexAttributes,
   ) {
-    super(dest, attributes);
+    super(dest, zOrder, attributes);
     this.c1 = c1;
     this.c2 = c2;
   }
@@ -647,17 +683,15 @@ class CurveTo extends PathCommand {
       tessellation,
       previous,
     );
-    stats.vertices += this._getVerticesForDivisions(divisions, edge);
-    if (!edge) {
-      stats.indices += 18 * divisions;
-    }
+    this._addToStats(stats, edge, divisions);
   }
 
   populateBuffers(
     arrayBuffer: Float32Array,
     elementArrayBuffer: Uint32Array,
     arrayIndex: number,
-    elementArrayIndex: number,
+    groups: GeometryGroup[],
+    groupIndex: number,
     attributeOffsets: {[string]: number},
     vertexSize: number,
     vertexCount: number,
@@ -688,9 +722,9 @@ class CurveTo extends PathCommand {
     const firstVertex = firstArrayIndex / vertexSize;
     for (let ii = 0; ii < divisions; ii++) {
       if (!edge) {
-        elementArrayIndex = this._writeIndices(
+        this._writeIndices(
           elementArrayBuffer,
-          elementArrayIndex,
+          groups[groupIndex++].start,
           firstVertex,
           vertexCount,
           (arrayIndex - firstArrayIndex) / vertexSize,
@@ -733,7 +767,7 @@ class CurveTo extends PathCommand {
         previous,
       );
     }
-    return [arrayIndex, elementArrayIndex];
+    return [arrayIndex, groupIndex];
   }
 
   _getSplineParameters(
@@ -758,9 +792,11 @@ class CurveTo extends PathCommand {
  */
 class Shape {
   exterior: Path;
+  zOrder: number;
 
-  constructor(exterior: Path) {
+  constructor(exterior: Path, zOrder: number = 0) {
     this.exterior = exterior;
+    this.zOrder = zOrder;
   }
 
   updateStats(stats: GeometryStats, tessellation: number) {
@@ -769,7 +805,9 @@ class Shape {
     const exteriorVertices = stats.vertices - previousVertices;
     const triangles = exteriorVertices - 2;
     const indices = 3 * triangles;
+    const start = stats.indices;
     stats.indices += indices;
+    stats.groups.push({start, end: stats.indices, zOrder: this.zOrder});
   }
 
   populateBuffers(
@@ -780,13 +818,15 @@ class Shape {
     attributeOffsets: {[string]: number},
     vertexSize: number,
     tessellation: number,
-  ): [number, number] {
+  ): number {
     const firstIndex = arrayIndex / vertexSize;
-    [arrayIndex, elementArrayIndex] = this.exterior.populateBuffers(
+    let groupIndex = 0;
+    [arrayIndex, groupIndex] = this.exterior.populateBuffers(
       arrayBuffer,
       elementArrayBuffer,
       arrayIndex,
-      elementArrayIndex,
+      [],
+      groupIndex,
       attributeOffsets,
       vertexSize,
       tessellation,
@@ -882,7 +922,7 @@ class Shape {
         break;
       }
     }
-    return [arrayIndex, elementArrayIndex];
+    return arrayIndex;
   }
 }
 
@@ -898,6 +938,7 @@ export class ShapeList {
 
   position = vec2();
   rotation = 0.0;
+  zOrder = 0;
   attributes: VertexAttributes = {};
 
   _drawingPath: ?Path;
@@ -942,6 +983,7 @@ export class ShapeList {
     if (this._drawingPath) {
       this._drawingPath.lineTo(
         equals(this.position),
+        this.zOrder,
         Object.assign({}, this.attributes),
       );
     }
@@ -961,7 +1003,11 @@ export class ShapeList {
     this.position.y = y;
     attributes && Object.assign(this.attributes, attributes);
     if (this._drawingPath) {
-      this._drawingPath.lineTo(vec2(x, y), Object.assign({}, this.attributes));
+      this._drawingPath.lineTo(
+        vec2(x, y),
+        this.zOrder,
+        Object.assign({}, this.attributes),
+      );
     }
     return this;
   }
@@ -1015,6 +1061,7 @@ export class ShapeList {
       this._drawingPath.arcTo(
         equals(this.position),
         radius,
+        this.zOrder,
         Object.assign({}, this.attributes),
       );
     }
@@ -1056,6 +1103,7 @@ export class ShapeList {
         equals(this.position),
         c1,
         c2,
+        this.zOrder,
         Object.assign({}, this.attributes),
       );
     }
@@ -1071,12 +1119,13 @@ export class ShapeList {
   penDown(shape: boolean = false): ShapeList {
     this._drawingPath = new Path();
     if (shape) {
-      this.shapes.push(new Shape(this._drawingPath));
+      this.shapes.push(new Shape(this._drawingPath, this.zOrder));
     } else {
       this.paths.push(this._drawingPath);
     }
     this._drawingPath.moveTo(
       equals(this.position),
+      this.zOrder,
       Object.assign(this.attributes),
     );
     return this;
@@ -1094,6 +1143,28 @@ export class ShapeList {
       this._drawingPath.loop = closeLoop;
       this._drawingPath = null;
     }
+    return this;
+  }
+
+  /**
+   * Raises the z order.
+   *
+   * @param [amount=1] the amount to raise.
+   * @return a reference to the list, for chaining.
+   */
+  raise(amount: number = 1): ShapeList {
+    this.zOrder += amount;
+    return this;
+  }
+
+  /**
+   * Lowers the z order.
+   *
+   * @param [amount=1] the amount to lower.
+   * @return a reference to the list, for chaining.
+   */
+  lower(amount: number = 1): ShapeList {
+    this.zOrder -= amount;
     return this;
   }
 
@@ -1123,6 +1194,7 @@ export class ShapeList {
       attributeSizes: {vertex: 2, plane: 3},
       vertices: 0,
       indices: 0,
+      groups: [],
     };
     for (const shape of this.shapes) {
       shape.updateStats(stats, tessellation);
@@ -1137,28 +1209,44 @@ export class ShapeList {
       vertexSize += stats.attributeSizes[name];
     }
 
+    // sort groups by increasing z index
+    const sortedGroups = stats.groups
+      .slice()
+      .sort((first, second) => first.zOrder - second.zOrder);
+
+    // adjust ranges to reorder
+    let elementArrayIndex = 0;
+    for (const group of sortedGroups) {
+      const groupSize = group.end - group.start;
+      group.start = elementArrayIndex;
+      elementArrayIndex += groupSize;
+      group.end = elementArrayIndex;
+    }
+
     // now we can allocate the buffers and populate them
     const arrayBuffer = new Float32Array(stats.vertices * vertexSize);
     const elementArrayBuffer = new Uint32Array(stats.indices);
     let arrayIndex = 0;
-    let elementArrayIndex = 0;
+    let groupIndex = 0;
     for (const shape of this.shapes) {
-      [arrayIndex, elementArrayIndex] = shape.populateBuffers(
+      arrayIndex = shape.populateBuffers(
         arrayBuffer,
         elementArrayBuffer,
         arrayIndex,
-        elementArrayIndex,
+        stats.groups[groupIndex].start,
         attributeOffsets,
         vertexSize,
         tessellation,
       );
+      groupIndex++;
     }
     for (const path of this.paths) {
-      [arrayIndex, elementArrayIndex] = path.populateBuffers(
+      [arrayIndex, groupIndex] = path.populateBuffers(
         arrayBuffer,
         elementArrayBuffer,
         arrayIndex,
-        elementArrayIndex,
+        stats.groups,
+        groupIndex,
         attributeOffsets,
         vertexSize,
         tessellation,
