@@ -129,9 +129,13 @@ function createHandleGeometry(knobFn: ShapeList => mixed): Geometry {
     .advance(5)
     .pivot(90)
     .advance(5)
+    .pivot(-90)
+    .advance(5)
+    .pivot(-90)
+    .advance(5)
     .pivot(90)
     .advance(5)
-    .penUp(true);
+    .penUp();
 
   /*
 
@@ -237,12 +241,13 @@ const HANDLE_VERTEX_SHADER = `
 const HANDLE_FRAGMENT_SHADER = `
   precision mediump float;
   uniform highp float thickness;
+  uniform float stepSize;
   varying vec2 modelPosition;
   varying vec3 interpolatedPlane;
   varying float interpolatedPart;
   void main(void) {
-    float signedDistance = dot(vec3(modelPosition, 1.0), interpolatedPlane);
-    float inside = step(abs(signedDistance), thickness);
+    float dist = abs(dot(vec3(modelPosition, 1.0), interpolatedPlane));
+    float inside = smoothstep(dist, dist + stepSize, thickness);
     vec3 color = mix(
       vec3(1.0, 1.0, 0.0),
       mix(
@@ -252,7 +257,9 @@ const HANDLE_FRAGMENT_SHADER = `
       ),
       step(0.25, interpolatedPart)
     );
-    gl_FragColor = vec4(color, inside);
+    //gl_FragColor = vec4(color, inside);
+    vec2 normal = normalize(interpolatedPlane.xy);
+    gl_FragColor = vec4(normal * 0.5 + vec2(0.5, 0.5), 0.0, 1.0);
   }
 `;
 
@@ -271,6 +278,7 @@ function renderHandle(
   program.setUniformViewProjectionMatrix('viewProjectionMatrix');
   program.setUniformMatrix('modelMatrix', transform, getTransformMatrix);
   program.setUniformFloat('thickness', 0.2);
+  program.setUniformFloat('stepSize', 2.0 * renderer.pixelsToWorldUnits);
   renderer.setEnabled(renderer.gl.BLEND, true);
   geometry.draw(program);
 }

@@ -379,6 +379,33 @@ export function cross(first: Vector2, second: Vector2): number {
 }
 
 /**
+ * Negates a vector.
+ *
+ * @param vector the vector to negate.
+ * @param [result] the vector in which to store the result (otherwise, a new
+ * vector will be created).
+ * @return a reference to the result vector, for chaining.
+ */
+export function negative(vector: Vector2, result?: Vector2): Vector2 {
+  if (!result) {
+    return {x: -vector.x, y: -vector.y};
+  }
+  result.x = -vector.x;
+  result.y = -vector.y;
+  return result;
+}
+
+/**
+ * Negates a vector.
+ *
+ * @param vector the vector to negate.
+ * @return a reference to the vector, for chaining.
+ */
+export function negativeEquals(vector: Vector2): Vector2 {
+  return negative(vector, vector);
+}
+
+/**
  * Creates a plane from a pair of points.
  *
  * @param first the first point on the plane.
@@ -432,6 +459,50 @@ export function planeFromPointNormal(
  */
 export function signedDistance(plane: Plane, point: Vector2): number {
   return dot(plane.normal, point) + plane.constant;
+}
+
+/**
+ * Inverts a plane (same plane, normal faces other way).
+ *
+ * @param plane the plane to invert.
+ * @param [result] the plane in which to store the result (otherwise, a new
+ * plane will be created).
+ * @return a reference to the result plane, for chaining.
+ */
+export function invert(plane: Plane, result?: Plane): Plane {
+  if (!result) {
+    return {normal: negative(plane.normal), constant: -plane.constant};
+  }
+  negative(plane.normal, result.normal);
+  result.constant = -plane.constant;
+  return result;
+}
+
+/**
+ * Inverts a plane (same plane, normal faces other way).
+ *
+ * @param plane the plane to invert.
+ * @return a reference to the plane, for chaining.
+ */
+export function invertEquals(plane: Plane): Plane {
+  return invert(plane, plane);
+}
+
+/**
+ * Copies a plane.
+ *
+ * @param plane the plane to copy.
+ * @param [result] the plane in which to store the result (otherwise, a new
+ * plane will be created).
+ * @return a reference to the result plane, for chaining.
+ */
+export function equalsPlane(plane: Plane, result?: Plane): Plane {
+  if (!result) {
+    return {normal: equals(plane.normal), constant: plane.constant};
+  }
+  equals(plane.normal, result.normal);
+  result.constant = plane.constant;
+  return result;
 }
 
 /**

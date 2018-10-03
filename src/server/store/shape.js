@@ -18,11 +18,14 @@ import {
   minusEquals,
   times,
   timesEquals,
+  orthonormalize,
   orthonormalizeEquals,
   dot,
   cross,
   planeFromPoints,
   planeFromPointNormal,
+  invert,
+  equalsPlane,
   signedDistance,
   mix,
 } from './math';
@@ -147,7 +150,6 @@ class Path {
   ): [number, number] {
     // start with just the vertices/attributes
     const firstArrayIndex = arrayIndex;
-    let lastPoint: ?Vector2;
     for (let ii = 0; ii < this.commands.length; ii++) {
       const command = this.commands[ii];
       let previous: ?PathCommand;
@@ -157,7 +159,7 @@ class Path {
       } else {
         previous = this.commands[ii - 1];
       }
-      [arrayIndex, elementArrayIndex, lastPoint] = command.populateBuffers(
+      [arrayIndex, elementArrayIndex] = command.populateBuffers(
         arrayBuffer,
         elementArrayBuffer,
         arrayIndex,
@@ -168,119 +170,137 @@ class Path {
         edge,
         firstArrayIndex,
         previous,
-        lastPoint,
       );
     }
-
-    // fill in the plane attributes now that we have all vertices
-    const vertexSpan = vertexSize * (edge ? 2 : 3);
-    const lastArrayIndex = arrayIndex - vertexSpan;
-    const firstCornerIndex = firstArrayIndex + vertexSize * (edge ? 1 : 2);
-    const previous = vec2();
-    const from = vec2();
-    const to = vec2();
-    const next = vec2();
-    const previousTo = vec2();
-    const previousFrom = vec2();
-    const fromTo = vec2();
-    const fromNext = vec2();
-    const outerPlane = {normal: vec2(), constant: 0.0};
-    const innerPlane = {normal: vec2(), constant: 0.0};
-    for (
-      let index = firstCornerIndex;
-      index <= lastArrayIndex;
-      index += vertexSpan
-    ) {
-      // examine the current vertex and its neighbors
-      const fromIndex = index + attributeOffsets.vertex;
-      const toIndex = fromIndex + vertexSize;
-      let previousIndex = fromIndex - vertexSize;
-      if (index === firstCornerIndex) {
-        if (this.loop || edge) {
-          previousIndex = lastArrayIndex + attributeOffsets.vertex;
-        } else {
-          previousIndex = fromIndex;
-        }
-      }
-      let nextIndex = fromIndex + vertexSpan;
-      if (index === lastArrayIndex) {
-        if (this.loop || edge) {
-          nextIndex = firstArrayIndex + attributeOffsets.vertex;
-        } else {
-          nextIndex = toIndex;
-        }
-      }
-
-      // retrieve all the positions we need
-      vec2(
-        arrayBuffer[previousIndex],
-        arrayBuffer[previousIndex + 1],
-        previous,
-      );
-      vec2(arrayBuffer[fromIndex], arrayBuffer[fromIndex + 1], from);
-      vec2(arrayBuffer[toIndex], arrayBuffer[toIndex + 1], to);
-      vec2(arrayBuffer[nextIndex], arrayBuffer[nextIndex + 1], next);
-
-      // similarly, the vectors/plane
-      minus(to, previous, previousTo);
-      minus(from, previous, previousFrom);
-      minus(to, from, fromTo);
-      minus(next, from, fromNext);
-      planeFromPoints(from, to, outerPlane);
-
-      // corner plane direction depends on convexity
-      let planeIndex = index + attributeOffsets.plane;
-      if (cross(previousTo, previousFrom) > 0) {
-        arrayBuffer[planeIndex] = outerPlane.normal.x;
-        arrayBuffer[planeIndex + 1] = outerPlane.normal.y;
-        arrayBuffer[planeIndex + 2] = outerPlane.constant;
-      } else {
-        arrayBuffer[planeIndex] = -outerPlane.normal.x;
-        arrayBuffer[planeIndex + 1] = -outerPlane.normal.y;
-        arrayBuffer[planeIndex + 2] = -outerPlane.constant;
-      }
-      planeIndex += vertexSize;
-
-      // similarly with the other points
-      if (cross(fromNext, fromTo) > 0) {
-        arrayBuffer[planeIndex] = outerPlane.normal.x;
-        arrayBuffer[planeIndex + 1] = outerPlane.normal.y;
-        arrayBuffer[planeIndex + 2] = outerPlane.constant;
-        planeIndex += vertexSize;
-
-        if (edge) {
-          planeFromPointNormal(to, orthonormalizeEquals(fromNext), innerPlane);
-          arrayBuffer[planeIndex] = -innerPlane.normal.x;
-          arrayBuffer[planeIndex + 1] = -innerPlane.normal.y;
-          arrayBuffer[planeIndex + 2] = -innerPlane.constant;
-          planeIndex += vertexSize;
-        }
-      } else {
-        if (edge) {
-          planeFromPointNormal(to, orthonormalizeEquals(fromNext), innerPlane);
-          arrayBuffer[planeIndex] = innerPlane.normal.x;
-          arrayBuffer[planeIndex + 1] = innerPlane.normal.y;
-          arrayBuffer[planeIndex + 2] = innerPlane.constant;
-          planeIndex += vertexSize;
-        }
-        arrayBuffer[planeIndex] = -outerPlane.normal.x;
-        arrayBuffer[planeIndex + 1] = -outerPlane.normal.y;
-        arrayBuffer[planeIndex + 2] = -outerPlane.constant;
-        planeIndex += vertexSize;
-      }
-    }
+    const lastArrayIndex = arrayIndex;
+    const firstIndex = firstArrayIndex / vertexSize;
+    const vertexCount = (lastArrayIndex - firstArrayIndex) / vertexSize;
 
     // close the loop if necessary
     if (!edge && this.loop) {
-      const firstIndex = firstArrayIndex / vertexSize;
-      const lastIndex = arrayIndex / vertexSize;
+      const lastIndex = firstIndex + vertexCount - 1;
       elementArrayBuffer[elementArrayIndex++] = firstIndex;
-      elementArrayBuffer[elementArrayIndex++] = lastIndex - 2;
-      elementArrayBuffer[elementArrayIndex++] = firstIndex + 1;
-
-      elementArrayBuffer[elementArrayIndex++] = firstIndex + 1;
-      elementArrayBuffer[elementArrayIndex++] = lastIndex - 2;
+      elementArrayBuffer[elementArrayIndex++] = lastIndex;
       elementArrayBuffer[elementArrayIndex++] = lastIndex - 1;
+
+      elementArrayBuffer[elementArrayIndex++] = firstIndex;
+      elementArrayBuffer[elementArrayIndex++] = firstIndex + 1;
+      elementArrayBuffer[elementArrayIndex++] = lastIndex;
+    }
+
+    // fill in the plane attributes now that we have all vertices
+    const firstCornerVertex = -1;
+    const divisionVertices = edge ? 2 : 3;
+    const lastCornerVertex = vertexCount - divisionVertices;
+    const maxVertex = vertexCount - 1;
+    const previous = vec2();
+    const corner = vec2();
+    const next = vec2();
+    const following = vec2();
+
+    const previousToCorner = vec2();
+    const previousToNext = vec2();
+    const cornerToNext = vec2();
+    const cornerToFollowing = vec2();
+    const cornerToFollowingNormal = vec2();
+
+    const cornerToNextPlane = {normal: vec2(), constant: 0.0};
+    const cornerToFollowingPlane = {normal: vec2(), constant: 0.0};
+    const firstPlane = {normal: vec2(), constant: 0.0};
+    const secondPlane = {normal: vec2(), constant: 0.0};
+    const thirdPlane = {normal: vec2(), constant: 0.0};
+    for (
+      let vertex = firstCornerVertex;
+      vertex <= lastCornerVertex;
+      vertex += divisionVertices
+    ) {
+      // get our various vertices
+      let previousVertex = vertex - divisionVertices;
+      let cornerVertex = vertex;
+      let nextVertex = vertex + 1;
+      let followingVertex = vertex + divisionVertices + 1;
+
+      // modulo or clamp as necessary
+      if (this.loop || edge) {
+        previousVertex = (previousVertex + vertexCount) % vertexCount;
+        cornerVertex = (cornerVertex + vertexCount) % vertexCount;
+        nextVertex = (nextVertex + vertexCount) % vertexCount;
+        followingVertex = (followingVertex + vertexCount) % vertexCount;
+      } else {
+        previousVertex = clamp(previousVertex, 0, maxVertex);
+        cornerVertex = clamp(cornerVertex, 0, maxVertex);
+        nextVertex = clamp(nextVertex, 0, maxVertex);
+        followingVertex = clamp(followingVertex, 0, maxVertex);
+      }
+
+      // convert to indices in order to get positions
+      const previousArrayIndex =
+        firstArrayIndex + previousVertex * vertexSize + attributeOffsets.vertex;
+      const cornerArrayIndex =
+        firstArrayIndex + cornerVertex * vertexSize + attributeOffsets.vertex;
+      const nextArrayIndex =
+        firstArrayIndex + nextVertex * vertexSize + attributeOffsets.vertex;
+      const followingArrayIndex =
+        firstArrayIndex +
+        followingVertex * vertexSize +
+        attributeOffsets.vertex;
+
+      // retrieve all the positions we need
+      vec2(
+        arrayBuffer[previousArrayIndex],
+        arrayBuffer[previousArrayIndex + 1],
+        previous,
+      );
+      vec2(
+        arrayBuffer[cornerArrayIndex],
+        arrayBuffer[cornerArrayIndex + 1],
+        corner,
+      );
+      vec2(arrayBuffer[nextArrayIndex], arrayBuffer[nextArrayIndex + 1], next);
+      vec2(
+        arrayBuffer[followingArrayIndex],
+        arrayBuffer[followingArrayIndex + 1],
+        following,
+      );
+
+      // similarly, the vectors/planes
+      minus(corner, previous, previousToCorner);
+      minus(next, previous, previousToNext);
+      minus(next, corner, cornerToNext);
+      minus(following, corner, cornerToFollowing);
+      planeFromPoints(corner, next, cornerToNextPlane);
+      orthonormalize(cornerToFollowing, cornerToFollowingNormal);
+      planeFromPointNormal(
+        next,
+        cornerToFollowingNormal,
+        cornerToFollowingPlane,
+      );
+
+      // corner plane orientation depends on bend direction
+      const firstBendDirection = cross(previousToCorner, previousToNext);
+      const secondBendDirection = cross(cornerToNext, cornerToFollowing);
+
+      // ...
+
+      let planeIndex =
+        firstArrayIndex + vertex * vertexSize + attributeOffsets.plane;
+      if (vertex !== firstCornerVertex) {
+        // first corner is "virtual"
+        arrayBuffer[planeIndex] = firstPlane.normal.x;
+        arrayBuffer[planeIndex + 1] = firstPlane.normal.y;
+        arrayBuffer[planeIndex + 2] = firstPlane.constant;
+      }
+      planeIndex += vertexSize;
+      arrayBuffer[planeIndex] = secondPlane.normal.x;
+      arrayBuffer[planeIndex + 1] = secondPlane.normal.y;
+      arrayBuffer[planeIndex + 2] = secondPlane.constant;
+
+      if (!edge) {
+        planeIndex += vertexSize;
+        arrayBuffer[planeIndex] = thirdPlane.normal.x;
+        arrayBuffer[planeIndex + 1] = thirdPlane.normal.y;
+        arrayBuffer[planeIndex + 2] = thirdPlane.constant;
+      }
     }
     return [arrayIndex, elementArrayIndex];
   }
@@ -328,9 +348,8 @@ class PathCommand {
     edge: boolean,
     firstArrayIndex: number,
     previous: ?PathCommand,
-    lastPoint: ?Vector2,
-  ): [number, number, Vector2] {
-    return [arrayIndex, elementArrayIndex, this.dest];
+  ): [number, number] {
+    return [arrayIndex, elementArrayIndex];
   }
 
   _writeVertices(
@@ -416,38 +435,23 @@ class PathCommand {
   _writeIndices(
     elementArrayBuffer: Uint32Array,
     elementArrayIndex: number,
-    fromIndex: number,
-    toIndex: number,
-    previous: Vector2,
-    current: Vector2,
-    next: Vector2,
+    cornerIndex: number,
   ): number {
-    elementArrayBuffer[elementArrayIndex++] = fromIndex;
-    elementArrayBuffer[elementArrayIndex++] = fromIndex - 2;
-    elementArrayBuffer[elementArrayIndex++] = fromIndex - 1;
+    // elbow
+    elementArrayBuffer[elementArrayIndex++] = cornerIndex;
+    elementArrayBuffer[elementArrayIndex++] = cornerIndex - 1;
+    elementArrayBuffer[elementArrayIndex++] = cornerIndex - 2;
 
-    // index order depends on convexity
-    const x0 = next.x - previous.x;
-    const y0 = next.y - previous.y;
-    const x1 = current.x - previous.x;
-    const y1 = current.y - previous.y;
-    if (x0 * y1 - y0 * x1 >= 0 || true) {
-      elementArrayBuffer[elementArrayIndex++] = fromIndex;
-      elementArrayBuffer[elementArrayIndex++] = fromIndex - 1;
-      elementArrayBuffer[elementArrayIndex++] = toIndex + 1;
+    // outer triangle
+    elementArrayBuffer[elementArrayIndex++] = cornerIndex;
+    elementArrayBuffer[elementArrayIndex++] = cornerIndex + 1;
+    elementArrayBuffer[elementArrayIndex++] = cornerIndex + 2;
 
-      elementArrayBuffer[elementArrayIndex++] = fromIndex;
-      elementArrayBuffer[elementArrayIndex++] = toIndex + 1;
-      elementArrayBuffer[elementArrayIndex++] = toIndex;
-    } else {
-      elementArrayBuffer[elementArrayIndex++] = fromIndex;
-      elementArrayBuffer[elementArrayIndex++] = toIndex + 1;
-      elementArrayBuffer[elementArrayIndex++] = toIndex;
+    // inner triangle
+    elementArrayBuffer[elementArrayIndex++] = cornerIndex;
+    elementArrayBuffer[elementArrayIndex++] = cornerIndex - 1;
+    elementArrayBuffer[elementArrayIndex++] = cornerIndex + 2;
 
-      elementArrayBuffer[elementArrayIndex++] = fromIndex;
-      elementArrayBuffer[elementArrayIndex++] = toIndex;
-      elementArrayBuffer[elementArrayIndex++] = fromIndex - 2;
-    }
     return elementArrayIndex;
   }
 }
@@ -474,8 +478,7 @@ class MoveTo extends PathCommand {
     edge: boolean,
     firstArrayIndex: number,
     previous: ?PathCommand,
-    lastPoint: ?Vector2,
-  ): [number, number, Vector2] {
+  ): [number, number] {
     arrayIndex = this._writeVertices(
       edge ? 1 : 2,
       arrayBuffer,
@@ -484,7 +487,7 @@ class MoveTo extends PathCommand {
       vertexSize,
       this.dest,
     );
-    return [arrayIndex, elementArrayIndex, this.dest];
+    return [arrayIndex, elementArrayIndex];
   }
 }
 
@@ -513,21 +516,16 @@ class LineTo extends PathCommand {
     edge: boolean,
     firstArrayIndex: number,
     previous: ?PathCommand,
-    lastPoint: ?Vector2,
-  ): [number, number, Vector2] {
-    if (!(previous && lastPoint)) {
+  ): [number, number] {
+    if (!previous) {
       throw new Error('Missing previous command.');
     }
     if (!edge) {
-      const currentIndex = arrayIndex / vertexSize;
+      const cornerIndex = arrayIndex / vertexSize;
       elementArrayIndex = this._writeIndices(
         elementArrayBuffer,
         elementArrayIndex,
-        currentIndex,
-        currentIndex + 1,
-        lastPoint,
-        previous.dest,
-        this.dest,
+        cornerIndex,
       );
     }
     const vertices = this._getVerticesForDivisions(1, edge);
@@ -547,7 +545,7 @@ class LineTo extends PathCommand {
       vertexSize,
       this.dest,
     );
-    return [arrayIndex, elementArrayIndex, previous.dest];
+    return [arrayIndex, elementArrayIndex];
   }
 }
 
@@ -587,8 +585,7 @@ class ArcTo extends PathCommand {
     edge: boolean,
     firstArrayIndex: number,
     previous: ?PathCommand,
-    lastPoint: ?Vector2,
-  ): [number, number, Vector2] {
+  ): [number, number] {
     if (!previous) {
       throw new Error('Missing previous command.');
     }
@@ -610,8 +607,6 @@ class ArcTo extends PathCommand {
     const parameterIncrement = 1.0 / divisions;
     let parameter = 0.0;
     const point = equals(previous.dest);
-    const previousPoint = equals(previous.dest);
-    const previousPreviousPoint = equals(lastPoint || previous.dest);
     for (let ii = 0; ii < divisions; ii++) {
       const cornerIndex = arrayIndex / vertexSize;
       arrayIndex = this._writeVertices(
@@ -624,8 +619,6 @@ class ArcTo extends PathCommand {
         parameter,
         previous,
       );
-      equals(previousPoint, previousPreviousPoint);
-      equals(point, previousPoint);
       parameter += parameterIncrement;
       const a = a0 + parameter * angle;
       point.x = center.x + this.radius * Math.cos(a);
@@ -645,14 +638,10 @@ class ArcTo extends PathCommand {
           elementArrayBuffer,
           elementArrayIndex,
           cornerIndex,
-          cornerIndex + 1,
-          previousPreviousPoint,
-          previousPoint,
-          point,
         );
       }
     }
-    return [arrayIndex, elementArrayIndex, previousPoint];
+    return [arrayIndex, elementArrayIndex];
   }
 
   _getArcParameters(
@@ -713,8 +702,7 @@ class CurveTo extends PathCommand {
     edge: boolean,
     firstArrayIndex: number,
     previous: ?PathCommand,
-    lastPoint: ?Vector2,
-  ): [number, number, Vector2] {
+  ): [number, number] {
     if (!previous) {
       throw new Error('Missing previous command.');
     }
@@ -730,8 +718,6 @@ class CurveTo extends PathCommand {
     const parameterIncrement = 1.0 / divisions;
     let parameter = 0.0;
     const point = equals(previous.dest);
-    const previousPoint = equals(previous.dest);
-    const previousPreviousPoint = equals(lastPoint || previous.dest);
     for (let ii = 0; ii < divisions; ii++) {
       const cornerIndex = arrayIndex / vertexSize;
       arrayIndex = this._writeVertices(
@@ -756,8 +742,6 @@ class CurveTo extends PathCommand {
           t -= value / derivative;
         }
       }
-      equals(previousPoint, previousPreviousPoint);
-      equals(point, previousPoint);
       t = clamp(t, 0.0, 1.0);
       point.x = t * (t * (t * a.x + b.x) + c.x) + d.x;
       point.y = t * (t * (t * a.y + b.y) + c.y) + d.y;
@@ -776,14 +760,10 @@ class CurveTo extends PathCommand {
           elementArrayBuffer,
           elementArrayIndex,
           cornerIndex,
-          cornerIndex + 1,
-          previousPreviousPoint,
-          previousPoint,
-          point,
         );
       }
     }
-    return [arrayIndex, elementArrayIndex, previousPoint];
+    return [arrayIndex, elementArrayIndex];
   }
 
   _getSplineParameters(
