@@ -249,9 +249,6 @@ const HANDLE_FRAGMENT_SHADER = `
       step(0.25, interpolatedPart)
     );
     gl_FragColor = vec4(color, inside);
-    //vec2 normal = normalize(interpolatedPlane.xy);
-    //gl_FragColor = vec4(normal * 0.5 + vec2(0.5, 0.5), 0.0, 1.0);
-    //gl_FragColor = vec4(dist + 0.5, 0.0, 0.0, 1.0);
   }
 `;
 

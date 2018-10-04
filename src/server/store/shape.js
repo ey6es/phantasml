@@ -778,6 +778,13 @@ class CurveTo extends PathCommand {
   }
 }
 
+type Vertex = {
+  index: number,
+  position: Vector2,
+  left: Vertex,
+  right: Vertex,
+};
+
 /**
  * A general representation of a shape.
  *
@@ -815,7 +822,6 @@ class Shape {
     attributeOffsets: {[string]: number},
     vertexSize: number,
     tessellation: number,
-    thickness: number,
   ): [number, number] {
     const firstIndex = arrayIndex / vertexSize;
     [arrayIndex, groupIndex] = this.exterior.populateBuffers(
@@ -833,54 +839,38 @@ class Shape {
     const lastIndex = arrayIndex / vertexSize;
     const vertexCount = lastIndex - firstIndex;
     const vertexOffset = attributeOffsets.vertex;
-    const planeOffset = attributeOffsets.plane - attributeOffsets.vertex;
-    const leftLeftVertex = vec2();
-    const leftVertex = vec2();
-    const middleVertex = vec2();
-    const rightVertex = vec2();
-    const rightRightVertex = vec2();
-    const middleLeft = vec2();
-    const middleRight = vec2();
-    const convexIndices: Set<number> = new Set();
-    const concaveIndices: Set<number> = new Set();
+
+    // create the linked array of vertex objects
+    const vertices: Vertex[] = [];
+    for (let ii = 1; ii < vertexCount; ii += 2) {
+      const index = firstIndex + ii;
+      const arrayIndex = index * vertexSize + vertexOffset;
+      vertices.push(
+        ({
+          index,
+          position: vec2(arrayBuffer[arrayIndex], arrayBuffer[arrayIndex + 1]),
+        }: any),
+      );
+    }
+    for (let ii = 0; ii < vertices.length; ii++) {
+      const vertex = vertices[ii];
+      vertex.left = vertices[(ii + vertices.length - 1) % vertices.length];
+      vertex.right = vertices[(ii + 1) % vertices.length];
+    }
+
+    const leftMiddle = vec2();
+    const leftRight = vec2();
+    const convexVertices: Set<Vertex> = new Set();
+    const concaveVertices: Set<Vertex> = new Set();
     // odd vertices are inside
-    for (let middle = 1; middle < vertexCount; middle += 2) {
-      const leftIndex = firstIndex + ((middle + vertexCount - 2) % vertexCount);
-      const middleIndex = firstIndex + middle;
-      const rightIndex = firstIndex + ((middle + 2) % vertexCount);
+    for (const vertex of vertices) {
+      minus(vertex.position, vertex.left.position, leftMiddle);
+      minus(vertex.right.position, vertex.left.position, leftRight);
 
-      const leftArrayIndex = leftIndex * vertexSize + vertexOffset;
-      const middleArrayIndex = middleIndex * vertexSize + vertexOffset;
-      const rightArrayIndex = rightIndex * vertexSize + vertexOffset;
-
-      vec2(
-        arrayBuffer[leftArrayIndex] -
-          thickness * arrayBuffer[leftArrayIndex + planeOffset],
-        arrayBuffer[leftArrayIndex + 1] -
-          thickness * arrayBuffer[leftArrayIndex + 1 + planeOffset],
-        leftVertex,
-      );
-      vec2(
-        arrayBuffer[middleArrayIndex] -
-          thickness * arrayBuffer[middleArrayIndex + planeOffset],
-        arrayBuffer[middleArrayIndex + 1] -
-          thickness * arrayBuffer[middleArrayIndex + 1 + planeOffset],
-        middleVertex,
-      );
-      vec2(
-        arrayBuffer[rightArrayIndex] -
-          thickness * arrayBuffer[rightArrayIndex + planeOffset],
-        arrayBuffer[rightArrayIndex + 1] -
-          thickness * arrayBuffer[rightArrayIndex + 1 + planeOffset],
-        rightVertex,
-      );
-      minus(leftVertex, middleVertex, middleLeft);
-      minus(rightVertex, middleVertex, middleRight);
-
-      if (cross(middleRight, middleLeft) >= 0.0) {
-        convexIndices.add(middle);
+      if (cross(leftMiddle, leftRight) >= 0.0) {
+        convexVertices.add(vertex);
       } else {
-        concaveIndices.add(middle);
+        concaveVertices.add(vertex);
       }
     }
     const point = vec2();
@@ -889,131 +879,57 @@ class Shape {
     let iterationsWithoutTriangle = 0;
     while (remainingTriangles > 0) {
       let foundTriangle = false;
-      let indices = convexIndices;
+      let loopVertices = convexVertices;
       let skipTest = false;
-      if (convexIndices.size === 0) {
-        console.warn('Ran out of convex indices to process.');
-        indices = concaveIndices;
+      if (convexVertices.size === 0) {
+        loopVertices = concaveVertices;
         skipTest = true;
       }
       if (iterationsWithoutTriangle > 1) {
-        console.warn('Too many iterations: ' + iterationsWithoutTriangle);
         skipTest = true;
       }
-      indexLoop: for (const middle of indices) {
-        // find the indices of our neighbors
-        let leftLeft = middle - 2;
-        do {
-          leftLeft = (leftLeft + vertexCount - 2) % vertexCount;
-        } while (
-          !(convexIndices.has(leftLeft) || concaveIndices.has(leftLeft))
-        );
-        let left = middle;
-        do {
-          left = (left + vertexCount - 2) % vertexCount;
-        } while (!(convexIndices.has(left) || concaveIndices.has(left)));
-
-        let right = middle;
-        do {
-          right = (right + 2) % vertexCount;
-        } while (!(convexIndices.has(right) || concaveIndices.has(right)));
-
-        let rightRight = middle + 2;
-        do {
-          rightRight = (rightRight + 2) % vertexCount;
-        } while (
-          !(convexIndices.has(rightRight) || concaveIndices.has(rightRight))
-        );
-
-        const leftLeftIndex = firstIndex + leftLeft;
-        const leftIndex = firstIndex + left;
-        const middleIndex = firstIndex + middle;
-        const rightIndex = firstIndex + right;
-        const rightRightIndex = firstIndex + rightRight;
-
-        const leftLeftArrayIndex = leftLeftIndex * vertexSize + vertexOffset;
-        const leftArrayIndex = leftIndex * vertexSize + vertexOffset;
-        const middleArrayIndex = middleIndex * vertexSize + vertexOffset;
-        const rightArrayIndex = rightIndex * vertexSize + vertexOffset;
-        const rightRightArrayIndex =
-          rightRightIndex * vertexSize + vertexOffset;
-
-        vec2(
-          arrayBuffer[leftLeftArrayIndex] -
-            thickness * arrayBuffer[leftLeftArrayIndex + planeOffset],
-          arrayBuffer[leftLeftArrayIndex + 1] -
-            thickness * arrayBuffer[leftLeftArrayIndex + 1 + planeOffset],
-          leftLeftVertex,
-        );
-        vec2(
-          arrayBuffer[leftArrayIndex] -
-            thickness * arrayBuffer[leftArrayIndex + planeOffset],
-          arrayBuffer[leftArrayIndex + 1] -
-            thickness * arrayBuffer[leftArrayIndex + 1 + planeOffset],
-          leftVertex,
-        );
-        vec2(
-          arrayBuffer[middleArrayIndex] -
-            thickness * arrayBuffer[middleArrayIndex + planeOffset],
-          arrayBuffer[middleArrayIndex + 1] -
-            thickness * arrayBuffer[middleArrayIndex + 1 + planeOffset],
-          middleVertex,
-        );
-        vec2(
-          arrayBuffer[rightArrayIndex] -
-            thickness * arrayBuffer[rightArrayIndex + planeOffset],
-          arrayBuffer[rightArrayIndex + 1] -
-            thickness * arrayBuffer[rightArrayIndex + 1 + planeOffset],
-          rightVertex,
-        );
-        vec2(
-          arrayBuffer[rightRightArrayIndex] -
-            thickness * arrayBuffer[rightRightArrayIndex + planeOffset],
-          arrayBuffer[rightRightArrayIndex + 1] -
-            thickness * arrayBuffer[rightRightArrayIndex + 1 + planeOffset],
-          rightRightVertex,
-        );
-
+      vertexLoop: for (const vertex of loopVertices) {
         if (!skipTest) {
-          planeFromPoints(leftVertex, rightVertex, plane);
-          for (const indices of [convexIndices, concaveIndices]) {
-            for (const index of indices) {
-              if (index === left || index === middle || index === right) {
-                continue;
-              }
-              const arrayIndex =
-                (firstIndex + index) * vertexSize + vertexOffset;
-              vec2(arrayBuffer[arrayIndex], arrayBuffer[arrayIndex + 1], point);
-              if (signedDistance(plane, point) < 0) {
-                continue indexLoop; // not an ear
+          planeFromPoints(vertex.left.position, vertex.right.position, plane);
+          for (const testVertices of [convexVertices, concaveVertices]) {
+            for (const testVertex of testVertices) {
+              if (
+                signedDistance(plane, testVertex.position) < 0 &&
+                testVertex !== vertex &&
+                testVertex !== vertex.left &&
+                testVertex !== vertex.right
+              ) {
+                continue vertexLoop; // not an ear
               }
             }
           }
         }
-        indices.delete(middle);
+        vertex.left.right = vertex.right;
+        vertex.right.left = vertex.left;
+        loopVertices.delete(vertex);
 
         // see if left or right changed convexity
-        minus(leftLeftVertex, leftVertex, middleLeft);
-        minus(rightVertex, leftVertex, middleRight);
-        if (cross(middleRight, middleLeft) >= 0.0) {
-          concaveIndices.delete(left);
-          convexIndices.add(left);
+        minus(vertex.left.position, vertex.left.left.position, leftMiddle);
+        minus(vertex.right.position, vertex.left.left.position, leftRight);
+        if (cross(leftMiddle, leftRight) >= 0.0) {
+          concaveVertices.delete(vertex.left);
+          convexVertices.add(vertex.left);
         } else {
-          convexIndices.delete(left);
-          concaveIndices.add(left);
+          convexVertices.delete(vertex.left);
+          concaveVertices.add(vertex.left);
         }
-        minus(leftVertex, rightVertex, middleLeft);
-        minus(rightRightVertex, rightVertex, middleRight);
-        if (cross(middleRight, middleLeft) >= 0.0) {
-          concaveIndices.delete(right);
-          convexIndices.add(right);
+        minus(vertex.right.position, vertex.left.position, leftMiddle);
+        minus(vertex.right.right.position, vertex.left.position, leftRight);
+        if (cross(leftMiddle, leftRight) >= 0.0) {
+          concaveVertices.delete(vertex.right);
+          convexVertices.add(vertex.right);
         } else {
-          convexIndices.delete(right);
-          concaveIndices.add(right);
+          convexVertices.delete(vertex.right);
+          concaveVertices.add(vertex.right);
         }
-        elementArrayBuffer[elementArrayIndex++] = leftIndex;
-        elementArrayBuffer[elementArrayIndex++] = middleIndex;
-        elementArrayBuffer[elementArrayIndex++] = rightIndex;
+        elementArrayBuffer[elementArrayIndex++] = vertex.left.index;
+        elementArrayBuffer[elementArrayIndex++] = vertex.index;
+        elementArrayBuffer[elementArrayIndex++] = vertex.right.index;
 
         remainingTriangles--;
         foundTriangle = true;
@@ -1296,13 +1212,11 @@ export class ShapeList {
    * Creates the indexed triangle geometry for this shape list.
    *
    * @param tessellation the tessellation level.
-   * @param thickness the thickness used to offset vertices for triangulation.
    * @return a tuple consisting of the array buffer (vertex data),
    * element array buffer (indices), and the attribute sizes.
    */
   createGeometry(
     tessellation: number = 4.0,
-    thickness: number = 0.01,
   ): [Float32Array, Uint32Array, {[string]: number}] {
     // first pass: get stats
     const stats: GeometryStats = {
@@ -1353,7 +1267,6 @@ export class ShapeList {
         attributeOffsets,
         vertexSize,
         tessellation,
-        thickness,
       );
     }
     for (const path of this.paths) {
