@@ -802,7 +802,7 @@ class Shape {
     let previousVertices = stats.vertices;
     this.exterior.updateStats(stats, tessellation);
     const exteriorVertices = stats.vertices - previousVertices;
-    const triangles = exteriorVertices / 2 - 2;
+    const triangles = exteriorVertices / 6 - 2;
     const indices = 3 * triangles;
     const start = stats.indices;
     stats.indices += indices;
@@ -842,7 +842,7 @@ class Shape {
 
     // create the linked array of vertex objects
     const vertices: Vertex[] = [];
-    for (let ii = 1; ii < vertexCount; ii += 2) {
+    for (let ii = 1; ii < vertexCount; ii += 6) {
       const index = firstIndex + ii;
       const arrayIndex = index * vertexSize + vertexOffset;
       vertices.push(
@@ -875,7 +875,7 @@ class Shape {
     }
     const point = vec2();
     const plane = {normal: vec2(), constant: 0.0};
-    let remainingTriangles = vertexCount / 2 - 2;
+    let remainingTriangles = vertexCount / 6 - 2;
     let iterationsWithoutTriangle = 0;
     while (remainingTriangles > 0) {
       let foundTriangle = false;

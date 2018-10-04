@@ -215,7 +215,7 @@ const HANDLE_VERTEX_SHADER = `
     interpolatedPlane = plane;
     interpolatedInside = inside;
     interpolatedPart = part;
-    vec2 expandedVertex = vertex + 2.0 * thickness * plane.xy;
+    vec2 expandedVertex = vertex + (2.0 - inside * 0.1) * thickness * plane.xy;
     modelPosition = expandedVertex;
     vec3 position =
       viewProjectionMatrix * (modelMatrix * vec3(expandedVertex, 1.0));
