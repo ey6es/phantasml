@@ -121,28 +121,29 @@ const ScaleHandleGeometry = createHandleGeometry((
 function createHandleGeometry(knobFn: ShapeList => mixed): Geometry {
   const shapeList = new ShapeList();
 
-  shapeList.jump(0.5, -1.5, {part: 0});
-  shapeList.penDown().raise();
+  shapeList
+    .jump(-1.5, -1.5, 0, {part: 0})
+    .raise()
+    .penDown(true);
   for (let ii = 0; ii < 4; ii++) {
-    shapeList
-      .advance(1.0)
-      .pivot(90)
-      .advance(1.0)
-      .advance(1.0);
+    shapeList.advance(3.0).pivot(90);
   }
   shapeList.penUp().lower();
 
+  shapeList.jump(1.5, -0.5, 0);
   for (let ii = 0; ii < 4; ii++) {
     shapeList
+      .penDown(true)
       .advance(1.0, {part: ii & 1 ? 1.0 : 0.5})
-      .pivot(90)
-      .advance(1.0)
-      .pivot(-90)
-      .penDown()
-      .advance(1.0)
       .apply(knobFn)
       .advance(1.0)
+      .pivot(90)
+      .advance(1.0)
       .penUp()
+      .pivot(180)
+      .advance(2)
+      .pivot(90)
+      .advance(1)
       .pivot(-90);
   }
 
@@ -204,12 +205,15 @@ const HANDLE_VERTEX_SHADER = `
   uniform float thickness;
   attribute vec2 vertex;
   attribute vec3 plane;
+  attribute float inside;
   attribute float part;
   varying vec2 modelPosition;
   varying vec3 interpolatedPlane;
+  varying float interpolatedInside;
   varying float interpolatedPart;
   void main(void) {
     interpolatedPlane = plane;
+    interpolatedInside = inside;
     interpolatedPart = part;
     vec2 expandedVertex = vertex + 2.0 * thickness * plane.xy;
     modelPosition = expandedVertex;
@@ -225,10 +229,16 @@ const HANDLE_FRAGMENT_SHADER = `
   uniform float stepSize;
   varying vec2 modelPosition;
   varying vec3 interpolatedPlane;
+  varying float interpolatedInside;
   varying float interpolatedPart;
   void main(void) {
-    float dist = abs(dot(vec3(modelPosition, 1.0), interpolatedPlane));
-    float inside = smoothstep(dist, dist + stepSize, thickness);
+    float normalLength = length(interpolatedPlane.xy);
+    float dist =
+      dot(vec3(modelPosition, 1.0), interpolatedPlane) / normalLength;
+    float inside = max(
+      step(0.5, interpolatedInside),
+      smoothstep(dist, dist + stepSize, thickness)
+    );
     vec3 color = mix(
       vec3(1.0, 1.0, 0.0),
       mix(
@@ -241,6 +251,7 @@ const HANDLE_FRAGMENT_SHADER = `
     gl_FragColor = vec4(color, inside);
     //vec2 normal = normalize(interpolatedPlane.xy);
     //gl_FragColor = vec4(normal * 0.5 + vec2(0.5, 0.5), 0.0, 1.0);
+    //gl_FragColor = vec4(dist + 0.5, 0.0, 0.0, 1.0);
   }
 `;
 

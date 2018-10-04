@@ -50,6 +50,12 @@ class Path {
   loop: boolean;
   commands: PathCommand[] = [];
 
+  /** Returns the z order of the last path command. */
+  get zOrder(): number {
+    const lastIndex = this.commands.length - 1;
+    return lastIndex < 0 ? 0 : this.commands[lastIndex].zOrder;
+  }
+
   constructor(loop: boolean = false) {
     this.loop = loop;
   }
@@ -138,21 +144,17 @@ class Path {
     }
   }
 
-  updateStats(
-    stats: GeometryStats,
-    tessellation: number,
-    edge: boolean = false,
-  ) {
+  updateStats(stats: GeometryStats, tessellation: number) {
     for (let ii = 0; ii < this.commands.length; ii++) {
       const command = this.commands[ii];
       let previous: ?PathCommand;
-      if (this.loop || edge) {
+      if (this.loop) {
         const lastIndex = this.commands.length - 1;
         previous = this.commands[(ii + lastIndex) % this.commands.length];
       } else {
         previous = this.commands[ii - 1];
       }
-      command.updateStats(stats, tessellation, edge, previous);
+      command.updateStats(stats, tessellation, previous);
     }
   }
 
@@ -165,7 +167,7 @@ class Path {
     attributeOffsets: {[string]: number},
     vertexSize: number,
     tessellation: number,
-    edge: boolean = false,
+    edge: boolean,
   ): [number, number] {
     // get the stats for this path only
     const stats: GeometryStats = {
@@ -174,7 +176,7 @@ class Path {
       indices: 0,
       groups: [],
     };
-    this.updateStats(stats, tessellation, edge);
+    this.updateStats(stats, tessellation);
     const vertexCount = stats.vertices;
 
     // start with just the vertices/attributes
@@ -182,7 +184,7 @@ class Path {
     for (let ii = 0; ii < this.commands.length; ii++) {
       const command = this.commands[ii];
       let previous: ?PathCommand;
-      if (this.loop || edge) {
+      if (this.loop) {
         const lastIndex = this.commands.length - 1;
         previous = this.commands[(ii + lastIndex) % this.commands.length];
       } else {
@@ -198,14 +200,14 @@ class Path {
         vertexSize,
         vertexCount,
         tessellation,
-        edge,
         this.loop,
+        edge,
         firstArrayIndex,
         previous,
       );
     }
     // fill in the plane attributes now that we have all vertices
-    const vertexSpan = edge ? 3 : 6;
+    const vertexSpan = 6;
     const maxVertex = vertexCount - 1;
     const firstVertex = firstArrayIndex / vertexSize;
     const from = vec2();
@@ -232,7 +234,7 @@ class Path {
       planeFromPoints(to, from, toFromPlane);
 
       let previousIndex = vertexOffset - vertexSpan;
-      if (this.loop || edge) {
+      if (this.loop) {
         previousIndex = (previousIndex + vertexCount) % vertexCount;
       } else {
         previousIndex = Math.max(0, previousIndex);
@@ -256,34 +258,31 @@ class Path {
       arrayBuffer[planeIndex] = toPreviousPlane.normal.x;
       arrayBuffer[planeIndex + 1] = toPreviousPlane.normal.y;
       arrayBuffer[planeIndex + 2] = toPreviousPlane.constant;
-      if (!edge) {
-        planeIndex += vertexSize;
-        arrayBuffer[planeIndex] = -toPreviousPlane.normal.x;
-        arrayBuffer[planeIndex + 1] = -toPreviousPlane.normal.y;
-        arrayBuffer[planeIndex + 2] = -toPreviousPlane.constant;
-      }
+
+      planeIndex += vertexSize;
+      arrayBuffer[planeIndex] = -toPreviousPlane.normal.x;
+      arrayBuffer[planeIndex + 1] = -toPreviousPlane.normal.y;
+      arrayBuffer[planeIndex + 2] = -toPreviousPlane.constant;
 
       planeIndex += vertexSize;
       arrayBuffer[planeIndex] = toFromPlane.normal.x;
       arrayBuffer[planeIndex + 1] = toFromPlane.normal.y;
       arrayBuffer[planeIndex + 2] = toFromPlane.constant;
-      if (!edge) {
-        planeIndex += vertexSize;
-        arrayBuffer[planeIndex] = -toFromPlane.normal.x;
-        arrayBuffer[planeIndex + 1] = -toFromPlane.normal.y;
-        arrayBuffer[planeIndex + 2] = -toFromPlane.constant;
-      }
+
+      planeIndex += vertexSize;
+      arrayBuffer[planeIndex] = -toFromPlane.normal.x;
+      arrayBuffer[planeIndex + 1] = -toFromPlane.normal.y;
+      arrayBuffer[planeIndex + 2] = -toFromPlane.constant;
 
       planeIndex += vertexSize;
       arrayBuffer[planeIndex] = toFromPlane.normal.x;
       arrayBuffer[planeIndex + 1] = toFromPlane.normal.y;
       arrayBuffer[planeIndex + 2] = toFromPlane.constant;
-      if (!edge) {
-        planeIndex += vertexSize;
-        arrayBuffer[planeIndex] = -toFromPlane.normal.x;
-        arrayBuffer[planeIndex + 1] = -toFromPlane.normal.y;
-        arrayBuffer[planeIndex + 2] = -toFromPlane.constant;
-      }
+
+      planeIndex += vertexSize;
+      arrayBuffer[planeIndex] = -toFromPlane.normal.x;
+      arrayBuffer[planeIndex + 1] = -toFromPlane.normal.y;
+      arrayBuffer[planeIndex + 2] = -toFromPlane.constant;
     }
     return [arrayIndex, groupIndex];
   }
@@ -303,7 +302,6 @@ class PathCommand {
   updateStats(
     stats: GeometryStats,
     tessellation: number,
-    edge: boolean,
     previous: ?PathCommand,
   ) {
     if (this.attributes) {
@@ -317,17 +315,15 @@ class PathCommand {
     }
   }
 
-  _addToStats(stats: GeometryStats, edge: boolean, divisions: number) {
-    stats.vertices += this._getVerticesForDivisions(divisions, edge);
-    if (!edge) {
-      const start = stats.indices;
-      stats.indices += 18 * divisions;
-      stats.groups.push({start, end: stats.indices, zOrder: this.zOrder});
-    }
+  _addToStats(stats: GeometryStats, divisions: number) {
+    stats.vertices += this._getVerticesForDivisions(divisions);
+    const start = stats.indices;
+    stats.indices += 18 * divisions;
+    stats.groups.push({start, end: stats.indices, zOrder: this.zOrder});
   }
 
-  _getVerticesForDivisions(divisions: number, edge: boolean): number {
-    return (edge ? 3 : 6) * divisions;
+  _getVerticesForDivisions(divisions: number): number {
+    return 6 * divisions;
   }
 
   populateBuffers(
@@ -340,8 +336,8 @@ class PathCommand {
     vertexSize: number,
     vertexCount: number,
     tessellation: number,
-    edge: boolean,
     loop: boolean,
+    edge: boolean,
     firstArrayIndex: number,
     previous: ?PathCommand,
   ): [number, number] {
@@ -355,6 +351,7 @@ class PathCommand {
     attributeOffsets: {[string]: number},
     vertexSize: number,
     position: Vector2,
+    edge: boolean,
     parameter: number = 1.0,
     previous?: PathCommand,
   ): number {
@@ -362,6 +359,9 @@ class PathCommand {
       let vertexIndex = arrayIndex + attributeOffsets.vertex;
       arrayBuffer[vertexIndex] = position.x;
       arrayBuffer[vertexIndex + 1] = position.y;
+      if (edge && (ii & 1) === 1) {
+        arrayBuffer[arrayIndex + attributeOffsets.inside] = 1.0;
+      }
       this._writeAttributes(
         arrayBuffer,
         arrayIndex,
@@ -478,11 +478,10 @@ class LineTo extends PathCommand {
   updateStats(
     stats: GeometryStats,
     tessellation: number,
-    edge: boolean,
     previous: ?PathCommand,
   ) {
-    super.updateStats(stats, tessellation, edge, previous);
-    this._addToStats(stats, edge, 1);
+    super.updateStats(stats, tessellation, previous);
+    this._addToStats(stats, 1);
   }
 
   populateBuffers(
@@ -495,41 +494,39 @@ class LineTo extends PathCommand {
     vertexSize: number,
     vertexCount: number,
     tessellation: number,
-    edge: boolean,
     loop: boolean,
+    edge: boolean,
     firstArrayIndex: number,
     previous: ?PathCommand,
   ): [number, number] {
     if (!previous) {
       throw new Error('Missing previous command.');
     }
-    if (!edge) {
-      this._writeIndices(
-        elementArrayBuffer,
-        groups[groupIndex++].start,
-        firstArrayIndex / vertexSize,
-        vertexCount,
-        (arrayIndex - firstArrayIndex) / vertexSize,
-        loop,
-      );
-    }
-    const vertices = this._getVerticesForDivisions(1, edge);
-    const previousVertices = edge ? 2 : 4;
+    this._writeIndices(
+      elementArrayBuffer,
+      groups[groupIndex++].start,
+      firstArrayIndex / vertexSize,
+      vertexCount,
+      (arrayIndex - firstArrayIndex) / vertexSize,
+      loop,
+    );
     arrayIndex = this._writeVertices(
-      previousVertices,
+      4,
       arrayBuffer,
       arrayIndex,
       attributeOffsets,
       vertexSize,
       previous.dest,
+      edge,
     );
     arrayIndex = this._writeVertices(
-      vertices - previousVertices,
+      this._getVerticesForDivisions(1) - 4,
       arrayBuffer,
       arrayIndex,
       attributeOffsets,
       vertexSize,
       this.dest,
+      edge,
     );
     return [arrayIndex, groupIndex];
   }
@@ -551,15 +548,14 @@ class ArcTo extends PathCommand {
   updateStats(
     stats: GeometryStats,
     tessellation: number,
-    edge: boolean,
     previous: ?PathCommand,
   ) {
     if (!previous) {
       throw new Error('Missing previous command.');
     }
-    super.updateStats(stats, tessellation, edge, previous);
+    super.updateStats(stats, tessellation, previous);
     const [length, divisions] = this._getArcParameters(tessellation, previous);
-    this._addToStats(stats, edge, divisions);
+    this._addToStats(stats, divisions);
   }
 
   populateBuffers(
@@ -572,8 +568,8 @@ class ArcTo extends PathCommand {
     vertexSize: number,
     vertexCount: number,
     tessellation: number,
-    edge: boolean,
     loop: boolean,
+    edge: boolean,
     firstArrayIndex: number,
     previous: ?PathCommand,
   ): [number, number] {
@@ -598,28 +594,26 @@ class ArcTo extends PathCommand {
     const parameterIncrement = 1.0 / divisions;
     let parameter = 0.0;
     const point = equals(previous.dest);
-    const verticesPerDivision = this._getVerticesForDivisions(1, edge);
-    const previousVertices = edge ? 2 : 4;
-    const nextVertices = verticesPerDivision - previousVertices;
+    const verticesPerDivision = this._getVerticesForDivisions(1);
+    const verticesPerDivisionMinus4 = verticesPerDivision - 4;
     const firstVertex = firstArrayIndex / vertexSize;
     for (let ii = 0; ii < divisions; ii++) {
-      if (!edge) {
-        this._writeIndices(
-          elementArrayBuffer,
-          groups[groupIndex++].start,
-          firstVertex,
-          vertexCount,
-          (arrayIndex - firstArrayIndex) / vertexSize,
-          loop,
-        );
-      }
+      this._writeIndices(
+        elementArrayBuffer,
+        groups[groupIndex++].start,
+        firstVertex,
+        vertexCount,
+        (arrayIndex - firstArrayIndex) / vertexSize,
+        loop,
+      );
       arrayIndex = this._writeVertices(
-        previousVertices,
+        4,
         arrayBuffer,
         arrayIndex,
         attributeOffsets,
         vertexSize,
         point,
+        edge,
         parameter,
         previous,
       );
@@ -628,12 +622,13 @@ class ArcTo extends PathCommand {
       point.x = center.x + this.radius * Math.cos(a);
       point.y = center.y + this.radius * Math.sin(a);
       arrayIndex = this._writeVertices(
-        nextVertices,
+        verticesPerDivisionMinus4,
         arrayBuffer,
         arrayIndex,
         attributeOffsets,
         vertexSize,
         point,
+        edge,
         parameter,
         previous,
       );
@@ -672,18 +667,17 @@ class CurveTo extends PathCommand {
   updateStats(
     stats: GeometryStats,
     tessellation: number,
-    edge: boolean,
     previous: ?PathCommand,
   ) {
     if (!previous) {
       throw new Error('Missing previous command.');
     }
-    super.updateStats(stats, tessellation, edge, previous);
+    super.updateStats(stats, tessellation, previous);
     const [a, b, c, d, length, divisions] = this._getSplineParameters(
       tessellation,
       previous,
     );
-    this._addToStats(stats, edge, divisions);
+    this._addToStats(stats, divisions);
   }
 
   populateBuffers(
@@ -696,8 +690,8 @@ class CurveTo extends PathCommand {
     vertexSize: number,
     vertexCount: number,
     tessellation: number,
-    edge: boolean,
     loop: boolean,
+    edge: boolean,
     firstArrayIndex: number,
     previous: ?PathCommand,
   ): [number, number] {
@@ -716,28 +710,26 @@ class CurveTo extends PathCommand {
     const parameterIncrement = 1.0 / divisions;
     let parameter = 0.0;
     const point = equals(previous.dest);
-    const verticesPerDivision = this._getVerticesForDivisions(1, edge);
-    const previousVertices = edge ? 2 : 4;
-    const nextVertices = verticesPerDivision - previousVertices;
+    const verticesPerDivision = this._getVerticesForDivisions(1);
+    const verticesPerDivisionMinus4 = verticesPerDivision - 4;
     const firstVertex = firstArrayIndex / vertexSize;
     for (let ii = 0; ii < divisions; ii++) {
-      if (!edge) {
-        this._writeIndices(
-          elementArrayBuffer,
-          groups[groupIndex++].start,
-          firstVertex,
-          vertexCount,
-          (arrayIndex - firstArrayIndex) / vertexSize,
-          loop,
-        );
-      }
+      this._writeIndices(
+        elementArrayBuffer,
+        groups[groupIndex++].start,
+        firstVertex,
+        vertexCount,
+        (arrayIndex - firstArrayIndex) / vertexSize,
+        loop,
+      );
       arrayIndex = this._writeVertices(
-        previousVertices,
+        4,
         arrayBuffer,
         arrayIndex,
         attributeOffsets,
         vertexSize,
         point,
+        edge,
         parameter,
         previous,
       );
@@ -757,12 +749,13 @@ class CurveTo extends PathCommand {
       point.x = t * (t * (t * a.x + b.x) + c.x) + d.x;
       point.y = t * (t * (t * a.y + b.y) + c.y) + d.y;
       arrayIndex = this._writeVertices(
-        nextVertices,
+        verticesPerDivisionMinus4,
         arrayBuffer,
         arrayIndex,
         attributeOffsets,
         vertexSize,
         point,
+        edge,
         parameter,
         previous,
       );
@@ -792,137 +785,247 @@ class CurveTo extends PathCommand {
  */
 class Shape {
   exterior: Path;
-  zOrder: number;
 
-  constructor(exterior: Path, zOrder: number = 0) {
+  constructor(exterior: Path) {
     this.exterior = exterior;
-    this.zOrder = zOrder;
+    this.exterior.loop = true;
   }
 
   updateStats(stats: GeometryStats, tessellation: number) {
     let previousVertices = stats.vertices;
-    this.exterior.updateStats(stats, tessellation, true);
+    this.exterior.updateStats(stats, tessellation);
     const exteriorVertices = stats.vertices - previousVertices;
-    const triangles = exteriorVertices - 2;
+    const triangles = exteriorVertices / 2 - 2;
     const indices = 3 * triangles;
     const start = stats.indices;
     stats.indices += indices;
-    stats.groups.push({start, end: stats.indices, zOrder: this.zOrder});
+    stats.groups.push({
+      start,
+      end: stats.indices,
+      zOrder: this.exterior.zOrder,
+    });
   }
 
   populateBuffers(
     arrayBuffer: Float32Array,
     elementArrayBuffer: Uint32Array,
     arrayIndex: number,
-    elementArrayIndex: number,
+    groups: GeometryGroup[],
+    groupIndex: number,
     attributeOffsets: {[string]: number},
     vertexSize: number,
     tessellation: number,
-  ): number {
+    thickness: number,
+  ): [number, number] {
     const firstIndex = arrayIndex / vertexSize;
-    let groupIndex = 0;
     [arrayIndex, groupIndex] = this.exterior.populateBuffers(
       arrayBuffer,
       elementArrayBuffer,
       arrayIndex,
-      [],
+      groups,
       groupIndex,
       attributeOffsets,
       vertexSize,
       tessellation,
       true,
     );
+    let elementArrayIndex = groups[groupIndex++].start;
     const lastIndex = arrayIndex / vertexSize;
     const vertexCount = lastIndex - firstIndex;
     const vertexOffset = attributeOffsets.vertex;
-    const p0 = {x: 0.0, y: 0.0};
-    const p1 = {x: 0.0, y: 0.0};
-    const p2 = {x: 0.0, y: 0.0};
-    const v0 = {x: 0.0, y: 0.0};
-    const v1 = {x: 0.0, y: 0.0};
+    const planeOffset = attributeOffsets.plane - attributeOffsets.vertex;
+    const leftLeftVertex = vec2();
+    const leftVertex = vec2();
+    const middleVertex = vec2();
+    const rightVertex = vec2();
+    const rightRightVertex = vec2();
+    const middleLeft = vec2();
+    const middleRight = vec2();
     const convexIndices: Set<number> = new Set();
     const concaveIndices: Set<number> = new Set();
-    for (let ii = 0; ii < vertexCount; ii++) {
-      const i0 = firstIndex + ((ii + vertexCount - 1) % vertexCount);
-      const i1 = firstIndex + ii;
-      const i2 = firstIndex + ((ii + 1) % vertexCount);
+    // odd vertices are inside
+    for (let middle = 1; middle < vertexCount; middle += 2) {
+      const leftIndex = firstIndex + ((middle + vertexCount - 2) % vertexCount);
+      const middleIndex = firstIndex + middle;
+      const rightIndex = firstIndex + ((middle + 2) % vertexCount);
 
-      const a0 = i0 * vertexSize + vertexOffset;
-      const a1 = i1 * vertexSize + vertexOffset;
-      const a2 = i2 * vertexSize + vertexOffset;
+      const leftArrayIndex = leftIndex * vertexSize + vertexOffset;
+      const middleArrayIndex = middleIndex * vertexSize + vertexOffset;
+      const rightArrayIndex = rightIndex * vertexSize + vertexOffset;
 
-      p0.x = arrayBuffer[a0];
-      p0.y = arrayBuffer[a0 + 1];
+      vec2(
+        arrayBuffer[leftArrayIndex] -
+          thickness * arrayBuffer[leftArrayIndex + planeOffset],
+        arrayBuffer[leftArrayIndex + 1] -
+          thickness * arrayBuffer[leftArrayIndex + 1 + planeOffset],
+        leftVertex,
+      );
+      vec2(
+        arrayBuffer[middleArrayIndex] -
+          thickness * arrayBuffer[middleArrayIndex + planeOffset],
+        arrayBuffer[middleArrayIndex + 1] -
+          thickness * arrayBuffer[middleArrayIndex + 1 + planeOffset],
+        middleVertex,
+      );
+      vec2(
+        arrayBuffer[rightArrayIndex] -
+          thickness * arrayBuffer[rightArrayIndex + planeOffset],
+        arrayBuffer[rightArrayIndex + 1] -
+          thickness * arrayBuffer[rightArrayIndex + 1 + planeOffset],
+        rightVertex,
+      );
+      minus(leftVertex, middleVertex, middleLeft);
+      minus(rightVertex, middleVertex, middleRight);
 
-      p1.x = arrayBuffer[a1];
-      p1.y = arrayBuffer[a1 + 1];
-
-      p2.x = arrayBuffer[a2];
-      p2.y = arrayBuffer[a2 + 1];
-
-      if (cross(minus(p2, p1, v0), minus(p0, p1, v1)) >= 0.0) {
-        convexIndices.add(ii);
+      if (cross(middleRight, middleLeft) >= 0.0) {
+        convexIndices.add(middle);
       } else {
-        concaveIndices.add(ii);
+        concaveIndices.add(middle);
       }
     }
-    const plane = {normal: {x: 0.0, y: 0.0}, constant: 0.0};
-    let remainingTriangles = vertexCount - 2;
+    const point = vec2();
+    const plane = {normal: vec2(), constant: 0.0};
+    let remainingTriangles = vertexCount / 2 - 2;
+    let iterationsWithoutTriangle = 0;
     while (remainingTriangles > 0) {
-      convexIndexLoop: for (const middle of convexIndices) {
+      let foundTriangle = false;
+      let indices = convexIndices;
+      let skipTest = false;
+      if (convexIndices.size === 0) {
+        console.warn('Ran out of convex indices to process.');
+        indices = concaveIndices;
+        skipTest = true;
+      }
+      if (iterationsWithoutTriangle > 1) {
+        console.warn('Too many iterations: ' + iterationsWithoutTriangle);
+        skipTest = true;
+      }
+      indexLoop: for (const middle of indices) {
+        // find the indices of our neighbors
+        let leftLeft = middle - 2;
+        do {
+          leftLeft = (leftLeft + vertexCount - 2) % vertexCount;
+        } while (
+          !(convexIndices.has(leftLeft) || concaveIndices.has(leftLeft))
+        );
         let left = middle;
+        do {
+          left = (left + vertexCount - 2) % vertexCount;
+        } while (!(convexIndices.has(left) || concaveIndices.has(left)));
+
         let right = middle;
         do {
-          left = (left + vertexCount - 1) % vertexCount;
-        } while (!(convexIndices.has(left) || concaveIndices.has(left)));
+          right = (right + 2) % vertexCount;
+        } while (!(convexIndices.has(right) || concaveIndices.has(right)));
+
+        let rightRight = middle + 2;
         do {
-          right = (right + 1) % vertexCount;
-        } while (!(convexIndices.has(left) || concaveIndices.has(left)));
+          rightRight = (rightRight + 2) % vertexCount;
+        } while (
+          !(convexIndices.has(rightRight) || concaveIndices.has(rightRight))
+        );
 
-        const i0 = firstIndex + left;
-        const i1 = firstIndex + middle;
-        const i2 = firstIndex + right;
+        const leftLeftIndex = firstIndex + leftLeft;
+        const leftIndex = firstIndex + left;
+        const middleIndex = firstIndex + middle;
+        const rightIndex = firstIndex + right;
+        const rightRightIndex = firstIndex + rightRight;
 
-        const a0 = i0 * vertexSize + vertexOffset;
-        const a2 = i2 * vertexSize + vertexOffset;
+        const leftLeftArrayIndex = leftLeftIndex * vertexSize + vertexOffset;
+        const leftArrayIndex = leftIndex * vertexSize + vertexOffset;
+        const middleArrayIndex = middleIndex * vertexSize + vertexOffset;
+        const rightArrayIndex = rightIndex * vertexSize + vertexOffset;
+        const rightRightArrayIndex =
+          rightRightIndex * vertexSize + vertexOffset;
 
-        p0.x = arrayBuffer[a0];
-        p0.y = arrayBuffer[a0 + 1];
+        vec2(
+          arrayBuffer[leftLeftArrayIndex] -
+            thickness * arrayBuffer[leftLeftArrayIndex + planeOffset],
+          arrayBuffer[leftLeftArrayIndex + 1] -
+            thickness * arrayBuffer[leftLeftArrayIndex + 1 + planeOffset],
+          leftLeftVertex,
+        );
+        vec2(
+          arrayBuffer[leftArrayIndex] -
+            thickness * arrayBuffer[leftArrayIndex + planeOffset],
+          arrayBuffer[leftArrayIndex + 1] -
+            thickness * arrayBuffer[leftArrayIndex + 1 + planeOffset],
+          leftVertex,
+        );
+        vec2(
+          arrayBuffer[middleArrayIndex] -
+            thickness * arrayBuffer[middleArrayIndex + planeOffset],
+          arrayBuffer[middleArrayIndex + 1] -
+            thickness * arrayBuffer[middleArrayIndex + 1 + planeOffset],
+          middleVertex,
+        );
+        vec2(
+          arrayBuffer[rightArrayIndex] -
+            thickness * arrayBuffer[rightArrayIndex + planeOffset],
+          arrayBuffer[rightArrayIndex + 1] -
+            thickness * arrayBuffer[rightArrayIndex + 1 + planeOffset],
+          rightVertex,
+        );
+        vec2(
+          arrayBuffer[rightRightArrayIndex] -
+            thickness * arrayBuffer[rightRightArrayIndex + planeOffset],
+          arrayBuffer[rightRightArrayIndex + 1] -
+            thickness * arrayBuffer[rightRightArrayIndex + 1 + planeOffset],
+          rightRightVertex,
+        );
 
-        p2.x = arrayBuffer[a2];
-        p2.y = arrayBuffer[a2 + 1];
-
-        planeFromPoints(p0, p2, plane);
-
-        for (const indices of [convexIndices, concaveIndices]) {
-          for (const index of indices) {
-            if (index === left || index === middle || index === right) {
-              continue;
-            }
-            const a1 = index * vertexSize + vertexOffset;
-            p1.x = arrayBuffer[a1];
-            p1.y = arrayBuffer[a1 + 1];
-            if (signedDistance(plane, p1) < 0.0) {
-              continue convexIndexLoop; // not an ear
+        if (!skipTest) {
+          planeFromPoints(leftVertex, rightVertex, plane);
+          for (const indices of [convexIndices, concaveIndices]) {
+            for (const index of indices) {
+              if (index === left || index === middle || index === right) {
+                continue;
+              }
+              const arrayIndex =
+                (firstIndex + index) * vertexSize + vertexOffset;
+              vec2(arrayBuffer[arrayIndex], arrayBuffer[arrayIndex + 1], point);
+              if (signedDistance(plane, point) < 0) {
+                continue indexLoop; // not an ear
+              }
             }
           }
         }
+        indices.delete(middle);
 
-        convexIndices.delete(middle);
-        concaveIndices.delete(left);
-        convexIndices.add(left);
-        concaveIndices.delete(right);
-        convexIndices.add(right);
-
-        elementArrayBuffer[elementArrayIndex++] = i0;
-        elementArrayBuffer[elementArrayIndex++] = i1;
-        elementArrayBuffer[elementArrayIndex++] = i2;
+        // see if left or right changed convexity
+        minus(leftLeftVertex, leftVertex, middleLeft);
+        minus(rightVertex, leftVertex, middleRight);
+        if (cross(middleRight, middleLeft) >= 0.0) {
+          concaveIndices.delete(left);
+          convexIndices.add(left);
+        } else {
+          convexIndices.delete(left);
+          concaveIndices.add(left);
+        }
+        minus(leftVertex, rightVertex, middleLeft);
+        minus(rightRightVertex, rightVertex, middleRight);
+        if (cross(middleRight, middleLeft) >= 0.0) {
+          concaveIndices.delete(right);
+          convexIndices.add(right);
+        } else {
+          convexIndices.delete(right);
+          concaveIndices.add(right);
+        }
+        elementArrayBuffer[elementArrayIndex++] = leftIndex;
+        elementArrayBuffer[elementArrayIndex++] = middleIndex;
+        elementArrayBuffer[elementArrayIndex++] = rightIndex;
 
         remainingTriangles--;
+        foundTriangle = true;
         break;
       }
+      if (foundTriangle) {
+        iterationsWithoutTriangle = 0;
+      } else {
+        iterationsWithoutTriangle++;
+      }
     }
-    return arrayIndex;
+    return [arrayIndex, groupIndex];
   }
 }
 
@@ -998,9 +1101,17 @@ export class ShapeList {
    * @param [attributes] optional attributes for the new position.
    * @return a reference to the list, for chaining.
    */
-  jump(x: number, y: number, attributes?: VertexAttributes): ShapeList {
+  jump(
+    x: number,
+    y: number,
+    rotation?: number,
+    attributes?: VertexAttributes,
+  ): ShapeList {
     this.position.x = x;
     this.position.y = y;
+    if (rotation != null) {
+      this.rotation = rotation;
+    }
     attributes && Object.assign(this.attributes, attributes);
     if (this._drawingPath) {
       this._drawingPath.lineTo(
@@ -1119,7 +1230,7 @@ export class ShapeList {
   penDown(shape: boolean = false): ShapeList {
     this._drawingPath = new Path();
     if (shape) {
-      this.shapes.push(new Shape(this._drawingPath, this.zOrder));
+      this.shapes.push(new Shape(this._drawingPath));
     } else {
       this.paths.push(this._drawingPath);
     }
@@ -1138,9 +1249,11 @@ export class ShapeList {
    * path a closed loop.
    * @return a reference to the list, for chaining.
    */
-  penUp(closeLoop: boolean = false): ShapeList {
+  penUp(closeLoop?: boolean): ShapeList {
     if (this._drawingPath) {
-      this._drawingPath.loop = closeLoop;
+      if (closeLoop != null) {
+        this._drawingPath.loop = closeLoop;
+      }
       this._drawingPath = null;
     }
     return this;
@@ -1183,15 +1296,17 @@ export class ShapeList {
    * Creates the indexed triangle geometry for this shape list.
    *
    * @param tessellation the tessellation level.
+   * @param thickness the thickness used to offset vertices for triangulation.
    * @return a tuple consisting of the array buffer (vertex data),
    * element array buffer (indices), and the attribute sizes.
    */
   createGeometry(
-    tessellation: number,
+    tessellation: number = 4.0,
+    thickness: number = 0.01,
   ): [Float32Array, Uint32Array, {[string]: number}] {
     // first pass: get stats
     const stats: GeometryStats = {
-      attributeSizes: {vertex: 2, plane: 3},
+      attributeSizes: {vertex: 2, plane: 3, inside: 1},
       vertices: 0,
       indices: 0,
       groups: [],
@@ -1229,16 +1344,17 @@ export class ShapeList {
     let arrayIndex = 0;
     let groupIndex = 0;
     for (const shape of this.shapes) {
-      arrayIndex = shape.populateBuffers(
+      [arrayIndex, groupIndex] = shape.populateBuffers(
         arrayBuffer,
         elementArrayBuffer,
         arrayIndex,
-        stats.groups[groupIndex].start,
+        stats.groups,
+        groupIndex,
         attributeOffsets,
         vertexSize,
         tessellation,
+        thickness,
       );
-      groupIndex++;
     }
     for (const path of this.paths) {
       [arrayIndex, groupIndex] = path.populateBuffers(
@@ -1250,6 +1366,7 @@ export class ShapeList {
         attributeOffsets,
         vertexSize,
         tessellation,
+        false,
       );
     }
     return [arrayBuffer, elementArrayBuffer, stats.attributeSizes];
