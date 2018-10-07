@@ -406,6 +406,26 @@ export function negativeEquals(vector: Vector2): Vector2 {
 }
 
 /**
+ * Checks whether either of the components of a vector is NaN.
+ *
+ * @param vector the vector to check.
+ * @return the NaN state.
+ */
+export function isNaNVector(vector: Vector2): boolean {
+  return isNaN(vector.x) || isNaN(vector.y);
+}
+
+/**
+ * Checks whether both of the components of a vector are finite numbers.
+ *
+ * @param vector the vector to check.
+ * @return the finite state.
+ */
+export function isFiniteVector(vector: Vector2): boolean {
+  return isFinite(vector.x) && isFinite(vector.y);
+}
+
+/**
  * Creates a plane from a pair of points.
  *
  * @param first the first point on the plane.
@@ -502,6 +522,37 @@ export function equalsPlane(plane: Plane, result?: Plane): Plane {
   }
   equals(plane.normal, result.normal);
   result.constant = plane.constant;
+  return result;
+}
+
+/**
+ * Finds the point at which two planes intersect.  If they don't intersect,
+ * the result will be NaN.
+ *
+ * @param first the first plane to check.
+ * @param second the second plane to check.
+ * @param [result] the vector in which to store the result (otherwise, a new
+ * vector will be created).
+ * @return a reference to the result vector, for chaining.
+ */
+export function planeIntersection(
+  first: Plane,
+  second: Plane,
+  result?: Vector2,
+): Vector2 {
+  const divisor =
+    first.normal.x * second.normal.y - first.normal.y * second.normal.x;
+  const x =
+    (first.normal.y * second.constant - second.normal.y * first.constant) /
+    divisor;
+  const y =
+    (second.normal.x * first.constant - first.normal.x * second.constant) /
+    divisor;
+  if (!result) {
+    return {x, y};
+  }
+  result.x = x;
+  result.y = y;
   return result;
 }
 

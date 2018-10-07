@@ -18,14 +18,20 @@ import {
   minusEquals,
   times,
   timesEquals,
+  orthogonalize,
   orthonormalize,
   orthonormalizeEquals,
+  normalizeEquals,
   dot,
   cross,
+  negativeEquals,
+  isFiniteVector,
   planeFromPoints,
   planeFromPointNormal,
   invert,
+  invertEquals,
   equalsPlane,
+  planeIntersection,
   signedDistance,
   mix,
 } from './math';
@@ -144,7 +150,7 @@ class Path {
     }
   }
 
-  updateStats(stats: GeometryStats, tessellation: number) {
+  updateStats(stats: GeometryStats, tessellation: number, edge: boolean) {
     for (let ii = 0; ii < this.commands.length; ii++) {
       const command = this.commands[ii];
       let previous: ?PathCommand;
@@ -154,7 +160,7 @@ class Path {
       } else {
         previous = this.commands[ii - 1];
       }
-      command.updateStats(stats, tessellation, previous);
+      command.updateStats(stats, tessellation, previous, edge, this.loop);
     }
   }
 
@@ -176,7 +182,7 @@ class Path {
       indices: 0,
       groups: [],
     };
-    this.updateStats(stats, tessellation);
+    this.updateStats(stats, tessellation, edge);
     const vertexCount = stats.vertices;
 
     // start with just the vertices/attributes
@@ -206,17 +212,21 @@ class Path {
         previous,
       );
     }
-    // fill in the plane attributes now that we have all vertices
-    const vertexSpan = 6;
+    // fill in the vector attributes now that we have all vertices
+    const vertexSpan = edge ? 5 : 8;
     const maxVertex = vertexCount - 1;
     const firstVertex = firstArrayIndex / vertexSize;
     const from = vec2();
     const to = vec2();
-    const previous = vec2();
     const next = vec2();
-    const toPrevious = vec2();
-    const toFromPlane = {normal: vec2(), constant: 0.0};
-    const toPreviousPlane = {normal: vec2(), constant: 0.0};
+    const fromTo = vec2();
+    const fromNext = vec2();
+    const vector = vec2();
+    const fromToPlane = {normal: vec2(), constant: 0.0};
+    const toNextPlane = {normal: vec2(), constant: 0.0};
+    const fromNextPlane = {normal: vec2(), constant: 0.0};
+    const fromToFromNext = vec2();
+    const toNextFromNext = vec2();
     for (
       let vertexOffset = 0;
       vertexOffset < vertexCount;
@@ -231,58 +241,105 @@ class Path {
         (offsetVertex + vertexSpan - 1) * vertexSize + attributeOffsets.vertex;
       vec2(arrayBuffer[toIndex], arrayBuffer[toIndex + 1], to);
 
-      planeFromPoints(to, from, toFromPlane);
-
-      let previousIndex = vertexOffset - vertexSpan;
+      let nextIndex = vertexOffset + vertexSpan * 2;
       if (this.loop) {
-        previousIndex = (previousIndex + vertexCount) % vertexCount;
+        nextIndex = nextIndex % vertexCount;
       } else {
-        previousIndex = Math.max(0, previousIndex);
+        nextIndex = Math.min(nextIndex, maxVertex);
       }
-      previousIndex =
-        (firstVertex + previousIndex) * vertexSize + attributeOffsets.vertex;
-      vec2(
-        arrayBuffer[previousIndex],
-        arrayBuffer[previousIndex + 1],
-        previous,
-      );
+      nextIndex =
+        (firstVertex + nextIndex) * vertexSize + attributeOffsets.vertex;
+      vec2(arrayBuffer[nextIndex], arrayBuffer[nextIndex + 1], next);
 
-      minus(previous, to, toPrevious);
-      planeFromPointNormal(
-        from,
-        orthonormalizeEquals(toPrevious),
-        toPreviousPlane,
-      );
+      minus(to, from, fromTo);
+      orthonormalize(fromTo, vector);
 
-      let planeIndex = offsetVertex * vertexSize + attributeOffsets.plane;
-      arrayBuffer[planeIndex] = toPreviousPlane.normal.x;
-      arrayBuffer[planeIndex + 1] = toPreviousPlane.normal.y;
-      arrayBuffer[planeIndex + 2] = toPreviousPlane.constant;
+      // 0-
+      let vectorIndex = offsetVertex * vertexSize + attributeOffsets.vector;
+      if (edge) {
+        arrayBuffer[vectorIndex] = 0.0;
+        arrayBuffer[vectorIndex + 1] = 0.0;
+      } else {
+        arrayBuffer[vectorIndex] = -vector.x;
+        arrayBuffer[vectorIndex + 1] = -vector.y;
+      }
 
-      planeIndex += vertexSize;
-      arrayBuffer[planeIndex] = -toPreviousPlane.normal.x;
-      arrayBuffer[planeIndex + 1] = -toPreviousPlane.normal.y;
-      arrayBuffer[planeIndex + 2] = -toPreviousPlane.constant;
+      // 1-
+      vectorIndex += vertexSize;
+      arrayBuffer[vectorIndex] = vector.x;
+      arrayBuffer[vectorIndex + 1] = vector.y;
 
-      planeIndex += vertexSize;
-      arrayBuffer[planeIndex] = toFromPlane.normal.x;
-      arrayBuffer[planeIndex + 1] = toFromPlane.normal.y;
-      arrayBuffer[planeIndex + 2] = toFromPlane.constant;
+      // 2-
+      vectorIndex += vertexSize;
+      arrayBuffer[vectorIndex] = vector.x;
+      arrayBuffer[vectorIndex + 1] = vector.y;
 
-      planeIndex += vertexSize;
-      arrayBuffer[planeIndex] = -toFromPlane.normal.x;
-      arrayBuffer[planeIndex + 1] = -toFromPlane.normal.y;
-      arrayBuffer[planeIndex + 2] = -toFromPlane.constant;
+      planeFromPoints(from, to, fromToPlane);
+      planeFromPoints(to, next, toNextPlane);
 
-      planeIndex += vertexSize;
-      arrayBuffer[planeIndex] = toFromPlane.normal.x;
-      arrayBuffer[planeIndex + 1] = toFromPlane.normal.y;
-      arrayBuffer[planeIndex + 2] = toFromPlane.constant;
+      minus(next, from, fromNext);
+      orthonormalize(fromNext, fromNextPlane.normal);
+      planeFromPointNormal(to, fromNextPlane.normal, fromNextPlane);
 
-      planeIndex += vertexSize;
-      arrayBuffer[planeIndex] = -toFromPlane.normal.x;
-      arrayBuffer[planeIndex + 1] = -toFromPlane.normal.y;
-      arrayBuffer[planeIndex + 2] = -toFromPlane.constant;
+      const angle = Math.acos(dot(fromToPlane.normal, toNextPlane.normal));
+      const halfAngle = angle * 0.5;
+      const distance = 1.0 / Math.max(Math.cos(halfAngle), Math.sin(halfAngle));
+
+      fromToPlane.constant += 1.0;
+      toNextPlane.constant += 1.0;
+      fromNextPlane.constant += distance;
+
+      planeIntersection(fromToPlane, fromNextPlane, fromToFromNext);
+      planeIntersection(toNextPlane, fromNextPlane, toNextFromNext);
+
+      if (!isFiniteVector(fromToFromNext)) {
+        minus(to, vector, fromToFromNext);
+      }
+      if (!isFiniteVector(toNextFromNext)) {
+        minus(to, vector, toNextFromNext);
+      }
+
+      // 3
+      vectorIndex += vertexSize;
+      arrayBuffer[vectorIndex] = to.x - fromToFromNext.x;
+      arrayBuffer[vectorIndex + 1] = to.y - fromToFromNext.y;
+
+      // 4
+      vectorIndex += vertexSize;
+      arrayBuffer[vectorIndex] = to.x - toNextFromNext.x;
+      arrayBuffer[vectorIndex + 1] = to.y - toNextFromNext.y;
+
+      if (edge) {
+        continue;
+      }
+      // 5-
+      vectorIndex += vertexSize;
+      arrayBuffer[vectorIndex] = -vector.x;
+      arrayBuffer[vectorIndex + 1] = -vector.y;
+
+      fromToPlane.constant -= 2.0;
+      toNextPlane.constant -= 2.0;
+      fromNextPlane.constant -= 2 * distance;
+
+      planeIntersection(fromToPlane, fromNextPlane, fromToFromNext);
+      planeIntersection(toNextPlane, fromNextPlane, toNextFromNext);
+
+      if (!isFiniteVector(fromToFromNext)) {
+        plus(to, vector, fromToFromNext);
+      }
+      if (!isFiniteVector(toNextFromNext)) {
+        plus(to, vector, toNextFromNext);
+      }
+
+      // 6
+      vectorIndex += vertexSize;
+      arrayBuffer[vectorIndex] = to.x - fromToFromNext.x;
+      arrayBuffer[vectorIndex + 1] = to.y - fromToFromNext.y;
+
+      // 7
+      vectorIndex += vertexSize;
+      arrayBuffer[vectorIndex] = to.x - toNextFromNext.x;
+      arrayBuffer[vectorIndex + 1] = to.y - toNextFromNext.y;
     }
     return [arrayIndex, groupIndex];
   }
@@ -303,6 +360,8 @@ class PathCommand {
     stats: GeometryStats,
     tessellation: number,
     previous: ?PathCommand,
+    edge: boolean,
+    loop: boolean,
   ) {
     if (this.attributes) {
       for (const name in this.attributes) {
@@ -315,15 +374,15 @@ class PathCommand {
     }
   }
 
-  _addToStats(stats: GeometryStats, divisions: number) {
-    stats.vertices += this._getVerticesForDivisions(divisions);
+  _addToStats(stats: GeometryStats, divisions: number, edge: boolean) {
+    stats.vertices += this._getVerticesForDivisions(divisions, edge);
     const start = stats.indices;
-    stats.indices += 18 * divisions;
+    stats.indices += (edge ? 15 : 24) * divisions;
     stats.groups.push({start, end: stats.indices, zOrder: this.zOrder});
   }
 
-  _getVerticesForDivisions(divisions: number): number {
-    return 6 * divisions;
+  _getVerticesForDivisions(divisions: number, edge: boolean): number {
+    return (edge ? 5 : 8) * divisions;
   }
 
   populateBuffers(
@@ -351,17 +410,13 @@ class PathCommand {
     attributeOffsets: {[string]: number},
     vertexSize: number,
     position: Vector2,
-    edge: boolean,
     parameter: number = 1.0,
     previous?: PathCommand,
   ): number {
     for (let ii = 0; ii < count; ii++) {
-      let vertexIndex = arrayIndex + attributeOffsets.vertex;
+      const vertexIndex = arrayIndex + attributeOffsets.vertex;
       arrayBuffer[vertexIndex] = position.x;
       arrayBuffer[vertexIndex + 1] = position.y;
-      if (edge && (ii & 1) === 1) {
-        arrayBuffer[arrayIndex + attributeOffsets.inside] = 1.0;
-      }
       this._writeAttributes(
         arrayBuffer,
         arrayIndex,
@@ -435,53 +490,115 @@ class PathCommand {
     vertexCount: number,
     vertexOffset: number,
     loop: boolean,
+    edge: boolean,
   ) {
     const offsetVertex = firstVertex + vertexOffset;
-    let v6: number, v7: number;
+    let v5: number, v6: number, v7: number, v8: number, v9: number;
     if (loop) {
+      v5 = firstVertex + ((vertexOffset + 5) % vertexCount);
       v6 = firstVertex + ((vertexOffset + 6) % vertexCount);
       v7 = firstVertex + ((vertexOffset + 7) % vertexCount);
+      v8 = firstVertex + ((vertexOffset + 8) % vertexCount);
+      v9 = firstVertex + ((vertexOffset + 9) % vertexCount);
     } else {
       const maxVertex = vertexCount - 1;
+      v5 = firstVertex + clamp(vertexOffset + 5, 0, maxVertex);
       v6 = firstVertex + clamp(vertexOffset + 6, 0, maxVertex);
       v7 = firstVertex + clamp(vertexOffset + 7, 0, maxVertex);
+      v8 = firstVertex + clamp(vertexOffset + 8, 0, maxVertex);
+      v9 = firstVertex + clamp(vertexOffset + 9, 0, maxVertex);
     }
+
+    elementArrayBuffer[elementArrayIndex++] = offsetVertex;
+    elementArrayBuffer[elementArrayIndex++] = offsetVertex + 1;
+    elementArrayBuffer[elementArrayIndex++] = offsetVertex + 2;
+
     elementArrayBuffer[elementArrayIndex++] = offsetVertex;
     elementArrayBuffer[elementArrayIndex++] = offsetVertex + 2;
-    elementArrayBuffer[elementArrayIndex++] = offsetVertex + 1;
+    elementArrayBuffer[elementArrayIndex++] = v5;
 
-    elementArrayBuffer[elementArrayIndex++] = offsetVertex + 1;
+    elementArrayBuffer[elementArrayIndex++] = v5;
     elementArrayBuffer[elementArrayIndex++] = offsetVertex + 2;
     elementArrayBuffer[elementArrayIndex++] = offsetVertex + 3;
 
-    elementArrayBuffer[elementArrayIndex++] = offsetVertex + 2;
-    elementArrayBuffer[elementArrayIndex++] = offsetVertex + 5;
+    elementArrayBuffer[elementArrayIndex++] = v5;
     elementArrayBuffer[elementArrayIndex++] = offsetVertex + 3;
-
-    elementArrayBuffer[elementArrayIndex++] = offsetVertex + 2;
     elementArrayBuffer[elementArrayIndex++] = offsetVertex + 4;
-    elementArrayBuffer[elementArrayIndex++] = offsetVertex + 5;
 
+    elementArrayBuffer[elementArrayIndex++] = v5;
     elementArrayBuffer[elementArrayIndex++] = offsetVertex + 4;
     elementArrayBuffer[elementArrayIndex++] = v6;
-    elementArrayBuffer[elementArrayIndex++] = v7;
 
+    if (edge) {
+      return;
+    }
+    elementArrayBuffer[elementArrayIndex++] = v6;
     elementArrayBuffer[elementArrayIndex++] = offsetVertex + 4;
     elementArrayBuffer[elementArrayIndex++] = v7;
-    elementArrayBuffer[elementArrayIndex++] = offsetVertex + 5;
+
+    elementArrayBuffer[elementArrayIndex++] = v7;
+    elementArrayBuffer[elementArrayIndex++] = offsetVertex + 4;
+    elementArrayBuffer[elementArrayIndex++] = v9;
+
+    elementArrayBuffer[elementArrayIndex++] = v7;
+    elementArrayBuffer[elementArrayIndex++] = v9;
+    elementArrayBuffer[elementArrayIndex++] = v8;
   }
 }
 
-class MoveTo extends PathCommand {}
+class MoveTo extends PathCommand {
+  updateStats(
+    stats: GeometryStats,
+    tessellation: number,
+    previous: ?PathCommand,
+    edge: boolean,
+    loop: boolean,
+  ) {
+    super.updateStats(stats, tessellation, previous, edge, loop);
+    if (!loop) {
+      stats.vertices += 2;
+    }
+  }
+
+  populateBuffers(
+    arrayBuffer: Float32Array,
+    elementArrayBuffer: Uint32Array,
+    arrayIndex: number,
+    groups: GeometryGroup[],
+    groupIndex: number,
+    attributeOffsets: {[string]: number},
+    vertexSize: number,
+    vertexCount: number,
+    tessellation: number,
+    loop: boolean,
+    edge: boolean,
+    firstArrayIndex: number,
+    previous: ?PathCommand,
+  ): [number, number] {
+    if (!loop) {
+      arrayIndex = this._writeVertices(
+        2,
+        arrayBuffer,
+        arrayIndex,
+        attributeOffsets,
+        vertexSize,
+        this.dest,
+      );
+    }
+    return [arrayIndex, groupIndex];
+  }
+}
 
 class LineTo extends PathCommand {
   updateStats(
     stats: GeometryStats,
     tessellation: number,
     previous: ?PathCommand,
+    edge: boolean,
+    loop: boolean,
   ) {
-    super.updateStats(stats, tessellation, previous);
-    this._addToStats(stats, 1);
+    super.updateStats(stats, tessellation, previous, edge, loop);
+    this._addToStats(stats, 1, edge);
   }
 
   populateBuffers(
@@ -509,24 +626,23 @@ class LineTo extends PathCommand {
       vertexCount,
       (arrayIndex - firstArrayIndex) / vertexSize,
       loop,
+      edge,
     );
     arrayIndex = this._writeVertices(
-      4,
+      2,
       arrayBuffer,
       arrayIndex,
       attributeOffsets,
       vertexSize,
       previous.dest,
-      edge,
     );
     arrayIndex = this._writeVertices(
-      this._getVerticesForDivisions(1) - 4,
+      this._getVerticesForDivisions(1, edge) - 2,
       arrayBuffer,
       arrayIndex,
       attributeOffsets,
       vertexSize,
       this.dest,
-      edge,
     );
     return [arrayIndex, groupIndex];
   }
@@ -549,13 +665,15 @@ class ArcTo extends PathCommand {
     stats: GeometryStats,
     tessellation: number,
     previous: ?PathCommand,
+    edge: boolean,
+    loop: boolean,
   ) {
     if (!previous) {
       throw new Error('Missing previous command.');
     }
-    super.updateStats(stats, tessellation, previous);
+    super.updateStats(stats, tessellation, previous, edge, loop);
     const [length, divisions] = this._getArcParameters(tessellation, previous);
-    this._addToStats(stats, divisions);
+    this._addToStats(stats, divisions, edge);
   }
 
   populateBuffers(
@@ -594,8 +712,7 @@ class ArcTo extends PathCommand {
     const parameterIncrement = 1.0 / divisions;
     let parameter = 0.0;
     const point = equals(previous.dest);
-    const verticesPerDivision = this._getVerticesForDivisions(1);
-    const verticesPerDivisionMinus4 = verticesPerDivision - 4;
+    const secondVertices = this._getVerticesForDivisions(1, edge) - 2;
     const firstVertex = firstArrayIndex / vertexSize;
     for (let ii = 0; ii < divisions; ii++) {
       this._writeIndices(
@@ -605,15 +722,15 @@ class ArcTo extends PathCommand {
         vertexCount,
         (arrayIndex - firstArrayIndex) / vertexSize,
         loop,
+        edge,
       );
       arrayIndex = this._writeVertices(
-        4,
+        2,
         arrayBuffer,
         arrayIndex,
         attributeOffsets,
         vertexSize,
         point,
-        edge,
         parameter,
         previous,
       );
@@ -622,13 +739,12 @@ class ArcTo extends PathCommand {
       point.x = center.x + this.radius * Math.cos(a);
       point.y = center.y + this.radius * Math.sin(a);
       arrayIndex = this._writeVertices(
-        verticesPerDivisionMinus4,
+        secondVertices,
         arrayBuffer,
         arrayIndex,
         attributeOffsets,
         vertexSize,
         point,
-        edge,
         parameter,
         previous,
       );
@@ -668,16 +784,18 @@ class CurveTo extends PathCommand {
     stats: GeometryStats,
     tessellation: number,
     previous: ?PathCommand,
+    edge: boolean,
+    loop: boolean,
   ) {
     if (!previous) {
       throw new Error('Missing previous command.');
     }
-    super.updateStats(stats, tessellation, previous);
+    super.updateStats(stats, tessellation, previous, edge, loop);
     const [a, b, c, d, length, divisions] = this._getSplineParameters(
       tessellation,
       previous,
     );
-    this._addToStats(stats, divisions);
+    this._addToStats(stats, divisions, edge);
   }
 
   populateBuffers(
@@ -710,8 +828,7 @@ class CurveTo extends PathCommand {
     const parameterIncrement = 1.0 / divisions;
     let parameter = 0.0;
     const point = equals(previous.dest);
-    const verticesPerDivision = this._getVerticesForDivisions(1);
-    const verticesPerDivisionMinus4 = verticesPerDivision - 4;
+    const secondVertices = this._getVerticesForDivisions(1, edge) - 2;
     const firstVertex = firstArrayIndex / vertexSize;
     for (let ii = 0; ii < divisions; ii++) {
       this._writeIndices(
@@ -721,15 +838,15 @@ class CurveTo extends PathCommand {
         vertexCount,
         (arrayIndex - firstArrayIndex) / vertexSize,
         loop,
+        edge,
       );
       arrayIndex = this._writeVertices(
-        4,
+        2,
         arrayBuffer,
         arrayIndex,
         attributeOffsets,
         vertexSize,
         point,
-        edge,
         parameter,
         previous,
       );
@@ -749,13 +866,12 @@ class CurveTo extends PathCommand {
       point.x = t * (t * (t * a.x + b.x) + c.x) + d.x;
       point.y = t * (t * (t * a.y + b.y) + c.y) + d.y;
       arrayIndex = this._writeVertices(
-        verticesPerDivisionMinus4,
+        secondVertices,
         arrayBuffer,
         arrayIndex,
         attributeOffsets,
         vertexSize,
         point,
-        edge,
         parameter,
         previous,
       );
@@ -800,9 +916,9 @@ class Shape {
 
   updateStats(stats: GeometryStats, tessellation: number) {
     let previousVertices = stats.vertices;
-    this.exterior.updateStats(stats, tessellation);
+    this.exterior.updateStats(stats, tessellation, true);
     const exteriorVertices = stats.vertices - previousVertices;
-    const triangles = exteriorVertices / 6 - 2;
+    const triangles = exteriorVertices / 5 - 2;
     const indices = 3 * triangles;
     const start = stats.indices;
     stats.indices += indices;
@@ -842,7 +958,7 @@ class Shape {
 
     // create the linked array of vertex objects
     const vertices: Vertex[] = [];
-    for (let ii = 1; ii < vertexCount; ii += 6) {
+    for (let ii = 0; ii < vertexCount; ii += 5) {
       const index = firstIndex + ii;
       const arrayIndex = index * vertexSize + vertexOffset;
       vertices.push(
@@ -875,7 +991,7 @@ class Shape {
     }
     const point = vec2();
     const plane = {normal: vec2(), constant: 0.0};
-    let remainingTriangles = vertexCount / 6 - 2;
+    let remainingTriangles = vertices.length - 2;
     let iterationsWithoutTriangle = 0;
     while (remainingTriangles > 0) {
       let foundTriangle = false;
@@ -1220,7 +1336,7 @@ export class ShapeList {
   ): [Float32Array, Uint32Array, {[string]: number}] {
     // first pass: get stats
     const stats: GeometryStats = {
-      attributeSizes: {vertex: 2, plane: 3, inside: 1},
+      attributeSizes: {vertex: 2, vector: 2},
       vertices: 0,
       indices: 0,
       groups: [],
@@ -1229,7 +1345,7 @@ export class ShapeList {
       shape.updateStats(stats, tessellation);
     }
     for (const path of this.paths) {
-      path.updateStats(stats, tessellation);
+      path.updateStats(stats, tessellation, false);
     }
     const attributeOffsets: {[string]: number} = {};
     let vertexSize = 0;
