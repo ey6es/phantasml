@@ -122,7 +122,7 @@ function createHandleGeometry(knobFn: ShapeList => mixed): Geometry {
   const shapeList = new ShapeList();
 
   shapeList
-    .jump(0, 0, 0, {part: 0})
+    .jump(-1.5, -1.5, 0, {part: 0})
     .raise()
     .penDown(true);
   for (let ii = 0; ii < 4; ii++) {
@@ -130,12 +130,11 @@ function createHandleGeometry(knobFn: ShapeList => mixed): Geometry {
   }
   shapeList.penUp().lower();
 
-  /*
   shapeList.jump(1.5, -0.5, 0);
   for (let ii = 0; ii < 4; ii++) {
     shapeList
-      .penDown(true)
-      .advance(1.0, {part: ii & 1 ? 1.0 : 0.5})
+      .penDown(true, {part: ii & 1 ? 1.0 : 0.5})
+      .advance(1.0)
       .apply(knobFn)
       .advance(1.0)
       .pivot(90)
@@ -147,9 +146,6 @@ function createHandleGeometry(knobFn: ShapeList => mixed): Geometry {
       .advance(1)
       .pivot(-90);
   }
-
-  */
-
   return new Geometry(...shapeList.createGeometry(4.0));
 }
 
@@ -208,13 +204,16 @@ const HANDLE_VERTEX_SHADER = `
   uniform float thickness;
   attribute vec2 vertex;
   attribute vec2 vector;
+  attribute float cap;
   attribute float part;
   varying vec2 interpolatedVector;
+  varying float interpolatedCap;
   varying float interpolatedPart;
   void main(void) {
     interpolatedVector = vector;
+    interpolatedCap = cap;
     interpolatedPart = part;
-    vec2 point = vertex - vector * thickness;
+    vec2 point = vertex + vector * thickness;
     vec3 position = viewProjectionMatrix * (modelMatrix * vec3(point, 1.0));
     gl_Position = vec4(position.xy, 0.0, 1.0);
   }
@@ -224,10 +223,14 @@ const HANDLE_FRAGMENT_SHADER = `
   precision mediump float;
   uniform float stepSize;
   varying vec2 interpolatedVector;
+  varying float interpolatedCap;
   varying float interpolatedPart;
   void main(void) {
     float dist = length(interpolatedVector);
     float inside = 1.0 - smoothstep(1.0 - stepSize, 1.0, dist);
+    // caps are drawn twice, so adjust alpha accordingly
+    float cap = smoothstep(0.0, stepSize, interpolatedCap);
+    float alpha = mix(2.0 * inside - inside * inside, inside, cap);
     vec3 color = mix(
       vec3(1.0, 1.0, 0.0),
       mix(
@@ -237,8 +240,7 @@ const HANDLE_FRAGMENT_SHADER = `
       ),
       step(0.25, interpolatedPart)
     );
-    gl_FragColor = vec4(color, inside);
-    //gl_FragColor = vec4(interpolatedVector.xy * 0.5 + vec2(0.5, 0.5), 0.5, 1.0);
+    gl_FragColor = vec4(color, alpha);
   }
 `;
 
