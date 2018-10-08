@@ -172,11 +172,15 @@ class Path {
     for (let ii = 0; ii < this.commands.length; ii++) {
       const command = this.commands[ii];
       let previous: ?PathCommand;
+      const lastIndex = this.commands.length - 1;
+      let start = false;
+      let end = false;
       if (this.loop) {
-        const lastIndex = this.commands.length - 1;
         previous = this.commands[(ii + lastIndex) % this.commands.length];
       } else {
         previous = this.commands[ii - 1];
+        start = ii === 1;
+        end = ii === lastIndex;
       }
       [arrayIndex, groupIndex] = command.populateBuffers(
         arrayBuffer,
@@ -189,6 +193,8 @@ class Path {
         tessellation,
         previous,
         edge,
+        start,
+        end,
       );
     }
     return [arrayIndex, groupIndex];
@@ -245,6 +251,8 @@ class PathCommand {
     tessellation: number,
     previous: ?PathCommand,
     edge: boolean,
+    start: boolean,
+    end: boolean,
   ): [number, number] {
     return [arrayIndex, groupIndex];
   }
@@ -262,6 +270,8 @@ class PathCommand {
     fromParameter: number,
     toPosition: Vector2,
     toParameter: number,
+    start: boolean,
+    end: boolean,
   ): [number, number] {
     const baseIndex = arrayIndex / vertexSize;
 
@@ -275,6 +285,7 @@ class PathCommand {
       vector,
       fromParameter,
       previous,
+      !start,
     );
     negativeEquals(vector);
     arrayIndex = this._writeVertices(
@@ -286,6 +297,7 @@ class PathCommand {
       vector,
       toParameter,
       previous,
+      !end,
     );
 
     if (edge) {
@@ -337,7 +349,8 @@ class PathCommand {
     position: Vector2,
     vector: Vector2,
     parameter: number,
-    previous?: PathCommand,
+    previous: PathCommand,
+    joint: boolean,
   ): number {
     const orthoVector = orthogonalize(vector);
     const orthoNormalVector = normalize(orthoVector);
@@ -353,7 +366,7 @@ class PathCommand {
       } else {
         arrayBuffer[vectorIndex] = signX * orthoVector.x - vector.x;
         arrayBuffer[vectorIndex + 1] = signX * orthoVector.y - vector.y;
-        arrayBuffer[arrayIndex + attributeOffsets.cap] = 1.0;
+        arrayBuffer[arrayIndex + attributeOffsets.joint] = joint ? 1.0 : 0.0;
       }
       this._writeAttributes(
         arrayBuffer,
@@ -372,7 +385,7 @@ class PathCommand {
     arrayIndex: number,
     attributeOffsets: {[string]: number},
     parameter: number,
-    previous: ?PathCommand,
+    previous: PathCommand,
   ) {
     const previousAttributes = previous && previous.attributes;
     if (previousAttributes) {
@@ -446,6 +459,8 @@ class LineTo extends PathCommand {
     tessellation: number,
     previous: ?PathCommand,
     edge: boolean,
+    start: boolean,
+    end: boolean,
   ): [number, number] {
     if (!previous) {
       throw new Error('Missing previous command.');
@@ -464,6 +479,8 @@ class LineTo extends PathCommand {
       0.0,
       this.dest,
       1.0,
+      start,
+      end,
     );
     return [arrayIndex, groupIndex];
   }
@@ -507,6 +524,8 @@ class ArcTo extends PathCommand {
     tessellation: number,
     previous: ?PathCommand,
     edge: boolean,
+    start: boolean,
+    end: boolean,
   ): [number, number] {
     if (!previous) {
       throw new Error('Missing previous command.');
@@ -551,6 +570,8 @@ class ArcTo extends PathCommand {
         lastParameter,
         point,
         parameter,
+        start && ii === 0,
+        end && ii === divisions - 1,
       );
     }
     return [arrayIndex, groupIndex];
@@ -612,6 +633,8 @@ class CurveTo extends PathCommand {
     tessellation: number,
     previous: ?PathCommand,
     edge: boolean,
+    start: boolean,
+    end: boolean,
   ): [number, number] {
     if (!previous) {
       throw new Error('Missing previous command.');
@@ -661,6 +684,8 @@ class CurveTo extends PathCommand {
         lastParameter,
         point,
         parameter,
+        start && ii === 1,
+        end && ii === divisions - 1,
       );
     }
     return [arrayIndex, groupIndex];
@@ -1127,7 +1152,7 @@ export class ShapeList {
   ): [Float32Array, Uint32Array, {[string]: number}] {
     // first pass: get stats
     const stats: GeometryStats = {
-      attributeSizes: {vertex: 2, vector: 2, cap: 1},
+      attributeSizes: {vertex: 2, vector: 2, joint: 1},
       vertices: 0,
       indices: 0,
       groups: [],

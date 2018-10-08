@@ -222,14 +222,14 @@ const HANDLE_VERTEX_SHADER = `
   uniform float thickness;
   attribute vec2 vertex;
   attribute vec2 vector;
-  attribute float cap;
+  attribute float joint;
   attribute float part;
   varying vec2 interpolatedVector;
-  varying float interpolatedCap;
+  varying float interpolatedJoint;
   varying float interpolatedPart;
   void main(void) {
     interpolatedVector = vector;
-    interpolatedCap = cap;
+    interpolatedJoint = joint;
     interpolatedPart = part;
     vec2 point = vertex + vector * thickness;
     vec3 position = viewProjectionMatrix * (modelMatrix * vec3(point, 1.0));
@@ -241,14 +241,14 @@ const HANDLE_FRAGMENT_SHADER = `
   precision mediump float;
   uniform float stepSize;
   varying vec2 interpolatedVector;
-  varying float interpolatedCap;
+  varying float interpolatedJoint;
   varying float interpolatedPart;
   void main(void) {
     float dist = length(interpolatedVector);
     float inside = 1.0 - smoothstep(1.0 - stepSize, 1.0, dist);
-    // caps are drawn twice, so adjust alpha accordingly
-    float cap = smoothstep(0.0, stepSize, interpolatedCap);
-    float alpha = mix(2.0 * inside - inside * inside, inside, cap);
+    // joints are drawn twice, so adjust alpha accordingly
+    float joint = smoothstep(0.0, stepSize, interpolatedJoint);
+    float alpha = mix(2.0 * inside - inside * inside, inside, joint);
     vec3 color = mix(
       vec3(1.0, 1.0, 0.0),
       mix(
