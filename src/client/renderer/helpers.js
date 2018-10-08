@@ -9,7 +9,7 @@ import type {LineSegment} from '../util/math';
 import type {Renderer} from './util';
 import {Geometry} from './util';
 import type {Transform} from '../../server/store/math';
-import {getTransformMatrix} from '../../server/store/math';
+import {getTransformMatrix, radians, degrees} from '../../server/store/math';
 import {ShapeList} from '../../server/store/shape';
 
 const RECTANGLE_VERTEX_SHADER = `
@@ -91,16 +91,33 @@ export function renderRectangle(
   RectangleGeometry.draw(program);
 }
 
-const TranslationHandleGeometry = createHandleGeometry(
-  (
-    shapeList, // arrow
-  ) => shapeList,
-);
-const RotationHandleGeometry = createHandleGeometry(
-  (
-    shapeList, // circle
-  ) => shapeList,
-);
+const TranslationHandleGeometry = createHandleGeometry((
+  shapeList, // arrow
+) => {
+  const length = 3.0;
+  const halfAngle = degrees(Math.atan(1.5 / length));
+  const sideDistance = 1.5 / Math.sin(radians(halfAngle));
+  return shapeList
+    .pivot(-90)
+    .advance(1.0)
+    .pivot(90 + halfAngle)
+    .advance(sideDistance)
+    .pivot(180 - halfAngle * 2)
+    .advance(sideDistance)
+    .pivot(90 + halfAngle)
+    .advance(1.0)
+    .pivot(-90);
+});
+const RotationHandleGeometry = createHandleGeometry((
+  shapeList, // circle
+) => {
+  const radius = 1.5;
+  const angle = degrees(Math.asin(0.5 / radius));
+  return shapeList
+    .pivot(-90 + angle)
+    .turn(360 - 2 * angle, radius)
+    .pivot(-90 + angle);
+});
 const ScaleHandleGeometry = createHandleGeometry((
   shapeList, // square
 ) =>
@@ -130,13 +147,14 @@ function createHandleGeometry(knobFn: ShapeList => mixed): Geometry {
   }
   shapeList.penUp().lower();
 
+  const armLength = 2.0;
   shapeList.jump(1.5, -0.5, 0);
   for (let ii = 0; ii < 4; ii++) {
     shapeList
       .penDown(true, {part: ii & 1 ? 1.0 : 0.5})
-      .advance(1.0)
+      .advance(armLength)
       .apply(knobFn)
-      .advance(1.0)
+      .advance(armLength)
       .pivot(90)
       .advance(1.0)
       .penUp()
@@ -165,7 +183,7 @@ export function renderTranslationHandle(
   transform: Transform,
   hover: ?HoverType,
 ) {
-  renderHandle(renderer, transform, hover, ScaleHandleGeometry);
+  renderHandle(renderer, transform, hover, TranslationHandleGeometry);
 }
 
 /**
@@ -180,7 +198,7 @@ export function renderRotationHandle(
   transform: Transform,
   hover: ?HoverType,
 ) {
-  renderHandle(renderer, transform, hover, ScaleHandleGeometry);
+  renderHandle(renderer, transform, hover, RotationHandleGeometry);
 }
 
 /**

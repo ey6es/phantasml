@@ -47,6 +47,7 @@ import {Scene} from '../server/store/scene';
 import type {Transform} from '../server/store/math';
 import {
   getTransformTranslation,
+  vec2,
   plusEquals,
   timesEquals,
 } from '../server/store/math';
@@ -395,9 +396,13 @@ class HandleTool extends Tool {
       const transform = resource.getWorldTransform(id);
       plusEquals(totalTranslation, getTransformTranslation(transform));
     }
+    const scale = renderer.pixelsToWorldUnits * 5.0;
     this._renderHandle(
       renderer,
-      {translation: timesEquals(totalTranslation, 1.0 / selectionSize)},
+      {
+        translation: timesEquals(totalTranslation, 1.0 / selectionSize),
+        scale: vec2(scale, scale),
+      },
       null,
     );
   };

@@ -28,8 +28,9 @@ const FRAGMENT_SHADER = `
   uniform float pixelSize;
   varying vec2 worldPosition;
   void main(void) {
-    vec2 fract0 = fract(worldPosition);
-    vec2 fract1 = fract(worldPosition / 5.0);
+    vec2 offsetPosition = worldPosition + vec2(pixelSize);
+    vec2 fract0 = fract(offsetPosition);
+    vec2 fract1 = fract(offsetPosition / 5.0);
     vec2 grid0 = step(pixelSize, fract0);
     vec2 grid1 = step(pixelSize * 0.4, fract1);
     gl_FragColor = vec4(

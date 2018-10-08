@@ -683,6 +683,7 @@ type NumberFieldProps = {
   initialValue?: ?number,
   setValue: number => void,
   step?: ?number,
+  wheelStep?: number,
   precision?: ?number,
   circular?: boolean,
   [string]: any,
@@ -703,7 +704,14 @@ export class NumberField extends React.Component<
   state = {value: String(this._getRoundedInitialValue())};
 
   render() {
-    const {initialValue, setValue, precision, circular, ...props} = this.props;
+    const {
+      initialValue,
+      setValue,
+      wheelStep,
+      precision,
+      circular,
+      ...props
+    } = this.props;
     const step = props.step || 1;
     return (
       <Input
@@ -719,7 +727,8 @@ export class NumberField extends React.Component<
           if (isNaN(numberValue)) {
             numberValue = 0.0;
           }
-          const delta = event.deltaY > 0 ? -step : step;
+          const amount = wheelStep || step;
+          const delta = event.deltaY > 0 ? -amount : amount;
           let newValue = numberValue + delta;
           const minimum = this.props.min;
           const maximum = this.props.max;

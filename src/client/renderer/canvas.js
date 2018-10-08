@@ -10,7 +10,7 @@ import * as ReactRedux from 'react-redux';
 import {renderBackground} from './background';
 import {Renderer} from './util';
 import {DEFAULT_PAGE_SIZE} from '../store';
-import type {PageState} from '../store';
+import type {PageState, ToolType} from '../store';
 import type {Resource} from '../../server/store/resource';
 import {Scene} from '../../server/store/scene';
 
@@ -20,6 +20,7 @@ class RenderCanvasImpl extends React.Component<
     page: string,
     pageState: ?PageState,
     selection: Set<string>,
+    tool: ToolType,
     setRenderer: (?Renderer) => void,
   },
   {},
@@ -95,4 +96,5 @@ export const RenderCanvas = ReactRedux.connect(state => ({
   page: state.page,
   pageState: state.pageStates.get(state.page),
   selection: state.selection,
+  tool: state.tool,
 }))(RenderCanvasImpl);

@@ -502,6 +502,7 @@ function VectorComponent(props: {
           )
         }
         step={0.01}
+        wheelStep={0.1}
         precision={2}
       />
     </div>
