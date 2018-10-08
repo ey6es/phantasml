@@ -219,7 +219,8 @@ export function renderScaleHandle(
 const HANDLE_VERTEX_SHADER = `
   uniform mat3 modelMatrix;
   uniform mat3 viewProjectionMatrix;
-  uniform float thickness;
+  uniform float pixelsToWorldUnits;
+  uniform vec3 activeParts;
   attribute vec2 vertex;
   attribute vec2 vector;
   attribute float joint;
@@ -227,10 +228,20 @@ const HANDLE_VERTEX_SHADER = `
   varying vec2 interpolatedVector;
   varying float interpolatedJoint;
   varying float interpolatedPart;
+  varying float interpolatedActive;
+  varying float stepSize;
   void main(void) {
     interpolatedVector = vector;
     interpolatedJoint = joint;
     interpolatedPart = part;
+    float active = mix(
+      activeParts.x,
+      mix(activeParts.y, activeParts.z, step(0.75, part)),
+      step(0.25, part)
+    );
+    interpolatedActive = active * 0.25 + 0.75;
+    float thickness = mix(0.2, 0.4, active);
+    stepSize = pixelsToWorldUnits / thickness;
     vec2 point = vertex + vector * thickness;
     vec3 position = viewProjectionMatrix * (modelMatrix * vec3(point, 1.0));
     gl_Position = vec4(position.xy, 0.0, 1.0);
@@ -239,14 +250,16 @@ const HANDLE_VERTEX_SHADER = `
 
 const HANDLE_FRAGMENT_SHADER = `
   precision mediump float;
-  uniform float stepSize;
   varying vec2 interpolatedVector;
   varying float interpolatedJoint;
   varying float interpolatedPart;
+  varying float interpolatedActive;
+  varying float stepSize;
   void main(void) {
     float dist = length(interpolatedVector);
     float inside = 1.0 - smoothstep(1.0 - stepSize, 1.0, dist);
     // joints are drawn twice, so adjust alpha accordingly
+    
     float joint = smoothstep(0.0, stepSize, interpolatedJoint);
     float alpha = mix(2.0 * inside - inside * inside, inside, joint);
     vec3 color = mix(
@@ -258,9 +271,17 @@ const HANDLE_FRAGMENT_SHADER = `
       ),
       step(0.25, interpolatedPart)
     );
-    gl_FragColor = vec4(color, alpha);
+    gl_FragColor = vec4(color * interpolatedActive, alpha);
   }
 `;
+
+function getActiveParts(hover: ?HoverType): number[] {
+  return [
+    hover === 'xy' ? 1.0 : 0.0,
+    hover === 'xy' || hover === 'x' ? 1.0 : 0.0,
+    hover === 'xy' || hover === 'y' ? 1.0 : 0.0,
+  ];
+}
 
 function renderHandle(
   renderer: Renderer,
@@ -276,9 +297,8 @@ function renderHandle(
   );
   program.setUniformViewProjectionMatrix('viewProjectionMatrix');
   program.setUniformMatrix('modelMatrix', transform, getTransformMatrix);
-  const thickness = 0.2;
-  program.setUniformFloat('thickness', thickness);
-  program.setUniformFloat('stepSize', renderer.pixelsToWorldUnits / thickness);
+  program.setUniformArray('activeParts', hover, getActiveParts);
+  program.setUniformFloat('pixelsToWorldUnits', renderer.pixelsToWorldUnits);
   renderer.setEnabled(renderer.gl.BLEND, true);
   geometry.draw(program);
 }

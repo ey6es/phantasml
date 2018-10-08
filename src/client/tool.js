@@ -44,12 +44,15 @@ import {
 } from './renderer/helpers';
 import type {Resource} from '../server/store/resource';
 import {Scene} from '../server/store/scene';
-import type {Transform} from '../server/store/math';
+import type {Vector2, Transform} from '../server/store/math';
 import {
   getTransformTranslation,
+  getTransformRotation,
   vec2,
   plusEquals,
   timesEquals,
+  minusEquals,
+  length,
 } from '../server/store/math';
 
 library.add(faPlay);
@@ -378,6 +381,9 @@ class ContiguousSelectTool extends Tool {
 }
 
 class HandleTool extends Tool {
+  _position: ?Vector2;
+  _hover: ?HoverType;
+
   get _shouldRender(): boolean {
     return this.active;
   }
@@ -388,28 +394,65 @@ class HandleTool extends Tool {
     if (
       !(this._shouldRender && selectionSize > 0 && resource instanceof Scene)
     ) {
+      this._position = null;
       return;
     }
     const transforms: Transform[] = [];
-    const totalTranslation = {x: 0.0, y: 0.0};
+    const position = (this._position = vec2());
+    let firstRotation: ?number;
     for (const id of this.props.selection) {
       const transform = resource.getWorldTransform(id);
-      plusEquals(totalTranslation, getTransformTranslation(transform));
+      plusEquals(position, getTransformTranslation(transform));
+      if (firstRotation == null) {
+        firstRotation = getTransformRotation(transform);
+      }
     }
+    timesEquals(this._position, 1.0 / selectionSize);
     const scale = renderer.pixelsToWorldUnits * 5.0;
     this._renderHandle(
       renderer,
       {
-        translation: timesEquals(totalTranslation, 1.0 / selectionSize),
+        translation: position,
+        rotation: firstRotation || 0.0,
         scale: vec2(scale, scale),
       },
-      null,
+      this._hover,
     );
   };
 
   _renderHandle(renderer: Renderer, transform: Transform, hover: ?HoverType) {
     throw new Error('Not implemented.');
   }
+
+  _onMouseMove = (event: MouseEvent) => {
+    const renderer = this.props.renderer;
+    const position = this._position;
+    if (!(renderer && position)) {
+      this._hover = null;
+      return;
+    }
+    const vector = minusEquals(
+      renderer.getWorldPosition(event.offsetX, event.offsetY),
+      position,
+    );
+    let hover: ?HoverType;
+    const outerRadius = renderer.pixelsToWorldUnits * 40.0;
+    const len = length(vector);
+    if (len < outerRadius) {
+      const innerRadius = renderer.pixelsToWorldUnits * 15.0;
+      if (len < innerRadius) {
+        hover = 'xy';
+      } else if (vector.x > vector.y === vector.x < -vector.y) {
+        hover = 'y';
+      } else {
+        hover = 'x';
+      }
+    }
+    if (this._hover !== hover) {
+      this._hover = hover;
+      renderer.requestFrameRender();
+    }
+  };
 }
 
 class TranslateTool extends HandleTool {

@@ -92,8 +92,8 @@ export function getTransformMatrix(transform: Transform): number[] {
 
     // prettier-ignore
     transform.matrix = [
-      cr * sx, -sr * sx, 0,
-      sr * sy, cr * sy, 0,
+      cr * sx, sr * sx, 0,
+      -sr * sy, cr * sy, 0,
       tx || 0, ty || 0, 1,
     ];
   }
@@ -123,6 +123,30 @@ export function getTransformTranslation(transform: Transform): Vector2 {
     translation.y = transform.matrix ? transform.matrix[7] : 0.0;
   }
   return (translation: any);
+}
+
+/**
+ * Retrieves the rotation corresponding to the given transform.
+ *
+ * @param transform the transform of interest.
+ * @return the rotation angle.
+ */
+export function getTransformRotation(transform: Transform): number {
+  if (!transform) {
+    return 0.0;
+  }
+  let rotation = transform.rotation;
+  if (rotation == null) {
+    if (transform.matrix) {
+      transform.rotation = rotation = Math.atan2(
+        -transform.matrix[3],
+        transform.matrix[4],
+      );
+    } else {
+      transform.rotation = rotation = 0.0;
+    }
+  }
+  return rotation;
 }
 
 /**

@@ -390,17 +390,27 @@ export class Renderer {
    *
    * @param offsetX the x coordinate relative to the canvas.
    * @param offsetY the y coordinate relative to the canvas.
-   * @return the world position.
+   * @param [result] an optional vector to hold the result.  If not given, a
+   * new vector will be created.
+   * @return the result vector.
    */
-  getWorldPosition(offsetX: number, offsetY: number): Vector2 {
+  getWorldPosition(
+    offsetX: number,
+    offsetY: number,
+    result?: Vector2,
+  ): Vector2 {
     const camera = this._camera;
     const canvas = this.canvas;
-    return {
-      x:
-        camera.x +
-        (offsetX / canvas.clientWidth - 0.5) * camera.size * camera.aspect,
-      y: camera.y + (0.5 - offsetY / canvas.clientHeight) * camera.size,
-    };
+    const x =
+      camera.x +
+      (offsetX / canvas.clientWidth - 0.5) * camera.size * camera.aspect;
+    const y = camera.y + (0.5 - offsetY / canvas.clientHeight) * camera.size;
+    if (!result) {
+      result = {x, y};
+    }
+    result.x = x;
+    result.y = y;
+    return result;
   }
 
   /**
