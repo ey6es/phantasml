@@ -164,7 +164,7 @@ function createHandleGeometry(knobFn: ShapeList => mixed): Geometry {
       .advance(1)
       .pivot(-90);
   }
-  return new Geometry(...shapeList.createGeometry(4.0));
+  return new Geometry(...shapeList.createGeometry(2.0));
 }
 
 /** The hover states for handles. */
@@ -177,13 +177,15 @@ export type HoverType = 'x' | 'y' | 'xy';
  * @param transform the handle transform in world space (used as a cache key,
  * so treat as immutable).
  * @param hover the handle hover state.
+ * @param pressed the pressed state.
  */
 export function renderTranslationHandle(
   renderer: Renderer,
   transform: Transform,
   hover: ?HoverType,
+  pressed: boolean,
 ) {
-  renderHandle(renderer, transform, hover, TranslationHandleGeometry);
+  renderHandle(renderer, transform, hover, pressed, TranslationHandleGeometry);
 }
 
 /**
@@ -192,13 +194,16 @@ export function renderTranslationHandle(
  * @param renderer the renderer to use.
  * @param transform the handle transform in world space (used as a cache key,
  * so treat as immutable).
+ * @param hover the handle hover state.
+ * @param pressed the pressed state.
  */
 export function renderRotationHandle(
   renderer: Renderer,
   transform: Transform,
   hover: ?HoverType,
+  pressed: boolean,
 ) {
-  renderHandle(renderer, transform, hover, RotationHandleGeometry);
+  renderHandle(renderer, transform, hover, pressed, RotationHandleGeometry);
 }
 
 /**
@@ -207,20 +212,24 @@ export function renderRotationHandle(
  * @param renderer the renderer to use.
  * @param transform the handle transform in world space (used as a cache key,
  * so treat as immutable).
+ * @param hover the handle hover state.
+ * @param pressed the pressed state.
  */
 export function renderScaleHandle(
   renderer: Renderer,
   transform: Transform,
   hover: ?HoverType,
+  pressed: boolean,
 ) {
-  renderHandle(renderer, transform, hover, ScaleHandleGeometry);
+  renderHandle(renderer, transform, hover, pressed, ScaleHandleGeometry);
 }
 
 const HANDLE_VERTEX_SHADER = `
   uniform mat3 modelMatrix;
   uniform mat3 viewProjectionMatrix;
   uniform float pixelsToWorldUnits;
-  uniform vec3 activeParts;
+  uniform vec3 hoverParts;
+  uniform float pressed;
   attribute vec2 vertex;
   attribute vec2 vector;
   attribute float joint;
@@ -229,18 +238,20 @@ const HANDLE_VERTEX_SHADER = `
   varying float interpolatedJoint;
   varying float interpolatedPart;
   varying float interpolatedActive;
+  varying float inner;
   varying float stepSize;
   void main(void) {
     interpolatedVector = vector;
     interpolatedJoint = joint;
     interpolatedPart = part;
-    float active = mix(
-      activeParts.x,
-      mix(activeParts.y, activeParts.z, step(0.75, part)),
+    float hover = mix(
+      hoverParts.x,
+      mix(hoverParts.y, hoverParts.z, step(0.75, part)),
       step(0.25, part)
     );
-    interpolatedActive = active * 0.25 + 0.75;
-    float thickness = mix(0.2, 0.4, active);
+    interpolatedActive = mix(1.0, mix(0.80, 0.73, pressed), hover);
+    float thickness = mix(0.2, 0.4, hover * pressed);
+    inner = 0.2 / thickness;
     stepSize = pixelsToWorldUnits / thickness;
     vec2 point = vertex + vector * thickness;
     vec3 position = viewProjectionMatrix * (modelMatrix * vec3(point, 1.0));
@@ -254,19 +265,21 @@ const HANDLE_FRAGMENT_SHADER = `
   varying float interpolatedJoint;
   varying float interpolatedPart;
   varying float interpolatedActive;
+  varying float inner;
   varying float stepSize;
   void main(void) {
     float dist = length(interpolatedVector);
-    float inside = 1.0 - smoothstep(1.0 - stepSize, 1.0, dist);
+    float outerInside = 1.0 - smoothstep(1.0 - stepSize, 1.0, dist);
+    float innerInside = 1.0 - smoothstep(inner - stepSize, inner, dist);
+    float inside = max(outerInside * 0.25, innerInside);
     // joints are drawn twice, so adjust alpha accordingly
-    
     float joint = smoothstep(0.0, stepSize, interpolatedJoint);
     float alpha = mix(2.0 * inside - inside * inside, inside, joint);
     vec3 color = mix(
-      vec3(1.0, 1.0, 0.0),
+      vec3(0.8, 0.8, 0.0),
       mix(
-        vec3(1.0, 0.0, 0.0),
-        vec3(0.0, 1.0, 0.0),
+        vec3(0.8, 0.1, 0.0),
+        vec3(0.0, 0.8, 0.1),
         step(0.75, interpolatedPart)
       ),
       step(0.25, interpolatedPart)
@@ -275,7 +288,7 @@ const HANDLE_FRAGMENT_SHADER = `
   }
 `;
 
-function getActiveParts(hover: ?HoverType): number[] {
+function getHoverParts(hover: ?HoverType): number[] {
   return [
     hover === 'xy' ? 1.0 : 0.0,
     hover === 'xy' || hover === 'x' ? 1.0 : 0.0,
@@ -287,6 +300,7 @@ function renderHandle(
   renderer: Renderer,
   transform: Transform,
   hover: ?HoverType,
+  pressed: boolean,
   geometry: Geometry,
 ) {
   // use our function pointer as a cache key
@@ -297,7 +311,8 @@ function renderHandle(
   );
   program.setUniformViewProjectionMatrix('viewProjectionMatrix');
   program.setUniformMatrix('modelMatrix', transform, getTransformMatrix);
-  program.setUniformArray('activeParts', hover, getActiveParts);
+  program.setUniformArray('hoverParts', hover, getHoverParts);
+  program.setUniformFloat('pressed', pressed ? 1.0 : 0.0);
   program.setUniformFloat('pixelsToWorldUnits', renderer.pixelsToWorldUnits);
   renderer.setEnabled(renderer.gl.BLEND, true);
   geometry.draw(program);

@@ -450,6 +450,45 @@ export function isFiniteVector(vector: Vector2): boolean {
 }
 
 /**
+ * Rotates a vector by the provided angle.
+ *
+ * @param vector the vector to rotate.
+ * @param angle the angle to rotate by.
+ * @param [result] the vector in which to store the result (otherwise, a new
+ * vector will be created).
+ * @return a reference to the result vector, for chaining.
+ */
+export function rotate(
+  vector: Vector2,
+  angle: number,
+  result?: Vector2,
+): Vector2 {
+  const sr = Math.sin(angle);
+  const cr = Math.cos(angle);
+  const x = vector.x * cr - vector.y * sr;
+  const y = vector.x * sr + vector.y * cr;
+  if (!result) {
+    return {x, y};
+  }
+  result.x = x;
+  result.y = y;
+  return result;
+}
+
+/**
+ * Rotates a vector by the provided angle.
+ *
+ * @param vector the vector to rotate.
+ * @param angle the angle to rotate by.
+ * @param [result] the vector in which to store the result (otherwise, a new
+ * vector will be created).
+ * @return a reference to the result vector, for chaining.
+ */
+export function rotateEquals(vector: Vector2, angle: number): Vector2 {
+  return rotate(vector, angle, vector);
+}
+
+/**
  * Creates a plane from a pair of points.
  *
  * @param first the first point on the plane.

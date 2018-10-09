@@ -52,6 +52,7 @@ import {
   plusEquals,
   timesEquals,
   minusEquals,
+  rotateEquals,
   length,
 } from '../server/store/math';
 
@@ -382,7 +383,9 @@ class ContiguousSelectTool extends Tool {
 
 class HandleTool extends Tool {
   _position: ?Vector2;
+  _rotation = 0.0;
   _hover: ?HoverType;
+  _pressed = false;
 
   get _shouldRender(): boolean {
     return this.active;
@@ -408,19 +411,16 @@ class HandleTool extends Tool {
       }
     }
     timesEquals(this._position, 1.0 / selectionSize);
+    this._rotation = firstRotation || 0.0;
     const scale = renderer.pixelsToWorldUnits * 5.0;
-    this._renderHandle(
-      renderer,
-      {
-        translation: position,
-        rotation: firstRotation || 0.0,
-        scale: vec2(scale, scale),
-      },
-      this._hover,
-    );
+    this._renderHandle(renderer, {
+      translation: position,
+      rotation: this._rotation,
+      scale: vec2(scale, scale),
+    });
   };
 
-  _renderHandle(renderer: Renderer, transform: Transform, hover: ?HoverType) {
+  _renderHandle(renderer: Renderer, transform: Transform) {
     throw new Error('Not implemented.');
   }
 
@@ -435,22 +435,40 @@ class HandleTool extends Tool {
       renderer.getWorldPosition(event.offsetX, event.offsetY),
       position,
     );
-    let hover: ?HoverType;
-    const outerRadius = renderer.pixelsToWorldUnits * 40.0;
-    const len = length(vector);
-    if (len < outerRadius) {
-      const innerRadius = renderer.pixelsToWorldUnits * 15.0;
-      if (len < innerRadius) {
-        hover = 'xy';
-      } else if (vector.x > vector.y === vector.x < -vector.y) {
-        hover = 'y';
-      } else {
-        hover = 'x';
+    rotateEquals(vector, -this._rotation);
+    if (this._hover && this._pressed) {
+    } else {
+      let hover: ?HoverType;
+      const outerRadius = renderer.pixelsToWorldUnits * 40.0;
+      const len = length(vector);
+      if (len < outerRadius) {
+        const innerRadius = renderer.pixelsToWorldUnits * 15.0;
+        if (len < innerRadius) {
+          hover = 'xy';
+        } else if (vector.x > vector.y === vector.x < -vector.y) {
+          hover = 'y';
+        } else {
+          hover = 'x';
+        }
+      }
+      if (this._hover !== hover) {
+        this._hover = hover;
+        renderer.requestFrameRender();
       }
     }
-    if (this._hover !== hover) {
-      this._hover = hover;
-      renderer.requestFrameRender();
+  };
+
+  _onMouseDown = (event: MouseEvent) => {
+    if (this._hover) {
+      this._pressed = true;
+      this.props.renderer && this.props.renderer.requestFrameRender();
+    }
+  };
+
+  _onMouseUp = (event: MouseEvent) => {
+    if (this._pressed) {
+      this._pressed = false;
+      this.props.renderer && this.props.renderer.requestFrameRender();
     }
   };
 }
@@ -471,8 +489,8 @@ class TranslateTool extends HandleTool {
     );
   }
 
-  _renderHandle(renderer: Renderer, transform: Transform, hover: ?HoverType) {
-    renderTranslationHandle(renderer, transform, hover);
+  _renderHandle(renderer: Renderer, transform: Transform) {
+    renderTranslationHandle(renderer, transform, this._hover, this._pressed);
   }
 }
 
@@ -486,8 +504,13 @@ class RotateTool extends HandleTool {
     );
   }
 
-  _renderHandle(renderer: Renderer, transform: Transform, hover: ?HoverType) {
-    renderRotationHandle(renderer, transform, hover);
+  _renderHandle(renderer: Renderer, transform: Transform) {
+    renderRotationHandle(
+      renderer,
+      transform,
+      this._hover && 'xy',
+      this._pressed,
+    );
   }
 }
 
@@ -501,8 +524,8 @@ class ScaleTool extends HandleTool {
     );
   }
 
-  _renderHandle(renderer: Renderer, transform: Transform, hover: ?HoverType) {
-    renderScaleHandle(renderer, transform, hover);
+  _renderHandle(renderer: Renderer, transform: Transform) {
+    renderScaleHandle(renderer, transform, this._hover, this._pressed);
   }
 }
 
