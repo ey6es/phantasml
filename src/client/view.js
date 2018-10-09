@@ -11,7 +11,14 @@ import {FormattedMessage} from 'react-intl';
 import {Nav, NavItem, NavLink, Button} from 'reactstrap';
 import {DEFAULT_PAGE_SIZE, StoreActions, store, createUuid} from './store';
 import {EntityName} from './entity';
-import {Menu, Submenu, MenuItem, Shortcut, renderText} from './util/ui';
+import {
+  Menu,
+  Submenu,
+  MenuItem,
+  Shortcut,
+  FrameShortcutHandler,
+  renderText,
+} from './util/ui';
 import {RenderCanvas} from './renderer/canvas';
 import type {Renderer} from './renderer/util';
 import type {Resource} from '../server/store/resource';
@@ -80,11 +87,34 @@ export class ViewDropdown extends React.Component<
             }>
             <FormattedMessage id="view.zoom.1_4" defaultMessage="1:4" />
           </MenuItem>
+          <PanShortcutHandler char="W" dx={0.0} dy={1.0} />
+          <PanShortcutHandler char="A" dx={-1.0} dy={0.0} />
+          <PanShortcutHandler char="S" dx={0.0} dy={-1.0} />
+          <PanShortcutHandler char="D" dx={1.0} dy={0.0} />
         </Submenu>
         {this.state.dialog}
       </Menu>
     );
   }
+}
+
+function PanShortcutHandler(props: {char: string, dx: number, dy: number}) {
+  return (
+    <FrameShortcutHandler
+      shortcut={new Shortcut(props.char)}
+      onFrame={elapsed => {
+        const state = store.getState();
+        const pageState = state.pageStates.get(state.page) || {};
+        const amount = (pageState.size || DEFAULT_PAGE_SIZE) * elapsed;
+        store.dispatch(
+          StoreActions.setPagePosition.create(
+            (pageState.x || 0) + amount * props.dx,
+            (pageState.y || 0) + amount * props.dy,
+          ),
+        );
+      }}
+    />
+  );
 }
 
 /**

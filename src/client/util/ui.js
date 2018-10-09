@@ -638,16 +638,66 @@ export class MenuItem extends React.Component<
 
   _keydown = (event: KeyboardEvent) => {
     if (this.props.shortcut && this.props.shortcut.matches(event)) {
-      // don't consume events from dialogs
-      let element: ?HTMLElement = (event.target: any);
-      while (element) {
-        if (element.getAttribute('role') === 'dialog') {
-          return;
-        }
-        element = (element.parentElement: any);
-      }
       event.preventDefault();
       this.props.disabled || !this.props.onClick || this.props.onClick();
+    }
+  };
+}
+
+/**
+ * Calls a function every frame a shortcut is pressed.
+ *
+ * @param props.shortcut the shortcut to activate the command.
+ * @param [props.disabled] whether or not the item is disabled.
+ * @param props.onFrame the function to call each frame with the amount of time
+ * elapsed since the last, in seconds.
+ */
+export class FrameShortcutHandler extends React.Component<
+  {shortcut: Shortcut, disabled?: boolean, onFrame: number => void},
+  {},
+> {
+  _down = false;
+  _lastTime = 0;
+
+  render() {
+    return null;
+  }
+
+  componentDidMount() {
+    document.addEventListener('keydown', this._keydown);
+    document.addEventListener('keyup', this._keyup);
+  }
+
+  componentWillUnmount() {
+    this._down = false;
+    document.removeEventListener('keydown', this._keydown);
+    document.removeEventListener('keyup', this._keyup);
+  }
+
+  _keydown = (event: KeyboardEvent) => {
+    if (this.props.shortcut.matches(event)) {
+      event.preventDefault();
+      if (!(this.props.disabled || this._down)) {
+        this._down = true;
+        this._lastTime = Date.now();
+        requestAnimationFrame(this._handleFrame);
+      }
+    }
+  };
+
+  _keyup = (event: KeyboardEvent) => {
+    if (this.props.shortcut.matches(event)) {
+      event.preventDefault();
+      this._down = false;
+    }
+  };
+
+  _handleFrame = () => {
+    if (this._down) {
+      const now = Date.now();
+      this.props.onFrame((now - this._lastTime) / 1000.0);
+      this._lastTime = now;
+      requestAnimationFrame(this._handleFrame);
     }
   };
 }
