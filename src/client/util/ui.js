@@ -478,6 +478,15 @@ export class Shortcut {
   static SHIFT = 1 << 2;
   static META = 1 << 3;
 
+  /** If set, enable the shortcut in fields even if it has no modifiers. */
+  static FIELD_ENABLE = 1 << 4;
+
+  /** If set, disable the shortcut in fields even if it does have modifiers. */
+  static FIELD_DISABLE = 1 << 5;
+
+  /** If set, enables the shortcut even for dialogs. */
+  static DIALOG_ENABLE = 1 << 6;
+
   keyCode: number;
   modifiers: number;
   aliases: Shortcut[];
@@ -499,13 +508,35 @@ export class Shortcut {
         return true;
       }
     }
-    return (
-      event.keyCode === this.keyCode &&
-      event.ctrlKey === !!(this.modifiers & Shortcut.CTRL) &&
-      event.altKey === !!(this.modifiers & Shortcut.ALT) &&
-      event.shiftKey === !!(this.modifiers & Shortcut.SHIFT) &&
-      event.metaKey === !!(this.modifiers & Shortcut.META)
-    );
+    if (
+      event.keyCode !== this.keyCode ||
+      event.ctrlKey !== !!(this.modifiers & Shortcut.CTRL) ||
+      event.altKey !== !!(this.modifiers & Shortcut.ALT) ||
+      event.shiftKey !== !!(this.modifiers & Shortcut.SHIFT) ||
+      event.metaKey !== !!(this.modifiers & Shortcut.META)
+    ) {
+      return false;
+    }
+    const nodeName = (event.target: any).nodeName;
+    if (nodeName === 'INPUT' || nodeName === 'TEXTAREA') {
+      if (
+        event.ctrlKey || event.altKey || event.metaKey
+          ? !!(this.modifiers & Shortcut.FIELD_DISABLE)
+          : !(this.modifiers & Shortcut.FIELD_ENABLE)
+      ) {
+        return false;
+      }
+    }
+    if (!(this.modifiers & Shortcut.DIALOG_ENABLE)) {
+      let element: ?HTMLElement = (event.target: any);
+      while (element) {
+        if (element.getAttribute('role') === 'dialog') {
+          return false;
+        }
+        element = (element.parentElement: any);
+      }
+    }
+    return true;
   }
 
   render() {

@@ -115,7 +115,7 @@ const CutItem = ReactRedux.connect(state => ({
   disabled: state.selection.size === 0,
 }))(props => (
   <MenuItem
-    shortcut={new Shortcut('X', Shortcut.CTRL)}
+    shortcut={new Shortcut('X', Shortcut.CTRL | Shortcut.FIELD_DISABLE)}
     disabled={props.disabled}
     onClick={() => store.dispatch(StoreActions.cut.create())}>
     <FormattedMessage id="edit.cut" defaultMessage="Cut" />
@@ -126,7 +126,7 @@ const CopyItem = ReactRedux.connect(state => ({
   disabled: state.selection.size === 0,
 }))(props => (
   <MenuItem
-    shortcut={new Shortcut('C', Shortcut.CTRL)}
+    shortcut={new Shortcut('C', Shortcut.CTRL | Shortcut.FIELD_DISABLE)}
     disabled={props.disabled}
     onClick={() => store.dispatch(StoreActions.copy.create())}>
     <FormattedMessage id="edit.copy" defaultMessage="Copy" />
@@ -137,7 +137,7 @@ const PasteItem = ReactRedux.connect(state => ({
   disabled: state.clipboard.size === 0,
 }))(props => (
   <MenuItem
-    shortcut={new Shortcut('V', Shortcut.CTRL)}
+    shortcut={new Shortcut('V', Shortcut.CTRL | Shortcut.FIELD_DISABLE)}
     disabled={props.disabled}
     onClick={() => store.dispatch(StoreActions.paste.create())}>
     <FormattedMessage id="edit.paste" defaultMessage="Paste" />
@@ -166,7 +166,7 @@ const SelectAllItem = ReactRedux.connect(state => ({
   }
   return (
     <MenuItem
-      shortcut={new Shortcut('A', Shortcut.CTRL)}
+      shortcut={new Shortcut('A', Shortcut.CTRL | Shortcut.FIELD_DISABLE)}
       disabled={!(pageNode && pageNode.children.length > 0)}
       onClick={() => {
         const map = {};

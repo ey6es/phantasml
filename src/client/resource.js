@@ -244,7 +244,7 @@ const SaveItem = ReactRedux.connect(state => ({
   disabled: !isResourceDirty(state),
 }))((props: {disabled: boolean, resource: ResourceDescriptor}) => (
   <MenuItem
-    shortcut={new Shortcut('S', Shortcut.CTRL)}
+    shortcut={new Shortcut('S', Shortcut.CTRL | Shortcut.DIALOG_ENABLE)}
     disabled={props.disabled}
     onClick={() =>
       store.dispatch(StoreActions.saveResource.create(props.resource.id))
