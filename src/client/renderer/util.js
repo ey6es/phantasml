@@ -5,7 +5,7 @@
  * @flow
  */
 
-import type {Vector2} from '../util/math';
+import type {Vector2} from '../../server/store/math';
 
 /**
  * Converts a hex color string to an array of floats that we can use as a
@@ -383,6 +383,18 @@ export class Renderer {
       this.gl.deleteBuffer(buffer);
     }
     this._frameDirty = false;
+  }
+
+  /**
+   * Returns the world position corresponding to an event position.
+   *
+   * @param clientX the x coordinate relative to the window.
+   * @param clientY the y coordinate relative to the window.
+   * @return the world position of the event.
+   */
+  getEventPosition(clientX: number, clientY: number): Vector2 {
+    const rect = this.canvas.getBoundingClientRect();
+    return this.getWorldPosition(clientX - rect.left, clientY - rect.top);
   }
 
   /**

@@ -38,7 +38,7 @@ Globals:
           GOOGLE_CLIENT_ID: !Ref GoogleClientId
           RESOURCE_BUCKET: !Ref ResourceBucket
           BUILD_TIME: !Ref BuildTime
-    Timeout: 5
+    Timeout: 10
     
 Resources:
 

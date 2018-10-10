@@ -26,7 +26,7 @@ import {
   DropdownItem,
   Input,
 } from 'reactstrap';
-import {roundToPrecision} from './math';
+import {roundToPrecision} from '../../server/store/math';
 import {store} from '../store';
 
 /**

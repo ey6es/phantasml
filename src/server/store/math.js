@@ -7,6 +7,8 @@
 
 export type Vector2 = {x: number, y: number};
 
+export type LineSegment = {start: Vector2, end: Vector2};
+
 export type Plane = {normal: Vector2, constant: number};
 
 /** General transform type. */
@@ -787,4 +789,17 @@ export function radians(value: number): number {
  */
 export function degrees(value: number): number {
   return (value * 180.0) / Math.PI;
+}
+
+/**
+ * Rounds a value to the specified decimal precision.
+ *
+ * @param value the value to round.
+ * @param precision the precision (number of digits after the decimal point) to
+ * round to.
+ * @return the rounded value.
+ */
+export function roundToPrecision(value: number, precision: number): number {
+  const multiplier = Math.pow(10, precision);
+  return Math.round(value * multiplier) / multiplier;
 }

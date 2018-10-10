@@ -5,10 +5,9 @@
  * @flow
  */
 
-import type {LineSegment} from '../util/math';
 import type {Renderer} from './util';
 import {Geometry} from './util';
-import type {Transform} from '../../server/store/math';
+import type {LineSegment, Transform} from '../../server/store/math';
 import {getTransformMatrix, radians, degrees} from '../../server/store/math';
 import {ShapeList} from '../../server/store/shape';
 

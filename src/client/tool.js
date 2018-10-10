@@ -33,7 +33,6 @@ import {faVectorSquare} from '@fortawesome/free-solid-svg-icons/faVectorSquare';
 import {faStamp} from '@fortawesome/free-solid-svg-icons/faStamp';
 import type {ToolType} from './store';
 import {StoreActions, store} from './store';
-import type {LineSegment} from './util/math';
 import type {Renderer} from './renderer/util';
 import type {HoverType} from './renderer/helpers';
 import {
@@ -44,7 +43,7 @@ import {
 } from './renderer/helpers';
 import type {Resource} from '../server/store/resource';
 import {Scene, SceneActions} from '../server/store/scene';
-import type {Vector2, Transform} from '../server/store/math';
+import type {Vector2, LineSegment, Transform} from '../server/store/math';
 import {
   invertTransform,
   simplifyTransform,
@@ -54,10 +53,14 @@ import {
   vec2,
   plusEquals,
   timesEquals,
+  minus,
   minusEquals,
+  normalizeEquals,
+  rotate,
   rotateEquals,
   orthogonalize,
   dot,
+  cross,
   length,
 } from '../server/store/math';
 
@@ -453,8 +456,11 @@ class HandleTool extends Tool {
       const map = {};
       const dragTransform = this._getDragTransform(
         renderer,
-        event.movementX,
-        -event.movementY,
+        renderer.getEventPosition(event.clientX, event.clientY),
+        timesEquals(
+          vec2(event.movementX, -event.movementY),
+          renderer.pixelsToWorldUnits,
+        ),
       );
       for (const id of this.props.selection) {
         if (resource.isAncestorInSet(id, this.props.selection)) {
@@ -512,7 +518,11 @@ class HandleTool extends Tool {
     }
   };
 
-  _getDragTransform(renderer: Renderer, dx: number, dy: number): Transform {
+  _getDragTransform(
+    renderer: Renderer,
+    position: Vector2,
+    delta: Vector2,
+  ): Transform {
     throw new Error('Not implemented.');
   }
 }
@@ -537,16 +547,19 @@ class TranslateTool extends HandleTool {
     renderTranslationHandle(renderer, transform, this._hover, this._pressed);
   }
 
-  _getDragTransform(renderer: Renderer, dx: number, dy: number): Transform {
-    const vector = timesEquals(vec2(dx, dy), renderer.pixelsToWorldUnits);
+  _getDragTransform(
+    renderer: Renderer,
+    position: Vector2,
+    delta: Vector2,
+  ): Transform {
     const axisX = rotateEquals(vec2(1.0, 0.0), this._rotation);
     const axisY = orthogonalize(axisX);
     const translation = vec2();
     if (this._hover !== 'y') {
-      plusEquals(translation, timesEquals(axisX, dot(axisX, vector)));
+      plusEquals(translation, timesEquals(axisX, dot(axisX, delta)));
     }
     if (this._hover !== 'x') {
-      plusEquals(translation, timesEquals(axisY, dot(axisY, vector)));
+      plusEquals(translation, timesEquals(axisY, dot(axisY, delta)));
     }
     return {translation};
   }
@@ -571,8 +584,22 @@ class RotateTool extends HandleTool {
     );
   }
 
-  _getDragTransform(renderer: Renderer, dx: number, dy: number): Transform {
-    return {rotation: 0.0};
+  _getDragTransform(
+    renderer: Renderer,
+    position: Vector2,
+    delta: Vector2,
+  ): Transform {
+    const handlePosition = this._position;
+    if (!handlePosition) {
+      return null;
+    }
+    const to = normalizeEquals(minus(position, handlePosition));
+    const from = normalizeEquals(
+      minusEquals(minus(position, delta), handlePosition),
+    );
+    const rotation = Math.asin(cross(from, to));
+    const translation = minus(handlePosition, rotate(handlePosition, rotation));
+    return {translation, rotation};
   }
 }
 
@@ -590,7 +617,11 @@ class ScaleTool extends HandleTool {
     renderScaleHandle(renderer, transform, this._hover, this._pressed);
   }
 
-  _getDragTransform(renderer: Renderer, dx: number, dy: number): Transform {
+  _getDragTransform(
+    renderer: Renderer,
+    position: Vector2,
+    delta: Vector2,
+  ): Transform {
     return {scale: vec2(1.0, 1.0)};
   }
 }
