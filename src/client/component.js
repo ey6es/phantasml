@@ -24,6 +24,7 @@ import {
   DropdownToggle,
   DropdownMenu,
   DropdownItem,
+  CustomInput,
 } from 'reactstrap';
 import type {EditorTab} from './store';
 import {StoreActions, store} from './store';
@@ -32,7 +33,7 @@ import {Menu, Submenu, NumberField, ColorField, renderText} from './util/ui';
 import {RendererComponents} from './renderer/components';
 import type {Resource, Entity} from '../server/store/resource';
 import {Scene, SceneActions} from '../server/store/scene';
-import {radians, degrees, roundToPrecision} from '../server/store/math';
+import {radians, degrees, roundToPrecision, vec2} from '../server/store/math';
 
 /**
  * The component menu dropdown.
@@ -287,9 +288,6 @@ function ComponentPanel(props: {
   if (!component) {
     return null;
   }
-  const properties: [string, PropertyData][] = (Object.entries(
-    component.properties,
-  ): [string, any][]);
   return (
     <Card className="mb-3">
       {props.draggingComponent ? (
@@ -320,24 +318,13 @@ function ComponentPanel(props: {
         ) : null}
       </CardHeader>
       <CardBody className="p-2">
-        {properties.map(([key, property]) => {
-          const PropertyEditor = PropertyEditors[property.type];
-          return (
-            <FormGroup key={key} className="mb-1" row>
-              <Label for={key} className="pr-0 unselectable" sm={4}>
-                {property.label}
-              </Label>
-              <PropertyEditor
-                id={key}
-                property={property}
-                value={props.value[key]}
-                setValue={value => {
-                  props.editEntities({[props.id]: {[key]: value}});
-                }}
-              />
-            </FormGroup>
-          );
-        })}
+        <PropertyEditorGroup
+          properties={component.properties}
+          values={props.value}
+          setValue={(key, value) =>
+            props.editEntities({[props.id]: {[key]: value}})
+          }
+        />
       </CardBody>
       {props.draggingComponent && props.postOrder != null ? (
         <ReorderTarget
@@ -350,6 +337,40 @@ function ComponentPanel(props: {
       ) : null}
     </Card>
   );
+}
+
+/**
+ * Component for editing the properties of an object.
+ *
+ * @param props.properties the property metadata.
+ * @param props.values the object containing the values.
+ * @param props.setValue the function to set a value.
+ * @return an array containing the editor elements.
+ */
+export function PropertyEditorGroup(props: {
+  properties: {[string]: PropertyData},
+  values: any,
+  setValue: (string, any) => void,
+}) {
+  const properties: [string, PropertyData][] = (Object.entries(
+    props.properties,
+  ): [string, any][]);
+  return properties.map(([key, property]) => {
+    const PropertyEditor = PropertyEditors[property.type];
+    return (
+      <FormGroup key={key} className="mb-1" row>
+        <Label for={key} className="pr-0 unselectable" sm={4}>
+          {property.label}
+        </Label>
+        <PropertyEditor
+          id={key}
+          property={property}
+          value={props.values[key]}
+          setValue={value => props.setValue(key, value)}
+        />
+      </FormGroup>
+    );
+  });
 }
 
 function ReorderTarget(props: {
@@ -421,6 +442,23 @@ class AddComponentDropdown extends React.Component<{}, {open: boolean}> {
 }
 
 const PropertyEditors = {
+  boolean: (props: {
+    id: string,
+    property: PropertyData,
+    value: ?boolean,
+    setValue: boolean => void,
+  }) => {
+    return (
+      <div className="col-sm-8">
+        <CustomInput
+          id={props.id}
+          type="checkbox"
+          checked={props.value || false}
+          onChange={event => props.setValue(event.target.checked)}
+        />
+      </div>
+    );
+  },
   color: (props: {
     id: string,
     property: PropertyData,
@@ -464,7 +502,8 @@ const PropertyEditors = {
     value: ?Object,
     setValue: Object => void,
   }) => {
-    const vector = props.value || {x: 0.0, y: 0.0};
+    const vector = props.value ||
+      props.property.defaultValue || {x: 0.0, y: 0.0};
     return [
       <VectorComponent
         key="x"
@@ -507,7 +546,7 @@ function VectorComponent(props: {
   );
 }
 
-type PropertyData = {
+export type PropertyData = {
   type: $Keys<typeof PropertyEditors>,
   label: React.Element<any>,
   [string]: any,
@@ -547,6 +586,7 @@ const Components: {[string]: ComponentData} = {
         label: (
           <FormattedMessage id="transform.scale" defaultMessage="Scale:" />
         ),
+        defaultValue: vec2(1.0, 1.0),
       },
     },
     removable: false,

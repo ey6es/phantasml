@@ -33,6 +33,8 @@ import {faVectorSquare} from '@fortawesome/free-solid-svg-icons/faVectorSquare';
 import {faStamp} from '@fortawesome/free-solid-svg-icons/faStamp';
 import type {ToolType} from './store';
 import {StoreActions, store} from './store';
+import type {PropertyData} from './component';
+import {PropertyEditorGroup} from './component';
 import type {Renderer} from './renderer/util';
 import type {HoverType} from './renderer/helpers';
 import {
@@ -85,21 +87,22 @@ library.add(faProjectDiagram);
 library.add(faVectorSquare);
 library.add(faStamp);
 
-/**
- * The set of tools available.
- */
-export const Toolset = ReactRedux.connect(state => ({
-  resource: state.resource,
-  selection: state.selection,
-  tool: state.tool,
-}))(
-  (props: {
+class ToolsetImpl extends React.Component<
+  {
     resource: ?Resource,
     selection: Set<string>,
     tool: ToolType,
     renderer: ?Renderer,
-  }) => {
-    const {tool, ...toolProps} = props;
+  },
+  {options: ?React.Element<any>},
+> {
+  state = {options: null};
+
+  render() {
+    const {tool, ...otherProps} = this.props;
+    const toolProps: ToolProps = (otherProps: any);
+    toolProps.activeTool = tool;
+    toolProps.setOptions = this._setOptions;
     return (
       <div>
         <Nav
@@ -116,32 +119,44 @@ export const Toolset = ReactRedux.connect(state => ({
         <div className="border-bottom border-secondary text-center pt-3 pb-3">
           <div className="tool-grid">
             <ButtonGroup>
-              <SelectPanTool activeTool={tool} {...toolProps} />
-              <RectSelectTool activeTool={tool} {...toolProps} />
-              <TranslateTool activeTool={tool} {...toolProps} />
-              <RotateTool activeTool={tool} {...toolProps} />
-              <ScaleTool activeTool={tool} {...toolProps} />
+              <SelectPanTool {...toolProps} />
+              <RectSelectTool {...toolProps} />
+              <TranslateTool {...toolProps} />
+              <RotateTool {...toolProps} />
+              <ScaleTool {...toolProps} />
             </ButtonGroup>
             <ButtonGroup>
-              <ContiguousSelectTool activeTool={tool} {...toolProps} />
-              <EraseTool activeTool={tool} {...toolProps} />
-              <PointTool activeTool={tool} {...toolProps} />
-              <LineTool activeTool={tool} {...toolProps} />
-              <LineGroupTool activeTool={tool} {...toolProps} />
+              <ContiguousSelectTool {...toolProps} />
+              <EraseTool {...toolProps} />
+              <PointTool {...toolProps} />
+              <LineTool {...toolProps} />
+              <LineGroupTool {...toolProps} />
             </ButtonGroup>
             <ButtonGroup>
-              <PolygonTool activeTool={tool} {...toolProps} />
-              <RectangleTool activeTool={tool} {...toolProps} />
-              <EllipseArcTool activeTool={tool} {...toolProps} />
-              <BezierTool activeTool={tool} {...toolProps} />
-              <StampTool activeTool={tool} {...toolProps} />
+              <PolygonTool {...toolProps} />
+              <RectangleTool {...toolProps} />
+              <EllipseArcTool {...toolProps} />
+              <BezierTool {...toolProps} />
+              <StampTool {...toolProps} />
             </ButtonGroup>
           </div>
+          {this.state.options}
         </div>
       </div>
     );
-  },
-);
+  }
+
+  _setOptions = (options: ?React.Element<any>) => this.setState({options});
+}
+
+/**
+ * The set of tools available.
+ */
+export const Toolset = ReactRedux.connect(state => ({
+  resource: state.resource,
+  selection: state.selection,
+  tool: state.tool,
+}))(ToolsetImpl);
 
 function PlayControl(props: {icon: string, disabled?: boolean}) {
   return (
@@ -156,12 +171,16 @@ type ToolProps = {
   resource: ?Resource,
   selection: Set<string>,
   renderer: ?Renderer,
+  setOptions: (?React.Element<any>) => void,
 };
 
-class Tool extends React.Component<ToolProps, {}> {
+class Tool extends React.Component<ToolProps, Object> {
+  state = {};
+
   _type: ToolType;
   _icon: string;
   _name: React.Element<any>;
+  _options: {[string]: PropertyData};
 
   /** Checks whether the tool is active. */
   get active(): boolean {
@@ -172,12 +191,14 @@ class Tool extends React.Component<ToolProps, {}> {
     type: ToolType,
     icon: string,
     name: React.Element<any>,
+    options: {[string]: PropertyData},
     ...args: any[]
   ) {
     super(...args);
     this._type = type;
     this._icon = icon;
     this._name = name;
+    this._options = options;
   }
 
   render() {
@@ -207,7 +228,7 @@ class Tool extends React.Component<ToolProps, {}> {
     this.props.renderer && this._unsubscribeFromRenderer(this.props.renderer);
   }
 
-  componentDidUpdate(prevProps: ToolProps) {
+  componentDidUpdate(prevProps: ToolProps, prevState: Object) {
     const renderer = this.props.renderer;
     if (prevProps.renderer !== renderer) {
       prevProps.renderer && this._unsubscribeFromRenderer(prevProps.renderer);
@@ -218,6 +239,17 @@ class Tool extends React.Component<ToolProps, {}> {
         wasActive ? this._onDeactivate(renderer) : this._onActivate(renderer);
       }
     }
+    if (!this.active) {
+      return;
+    }
+    let stateChanged = false;
+    for (const key in this.state) {
+      if (this.state[key] !== prevState[key]) {
+        stateChanged = true;
+        break;
+      }
+    }
+    stateChanged && this._updateOptions();
   }
 
   _subscribeToRenderer(renderer: Renderer) {
@@ -239,11 +271,25 @@ class Tool extends React.Component<ToolProps, {}> {
   }
 
   _onActivate(renderer: Renderer) {
-    // nothing by default
+    this._updateOptions();
   }
 
   _onDeactivate(renderer: Renderer) {
     // nothing by default
+  }
+
+  _updateOptions() {
+    this.props.setOptions(this._renderOptions());
+  }
+
+  _renderOptions(): ?React.Element<any> {
+    return (
+      <PropertyEditorGroup
+        properties={this._options}
+        values={this.state}
+        setValue={(key, value) => this.setState({[key]: value})}
+      />
+    );
   }
 
   _renderHelpers = (renderer: Renderer) => {
@@ -275,6 +321,7 @@ class SelectPanTool extends Tool {
       'selectPan',
       'mouse-pointer',
       <FormattedMessage id="tool.select_pan" defaultMessage="Select/Pan" />,
+      {},
       ...args,
     );
   }
@@ -329,15 +376,18 @@ class RectSelectTool extends Tool {
       'rectSelect',
       'expand',
       <FormattedMessage id="tool.rect_select" defaultMessage="Rect Select" />,
+      {},
       ...args,
     );
   }
 
   _onActivate(renderer: Renderer) {
+    super._onActivate(renderer);
     renderer.canvas.style.cursor = 'crosshair';
   }
 
   _onDeactivate(renderer: Renderer) {
+    super._onDeactivate(renderer);
     renderer.canvas.style.cursor = 'inherit';
   }
 
@@ -384,6 +434,7 @@ class ContiguousSelectTool extends Tool {
         id="tool.contiguous_select"
         defaultMessage="Contiguous Select"
       />,
+      {},
       ...args,
     );
   }
@@ -539,6 +590,17 @@ class TranslateTool extends HandleTool {
       'translate',
       'arrows-alt',
       <FormattedMessage id="tool.translate" defaultMessage="Translate" />,
+      {
+        local: {
+          type: 'boolean',
+          label: (
+            <FormattedMessage
+              id="tool.translate.local"
+              defaultMessage="Local:"
+            />
+          ),
+        },
+      },
       ...args,
     );
   }
@@ -571,6 +633,7 @@ class RotateTool extends HandleTool {
       'rotate',
       'sync-alt',
       <FormattedMessage id="tool.rotate" defaultMessage="Rotate" />,
+      {},
       ...args,
     );
   }
@@ -609,6 +672,7 @@ class ScaleTool extends HandleTool {
       'scale',
       'compress',
       <FormattedMessage id="tool.scale" defaultMessage="Scale" />,
+      {},
       ...args,
     );
   }
@@ -622,7 +686,33 @@ class ScaleTool extends HandleTool {
     position: Vector2,
     delta: Vector2,
   ): Transform {
-    return {scale: vec2(1.0, 1.0)};
+    const handlePosition = this._position;
+    if (!handlePosition) {
+      return null;
+    }
+    const to = minus(position, handlePosition);
+    const from = minusEquals(minus(position, delta), handlePosition);
+    const axisX = rotateEquals(vec2(1.0, 0.0), this._rotation);
+    const axisY = orthogonalize(axisX);
+    const scale = vec2(1.0, 1.0);
+    if (this._hover !== 'y') {
+      const fromScale = dot(from, axisX);
+      const toScale = dot(to, axisX);
+      if (fromScale !== 0.0 && toScale !== 0.0) {
+        scale.x = toScale / fromScale;
+      }
+    }
+    if (this._hover !== 'x') {
+      const fromScale = dot(from, axisY);
+      const toScale = dot(to, axisY);
+      if (fromScale !== 0.0 && toScale !== 0.0) {
+        scale.y = toScale / fromScale;
+      }
+    }
+    return composeTransforms(
+      {translation: handlePosition, rotation: this._rotation, scale},
+      invertTransform({translation: handlePosition, rotation: this._rotation}),
+    );
   }
 }
 
@@ -632,6 +722,7 @@ class EraseTool extends Tool {
       'erase',
       'eraser',
       <FormattedMessage id="tool.erase" defaultMessage="Erase" />,
+      {},
       ...args,
     );
   }
@@ -643,6 +734,7 @@ class PointTool extends Tool {
       'point',
       'dot-circle',
       <FormattedMessage id="tool.point" defaultMessage="Point" />,
+      {},
       ...args,
     );
   }
@@ -654,6 +746,7 @@ class LineTool extends Tool {
       'line',
       'pencil-alt',
       <FormattedMessage id="tool.line" defaultMessage="Line" />,
+      {},
       ...args,
     );
   }
@@ -665,6 +758,7 @@ class LineGroupTool extends Tool {
       'lineGroup',
       'project-diagram',
       <FormattedMessage id="tool.line_group" defaultMessage="Line Group" />,
+      {},
       ...args,
     );
   }
@@ -676,6 +770,7 @@ class PolygonTool extends Tool {
       'polygon',
       'draw-polygon',
       <FormattedMessage id="tool.polygon" defaultMessage="Polygon" />,
+      {},
       ...args,
     );
   }
@@ -687,6 +782,7 @@ class RectangleTool extends Tool {
       'rectangle',
       'vector-square',
       <FormattedMessage id="tool.rectangle" defaultMessage="Rectangle" />,
+      {},
       ...args,
     );
   }
@@ -698,6 +794,7 @@ class EllipseArcTool extends Tool {
       'ellipseArc',
       'circle-notch',
       <FormattedMessage id="tool.ellipse_arc" defaultMessage="Ellipse/Arc" />,
+      {},
       ...args,
     );
   }
@@ -709,6 +806,7 @@ class BezierTool extends Tool {
       'bezier',
       'bezier-curve',
       <FormattedMessage id="tool.bezier" defaultMessage="Bezier Curve" />,
+      {},
       ...args,
     );
   }
@@ -720,6 +818,7 @@ class StampTool extends Tool {
       'stamp',
       'stamp',
       <FormattedMessage id="tool.stamp" defaultMessage="Clone Stamp" />,
+      {},
       ...args,
     );
   }

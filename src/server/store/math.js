@@ -486,6 +486,42 @@ export function timesEquals(vector: Vector2, scalar: number): Vector2 {
 }
 
 /**
+ * Multiplies the components of two vectors.
+ *
+ * @param first the first vector to multiply.
+ * @param second the second vector to multiply.
+ * @param [result] the vector in which to store the result (otherwise, a new
+ * vector will be created).
+ * @return a reference to the result vector, for chaining.
+ */
+export function timesComponents(
+  first: Vector2,
+  second: Vector2,
+  result?: Vector2,
+): Vector2 {
+  if (!result) {
+    return {x: first.x * second.x, y: first.y * second.y};
+  }
+  result.x = first.x * second.x;
+  result.y = first.y * second.y;
+  return result;
+}
+
+/**
+ * Multiplies the components of two vectors.
+ *
+ * @param first the first vector to multiply.
+ * @param second the second vector to multiply.
+ * @return a reference to the first vector, for chaining.
+ */
+export function timesComponentsEquals(
+  first: Vector2,
+  second: Vector2,
+): Vector2 {
+  return timesComponents(first, second, first);
+}
+
+/**
  * Computes the length of a vector.
  *
  * @param vector the vector.
