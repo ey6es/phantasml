@@ -502,6 +502,28 @@ export class Scene extends Resource {
   };
 
   /**
+   * Given an entity id, checks whether the ids of any of its ancestors (but
+   * not the entity itself) are in the provided set.
+   *
+   * @param id the id of the entity of interest.
+   * @param set the set of ids to check.
+   * @return whether or not any of the ancestors' ids are in the set.
+   */
+  isAncestorInSet(id: string, set: Set<string>): boolean {
+    const entity = this.getEntity(id);
+    if (!entity) {
+      return false;
+    }
+    const lineage = this.getEntityLineage(entity);
+    for (let ii = lineage.length - 2; ii >= 0; ii--) {
+      if (set.has(lineage[ii].id)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /**
    * Gets the full lineage of an entity.
    *
    * @param entity the entity whose lineage is desired.

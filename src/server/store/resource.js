@@ -5,6 +5,7 @@
  * @flow
  */
 
+import {simplifyTransform} from './math';
 import type {ResourceType} from '../api';
 
 export type ResourceAction = {type: string, [string]: any};
@@ -205,6 +206,15 @@ export class Entity {
    * @return the JSON representation.
    */
   toJSON(): Object {
+    // special handling for transforms; simplify to remove redundant data
+    if (this.state.transform !== undefined) {
+      const simplified = simplifyTransform(this.state.transform, true);
+      if (simplified) {
+        this.state.transform = simplified;
+      } else {
+        delete this.state.transform;
+      }
+    }
     return this.state;
   }
 }

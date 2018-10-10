@@ -584,6 +584,8 @@ export class Shortcut {
     switch (this.keyCode) {
       case 46:
         return <FormattedMessage id="key.delete" defaultMessage="Del" />;
+      case 192:
+        return <FormattedMessage id="key.backtick" defaultMessage="~" />;
       default:
         return String.fromCharCode(this.keyCode);
     }

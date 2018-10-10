@@ -43,9 +43,12 @@ import {
   renderScaleHandle,
 } from './renderer/helpers';
 import type {Resource} from '../server/store/resource';
-import {Scene} from '../server/store/scene';
+import {Scene, SceneActions} from '../server/store/scene';
 import type {Vector2, Transform} from '../server/store/math';
 import {
+  invertTransform,
+  simplifyTransform,
+  composeTransforms,
   getTransformTranslation,
   getTransformRotation,
   vec2,
@@ -53,6 +56,8 @@ import {
   timesEquals,
   minusEquals,
   rotateEquals,
+  orthogonalize,
+  dot,
   length,
 } from '../server/store/math';
 
@@ -110,12 +115,12 @@ export const Toolset = ReactRedux.connect(state => ({
             <ButtonGroup>
               <SelectPanTool activeTool={tool} {...toolProps} />
               <RectSelectTool activeTool={tool} {...toolProps} />
-              <ContiguousSelectTool activeTool={tool} {...toolProps} />
               <TranslateTool activeTool={tool} {...toolProps} />
               <RotateTool activeTool={tool} {...toolProps} />
+              <ScaleTool activeTool={tool} {...toolProps} />
             </ButtonGroup>
             <ButtonGroup>
-              <ScaleTool activeTool={tool} {...toolProps} />
+              <ContiguousSelectTool activeTool={tool} {...toolProps} />
               <EraseTool activeTool={tool} {...toolProps} />
               <PointTool activeTool={tool} {...toolProps} />
               <LineTool activeTool={tool} {...toolProps} />
@@ -404,6 +409,10 @@ class HandleTool extends Tool {
     const position = (this._position = vec2());
     let firstRotation: ?number;
     for (const id of this.props.selection) {
+      // if we have children and their parents, we only want the parents
+      if (resource.isAncestorInSet(id, this.props.selection)) {
+        continue;
+      }
       const transform = resource.getWorldTransform(id);
       plusEquals(position, getTransformTranslation(transform));
       if (firstRotation == null) {
@@ -437,6 +446,37 @@ class HandleTool extends Tool {
     );
     rotateEquals(vector, -this._rotation);
     if (this._hover && this._pressed) {
+      const resource = this.props.resource;
+      if (!(resource instanceof Scene)) {
+        return;
+      }
+      const map = {};
+      const dragTransform = this._getDragTransform(
+        renderer,
+        event.movementX,
+        -event.movementY,
+      );
+      for (const id of this.props.selection) {
+        if (resource.isAncestorInSet(id, this.props.selection)) {
+          continue;
+        }
+        const entity = resource.getEntity(id);
+        if (!entity) {
+          continue;
+        }
+        const oldWorldTransform = resource.getWorldTransform(id);
+        const transform = simplifyTransform(
+          composeTransforms(
+            composeTransforms(
+              entity.state.transform,
+              invertTransform(oldWorldTransform),
+            ),
+            composeTransforms(dragTransform, oldWorldTransform),
+          ),
+        );
+        map[id] = {transform};
+      }
+      store.dispatch(SceneActions.editEntities.create(map));
     } else {
       let hover: ?HoverType;
       const outerRadius = renderer.pixelsToWorldUnits * 40.0;
@@ -471,6 +511,10 @@ class HandleTool extends Tool {
       this.props.renderer && this.props.renderer.requestFrameRender();
     }
   };
+
+  _getDragTransform(renderer: Renderer, dx: number, dy: number): Transform {
+    throw new Error('Not implemented.');
+  }
 }
 
 class TranslateTool extends HandleTool {
@@ -492,6 +536,20 @@ class TranslateTool extends HandleTool {
   _renderHandle(renderer: Renderer, transform: Transform) {
     renderTranslationHandle(renderer, transform, this._hover, this._pressed);
   }
+
+  _getDragTransform(renderer: Renderer, dx: number, dy: number): Transform {
+    const vector = timesEquals(vec2(dx, dy), renderer.pixelsToWorldUnits);
+    const axisX = rotateEquals(vec2(1.0, 0.0), this._rotation);
+    const axisY = orthogonalize(axisX);
+    const translation = vec2();
+    if (this._hover !== 'y') {
+      plusEquals(translation, timesEquals(axisX, dot(axisX, vector)));
+    }
+    if (this._hover !== 'x') {
+      plusEquals(translation, timesEquals(axisY, dot(axisY, vector)));
+    }
+    return {translation};
+  }
 }
 
 class RotateTool extends HandleTool {
@@ -512,6 +570,10 @@ class RotateTool extends HandleTool {
       this._pressed,
     );
   }
+
+  _getDragTransform(renderer: Renderer, dx: number, dy: number): Transform {
+    return {rotation: 0.0};
+  }
 }
 
 class ScaleTool extends HandleTool {
@@ -526,6 +588,10 @@ class ScaleTool extends HandleTool {
 
   _renderHandle(renderer: Renderer, transform: Transform) {
     renderScaleHandle(renderer, transform, this._hover, this._pressed);
+  }
+
+  _getDragTransform(renderer: Renderer, dx: number, dy: number): Transform {
+    return {scale: vec2(1.0, 1.0)};
   }
 }
 
@@ -611,7 +677,7 @@ class BezierTool extends Tool {
     super(
       'bezier',
       'bezier-curve',
-      <FormattedMessage id="tool.bezier" defaultMessage="Bezier" />,
+      <FormattedMessage id="tool.bezier" defaultMessage="Bezier Curve" />,
       ...args,
     );
   }

@@ -37,6 +37,7 @@ export class ViewDropdown extends React.Component<
     return (
       <Menu label={<FormattedMessage id="view.title" defaultMessage="View" />}>
         <MenuItem
+          shortcut={new Shortcut(192)}
           onClick={() =>
             store.dispatch(StoreActions.setPagePosition.create(0.0, 0.0))
           }>

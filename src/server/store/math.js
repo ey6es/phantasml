@@ -11,11 +11,100 @@ export type Plane = {normal: Vector2, constant: number};
 
 /** General transform type. */
 export type Transform = ?{
-  translation?: Vector2 | {x?: number, y?: number},
-  rotation?: number,
-  scale?: Vector2 | {x?: number, y?: number},
-  matrix?: number[],
+  translation?: ?Vector2 | {x?: number, y?: number},
+  rotation?: ?number,
+  scale?: ?Vector2 | {x?: number, y?: number},
+  matrix?: ?(number[]),
 };
+
+/**
+ * Inverts a transform.
+ *
+ * @param transform the transform to invert.
+ * @return the inverted transform.
+ */
+export function invertTransform(transform: Transform): Transform {
+  if (!transform) {
+    return transform;
+  }
+  // https://www.wikihow.com/Find-the-Inverse-of-a-3x3-Matrix
+  const m = getTransformMatrix(transform);
+  const determinant =
+    m[0] * (m[4] * m[8] - m[5] * m[7]) +
+    m[1] * (m[5] * m[6] - m[3] * m[8]) +
+    m[2] * (m[3] * m[7] - m[4] * m[6]);
+  if (determinant === 0.0) {
+    return null;
+  }
+  const scale = 1.0 / determinant;
+  return {
+    // prettier-ignore
+    matrix: [
+      (m[4] * m[8] - m[7] * m[5]) * scale,
+      (m[7] * m[2] - m[1] * m[8]) * scale,
+      (m[1] * m[5] - m[4] * m[2]) * scale,
+      
+      (m[6] * m[5] - m[3] * m[8]) * scale,
+      (m[0] * m[8] - m[6] * m[2]) * scale,
+      (m[3] * m[2] - m[0] * m[5]) * scale,
+      
+      (m[3] * m[7] - m[6] * m[4]) * scale,
+      (m[6] * m[1] - m[0] * m[7]) * scale,
+      (m[0] * m[4] - m[3] * m[1]) * scale,
+    ]
+  };
+}
+
+/**
+ * Simplifies a transform.
+ *
+ * @param transform the transform to simplify.
+ * @param [deleteRedundant=false] if true, delete the redundant properties
+ * instead of setting them to null.  Useful for serializing to JSON.
+ * @return the simplified transform.
+ */
+export function simplifyTransform(
+  transform: Transform,
+  deleteRedundant: boolean = false,
+): Transform {
+  if (!transform) {
+    return transform;
+  }
+  const translation = getTransformTranslation(transform);
+  const rotation = getTransformRotation(transform);
+  const scale = getTransformScale(transform);
+  if (deleteRedundant) {
+    delete transform.matrix;
+  } else {
+    transform.matrix = null;
+  }
+  let redundantCount = 0;
+  if (translation.x === 0.0 && translation.y === 0.0) {
+    if (deleteRedundant) {
+      delete transform.translation;
+    } else {
+      transform.translation = null;
+    }
+    redundantCount++;
+  }
+  if (rotation === 0.0) {
+    if (deleteRedundant) {
+      delete transform.rotation;
+    } else {
+      transform.rotation = null;
+    }
+    redundantCount++;
+  }
+  if (scale.x === 1.0 && scale.y === 1.0) {
+    if (deleteRedundant) {
+      delete transform.scale;
+    } else {
+      transform.scale = null;
+    }
+    redundantCount++;
+  }
+  return redundantCount === 3 ? null : transform;
+}
 
 /**
  * Composes two transforms into one.
@@ -147,6 +236,43 @@ export function getTransformRotation(transform: Transform): number {
     }
   }
   return rotation;
+}
+
+const ONE_VECTOR = {x: 1.0, y: 1.0};
+
+/**
+ * Retrieves the scale corresponding to a given transform.
+ *
+ * @param transform the transform of interest.
+ * @return the scale vector.
+ */
+export function getTransformScale(transform: Transform): Vector2 {
+  if (!transform) {
+    return ONE_VECTOR;
+  }
+  let scale = transform.scale;
+  if (!scale) {
+    transform.scale = scale = {};
+  }
+  if (scale.x == null) {
+    if (transform.matrix) {
+      const dx = transform.matrix[0];
+      const dy = transform.matrix[1];
+      scale.x = Math.sqrt(dx * dx + dy * dy);
+    } else {
+      scale.x = 1.0;
+    }
+  }
+  if (scale.y == null) {
+    if (transform.matrix) {
+      const dx = transform.matrix[3];
+      const dy = transform.matrix[4];
+      scale.y = Math.sqrt(dx * dx + dy * dy);
+    } else {
+      scale.y = 1.0;
+    }
+  }
+  return (scale: any);
 }
 
 /**
