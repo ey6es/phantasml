@@ -766,9 +766,9 @@ type NumberFieldProps = {
   initialValue?: ?number,
   setValue: number => void,
   step?: ?number,
-  wheelStep?: number,
+  wheelStep?: ?number,
   precision?: ?number,
-  circular?: boolean,
+  circular?: ?boolean,
   [string]: any,
 };
 

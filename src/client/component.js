@@ -343,6 +343,10 @@ function ComponentPanel(props: {
  * Component for editing the properties of an object.
  *
  * @param props.properties the property metadata.
+ * @param [props.labelSize=4] the number of columns (out of 12) to use for the
+ * label.
+ * @param [props.padding=true] whether or not to use padding between the
+ * columns.
  * @param props.values the object containing the values.
  * @param props.setValue the function to set a value.
  * @return an array containing the editor elements.
@@ -350,6 +354,7 @@ function ComponentPanel(props: {
 export function PropertyEditorGroup(props: {
   properties: {[string]: PropertyData},
   labelSize?: number,
+  padding?: boolean,
   values: any,
   setValue: (string, any) => void,
 }) {
@@ -361,13 +366,17 @@ export function PropertyEditorGroup(props: {
     const PropertyEditor = PropertyEditors[property.type];
     return (
       <FormGroup key={key} className="mb-1" row>
-        <Label for={key} className="text-right unselectable" sm={labelSize}>
+        <Label
+          for={key}
+          className={`unselectable${props.padding === false ? ' pr-0' : ''}`}
+          sm={labelSize}>
           {property.label}
         </Label>
         <PropertyEditor
           id={key}
           property={property}
           sm={12 - labelSize}
+          classSuffix={props.padding === false ? ' pl-0' : ''}
           value={props.values[key]}
           setValue={value => props.setValue(key, value)}
         />
@@ -449,14 +458,16 @@ const PropertyEditors = {
     id: string,
     property: PropertyData,
     sm: number,
+    classSuffix: string,
     value: ?boolean,
     setValue: boolean => void,
   }) => {
     return (
-      <div className={`col-sm-${props.sm}`}>
+      <div className={`col-sm-${props.sm}${props.classSuffix}`}>
         <CustomInput
           id={props.id}
           type="checkbox"
+          className="text-right"
           cssModule={{'custom-control-label': 'custom-control-label mb-2'}}
           checked={
             props.value == null
@@ -468,15 +479,44 @@ const PropertyEditors = {
       </div>
     );
   },
+  number: (props: {
+    id: string,
+    property: PropertyData,
+    sm: number,
+    classSuffix: string,
+    value: ?number,
+    setValue: number => void,
+  }) => {
+    return (
+      <div className={`col-sm-${props.sm}${props.classSuffix}`}>
+        <NumberField
+          id={props.id}
+          initialValue={
+            props.value == null
+              ? props.property.defaultValue || 0.0
+              : props.value
+          }
+          setValue={value => props.setValue(value)}
+          step={props.property.step}
+          wheelStep={props.property.wheelStep}
+          precision={props.property.precision}
+          circular={props.property.circular}
+          min={props.property.min}
+          max={props.property.max}
+        />
+      </div>
+    );
+  },
   color: (props: {
     id: string,
     property: PropertyData,
     sm: number,
+    classSuffix: string,
     value: ?string,
     setValue: string => void,
   }) => {
     return (
-      <div className={`col-sm-${props.sm}`}>
+      <div className={`col-sm-${props.sm}${props.classSuffix}`}>
         <ColorField
           id={props.id}
           initialValue={props.value}
@@ -490,11 +530,12 @@ const PropertyEditors = {
     id: string,
     property: PropertyData,
     sm: number,
+    classSuffix: string,
     value: ?number,
     setValue: number => void,
   }) => {
     return (
-      <div className={`col-sm-${props.sm}`}>
+      <div className={`col-sm-${props.sm}${props.classSuffix}`}>
         <NumberField
           id={props.id}
           initialValue={props.value && degrees(props.value)}
@@ -511,6 +552,7 @@ const PropertyEditors = {
     id: string,
     property: PropertyData,
     sm: number,
+    classSuffix: string,
     value: ?Object,
     setValue: Object => void,
   }) => {
@@ -520,7 +562,7 @@ const PropertyEditors = {
     return [
       <VectorComponent
         key="x"
-        className={`col-sm-${halfSm} pr-1`}
+        className={`col-sm-${halfSm} pr-1${props.classSuffix}`}
         name="x"
         vector={vector}
         setVector={props.setValue}

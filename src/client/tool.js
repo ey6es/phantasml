@@ -293,14 +293,12 @@ class Tool extends React.Component<ToolProps, Object> {
   }
 
   _renderOptions(): ?React.Element<any> {
-    if (Object.keys(this._options).length === 0) {
-      return <FormGroup />;
-    }
     return (
-      <Container>
+      <Container className="mt-1">
         <PropertyEditorGroup
           properties={this._options}
           labelSize={6}
+          padding={false}
           values={this.state}
           setValue={(key, value) => this.setState({[key]: value})}
         />
@@ -329,6 +327,16 @@ class Tool extends React.Component<ToolProps, Object> {
   };
 }
 
+function GridSnapLabel() {
+  return <FormattedMessage id="tool.grid_snap" defaultMessage="Grid Snap:" />;
+}
+
+function FeatureSnapLabel() {
+  return (
+    <FormattedMessage id="tool.feature_snap" defaultMessage="Feature Snap:" />
+  );
+}
+
 class SelectPanTool extends Tool {
   _panning = false;
 
@@ -337,7 +345,10 @@ class SelectPanTool extends Tool {
       'selectPan',
       'mouse-pointer',
       <FormattedMessage id="tool.select_pan" defaultMessage="Select/Pan" />,
-      {},
+      {
+        gridSnap: {type: 'boolean', label: <GridSnapLabel />},
+        featureSnap: {type: 'boolean', label: <FeatureSnapLabel />},
+      },
       ...args,
     );
   }
@@ -392,7 +403,9 @@ class RectSelectTool extends Tool {
       'rectSelect',
       'expand',
       <FormattedMessage id="tool.rect_select" defaultMessage="Rect Select" />,
-      {},
+      {
+        gridSnap: {type: 'boolean', label: <GridSnapLabel />},
+      },
       ...args,
     );
   }
@@ -450,7 +463,21 @@ class ContiguousSelectTool extends Tool {
         id="tool.contiguous_select"
         defaultMessage="Contiguous Select"
       />,
-      {},
+      {
+        radius: {
+          type: 'number',
+          label: (
+            <FormattedMessage
+              id="tool.contiguous_select.radius"
+              defaultMessage="Radius:"
+            />
+          ),
+          defaultValue: 1.0,
+          step: 0.01,
+          wheelStep: 0.1,
+          min: 0.0,
+        },
+      },
       ...args,
     );
   }
@@ -615,6 +642,7 @@ class TranslateTool extends HandleTool {
       'arrows-alt',
       <FormattedMessage id="tool.translate" defaultMessage="Translate" />,
       {
+        gridSnap: {type: 'boolean', label: <GridSnapLabel />},
         local: {type: 'boolean', label: <LocalAxesLabel />},
       },
       ...args,
@@ -653,7 +681,17 @@ class RotateTool extends HandleTool {
       'rotate',
       'sync-alt',
       <FormattedMessage id="tool.rotate" defaultMessage="Rotate" />,
-      {},
+      {
+        snap: {
+          type: 'boolean',
+          label: (
+            <FormattedMessage
+              id="tool.rotate.snap"
+              defaultMessage="22.5&deg; Snap:"
+            />
+          ),
+        },
+      },
       ...args,
     );
   }
@@ -697,6 +735,15 @@ class ScaleTool extends HandleTool {
       'compress',
       <FormattedMessage id="tool.scale" defaultMessage="Scale" />,
       {
+        snap: {
+          type: 'boolean',
+          label: (
+            <FormattedMessage
+              id="tool.scale.snap"
+              defaultMessage="Integer Snap:"
+            />
+          ),
+        },
         local: {
           type: 'boolean',
           label: <LocalAxesLabel />,
@@ -752,7 +799,9 @@ class EraseTool extends Tool {
       'erase',
       'eraser',
       <FormattedMessage id="tool.erase" defaultMessage="Erase" />,
-      {},
+      {
+        gridSnap: {type: 'boolean', label: <GridSnapLabel />},
+      },
       ...args,
     );
   }
@@ -764,7 +813,10 @@ class PointTool extends Tool {
       'point',
       'dot-circle',
       <FormattedMessage id="tool.point" defaultMessage="Point" />,
-      {},
+      {
+        gridSnap: {type: 'boolean', label: <GridSnapLabel />},
+        featureSnap: {type: 'boolean', label: <FeatureSnapLabel />},
+      },
       ...args,
     );
   }
@@ -776,7 +828,10 @@ class LineTool extends Tool {
       'line',
       'pencil-alt',
       <FormattedMessage id="tool.line" defaultMessage="Line" />,
-      {},
+      {
+        gridSnap: {type: 'boolean', label: <GridSnapLabel />},
+        featureSnap: {type: 'boolean', label: <FeatureSnapLabel />},
+      },
       ...args,
     );
   }
@@ -788,7 +843,10 @@ class LineGroupTool extends Tool {
       'lineGroup',
       'project-diagram',
       <FormattedMessage id="tool.line_group" defaultMessage="Line Group" />,
-      {},
+      {
+        gridSnap: {type: 'boolean', label: <GridSnapLabel />},
+        featureSnap: {type: 'boolean', label: <FeatureSnapLabel />},
+      },
       ...args,
     );
   }
@@ -800,7 +858,10 @@ class PolygonTool extends Tool {
       'polygon',
       'draw-polygon',
       <FormattedMessage id="tool.polygon" defaultMessage="Polygon" />,
-      {},
+      {
+        gridSnap: {type: 'boolean', label: <GridSnapLabel />},
+        featureSnap: {type: 'boolean', label: <FeatureSnapLabel />},
+      },
       ...args,
     );
   }
@@ -812,7 +873,10 @@ class RectangleTool extends Tool {
       'rectangle',
       'vector-square',
       <FormattedMessage id="tool.rectangle" defaultMessage="Rectangle" />,
-      {},
+      {
+        gridSnap: {type: 'boolean', label: <GridSnapLabel />},
+        featureSnap: {type: 'boolean', label: <FeatureSnapLabel />},
+      },
       ...args,
     );
   }
@@ -824,7 +888,10 @@ class EllipseArcTool extends Tool {
       'ellipseArc',
       'circle-notch',
       <FormattedMessage id="tool.ellipse_arc" defaultMessage="Ellipse/Arc" />,
-      {},
+      {
+        gridSnap: {type: 'boolean', label: <GridSnapLabel />},
+        featureSnap: {type: 'boolean', label: <FeatureSnapLabel />},
+      },
       ...args,
     );
   }
@@ -836,7 +903,10 @@ class BezierTool extends Tool {
       'bezier',
       'bezier-curve',
       <FormattedMessage id="tool.bezier" defaultMessage="Bezier Curve" />,
-      {},
+      {
+        gridSnap: {type: 'boolean', label: <GridSnapLabel />},
+        featureSnap: {type: 'boolean', label: <FeatureSnapLabel />},
+      },
       ...args,
     );
   }
@@ -848,7 +918,10 @@ class StampTool extends Tool {
       'stamp',
       'stamp',
       <FormattedMessage id="tool.stamp" defaultMessage="Clone Stamp" />,
-      {},
+      {
+        gridSnap: {type: 'boolean', label: <GridSnapLabel />},
+        featureSnap: {type: 'boolean', label: <FeatureSnapLabel />},
+      },
       ...args,
     );
   }

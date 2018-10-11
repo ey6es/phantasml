@@ -543,7 +543,7 @@ export class ResourceContent extends React.Component<
       case 'organism':
         return (
           <div className="full-interface d-flex">
-            <div className="d-flex flex-column">
+            <div className="d-flex flex-column left-column">
               <Toolset renderer={this.state.renderer} />
               <EntityTree />
             </div>
@@ -553,7 +553,7 @@ export class ResourceContent extends React.Component<
                 setRenderer={this._setRenderer}
               />
             </div>
-            <div className="d-flex flex-column">
+            <div className="d-flex flex-column right-column">
               <ComponentEditor locale={this.props.locale} />
             </div>
           </div>
