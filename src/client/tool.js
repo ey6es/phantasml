@@ -46,6 +46,7 @@ import type {Renderer} from './renderer/util';
 import type {HoverType} from './renderer/helpers';
 import {
   renderRectangle,
+  renderAxes,
   renderTranslationHandle,
   renderRotationHandle,
   renderScaleHandle,
@@ -282,6 +283,7 @@ class Tool extends React.Component<ToolProps, Object> {
 
   _onActivate(renderer: Renderer) {
     this._updateOptions();
+    renderer.requestFrameRender();
   }
 
   _onDeactivate(renderer: Renderer) {
@@ -309,6 +311,30 @@ class Tool extends React.Component<ToolProps, Object> {
   _renderHelpers = (renderer: Renderer) => {
     // nothing by default
   };
+
+  _getSelectionTransform(renderer: Renderer): Transform {
+    const resource = this.props.resource;
+    const selectionSize = this.props.selection.size;
+    if (!(resource instanceof Scene && selectionSize > 0)) {
+      return null;
+    }
+    const translation = vec2();
+    let rotation: ?number;
+    for (const id of this.props.selection) {
+      // if we have children and their parents, we only want the parents
+      if (resource.isAncestorInSet(id, this.props.selection)) {
+        continue;
+      }
+      const transform = resource.getWorldTransform(id);
+      plusEquals(translation, getTransformTranslation(transform));
+      if (rotation == null) {
+        rotation = getTransformRotation(transform);
+      }
+    }
+    timesEquals(translation, 1.0 / selectionSize);
+    const scale = renderer.pixelsToWorldUnits;
+    return {translation, rotation, scale: vec2(scale, scale)};
+  }
 
   _onMouseDown = (event: MouseEvent) => {
     // nothing by default
@@ -352,6 +378,11 @@ class SelectPanTool extends Tool {
       ...args,
     );
   }
+
+  _renderHelpers = (renderer: Renderer) => {
+    const transform = this._getSelectionTransform(renderer);
+    transform && renderAxes(renderer, transform);
+  };
 
   _onMouseDown = (event: MouseEvent) => {
     if (this.active && event.button === 0) {
@@ -486,48 +517,27 @@ class ContiguousSelectTool extends Tool {
 class HandleTool extends Tool {
   _position: ?Vector2;
   _rotation = 0.0;
-  _hover: ?HoverType;
+  _hover: HoverType = 'xy';
   _pressed = false;
-
-  get _shouldRender(): boolean {
-    return this.active;
-  }
 
   get _local(): boolean {
     return !!this.state.local;
   }
 
   _renderHelpers = (renderer: Renderer) => {
-    const resource = this.props.resource;
-    const selectionSize = this.props.selection.size;
-    if (
-      !(this._shouldRender && selectionSize > 0 && resource instanceof Scene)
-    ) {
-      this._position = null;
+    this._position = null;
+    if (!this.active) {
       return;
     }
-    const transforms: Transform[] = [];
-    const position = (this._position = vec2());
-    let firstRotation: ?number;
-    for (const id of this.props.selection) {
-      // if we have children and their parents, we only want the parents
-      if (resource.isAncestorInSet(id, this.props.selection)) {
-        continue;
-      }
-      const transform = resource.getWorldTransform(id);
-      plusEquals(position, getTransformTranslation(transform));
-      if (firstRotation == null) {
-        firstRotation = getTransformRotation(transform);
-      }
+    const selectionTransform = this._getSelectionTransform(renderer);
+    if (!selectionTransform) {
+      return;
     }
-    timesEquals(this._position, 1.0 / selectionSize);
-    this._rotation = this._local && firstRotation ? firstRotation : 0.0;
-    const scale = renderer.pixelsToWorldUnits * 5.0;
-    this._renderHandle(renderer, {
-      translation: position,
-      rotation: this._rotation,
-      scale: vec2(scale, scale),
-    });
+    if (!this._local) {
+      selectionTransform.rotation = 0.0;
+    }
+    this._position = getTransformTranslation(selectionTransform);
+    this._renderHandle(renderer, selectionTransform);
   };
 
   _renderHandle(renderer: Renderer, transform: Transform) {
@@ -538,7 +548,7 @@ class HandleTool extends Tool {
     const renderer = this.props.renderer;
     const position = this._position;
     if (!(renderer && position)) {
-      this._hover = null;
+      this._hover = 'xy';
       return;
     }
     const vector = minusEquals(
@@ -582,17 +592,17 @@ class HandleTool extends Tool {
       }
       store.dispatch(SceneActions.editEntities.create(map));
     } else {
-      let hover: ?HoverType;
+      let hover: HoverType = 'xy';
       const outerRadius = renderer.pixelsToWorldUnits * 40.0;
       const len = length(vector);
       if (len < outerRadius) {
         const innerRadius = renderer.pixelsToWorldUnits * 15.0;
-        if (len < innerRadius) {
-          hover = 'xy';
-        } else if (vector.x > vector.y === vector.x < -vector.y) {
-          hover = 'y';
-        } else {
-          hover = 'x';
+        if (len > innerRadius) {
+          if (vector.x > vector.y === vector.x < -vector.y) {
+            hover = 'y';
+          } else {
+            hover = 'x';
+          }
         }
       }
       if (this._hover !== hover) {
@@ -630,12 +640,6 @@ function LocalAxesLabel() {
 }
 
 class TranslateTool extends HandleTool {
-  get _shouldRender(): boolean {
-    return (
-      this.props.activeTool !== 'rotate' && this.props.activeTool !== 'scale'
-    );
-  }
-
   constructor(...args: any[]) {
     super(
       'translate',

@@ -940,14 +940,38 @@ export class ShapeList {
    *
    * @param x the x coordinate to jump to.
    * @param y the y coordinate to jump to.
+   * @param [rotation] optional new rotation in degrees.
+   * @param [attributes] optional attributes for the new position.
+   * @return a reference to the list, for chaining.
+   */
+  move(
+    x: number,
+    y: number,
+    rotation?: number,
+    attributes?: VertexAttributes,
+  ): ShapeList {
+    return this.jump(
+      x,
+      y,
+      rotation == null ? null : radians(rotation),
+      attributes,
+    );
+  }
+
+  /**
+   * Jumps to a new location.
+   *
+   * @param x the x coordinate to jump to.
+   * @param y the y coordinate to jump to.
+   * @param [rotation] optional new rotation in radians.
    * @param [attributes] optional attributes for the new position.
    * @return a reference to the list, for chaining.
    */
   jump(
     x: number,
     y: number,
-    rotation?: number,
-    attributes?: VertexAttributes,
+    rotation?: ?number,
+    attributes?: ?VertexAttributes,
   ): ShapeList {
     this.position.x = x;
     this.position.y = y;

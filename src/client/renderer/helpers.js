@@ -90,28 +90,104 @@ export function renderRectangle(
   RectangleGeometry.draw(program);
 }
 
+const AXES_VERTEX_SHADER = `
+  uniform mat3 modelMatrix;
+  uniform mat3 viewProjectionMatrix;
+  attribute vec2 vertex;
+  attribute vec2 vector;
+  attribute float joint;
+  attribute float part;
+  varying vec2 interpolatedVector;
+  varying float interpolatedJoint;
+  varying float interpolatedPart;
+  void main(void) {
+    interpolatedVector = vector;
+    interpolatedJoint = joint;
+    interpolatedPart = part;
+    vec2 point = vertex + vector * 2.0;
+    vec3 position = viewProjectionMatrix * (modelMatrix * vec3(point, 1.0));
+    gl_Position = vec4(position.xy, 0.0, 1.0);
+  }
+`;
+
+const AXES_FRAGMENT_SHADER = `
+  precision mediump float;
+  uniform float stepSize;
+  varying vec2 interpolatedVector;
+  varying float interpolatedJoint;
+  varying float interpolatedPart;
+  void main(void) {
+    float dist = length(interpolatedVector);
+    float inside = 1.0 - smoothstep(1.0 - stepSize, 1.0, dist);
+    // joints are drawn twice, so adjust alpha accordingly
+    float joint = smoothstep(0.0, stepSize, interpolatedJoint);
+    float alpha = mix(2.0 * inside - inside * inside, inside, joint);
+    vec3 color = mix(
+      vec3(0.8, 0.8, 0.0),
+      mix(
+        vec3(0.8, 0.1, 0.0),
+        vec3(0.0, 0.8, 0.1),
+        step(0.75, interpolatedPart)
+      ),
+      step(0.25, interpolatedPart)
+    );
+    gl_FragColor = vec4(color, alpha);
+  }
+`;
+
+const axesShapeList = new ShapeList()
+  .penDown(false, {part: 0.0})
+  .advance(3.0)
+  .penDown(false, {part: 0.5})
+  .advance(12.0)
+  .penUp()
+  .move(0.0, 3.0, 90)
+  .penDown(false, {part: 1.0})
+  .advance(12.0);
+const AxesGeometry = new Geometry(...axesShapeList.createGeometry(0.4));
+
+/**
+ * Renders a pair of coordinate axes to show the translation and rotation of
+ * something.
+ *
+ * @param renderer the renderer to use.
+ * @param transform the transform to apply.
+ */
+export function renderAxes(renderer: Renderer, transform: Transform) {
+  const program = renderer.getProgram(
+    renderAxes,
+    renderer.getVertexShader(renderAxes, AXES_VERTEX_SHADER),
+    renderer.getFragmentShader(renderAxes, AXES_FRAGMENT_SHADER),
+  );
+  program.setUniformViewProjectionMatrix('viewProjectionMatrix');
+  program.setUniformMatrix('modelMatrix', transform, getTransformMatrix);
+  program.setUniformFloat('stepSize', renderer.pixelsToWorldUnits / 2.0);
+  renderer.setEnabled(renderer.gl.BLEND, true);
+  AxesGeometry.draw(program);
+}
+
 const TranslationHandleGeometry = createHandleGeometry((
   shapeList, // arrow
 ) => {
-  const length = 3.0;
-  const halfAngle = degrees(Math.atan(1.5 / length));
-  const sideDistance = 1.5 / Math.sin(radians(halfAngle));
+  const length = 15.0;
+  const halfAngle = degrees(Math.atan(7.5 / length));
+  const sideDistance = 7.5 / Math.sin(radians(halfAngle));
   return shapeList
     .pivot(-90)
-    .advance(1.0)
+    .advance(5.0)
     .pivot(90 + halfAngle)
     .advance(sideDistance)
     .pivot(180 - halfAngle * 2)
     .advance(sideDistance)
     .pivot(90 + halfAngle)
-    .advance(1.0)
+    .advance(5.0)
     .pivot(-90);
 });
 const RotationHandleGeometry = createHandleGeometry((
   shapeList, // circle
 ) => {
-  const radius = 1.5;
-  const angle = degrees(Math.asin(0.5 / radius));
+  const radius = 7.5;
+  const angle = degrees(Math.asin(2.5 / radius));
   return shapeList
     .pivot(-90 + angle)
     .turn(360 - 2 * angle, radius)
@@ -122,15 +198,15 @@ const ScaleHandleGeometry = createHandleGeometry((
 ) =>
   shapeList
     .pivot(-90)
-    .advance(1.0)
+    .advance(5.0)
     .pivot(90)
-    .advance(3.0)
+    .advance(15.0)
     .pivot(90)
-    .advance(3.0)
+    .advance(15.0)
     .pivot(90)
-    .advance(3.0)
+    .advance(15.0)
     .pivot(90)
-    .advance(1.0)
+    .advance(5.0)
     .pivot(-90),
 );
 
@@ -138,16 +214,16 @@ function createHandleGeometry(knobFn: ShapeList => mixed): Geometry {
   const shapeList = new ShapeList();
 
   shapeList
-    .jump(-1.5, -1.5, 0, {part: 0})
+    .jump(-7.5, -7.5, 0, {part: 0})
     .raise()
     .penDown(true);
   for (let ii = 0; ii < 4; ii++) {
-    shapeList.advance(3.0).pivot(90);
+    shapeList.advance(15.0).pivot(90);
   }
   shapeList.penUp().lower();
 
-  const armLength = 2.0;
-  shapeList.jump(1.5, -0.5, 0);
+  const armLength = 10.0;
+  shapeList.jump(7.5, -2.5, 0);
   for (let ii = 0; ii < 4; ii++) {
     shapeList
       .penDown(true, {part: ii & 1 ? 1.0 : 0.5})
@@ -155,15 +231,15 @@ function createHandleGeometry(knobFn: ShapeList => mixed): Geometry {
       .apply(knobFn)
       .advance(armLength)
       .pivot(90)
-      .advance(1.0)
+      .advance(5.0)
       .penUp()
       .pivot(180)
-      .advance(2)
+      .advance(10)
       .pivot(90)
-      .advance(1)
+      .advance(5)
       .pivot(-90);
   }
-  return new Geometry(...shapeList.createGeometry(2.0));
+  return new Geometry(...shapeList.createGeometry(0.4));
 }
 
 /** The hover states for handles. */
@@ -248,9 +324,9 @@ const HANDLE_VERTEX_SHADER = `
       mix(hoverParts.y, hoverParts.z, step(0.75, part)),
       step(0.25, part)
     );
-    interpolatedActive = mix(1.0, mix(0.80, 0.73, pressed), hover);
-    float thickness = mix(0.2, 0.4, hover * pressed);
-    inner = 0.2 / thickness;
+    interpolatedActive = mix(0.73, mix(0.80, 1.0, pressed), hover);
+    float thickness = mix(1.0, 1.5, hover * pressed);
+    inner = 1.0 / thickness;
     stepSize = pixelsToWorldUnits / thickness;
     vec2 point = vertex + vector * thickness;
     vec3 position = viewProjectionMatrix * (modelMatrix * vec3(point, 1.0));
