@@ -349,9 +349,11 @@ function ComponentPanel(props: {
  */
 export function PropertyEditorGroup(props: {
   properties: {[string]: PropertyData},
+  labelSize?: number,
   values: any,
   setValue: (string, any) => void,
 }) {
+  const labelSize = props.labelSize || 4;
   const properties: [string, PropertyData][] = (Object.entries(
     props.properties,
   ): [string, any][]);
@@ -359,12 +361,13 @@ export function PropertyEditorGroup(props: {
     const PropertyEditor = PropertyEditors[property.type];
     return (
       <FormGroup key={key} className="mb-1" row>
-        <Label for={key} className="pr-0 unselectable" sm={4}>
+        <Label for={key} className="text-right unselectable" sm={labelSize}>
           {property.label}
         </Label>
         <PropertyEditor
           id={key}
           property={property}
+          sm={12 - labelSize}
           value={props.values[key]}
           setValue={value => props.setValue(key, value)}
         />
@@ -445,15 +448,21 @@ const PropertyEditors = {
   boolean: (props: {
     id: string,
     property: PropertyData,
+    sm: number,
     value: ?boolean,
     setValue: boolean => void,
   }) => {
     return (
-      <div className="col-sm-8">
+      <div className={`col-sm-${props.sm}`}>
         <CustomInput
           id={props.id}
           type="checkbox"
-          checked={props.value || false}
+          cssModule={{'custom-control-label': 'custom-control-label mb-2'}}
+          checked={
+            props.value == null
+              ? props.property.defaultValue || false
+              : props.value
+          }
           onChange={event => props.setValue(event.target.checked)}
         />
       </div>
@@ -462,11 +471,12 @@ const PropertyEditors = {
   color: (props: {
     id: string,
     property: PropertyData,
+    sm: number,
     value: ?string,
     setValue: string => void,
   }) => {
     return (
-      <div className="col-sm-8">
+      <div className={`col-sm-${props.sm}`}>
         <ColorField
           id={props.id}
           initialValue={props.value}
@@ -479,11 +489,12 @@ const PropertyEditors = {
   rotation: (props: {
     id: string,
     property: PropertyData,
+    sm: number,
     value: ?number,
     setValue: number => void,
   }) => {
     return (
-      <div className="col-sm-8">
+      <div className={`col-sm-${props.sm}`}>
         <NumberField
           id={props.id}
           initialValue={props.value && degrees(props.value)}
@@ -499,22 +510,24 @@ const PropertyEditors = {
   vector: (props: {
     id: string,
     property: PropertyData,
+    sm: number,
     value: ?Object,
     setValue: Object => void,
   }) => {
     const vector = props.value ||
       props.property.defaultValue || {x: 0.0, y: 0.0};
+    const halfSm = props.sm / 2;
     return [
       <VectorComponent
         key="x"
-        className="col-sm-4 pr-1"
+        className={`col-sm-${halfSm} pr-1`}
         name="x"
         vector={vector}
         setVector={props.setValue}
       />,
       <VectorComponent
         key="y"
-        className="col-sm-4 pl-0"
+        className={`col-sm-${halfSm} pl-0`}
         name="y"
         vector={vector}
         setVector={props.setValue}

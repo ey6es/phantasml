@@ -8,7 +8,14 @@
 import * as React from 'react';
 import * as ReactRedux from 'react-redux';
 import {FormattedMessage} from 'react-intl';
-import {Nav, Button, ButtonGroup, UncontrolledTooltip} from 'reactstrap';
+import {
+  Nav,
+  Button,
+  ButtonGroup,
+  Container,
+  FormGroup,
+  UncontrolledTooltip,
+} from 'reactstrap';
 import {library} from '@fortawesome/fontawesome-svg-core';
 import {FontAwesomeIcon} from '@fortawesome/react-fontawesome';
 import {faPlay} from '@fortawesome/free-solid-svg-icons/faPlay';
@@ -116,23 +123,23 @@ class ToolsetImpl extends React.Component<
             <PlayControl icon="fast-forward" disabled />
           </ButtonGroup>
         </Nav>
-        <div className="border-bottom border-secondary text-center pt-3 pb-3">
+        <div className="border-bottom border-secondary pt-3">
           <div className="tool-grid">
-            <ButtonGroup>
+            <ButtonGroup className="text-center">
               <SelectPanTool {...toolProps} />
               <RectSelectTool {...toolProps} />
               <TranslateTool {...toolProps} />
               <RotateTool {...toolProps} />
               <ScaleTool {...toolProps} />
             </ButtonGroup>
-            <ButtonGroup>
+            <ButtonGroup className="text-center">
               <ContiguousSelectTool {...toolProps} />
               <EraseTool {...toolProps} />
               <PointTool {...toolProps} />
               <LineTool {...toolProps} />
               <LineGroupTool {...toolProps} />
             </ButtonGroup>
-            <ButtonGroup>
+            <ButtonGroup className="text-center">
               <PolygonTool {...toolProps} />
               <RectangleTool {...toolProps} />
               <EllipseArcTool {...toolProps} />
@@ -239,7 +246,7 @@ class Tool extends React.Component<ToolProps, Object> {
         wasActive ? this._onDeactivate(renderer) : this._onActivate(renderer);
       }
     }
-    if (!this.active) {
+    if (!(this.active && renderer)) {
       return;
     }
     let stateChanged = false;
@@ -249,7 +256,10 @@ class Tool extends React.Component<ToolProps, Object> {
         break;
       }
     }
-    stateChanged && this._updateOptions();
+    if (stateChanged) {
+      this._updateOptions();
+      renderer.requestFrameRender();
+    }
   }
 
   _subscribeToRenderer(renderer: Renderer) {
@@ -283,12 +293,18 @@ class Tool extends React.Component<ToolProps, Object> {
   }
 
   _renderOptions(): ?React.Element<any> {
+    if (Object.keys(this._options).length === 0) {
+      return <FormGroup />;
+    }
     return (
-      <PropertyEditorGroup
-        properties={this._options}
-        values={this.state}
-        setValue={(key, value) => this.setState({[key]: value})}
-      />
+      <Container>
+        <PropertyEditorGroup
+          properties={this._options}
+          labelSize={6}
+          values={this.state}
+          setValue={(key, value) => this.setState({[key]: value})}
+        />
+      </Container>
     );
   }
 
@@ -450,6 +466,10 @@ class HandleTool extends Tool {
     return this.active;
   }
 
+  get _local(): boolean {
+    return !!this.state.local;
+  }
+
   _renderHelpers = (renderer: Renderer) => {
     const resource = this.props.resource;
     const selectionSize = this.props.selection.size;
@@ -474,7 +494,7 @@ class HandleTool extends Tool {
       }
     }
     timesEquals(this._position, 1.0 / selectionSize);
-    this._rotation = firstRotation || 0.0;
+    this._rotation = this._local && firstRotation ? firstRotation : 0.0;
     const scale = renderer.pixelsToWorldUnits * 5.0;
     this._renderHandle(renderer, {
       translation: position,
@@ -578,6 +598,10 @@ class HandleTool extends Tool {
   }
 }
 
+function LocalAxesLabel() {
+  return <FormattedMessage id="tool.local_axes" defaultMessage="Local Axes:" />;
+}
+
 class TranslateTool extends HandleTool {
   get _shouldRender(): boolean {
     return (
@@ -591,15 +615,7 @@ class TranslateTool extends HandleTool {
       'arrows-alt',
       <FormattedMessage id="tool.translate" defaultMessage="Translate" />,
       {
-        local: {
-          type: 'boolean',
-          label: (
-            <FormattedMessage
-              id="tool.translate.local"
-              defaultMessage="Local:"
-            />
-          ),
-        },
+        local: {type: 'boolean', label: <LocalAxesLabel />},
       },
       ...args,
     );
@@ -628,6 +644,10 @@ class TranslateTool extends HandleTool {
 }
 
 class RotateTool extends HandleTool {
+  get _local(): boolean {
+    return true;
+  }
+
   constructor(...args: any[]) {
     super(
       'rotate',
@@ -667,12 +687,22 @@ class RotateTool extends HandleTool {
 }
 
 class ScaleTool extends HandleTool {
+  get _local(): boolean {
+    return this.state.local !== false;
+  }
+
   constructor(...args: any[]) {
     super(
       'scale',
       'compress',
       <FormattedMessage id="tool.scale" defaultMessage="Scale" />,
-      {},
+      {
+        local: {
+          type: 'boolean',
+          label: <LocalAxesLabel />,
+          defaultValue: true,
+        },
+      },
       ...args,
     );
   }
