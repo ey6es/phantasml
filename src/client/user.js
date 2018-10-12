@@ -659,76 +659,68 @@ export class UserDropdown extends React.Component<
     transferring: ?Object,
     setTransferring: (Object, boolean) => void,
     locale: string,
+    setDialog: (?React.Element<any>) => void,
   },
-  {dialog: ?React.Element<any>},
+  {},
 > {
-  state = {dialog: null};
-
   render() {
     const userStatus = this.props.userStatus;
-    return [
-      userStatus.type === 'anonymous' ? (
-        <Button
-          key="control"
-          disabled={this.props.transferring === this}
-          color="info"
-          onClick={() =>
-            this.setState({
-              dialog: (
-                <LoginDialog
-                  key="login"
-                  canCreateUser={userStatus.canCreateUser}
-                  setUserStatus={this.props.setUserStatus}
-                  locale={this.props.locale}
-                  onClosed={this._clearDialog}
-                  cancelable
-                />
-              ),
-            })
-          }>
-          <FormattedMessage id="user.login" defaultMessage="Log In" />
-        </Button>
-      ) : (
-        <Menu
-          key="control"
-          label={
-            <span>
-              <img
-                className="user-icon"
-                src={userStatus.imageUrl}
-                width={24}
-                height={24}
-              />
-              {userStatus.displayName}
-            </span>
-          }
-          disabled={this.props.transferring === this}>
-          <MenuItem
-            onClick={() =>
-              this.setState({
-                dialog: (
-                  <UserSettingsDialog
-                    key="user-settings"
-                    userStatus={userStatus}
-                    setUserStatus={this.props.setUserStatus}
-                    locale={this.props.locale}
-                    onClosed={this._clearDialog}
-                  />
-                ),
-              })
-            }>
-            <FormattedMessage
-              id="user.settings"
-              defaultMessage="Account Settings..."
+    return userStatus.type === 'anonymous' ? (
+      <Button
+        key="control"
+        disabled={this.props.transferring === this}
+        color="info"
+        onClick={() =>
+          this._setDialog(
+            <LoginDialog
+              key="login"
+              canCreateUser={userStatus.canCreateUser}
+              setUserStatus={this.props.setUserStatus}
+              locale={this.props.locale}
+              onClosed={this._clearDialog}
+              cancelable
+            />,
+          )
+        }>
+        <FormattedMessage id="user.login" defaultMessage="Log In" />
+      </Button>
+    ) : (
+      <Menu
+        key="control"
+        label={
+          <span>
+            <img
+              className="user-icon"
+              src={userStatus.imageUrl}
+              width={24}
+              height={24}
             />
-          </MenuItem>
-          <MenuItem onClick={this._logout}>
-            <FormattedMessage id="user.logout" defaultMessage="Log Out" />
-          </MenuItem>
-        </Menu>
-      ),
-      this.state.dialog,
-    ];
+            {userStatus.displayName}
+          </span>
+        }
+        disabled={this.props.transferring === this}>
+        <MenuItem
+          onClick={() =>
+            this._setDialog(
+              <UserSettingsDialog
+                key="user-settings"
+                userStatus={userStatus}
+                setUserStatus={this.props.setUserStatus}
+                locale={this.props.locale}
+                onClosed={this._clearDialog}
+              />,
+            )
+          }>
+          <FormattedMessage
+            id="user.settings"
+            defaultMessage="Account Settings..."
+          />
+        </MenuItem>
+        <MenuItem onClick={this._logout}>
+          <FormattedMessage id="user.logout" defaultMessage="Log Out" />
+        </MenuItem>
+      </Menu>
+    );
   }
 
   _logout = async () => {
@@ -738,21 +730,17 @@ export class UserDropdown extends React.Component<
       await externalLogout();
       this.props.setUserStatus(userStatus);
     } catch (error) {
-      this.setState({
-        dialog: (
-          <ErrorDialog
-            key="dialog"
-            error={error}
-            onClosed={this._clearDialog}
-          />
-        ),
-      });
+      this._setDialog(
+        <ErrorDialog key="dialog" error={error} onClosed={this._clearDialog} />,
+      );
     } finally {
       this.props.setTransferring(this, false);
     }
   };
 
-  _clearDialog = () => this.setState({dialog: null});
+  _setDialog = (dialog: ?React.Element<any>) => this.props.setDialog(dialog);
+
+  _clearDialog = () => this.props.setDialog(null);
 }
 
 type UserSettingsTab = 'identity' | 'transfer' | 'delete';

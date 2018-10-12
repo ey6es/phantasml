@@ -424,16 +424,31 @@ export class MenuBar extends React.Component<
 const MenuContext = React.createContext(dummyComponent);
 
 const menuContainer = document.createElement('DIV');
+menuContainer.className = 'menu-container';
 (document.body: any).appendChild(menuContainer);
+
+class ContainedDropdown extends Dropdown {
+  getContainer() {
+    return menuContainer;
+  }
+}
 
 /**
  * A dropdown menu with submenu support.
  *
  * @param props.label the menu label.
+ * @param props.disabled whether or not the menu is disabled.
  * @param props.children the menu contents.
+ * @param props.omitChildrenWhenClosed if true, don't render the children when
+ * the menu is closed (as an optimization).
  */
 export class Menu extends React.Component<
-  {label: React.Element<any>, disabled?: ?boolean, children?: mixed},
+  {
+    label: React.Element<any>,
+    disabled?: ?boolean,
+    children?: mixed,
+    omitChildrenWhenClosed?: boolean,
+  },
   {hoverItem: ?React.Component<any, any>},
 > {
   state = {hoverItem: null};
@@ -444,7 +459,7 @@ export class Menu extends React.Component<
         {menuBar => {
           const open = menuBar.state.active && menuBar.state.hoverItem === this;
           return (
-            <Dropdown
+            <ContainedDropdown
               nav
               onMouseOver={event => menuBar.setState({hoverItem: this})}
               isOpen={open}
@@ -463,13 +478,15 @@ export class Menu extends React.Component<
                 {ReactDOM.createPortal(
                   <DropdownMenu>
                     <MenuContext.Provider value={this}>
-                      {open ? this.props.children : null}
+                      {open || !this.props.omitChildrenWhenClosed
+                        ? this.props.children
+                        : null}
                     </MenuContext.Provider>
                   </DropdownMenu>,
                   menuContainer,
                 )}
               </div>
-            </Dropdown>
+            </ContainedDropdown>
           );
         }}
       </MenuBarContext.Consumer>
@@ -728,6 +745,8 @@ function RawButton(props: Object) {
  * @param props.direction the menu direction.
  * @param props.disabled whether or not the button is disabled.
  * @param props.children the menu contents.
+ * @param props.omitChildrenWhenClosed if true, don't render the children when
+ * the menu is closed (as an optimization).
  */
 export class ButtonMenu extends React.Component<
   {
@@ -735,6 +754,7 @@ export class ButtonMenu extends React.Component<
     direction?: string,
     disabled?: boolean,
     children?: mixed,
+    omitChildrenWhenClosed?: boolean,
   },
   {active: boolean, hoverItem: ?React.Component<any, any>},
 > {
@@ -744,20 +764,26 @@ export class ButtonMenu extends React.Component<
     return (
       <MenuBarContext.Provider value={this}>
         <MenuContext.Provider value={this}>
-          <Dropdown
+          <ContainedDropdown
             className="text-center"
             isOpen={this.state.active}
             toggle={this._toggle}>
             <div>
               <DropdownToggle caret>{this.props.label}</DropdownToggle>
               {ReactDOM.createPortal(
-                <DropdownMenu right={this.props.direction === 'left'}>
-                  {this.props.children}
+                <DropdownMenu
+                  right={this.props.direction === 'left'}
+                  persist={true}>
+                  {this.state.active || !this.props.omitChildrenWhenClosed ? (
+                    this.props.children
+                  ) : (
+                    <div />
+                  )}
                 </DropdownMenu>,
                 menuContainer,
               )}
             </div>
-          </Dropdown>
+          </ContainedDropdown>
         </MenuContext.Provider>
       </MenuBarContext.Provider>
     );
@@ -772,9 +798,16 @@ export class ButtonMenu extends React.Component<
  * @param props.label the menu label.
  * @param props.disabled whether or not the menu is disabled.
  * @param props.children the menu contents.
+ * @param props.omitChildrenWhenClosed if true, don't render the children when
+ * the menu is closed (as an optimization).
  */
 export class Submenu extends React.Component<
-  {label: React.Element<any>, disabled?: boolean, children?: mixed},
+  {
+    label: React.Element<any>,
+    disabled?: boolean,
+    children?: mixed,
+    omitChildrenWhenClosed?: boolean,
+  },
   {hoverItem: ?React.Component<any, any>},
 > {
   state = {hoverItem: null};
@@ -787,7 +820,7 @@ export class Submenu extends React.Component<
             {menu => {
               const direction = menuBar.props.direction || 'right';
               return (
-                <Dropdown
+                <ContainedDropdown
                   direction={direction}
                   disabled={this.props.disabled}
                   onMouseOver={event =>
@@ -816,7 +849,8 @@ export class Submenu extends React.Component<
                           preventOverflow: {boundariesElement: 'window'},
                         }}>
                         <MenuContext.Provider value={this}>
-                          {menu.state.hoverItem === this
+                          {menu.state.hoverItem === this ||
+                          !this.props.omitChildrenWhenClosed
                             ? this.props.children
                             : null}
                         </MenuContext.Provider>
@@ -824,7 +858,7 @@ export class Submenu extends React.Component<
                       menuContainer,
                     )}
                   </div>
-                </Dropdown>
+                </ContainedDropdown>
               );
             }}
           </MenuContext.Consumer>

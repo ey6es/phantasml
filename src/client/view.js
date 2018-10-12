@@ -27,12 +27,7 @@ import {Scene, SceneActions} from '../server/store/scene';
 /**
  * The view menu dropdown.
  */
-export class ViewDropdown extends React.Component<
-  {},
-  {dialog: ?React.Element<any>},
-> {
-  state = {dialog: null};
-
+export class ViewDropdown extends React.Component<{}, {}> {
   render() {
     return (
       <Menu label={<FormattedMessage id="view.title" defaultMessage="View" />}>
@@ -93,7 +88,6 @@ export class ViewDropdown extends React.Component<
           <PanShortcutHandler char="S" dx={0.0} dy={-1.0} />
           <PanShortcutHandler char="D" dx={1.0} dy={0.0} />
         </Submenu>
-        {this.state.dialog}
       </Menu>
     );
   }

@@ -20,12 +20,7 @@ const ENTITY_TYPES = {
 /**
  * The entity menu dropdown.
  */
-export class EntityDropdown extends React.Component<
-  {locale: string},
-  {dialog: ?React.Element<any>},
-> {
-  state = {dialog: null};
-
+export class EntityDropdown extends React.Component<{locale: string}, {}> {
   render() {
     return (
       <Menu
@@ -40,7 +35,6 @@ export class EntityDropdown extends React.Component<
             </MenuItem>
           ))}
         </Submenu>
-        {this.state.dialog}
       </Menu>
     );
   }

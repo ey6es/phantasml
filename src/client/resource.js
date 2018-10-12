@@ -83,13 +83,12 @@ export class ResourceDropdown extends React.Component<
     resource: ?ResourceDescriptor,
     setResource: (?ResourceDescriptor) => void,
     setLoading: (Object, boolean) => void,
+    setDialog: (?React.Element<any>) => void,
     pushSearch: string => void,
     replaceSearch: string => void,
   },
-  {dialog: ?React.Element<any>},
+  {},
 > {
-  state = {dialog: null};
-
   render() {
     const resource = this.props.resource;
     return (
@@ -149,7 +148,6 @@ export class ResourceDropdown extends React.Component<
               </MenuItem>,
             ]
           : null}
-        {this.state.dialog}
       </Menu>
     );
   }
@@ -168,9 +166,9 @@ export class ResourceDropdown extends React.Component<
     }
   }
 
-  _setDialog = (dialog: ?React.Element<any>) => this.setState({dialog});
+  _setDialog = (dialog: ?React.Element<any>) => this.props.setDialog(dialog);
 
-  _clearDialog = () => this.setState({dialog: null});
+  _clearDialog = () => this.props.setDialog(null);
 }
 
 type AutoSaverProps = {

@@ -64,6 +64,7 @@ export class Interface extends React.Component<
     transferring: ?Object,
     search: string,
     resource: ?ResourceDescriptor,
+    dialog: ?React.Element<any>,
   },
 > {
   state = {
@@ -72,6 +73,7 @@ export class Interface extends React.Component<
     transferring: null,
     search: location.search,
     resource: null,
+    dialog: null,
   };
 
   render() {
@@ -101,6 +103,7 @@ export class Interface extends React.Component<
               preferences={this.state.preferences}
               resource={this.state.resource}
               setResource={this._setResource}
+              setDialog={this._setDialog}
               setLoading={this._setLoading}
               pushSearch={this._pushSearch}
               replaceSearch={this._replaceSearch}
@@ -110,6 +113,7 @@ export class Interface extends React.Component<
                 preferences={this.state.preferences}
                 setPreferences={this._setPreferences}
                 resource={this.state.resource}
+                setDialog={this._setDialog}
               />
             ) : null}
             {this.state.resource
@@ -120,9 +124,12 @@ export class Interface extends React.Component<
                 ]
               : null}
             {this.props.userStatus.admin ? (
-              <AdminDropdown locale={this.props.locale} />
+              <AdminDropdown
+                locale={this.props.locale}
+                setDialog={this._setDialog}
+              />
             ) : null}
-            <HelpDropdown />
+            <HelpDropdown setDialog={this._setDialog} />
           </Nav>
           <Nav className="ml-auto" navbar>
             <TransferSpinner transferring={this.state.transferring} />
@@ -132,9 +139,11 @@ export class Interface extends React.Component<
               transferring={this.state.transferring}
               setTransferring={this._setTransferring}
               locale={this.props.locale}
+              setDialog={this._setDialog}
             />
           </Nav>
         </MenuBar>
+        {this.state.dialog}
       </div>
     );
   }
@@ -234,6 +243,8 @@ export class Interface extends React.Component<
   }
 
   _setResource = (resource: ?ResourceDescriptor) => this.setState({resource});
+
+  _setDialog = (dialog: ?React.Element<any>) => this.setState({dialog});
 }
 
 const WindowTitleSetter = ReactRedux.connect(state => ({

@@ -23,10 +23,7 @@ export const PhysicsComponents: {[string]: ComponentData} = {
       color: {
         type: 'vector',
         label: (
-          <FormattedMessage
-            id="gravity.acceleration"
-            defaultMessage="Acceleration:"
-          />
+          <FormattedMessage id="gravity.acceleration" defaultMessage="Accel:" />
         ),
         defaultValue: vec2(0.0, -9.8),
       },

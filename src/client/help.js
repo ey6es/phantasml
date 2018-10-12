@@ -33,11 +33,9 @@ export function AppTitle(props: {}) {
  * The dropdown menu for help.
  */
 export class HelpDropdown extends React.Component<
+  {setDialog: (?React.Element<any>) => void},
   {},
-  {dialog: ?React.Element<any>},
 > {
-  state = {dialog: null};
-
   render() {
     return (
       <Menu label={<FormattedMessage id="help.title" defaultMessage="Help" />}>
@@ -56,14 +54,13 @@ export class HelpDropdown extends React.Component<
           }>
           <FormattedMessage id="help.about" defaultMessage="About..." />
         </MenuItem>
-        {this.state.dialog}
       </Menu>
     );
   }
 
-  _setDialog = (dialog: ?React.Element<any>) => this.setState({dialog});
+  _setDialog = (dialog: ?React.Element<any>) => this.props.setDialog(dialog);
 
-  _clearDialog = () => this.setState({dialog: null});
+  _clearDialog = () => this.props.setDialog(null);
 }
 
 class ReportBugDialogImpl extends React.Component<

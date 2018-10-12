@@ -48,20 +48,15 @@ import {radians, degrees, roundToPrecision, vec2} from '../server/store/math';
 /**
  * The component menu dropdown.
  */
-export class ComponentDropdown extends React.Component<
-  {},
-  {dialog: ?React.Element<any>},
-> {
-  state = {dialog: null};
-
+export class ComponentDropdown extends React.Component<{}, {}> {
   render() {
     return (
       <Menu
         label={
           <FormattedMessage id="component.title" defaultMessage="Component" />
-        }>
+        }
+        omitChildrenWhenClosed={true}>
         <CategorySubmenus />
-        {this.state.dialog}
       </Menu>
     );
   }
@@ -268,7 +263,8 @@ function EntityEditor(props: {
               defaultMessage="Add Component"
             />
           }
-          direction="left">
+          direction="left"
+          omitChildrenWhenClosed={true}>
           <CategorySubmenus />
         </ButtonMenu>
       ) : null}
@@ -500,28 +496,6 @@ function isDroppable(
     previousKey = key;
   }
   return draggingComponent !== previousKey;
-}
-
-class AddComponentDropdown extends React.Component<{}, {open: boolean}> {
-  state = {open: false};
-
-  render() {
-    return (
-      <Dropdown
-        className="text-center"
-        isOpen={this.state.open}
-        toggle={this._toggle}>
-        <DropdownToggle caret>
-          <FormattedMessage id="component.add" defaultMessage="Add Component" />
-        </DropdownToggle>
-        <DropdownMenu>
-          <div />
-        </DropdownMenu>
-      </Dropdown>
-    );
-  }
-
-  _toggle = () => this.setState({open: !this.state.open});
 }
 
 const PropertyEditors = {

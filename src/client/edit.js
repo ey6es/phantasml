@@ -38,11 +38,10 @@ export class EditDropdown extends React.Component<
     preferences: UserGetPreferencesResponse,
     setPreferences: UserGetPreferencesResponse => void,
     resource: ?ResourceDescriptor,
+    setDialog: (?React.Element<any>) => void,
   },
-  {dialog: ?React.Element<any>},
+  {},
 > {
-  state = {dialog: null};
-
   render() {
     return (
       <Menu label={<FormattedMessage id="edit.title" defaultMessage="Edit" />}>
@@ -75,14 +74,13 @@ export class EditDropdown extends React.Component<
             defaultMessage="Preferences..."
           />
         </MenuItem>
-        {this.state.dialog}
       </Menu>
     );
   }
 
-  _setDialog = (dialog: ?React.Element<any>) => this.setState({dialog});
+  _setDialog = (dialog: ?React.Element<any>) => this.props.setDialog(dialog);
 
-  _clearDialog = () => this.setState({dialog: null});
+  _clearDialog = () => this.props.setDialog(null);
 }
 
 const UndoItem = ReactRedux.connect(state => ({

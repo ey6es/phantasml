@@ -19,20 +19,16 @@ import {isEmailValid} from '../server/constants';
  * @param props.locale the currently configured locale.
  */
 export class AdminDropdown extends React.Component<
-  {locale: string},
-  {dialog: ?React.Element<any>},
+  {locale: string, setDialog: (?React.Element<any>) => void},
+  {},
 > {
-  state = {dialog: null};
-
   render() {
     return (
       <Menu
         label={<FormattedMessage id="admin.title" defaultMessage="Admin" />}>
         <MenuItem
           onClick={() =>
-            this.setState({
-              dialog: <SiteSettingsDialog onClosed={this._clearDialog} />,
-            })
+            this._setDialog(<SiteSettingsDialog onClosed={this._clearDialog} />)
           }>
           <FormattedMessage
             id="admin.site_settings"
@@ -41,26 +37,25 @@ export class AdminDropdown extends React.Component<
         </MenuItem>
         <MenuItem
           onClick={() =>
-            this.setState({
-              dialog: (
-                <SendInvitesDialog
-                  locale={this.props.locale}
-                  onClosed={this._clearDialog}
-                />
-              ),
-            })
+            this._setDialog(
+              <SendInvitesDialog
+                locale={this.props.locale}
+                onClosed={this._clearDialog}
+              />,
+            )
           }>
           <FormattedMessage
             id="admin.send_invites"
             defaultMessage="Send Invites..."
           />
         </MenuItem>
-        {this.state.dialog}
       </Menu>
     );
   }
 
-  _clearDialog = () => this.setState({dialog: null});
+  _setDialog = (dialog: ?React.Element<any>) => this.props.setDialog(dialog);
+
+  _clearDialog = () => this.props.setDialog(null);
 }
 
 class SiteSettingsDialog extends React.Component<
