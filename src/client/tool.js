@@ -149,8 +149,8 @@ class ToolsetImpl extends React.Component<
             <ButtonGroup className="text-center">
               <PolygonTool {...toolProps} />
               <RectangleTool {...toolProps} />
-              <EllipseArcTool {...toolProps} />
-              <BezierTool {...toolProps} />
+              <ArcTool {...toolProps} />
+              <CurveTool {...toolProps} />
               <StampTool {...toolProps} />
             </ButtonGroup>
           </div>
@@ -969,12 +969,12 @@ class RectangleTool extends Tool {
   }
 }
 
-class EllipseArcTool extends Tool {
+class ArcTool extends Tool {
   constructor(...args: any[]) {
     super(
-      'ellipseArc',
+      'arc',
       'circle-notch',
-      <FormattedMessage id="tool.ellipse_arc" defaultMessage="Ellipse/Arc" />,
+      <FormattedMessage id="tool.arc" defaultMessage="Arc" />,
       {
         gridSnap: {type: 'boolean', label: <GridSnapLabel />},
         featureSnap: {type: 'boolean', label: <FeatureSnapLabel />},
@@ -984,12 +984,12 @@ class EllipseArcTool extends Tool {
   }
 }
 
-class BezierTool extends Tool {
+class CurveTool extends Tool {
   constructor(...args: any[]) {
     super(
-      'bezier',
+      'curve',
       'bezier-curve',
-      <FormattedMessage id="tool.bezier" defaultMessage="Bezier Curve" />,
+      <FormattedMessage id="tool.curve" defaultMessage="Bezier Curve" />,
       {
         gridSnap: {type: 'boolean', label: <GridSnapLabel />},
         featureSnap: {type: 'boolean', label: <FeatureSnapLabel />},

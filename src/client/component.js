@@ -29,8 +29,18 @@ import {
 import type {EditorTab} from './store';
 import {StoreActions, store} from './store';
 import {EntityName} from './entity';
-import {Menu, Submenu, NumberField, ColorField, renderText} from './util/ui';
-import {RendererComponents} from './renderer/components';
+import {
+  Menu,
+  Submenu,
+  MenuItem,
+  ButtonMenu,
+  NumberField,
+  ColorField,
+  renderText,
+} from './util/ui';
+import {GeometryCategory, GeometryComponents} from './geometry/components';
+import {RendererCategory, RendererComponents} from './renderer/components';
+import {PhysicsCategory, PhysicsComponents} from './physics/components';
 import type {Resource, Entity} from '../server/store/resource';
 import {Scene, SceneActions} from '../server/store/scene';
 import {radians, degrees, roundToPrecision, vec2} from '../server/store/math';
@@ -50,14 +60,64 @@ export class ComponentDropdown extends React.Component<
         label={
           <FormattedMessage id="component.title" defaultMessage="Component" />
         }>
-        <Submenu
-          disabled={store.getState().selection.size === 0}
-          label={<FormattedMessage id="component.new" defaultMessage="New" />}
-        />
+        <CategorySubmenus />
         {this.state.dialog}
       </Menu>
     );
   }
+}
+
+function CategorySubmenus() {
+  const state = store.getState();
+  const resource = state.resource;
+  if (!resource) {
+    return null;
+  }
+  const page = state.editorTab === 'page';
+  const categories: Map<string, [string, ComponentData][]> = new Map();
+  for (const name in Components) {
+    const data = Components[name];
+    const category = data.category;
+    if (category && (page ? data.page === true : data.entity !== false)) {
+      let array = categories.get(category);
+      if (!array) {
+        categories.set(category, (array = []));
+      }
+      array.push([name, data]);
+    }
+  }
+  const ids = page ? [state.page] : state.selection;
+  const entities: Entity[] = [];
+  for (const id of ids) {
+    const entity = resource.getEntity(id);
+    entity && entities.push(entity);
+  }
+  return Object.entries(Categories).map(([name, data]) => {
+    const array = categories.get(name);
+    if (!array) {
+      return null;
+    }
+    return (
+      <Submenu
+        key={name}
+        label={(data: any).label}
+        disabled={entities.length === 0}>
+        {array.map(([name, data]) => (
+          <MenuItem
+            key={name}
+            onClick={() => {
+              const map = {};
+              for (const entity of entities) {
+                map[entity.id] = {[name]: {}};
+              }
+              store.dispatch(SceneActions.editEntities.create(map));
+            }}>
+            {data.label}
+          </MenuItem>
+        ))}
+      </Submenu>
+    );
+  });
 }
 
 /**
@@ -200,7 +260,18 @@ function EntityEditor(props: {
           );
         })}
       </Form>
-      {props.entities.length > 0 ? <AddComponentDropdown /> : null}
+      {props.entities.length > 0 ? (
+        <ButtonMenu
+          label={
+            <FormattedMessage
+              id="component.add"
+              defaultMessage="Add Component"
+            />
+          }
+          direction="left">
+          <CategorySubmenus />
+        </ButtonMenu>
+      ) : null}
     </div>
   );
 }
@@ -526,7 +597,7 @@ const PropertyEditors = {
       </div>
     );
   },
-  rotation: (props: {
+  angle: (props: {
     id: string,
     property: PropertyData,
     sm: number,
@@ -611,6 +682,9 @@ export type ComponentData = {
   label: React.Element<any>,
   properties: {[string]: PropertyData},
   removable?: boolean,
+  category?: string,
+  page?: boolean,
+  entity?: boolean,
   [string]: any,
 };
 
@@ -628,7 +702,7 @@ const Components: {[string]: ComponentData} = {
         ),
       },
       rotation: {
-        type: 'rotation',
+        type: 'angle',
         label: (
           <FormattedMessage
             id="transform.rotation"
@@ -646,5 +720,17 @@ const Components: {[string]: ComponentData} = {
     },
     removable: false,
   },
+  ...GeometryComponents,
   ...RendererComponents,
+  ...PhysicsComponents,
+};
+
+export type CategoryData = {
+  label: React.Element<any>,
+};
+
+const Categories: {[string]: CategoryData} = {
+  ...GeometryCategory,
+  ...RendererCategory,
+  ...PhysicsCategory,
 };

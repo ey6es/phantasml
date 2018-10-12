@@ -49,8 +49,8 @@ export type ToolType =
   | 'lineGroup'
   | 'polygon'
   | 'rectangle'
-  | 'ellipseArc'
-  | 'bezier'
+  | 'arc'
+  | 'curve'
   | 'stamp';
 
 type StoreState = {

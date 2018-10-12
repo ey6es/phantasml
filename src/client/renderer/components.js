@@ -7,7 +7,13 @@
 
 import * as React from 'react';
 import {FormattedMessage} from 'react-intl';
-import type {ComponentData} from '../component';
+import type {ComponentData, CategoryData} from '../component';
+
+export const RendererCategory: {[string]: CategoryData} = {
+  renderer: {
+    label: <FormattedMessage id="renderer.title" defaultMessage="Renderer" />,
+  },
+};
 
 export const RendererComponents: {[string]: ComponentData} = {
   background: {
@@ -33,6 +39,39 @@ export const RendererComponents: {[string]: ComponentData} = {
         defaultValue: '#282828',
       },
     },
+    page: true,
+    entity: false,
     removable: false,
+  },
+  shapeRenderer: {
+    label: (
+      <FormattedMessage
+        id="shape_renderer.title"
+        defaultMessage="Shape Renderer"
+      />
+    ),
+    properties: {
+      pathColor: {
+        type: 'color',
+        label: (
+          <FormattedMessage
+            id="shape_renderer.path_color"
+            defaultMessage="Path Color:"
+          />
+        ),
+        defaultValue: '#222222',
+      },
+      fillColor: {
+        type: 'color',
+        label: (
+          <FormattedMessage
+            id="shape_renderer.fill_color"
+            defaultMessage="Fill Color:"
+          />
+        ),
+        defaultValue: '#282828',
+      },
+    },
+    category: 'renderer',
   },
 };

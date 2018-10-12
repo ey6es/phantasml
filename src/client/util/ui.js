@@ -7,6 +7,7 @@
 
 import * as React from 'react';
 import * as ReactRedux from 'react-redux';
+import * as ReactDOM from 'react-dom';
 import * as ReactDOMServer from 'react-dom/server';
 import type {Element} from 'react';
 import {IntlProvider, FormattedMessage, injectIntl} from 'react-intl';
@@ -422,6 +423,9 @@ export class MenuBar extends React.Component<
 
 const MenuContext = React.createContext(dummyComponent);
 
+const menuContainer = document.createElement('DIV');
+(document.body: any).appendChild(menuContainer);
+
 /**
  * A dropdown menu with submenu support.
  *
@@ -437,29 +441,37 @@ export class Menu extends React.Component<
   render() {
     return (
       <MenuBarContext.Consumer>
-        {menuBar => (
-          <Dropdown
-            nav
-            onMouseOver={event => menuBar.setState({hoverItem: this})}
-            isOpen={menuBar.state.active && menuBar.state.hoverItem === this}
-            toggle={() => menuBar.setState({active: !menuBar.state.active})}>
-            <DropdownToggle
-              disabled={menuBar.props.disabled || this.props.disabled}
+        {menuBar => {
+          const open = menuBar.state.active && menuBar.state.hoverItem === this;
+          return (
+            <Dropdown
               nav
-              caret
-              onMouseOver={event =>
-                menuBar.state.active && event.target.focus()
-              }
-              onDragStart={event => event.preventDefault()}>
-              {this.props.label}
-            </DropdownToggle>
-            <DropdownMenu>
-              <MenuContext.Provider value={this}>
-                {this.props.children}
-              </MenuContext.Provider>
-            </DropdownMenu>
-          </Dropdown>
-        )}
+              onMouseOver={event => menuBar.setState({hoverItem: this})}
+              isOpen={open}
+              toggle={() => menuBar.setState({active: !menuBar.state.active})}>
+              <div>
+                <DropdownToggle
+                  disabled={menuBar.props.disabled || this.props.disabled}
+                  nav
+                  caret
+                  onMouseOver={event =>
+                    menuBar.state.active && event.target.focus()
+                  }
+                  onDragStart={event => event.preventDefault()}>
+                  {this.props.label}
+                </DropdownToggle>
+                {ReactDOM.createPortal(
+                  <DropdownMenu>
+                    <MenuContext.Provider value={this}>
+                      {open ? this.props.children : null}
+                    </MenuContext.Provider>
+                  </DropdownMenu>,
+                  menuContainer,
+                )}
+              </div>
+            </Dropdown>
+          );
+        }}
       </MenuBarContext.Consumer>
     );
   }
@@ -710,9 +722,55 @@ function RawButton(props: Object) {
 }
 
 /**
+ * A menu activated from a button.
+ *
+ * @param props.label the button label.
+ * @param props.direction the menu direction.
+ * @param props.disabled whether or not the button is disabled.
+ * @param props.children the menu contents.
+ */
+export class ButtonMenu extends React.Component<
+  {
+    label: React.Element<any>,
+    direction?: string,
+    disabled?: boolean,
+    children?: mixed,
+  },
+  {active: boolean, hoverItem: ?React.Component<any, any>},
+> {
+  state = {active: false, hoverItem: null};
+
+  render() {
+    return (
+      <MenuBarContext.Provider value={this}>
+        <MenuContext.Provider value={this}>
+          <Dropdown
+            className="text-center"
+            isOpen={this.state.active}
+            toggle={this._toggle}>
+            <div>
+              <DropdownToggle caret>{this.props.label}</DropdownToggle>
+              {ReactDOM.createPortal(
+                <DropdownMenu right={this.props.direction === 'left'}>
+                  {this.props.children}
+                </DropdownMenu>,
+                menuContainer,
+              )}
+            </div>
+          </Dropdown>
+        </MenuContext.Provider>
+      </MenuBarContext.Provider>
+    );
+  }
+
+  _toggle = () => this.setState({active: !this.state.active});
+}
+
+/**
  * A submenu for dropdown menus.
  *
  * @param props.label the menu label.
+ * @param props.disabled whether or not the menu is disabled.
  * @param props.children the menu contents.
  */
 export class Submenu extends React.Component<
@@ -726,35 +784,49 @@ export class Submenu extends React.Component<
       <MenuBarContext.Consumer>
         {menuBar => (
           <MenuContext.Consumer>
-            {menu => (
-              <Dropdown
-                direction="right"
-                disabled={this.props.disabled}
-                onMouseOver={event =>
-                  this.props.disabled || menu.setState({hoverItem: this})
-                }
-                isOpen={menu.state.hoverItem === this}
-                toggle={() =>
-                  menuBar.setState({
-                    active: !menuBar.state.active,
-                  })
-                }>
-                <DropdownToggle
-                  className={
-                    'dropdown-item dropdown-toggle submenu-toggle' +
-                    (menu.state.hoverItem === this ? ' active' : '')
-                  }
+            {menu => {
+              const direction = menuBar.props.direction || 'right';
+              return (
+                <Dropdown
+                  direction={direction}
                   disabled={this.props.disabled}
-                  tag={RawButton}>
-                  {this.props.label}
-                </DropdownToggle>
-                <DropdownMenu modifiers={{offset: {offset: -9}}}>
-                  <MenuContext.Provider value={this}>
-                    {this.props.children}
-                  </MenuContext.Provider>
-                </DropdownMenu>
-              </Dropdown>
-            )}
+                  onMouseOver={event =>
+                    this.props.disabled || menu.setState({hoverItem: this})
+                  }
+                  isOpen={menu.state.hoverItem === this}
+                  toggle={() =>
+                    menuBar.setState({
+                      active: !menuBar.state.active,
+                    })
+                  }>
+                  <div>
+                    <DropdownToggle
+                      className={
+                        'dropdown-item dropdown-toggle submenu-toggle' +
+                        (menu.state.hoverItem === this ? ' active' : '')
+                      }
+                      disabled={this.props.disabled}
+                      tag={RawButton}>
+                      {this.props.label}
+                    </DropdownToggle>
+                    {ReactDOM.createPortal(
+                      <DropdownMenu
+                        modifiers={{
+                          offset: {offset: '-11, 2'},
+                          preventOverflow: {boundariesElement: 'window'},
+                        }}>
+                        <MenuContext.Provider value={this}>
+                          {menu.state.hoverItem === this
+                            ? this.props.children
+                            : null}
+                        </MenuContext.Provider>
+                      </DropdownMenu>,
+                      menuContainer,
+                    )}
+                  </div>
+                </Dropdown>
+              );
+            }}
           </MenuContext.Consumer>
         )}
       </MenuBarContext.Consumer>
