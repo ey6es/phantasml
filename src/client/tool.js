@@ -60,12 +60,18 @@ import {
   composeTransforms,
   getTransformTranslation,
   getTransformRotation,
+  getTransformScale,
   vec2,
+  equals,
+  plus,
   plusEquals,
+  times,
   timesEquals,
   minus,
   minusEquals,
   normalizeEquals,
+  round,
+  roundEquals,
   rotate,
   rotateEquals,
   orthogonalize,
@@ -312,7 +318,7 @@ class Tool extends React.Component<ToolProps, Object> {
     // nothing by default
   };
 
-  _getSelectionTransform(renderer: Renderer): Transform {
+  _getSelectionTransform(renderer: Renderer, withScale?: boolean): Transform {
     const resource = this.props.resource;
     const selectionSize = this.props.selection.size;
     if (!(resource instanceof Scene && selectionSize > 0)) {
@@ -320,6 +326,8 @@ class Tool extends React.Component<ToolProps, Object> {
     }
     const translation = vec2();
     let rotation: ?number;
+    const pixelsToWorldUnits = renderer.pixelsToWorldUnits;
+    let scale = vec2(pixelsToWorldUnits, pixelsToWorldUnits);
     for (const id of this.props.selection) {
       // if we have children and their parents, we only want the parents
       if (resource.isAncestorInSet(id, this.props.selection)) {
@@ -329,11 +337,11 @@ class Tool extends React.Component<ToolProps, Object> {
       plusEquals(translation, getTransformTranslation(transform));
       if (rotation == null) {
         rotation = getTransformRotation(transform);
+        withScale && equals(getTransformScale(transform), scale);
       }
     }
     timesEquals(translation, 1.0 / selectionSize);
-    const scale = renderer.pixelsToWorldUnits;
-    return {translation, rotation, scale: vec2(scale, scale)};
+    return {translation, rotation, scale};
   }
 
   _onMouseDown = (event: MouseEvent) => {
@@ -380,6 +388,13 @@ class SelectPanTool extends Tool {
   }
 
   _renderHelpers = (renderer: Renderer) => {
+    if (
+      this.props.activeTool === 'translate' ||
+      this.props.activeTool === 'rotate' ||
+      this.props.activeTool === 'scale'
+    ) {
+      return; // transform tools have their own axes
+    }
     const transform = this._getSelectionTransform(renderer);
     transform && renderAxes(renderer, transform);
   };
@@ -426,6 +441,16 @@ class SelectPanTool extends Tool {
   };
 }
 
+function getMousePosition(
+  renderer: Renderer,
+  gridSnap: ?boolean,
+  event: MouseEvent,
+): Vector2 {
+  const position = renderer.getEventPosition(event.clientX, event.clientY);
+  gridSnap && roundEquals(position);
+  return position;
+}
+
 class RectSelectTool extends Tool {
   _rect: ?LineSegment;
 
@@ -458,7 +483,7 @@ class RectSelectTool extends Tool {
   _onMouseDown = (event: MouseEvent) => {
     const renderer = this.props.renderer;
     if (this.active && event.button === 0 && renderer) {
-      const position = renderer.getWorldPosition(event.offsetX, event.offsetY);
+      const position = getMousePosition(renderer, this.state.gridSnap, event);
       this._rect = {start: position, end: position};
     }
   };
@@ -475,11 +500,7 @@ class RectSelectTool extends Tool {
     if (!(renderer && this._rect)) {
       return;
     }
-    const canvasRect = renderer.canvas.getBoundingClientRect();
-    const position = renderer.getWorldPosition(
-      event.clientX - canvasRect.left,
-      event.clientY - canvasRect.top,
-    );
+    const position = getMousePosition(renderer, this.state.gridSnap, event);
     this._rect = Object.assign({}, this._rect, {end: position});
     renderer.requestFrameRender();
   };
@@ -515,8 +536,10 @@ class ContiguousSelectTool extends Tool {
 }
 
 class HandleTool extends Tool {
+  _relativePosition = vec2();
   _position: ?Vector2;
   _rotation = 0.0;
+  _scale: ?Vector2;
   _hover: HoverType = 'xy';
   _pressed = false;
 
@@ -529,7 +552,7 @@ class HandleTool extends Tool {
     if (!this.active) {
       return;
     }
-    const selectionTransform = this._getSelectionTransform(renderer);
+    const selectionTransform = this._getSelectionTransform(renderer, true);
     if (!selectionTransform) {
       return;
     }
@@ -537,6 +560,10 @@ class HandleTool extends Tool {
       selectionTransform.rotation = 0.0;
     }
     this._position = getTransformTranslation(selectionTransform);
+    this._rotation = getTransformRotation(selectionTransform);
+    this._scale = getTransformScale(selectionTransform);
+    const pixelsToWorldUnits = renderer.pixelsToWorldUnits;
+    selectionTransform.scale = vec2(pixelsToWorldUnits, pixelsToWorldUnits);
     this._renderHandle(renderer, selectionTransform);
   };
 
@@ -556,20 +583,26 @@ class HandleTool extends Tool {
       position,
     );
     rotateEquals(vector, -this._rotation);
-    if (this._hover && this._pressed) {
+
+    if (this._pressed) {
       const resource = this.props.resource;
       if (!(resource instanceof Scene)) {
         return;
       }
-      const map = {};
+      const oldPosition = position;
+      const newPosition = minusEquals(
+        getMousePosition(renderer, false, event),
+        this._relativePosition,
+      );
       const dragTransform = this._getDragTransform(
         renderer,
-        renderer.getEventPosition(event.clientX, event.clientY),
-        timesEquals(
-          vec2(event.movementX, -event.movementY),
-          renderer.pixelsToWorldUnits,
-        ),
+        oldPosition,
+        newPosition,
       );
+      if (!dragTransform) {
+        return;
+      }
+      const map = {};
       for (const id of this.props.selection) {
         if (resource.isAncestorInSet(id, this.props.selection)) {
           continue;
@@ -613,9 +646,16 @@ class HandleTool extends Tool {
   };
 
   _onMouseDown = (event: MouseEvent) => {
-    if (this._hover) {
+    const renderer = this.props.renderer;
+    const position = this._position;
+    if (this.active && event.button === 0 && renderer && position) {
       this._pressed = true;
-      this.props.renderer && this.props.renderer.requestFrameRender();
+      minus(
+        getMousePosition(renderer, false, event),
+        position,
+        this._relativePosition,
+      );
+      renderer.requestFrameRender();
     }
   };
 
@@ -628,8 +668,8 @@ class HandleTool extends Tool {
 
   _getDragTransform(
     renderer: Renderer,
-    position: Vector2,
-    delta: Vector2,
+    oldPosition: Vector2,
+    newPosition: Vector2,
   ): Transform {
     throw new Error('Not implemented.');
   }
@@ -659,19 +699,30 @@ class TranslateTool extends HandleTool {
 
   _getDragTransform(
     renderer: Renderer,
-    position: Vector2,
-    delta: Vector2,
+    oldPosition: Vector2,
+    newPosition: Vector2,
   ): Transform {
-    const axisX = rotateEquals(vec2(1.0, 0.0), this._rotation);
-    const axisY = orthogonalize(axisX);
-    const translation = vec2();
-    if (this._hover !== 'y') {
-      plusEquals(translation, timesEquals(axisX, dot(axisX, delta)));
+    this.state.gridSnap && roundEquals(newPosition);
+    const translation = minus(newPosition, oldPosition);
+    if (this._hover !== 'xy') {
+      const axis = this._hover === 'x' ? vec2(1.0, 0.0) : vec2(0.0, 1.0);
+      rotateEquals(axis, this._rotation);
+      times(axis, dot(axis, translation), translation);
+      if (this.state.gridSnap) {
+        roundEquals(plus(oldPosition, translation, newPosition));
+        minus(newPosition, oldPosition, translation);
+        if (this.state.local) {
+          const len = length(translation);
+          if (len > 0) {
+            const dp = dot(axis, translation) / len;
+            if (dp > -0.999 && dp < 0.999) {
+              return null;
+            }
+          }
+        }
+      }
     }
-    if (this._hover !== 'x') {
-      plusEquals(translation, timesEquals(axisY, dot(axisY, delta)));
-    }
-    return {translation};
+    return length(translation) < 0.001 ? null : {translation};
   }
 }
 
@@ -711,21 +762,38 @@ class RotateTool extends HandleTool {
 
   _getDragTransform(
     renderer: Renderer,
-    position: Vector2,
-    delta: Vector2,
+    oldPosition: Vector2,
+    newPosition: Vector2,
   ): Transform {
     const handlePosition = this._position;
     if (!handlePosition) {
       return null;
     }
-    const to = normalizeEquals(minus(position, handlePosition));
+    const sourceRotation = this._rotation;
     const from = normalizeEquals(
-      minusEquals(minus(position, delta), handlePosition),
+      minusEquals(plus(oldPosition, this._relativePosition), handlePosition),
     );
-    const rotation = Math.asin(cross(from, to));
+    const to = normalizeEquals(
+      minusEquals(plus(newPosition, this._relativePosition), handlePosition),
+    );
+    let destRotation = sourceRotation + Math.asin(cross(from, to));
+    if (this.state.snap) {
+      destRotation = (Math.round((8 * destRotation) / Math.PI) * Math.PI) / 8;
+    }
+    const rotation = destRotation - sourceRotation;
+    if (Math.abs(rotation) < 0.001) {
+      return null;
+    }
+    rotateEquals(this._relativePosition, rotation);
     const translation = minus(handlePosition, rotate(handlePosition, rotation));
     return {translation, rotation};
   }
+}
+
+function roundScale(scale: number): number {
+  return Math.abs(scale) < 1.0
+    ? 1.0 / Math.round(1.0 / scale)
+    : Math.round(scale);
 }
 
 class ScaleTool extends HandleTool {
@@ -764,31 +832,46 @@ class ScaleTool extends HandleTool {
 
   _getDragTransform(
     renderer: Renderer,
-    position: Vector2,
-    delta: Vector2,
+    oldPosition: Vector2,
+    newPosition: Vector2,
   ): Transform {
     const handlePosition = this._position;
-    if (!handlePosition) {
+    const worldScale = this._scale;
+    if (!(handlePosition && worldScale)) {
       return null;
     }
-    const to = minus(position, handlePosition);
-    const from = minusEquals(minus(position, delta), handlePosition);
+    const from = rotate(worldScale, this._rotation);
+    const to = minusEquals(
+      plus(newPosition, this._relativePosition),
+      handlePosition,
+    );
+    to.x /= this._relativePosition.x;
+    to.y /= this._relativePosition.y;
     const axisX = rotateEquals(vec2(1.0, 0.0), this._rotation);
     const axisY = orthogonalize(axisX);
     const scale = vec2(1.0, 1.0);
     if (this._hover !== 'y') {
       const fromScale = dot(from, axisX);
-      const toScale = dot(to, axisX);
+      let toScale = dot(to, axisX);
+      if (this.state.snap) {
+        toScale = roundScale(toScale);
+      }
       if (fromScale !== 0.0 && toScale !== 0.0) {
         scale.x = toScale / fromScale;
       }
     }
     if (this._hover !== 'x') {
       const fromScale = dot(from, axisY);
-      const toScale = dot(to, axisY);
+      let toScale = dot(to, axisY);
+      if (this.state.snap) {
+        toScale = roundScale(toScale);
+      }
       if (fromScale !== 0.0 && toScale !== 0.0) {
         scale.y = toScale / fromScale;
       }
+    }
+    if (Math.abs(scale.x - 1.0) < 0.001 && Math.abs(scale.y - 1.0) < 0.001) {
+      return null;
     }
     return composeTransforms(
       {translation: handlePosition, rotation: this._rotation, scale},

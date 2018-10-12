@@ -653,6 +653,33 @@ export function rotateEquals(vector: Vector2, angle: number): Vector2 {
 }
 
 /**
+ * Rounds a vector to nearest integers.
+ *
+ * @param vector the vector to round.
+ * @param [result] the vector in which to store the result (otherwise, a new
+ * vector will be created).
+ * @return a reference to the result vector, for chaining.
+ */
+export function round(vector: Vector2, result?: Vector2): Vector2 {
+  if (!result) {
+    return {x: Math.round(vector.x), y: Math.round(vector.y)};
+  }
+  vector.x = Math.round(vector.x);
+  vector.y = Math.round(vector.y);
+  return vector;
+}
+
+/**
+ * Rounds a vector to nearest integers.
+ *
+ * @param vector the vector to round.
+ * @return a reference to the vector, for chaining.
+ */
+export function roundEquals(vector: Vector2): Vector2 {
+  return round(vector, vector);
+}
+
+/**
  * Creates a plane from a pair of points.
  *
  * @param first the first point on the plane.

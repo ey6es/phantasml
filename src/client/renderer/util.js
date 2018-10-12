@@ -394,7 +394,10 @@ export class Renderer {
    */
   getEventPosition(clientX: number, clientY: number): Vector2 {
     const rect = this.canvas.getBoundingClientRect();
-    return this.getWorldPosition(clientX - rect.left, clientY - rect.top);
+    return this.getWorldPosition(
+      Math.round(clientX) - Math.round(rect.left),
+      Math.round(clientY) - Math.round(rect.top),
+    );
   }
 
   /**
