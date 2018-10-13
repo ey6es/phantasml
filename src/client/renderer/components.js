@@ -71,6 +71,15 @@ export const RendererComponents: {[string]: ComponentData} = {
         ),
         defaultValue: '#282828',
       },
+      zOrder: {
+        type: 'number',
+        label: (
+          <FormattedMessage
+            id="shape_renderer.z_order"
+            defaultMessage="Z Order:"
+          />
+        ),
+      },
     },
     category: 'renderer',
   },

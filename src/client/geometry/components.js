@@ -8,6 +8,20 @@
 import * as React from 'react';
 import {FormattedMessage} from 'react-intl';
 import type {ComponentData, CategoryData} from '../component';
+import {
+  DEFAULT_THICKNESS,
+  DEFAULT_LINE_LENGTH,
+  DEFAULT_LINE_GROUP_VERTICES,
+  DEFAULT_POLYGON_VERTICES,
+  DEFAULT_RECTANGLE_WIDTH,
+  DEFAULT_RECTANGLE_HEIGHT,
+  DEFAULT_ARC_RADIUS,
+  DEFAULT_ARC_START_ANGLE,
+  DEFAULT_ARC_END_ANGLE,
+  DEFAULT_CURVE_SPAN,
+  DEFAULT_CURVE_C1,
+  DEFAULT_CURVE_C2,
+} from '../../server/store/geometry';
 import {vec2} from '../../server/store/math';
 
 export const GeometryCategory: {[string]: CategoryData} = {
@@ -22,7 +36,7 @@ const ThicknessProperty = {
     label: (
       <FormattedMessage id="geometry.thickness" defaultMessage="Thickness:" />
     ),
-    defaultValue: 0.2,
+    defaultValue: DEFAULT_THICKNESS,
     step: 0.01,
     wheelStep: 0.1,
     precision: 2,
@@ -45,7 +59,7 @@ export const GeometryComponents: {[string]: ComponentData} = {
       length: {
         type: 'number',
         label: <FormattedMessage id="line.length" defaultMessage="Length:" />,
-        defaultValue: 5,
+        defaultValue: DEFAULT_LINE_LENGTH,
         step: 0.01,
         wheelStep: 0.1,
         precision: 2,
@@ -84,7 +98,7 @@ export const GeometryComponents: {[string]: ComponentData} = {
         label: (
           <FormattedMessage id="rectangle.width" defaultMessage="Width:" />
         ),
-        defaultValue: 5,
+        defaultValue: DEFAULT_RECTANGLE_WIDTH,
         step: 0.01,
         wheelStep: 0.1,
         precision: 2,
@@ -95,7 +109,7 @@ export const GeometryComponents: {[string]: ComponentData} = {
         label: (
           <FormattedMessage id="rectangle.height" defaultMessage="Height:" />
         ),
-        defaultValue: 5,
+        defaultValue: DEFAULT_RECTANGLE_HEIGHT,
         step: 0.01,
         wheelStep: 0.1,
         precision: 2,
@@ -111,7 +125,7 @@ export const GeometryComponents: {[string]: ComponentData} = {
       radius: {
         type: 'number',
         label: <FormattedMessage id="arc.radius" defaultMessage="Radius:" />,
-        defaultValue: 2.5,
+        defaultValue: DEFAULT_ARC_RADIUS,
         step: 0.01,
         wheelStep: 0.1,
         precision: 2,
@@ -125,14 +139,14 @@ export const GeometryComponents: {[string]: ComponentData} = {
             defaultMessage="Start Angle:"
           />
         ),
-        defaultValue: -180,
+        defaultValue: DEFAULT_ARC_START_ANGLE,
       },
       endAngle: {
         type: 'number',
         label: (
           <FormattedMessage id="arc.end_angle" defaultMessage="End Angle:" />
         ),
-        defaultValue: 180,
+        defaultValue: DEFAULT_ARC_END_ANGLE,
       },
       fill: {
         type: 'boolean',
@@ -148,7 +162,7 @@ export const GeometryComponents: {[string]: ComponentData} = {
       span: {
         type: 'number',
         label: <FormattedMessage id="curve.span" defaultMessage="Span:" />,
-        defaultValue: 5,
+        defaultValue: DEFAULT_CURVE_SPAN,
         step: 0.01,
         wheelStep: 0.1,
         precision: 2,
@@ -157,12 +171,12 @@ export const GeometryComponents: {[string]: ComponentData} = {
       c1: {
         type: 'vector',
         label: <FormattedMessage id="curve.c1" defaultMessage="Control 1:" />,
-        defaultValue: vec2(1.667, 2),
+        defaultValue: DEFAULT_CURVE_C1,
       },
       c2: {
         type: 'vector',
         label: <FormattedMessage id="curve.c2" defaultMessage="Control 2:" />,
-        defaultValue: vec2(3.333, -2),
+        defaultValue: DEFAULT_CURVE_C2,
       },
     },
     category: 'geometry',

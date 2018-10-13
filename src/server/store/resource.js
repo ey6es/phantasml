@@ -136,6 +136,7 @@ export type EntityReference = {ref: string};
 export class Entity {
   id: string;
   state: Object;
+  visit = 0;
 
   _derivedValues: ?Map<string, mixed>;
   _derivedLineage: ?(Entity[]);

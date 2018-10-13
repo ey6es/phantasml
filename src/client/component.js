@@ -44,6 +44,7 @@ import {PhysicsCategory, PhysicsComponents} from './physics/components';
 import type {Resource, Entity} from '../server/store/resource';
 import {Scene, SceneActions} from '../server/store/scene';
 import {radians, degrees, roundToPrecision, vec2} from '../server/store/math';
+import {getValue} from '../server/store/util';
 
 /**
  * The component menu dropdown.
@@ -514,11 +515,7 @@ const PropertyEditors = {
           type="checkbox"
           className="text-right"
           cssModule={{'custom-control-label': 'custom-control-label mb-2'}}
-          checked={
-            props.value == null
-              ? props.property.defaultValue || false
-              : props.value
-          }
+          checked={getValue(props.value, props.property.defaultValue || false)}
           onChange={event => props.setValue(event.target.checked)}
         />
       </div>
@@ -536,11 +533,10 @@ const PropertyEditors = {
       <div className={`col-sm-${props.sm}${props.classSuffix}`}>
         <NumberField
           id={props.id}
-          initialValue={
-            props.value == null
-              ? props.property.defaultValue || 0.0
-              : props.value
-          }
+          initialValue={getValue(
+            props.value,
+            props.property.defaultValue || 0.0,
+          )}
           setValue={value => props.setValue(value)}
           step={props.property.step}
           wheelStep={props.property.wheelStep}
@@ -583,6 +579,9 @@ const PropertyEditors = {
       <div className={`col-sm-${props.sm}${props.classSuffix}`}>
         <NumberField
           id={props.id}
+          initialValue={degrees(
+            getValue(props.value, props.property.defaultValue || 0.0),
+          )}
           initialValue={props.value && degrees(props.value)}
           setValue={value => props.setValue(radians(value))}
           precision={2}

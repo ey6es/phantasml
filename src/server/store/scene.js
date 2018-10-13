@@ -8,8 +8,16 @@
 import {Resource, Entity, addResourceTypeConstructor} from './resource';
 import type {ResourceAction} from './resource';
 import type {Transform, Bounds} from './math';
-import {composeTransforms, emptyBounds, transformBoundsEquals} from './math';
-import {Geometry} from './geometry';
+import {
+  vec2,
+  composeTransforms,
+  emptyBounds,
+  boundsValid,
+  boundsContain,
+  boundsIntersect,
+  transformBoundsEquals,
+} from './math';
+import {ComponentGeometry} from './geometry';
 import type {ResourceType} from '../api';
 
 const LEAF_EXPAND_SIZE = 16;
@@ -399,19 +407,286 @@ export class EntityHierarchyNode {
   }
 }
 
+const nodeBounds = {min: vec2(), max: vec2()};
+let currentVisit = 0;
+
+const MAX_DEPTH = 16;
+
 /**
  * A node in the bounding region quadtree.
+ *
+ * @param halfSize the half-size of the node (for the root).
  */
 class QuadtreeNode {
-  _entities: Entity[] = [];
-  _children: QuadtreeNode[] = [];
+  _halfSize: ?number;
+  _entityBounds: Map<Entity, Bounds> = new Map();
+  _children: (?QuadtreeNode)[] = [];
 
-  addEntity(entity: Entity, bounds: Bounds): QuadtreeNode {
-    return this;
+  constructor(halfSize?: ?number) {
+    if (halfSize != null) {
+      this._halfSize = halfSize;
+    }
   }
 
+  /**
+   * Adds an entity to this (root) node.
+   *
+   * @param entity the entity to add.
+   * @param bounds the entity's world bounds.
+   * @return the new node with the entity added.
+   */
+  addEntity(entity: Entity, bounds: Bounds): QuadtreeNode {
+    if (!boundsValid(bounds)) {
+      return this; // no need to add invalid bounds
+    }
+    // grow the node until we can fit the entire bounds
+    let node = this;
+    while (!node._containsBounds(bounds)) {
+      node = node._grow();
+    }
+    const halfSize: number = (node._halfSize: any);
+    vec2(-halfSize, -halfSize, nodeBounds.min);
+    vec2(halfSize, halfSize, nodeBounds.max);
+    return node._addEntity(entity, bounds, node._getDepth(bounds));
+  }
+
+  _addEntity(entity: Entity, bounds: Bounds, depth: number): QuadtreeNode {
+    const newNode = new QuadtreeNode(this._halfSize);
+    newNode._entityBounds = this._entityBounds;
+    newNode._children = this._children;
+    if (depth === 0) {
+      newNode._entityBounds = new Map(this._entityBounds);
+      newNode._entityBounds.set(entity, bounds);
+      return newNode;
+    }
+    newNode._children = this._children.slice();
+    const minX = nodeBounds.min.x;
+    const minY = nodeBounds.min.y;
+    const halfSize = (nodeBounds.max.x - nodeBounds.min.x) * 0.5;
+    for (let ii = 0; ii < 4; ii++) {
+      vec2(minX, minY, nodeBounds.min);
+      vec2(minX + halfSize, minY + halfSize, nodeBounds.max);
+      if (ii & 1) {
+        nodeBounds.min.x += halfSize;
+        nodeBounds.max.x += halfSize;
+      }
+      if (ii & 2) {
+        nodeBounds.min.y += halfSize;
+        nodeBounds.max.y += halfSize;
+      }
+      if (boundsIntersect(nodeBounds, bounds)) {
+        const child = this._children[ii] || new QuadtreeNode();
+        newNode._children[ii] = child._addEntity(entity, bounds, depth - 1);
+      }
+    }
+    return newNode;
+  }
+
+  /**
+   * Removes an entity from this (root) node.
+   *
+   * @param entity the entity to remove.
+   * @param bounds the entity's world bounds.
+   * @return the new node with the entity removed.
+   */
   removeEntity(entity: Entity, bounds: Bounds): QuadtreeNode {
-    return this;
+    if (!boundsValid(bounds)) {
+      return this;
+    }
+    const halfSize = this._halfSize;
+    if (!halfSize) {
+      throw new Error('Cannot remove entity on non-root.');
+    }
+    vec2(-halfSize, -halfSize, nodeBounds.min);
+    vec2(halfSize, halfSize, nodeBounds.max);
+    return this._removeEntity(entity, bounds, this._getDepth(bounds));
+  }
+
+  _removeEntity(entity: Entity, bounds: Bounds, depth: number): QuadtreeNode {
+    const newNode = new QuadtreeNode(this._halfSize);
+    newNode._entityBounds = this._entityBounds;
+    newNode._children = this._children;
+    if (depth === 0) {
+      newNode._entityBounds = new Map(this._entityBounds);
+      newNode._entityBounds.delete(entity);
+      return newNode;
+    }
+    newNode._children = this._children.slice();
+    const minX = nodeBounds.min.x;
+    const minY = nodeBounds.min.y;
+    const halfSize = (nodeBounds.max.x - nodeBounds.min.x) * 0.5;
+    for (let ii = 0; ii < 4; ii++) {
+      vec2(minX, minY, nodeBounds.min);
+      vec2(minX + halfSize, minY + halfSize, nodeBounds.max);
+      if (ii & 1) {
+        nodeBounds.min.x += halfSize;
+        nodeBounds.max.x += halfSize;
+      }
+      if (ii & 2) {
+        nodeBounds.min.y += halfSize;
+        nodeBounds.max.y += halfSize;
+      }
+      if (boundsIntersect(nodeBounds, bounds)) {
+        const child = this._children[ii];
+        if (child) {
+          const newChild = child._removeEntity(entity, bounds, depth - 1);
+          newNode._children[ii] = newChild._isEmpty() ? null : newChild;
+        }
+      }
+    }
+    return newNode;
+  }
+
+  /**
+   * Applies an operation to all entities intersecting the provided bounds.
+   *
+   * @param bounds the bounds to search.
+   * @param op the operation to apply, which should return true/undefined to
+   * continue traversing or false to stop.  Note that the operation should not
+   * itself perform any bounds queries.
+   */
+  applyToEntities(bounds: Bounds, op: Entity => ?boolean) {
+    const halfSize = this._halfSize;
+    if (!halfSize) {
+      throw new Error('Cannot apply on non-root.');
+    }
+    currentVisit++;
+    vec2(-halfSize, -halfSize, nodeBounds.min);
+    vec2(halfSize, halfSize, nodeBounds.max);
+    this._applyToEntities(bounds, op, false);
+  }
+
+  _applyToEntities(
+    bounds: Bounds,
+    op: Entity => ?boolean,
+    contained: boolean,
+  ): boolean {
+    for (const [entity, entityBounds] of this._entityBounds) {
+      if (
+        entity.visit !== currentVisit &&
+        boundsIntersect(bounds, entityBounds)
+      ) {
+        entity.visit = currentVisit;
+        if (op(entity) === false) {
+          return false;
+        }
+      }
+    }
+    if (contained) {
+      for (let ii = 0; ii < 4; ii++) {
+        const child = this._children[ii];
+        if (child && !child._applyToEntities(bounds, op, true)) {
+          return false;
+        }
+      }
+      return true;
+    }
+    const minX = nodeBounds.min.x;
+    const minY = nodeBounds.min.y;
+    const halfSize = (nodeBounds.max.x - nodeBounds.min.x) * 0.5;
+    for (let ii = 0; ii < 4; ii++) {
+      const child = this._children[ii];
+      if (!child) {
+        continue;
+      }
+      vec2(minX, minY, nodeBounds.min);
+      vec2(minX + halfSize, minY + halfSize, nodeBounds.max);
+      if (ii & 1) {
+        nodeBounds.min.x += halfSize;
+        nodeBounds.max.x += halfSize;
+      }
+      if (ii & 2) {
+        nodeBounds.min.y += halfSize;
+        nodeBounds.max.y += halfSize;
+      }
+      if (
+        boundsIntersect(bounds, nodeBounds) &&
+        !child._applyToEntities(bounds, op, boundsContain(bounds, nodeBounds))
+      ) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  _isEmpty(): boolean {
+    if (this._entityBounds.size > 0) {
+      return false;
+    }
+    for (let ii = 0; ii < 4; ii++) {
+      if (this._children[ii]) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  _getDepth(bounds: Bounds): number {
+    const halfSize = this._halfSize;
+    if (!halfSize) {
+      throw new Error('Cannot get depth on non-root.');
+    }
+    const boundsSize = Math.max(
+      bounds.max.x - bounds.min.x,
+      bounds.max.y - bounds.min.y,
+    );
+    if (boundsSize === 0) {
+      return MAX_DEPTH;
+    }
+    return Math.min(
+      Math.round(Math.log(halfSize / boundsSize) / Math.LN2) + 1,
+      MAX_DEPTH,
+    );
+  }
+
+  _containsBounds(bounds: Bounds): boolean {
+    const halfSize = this._halfSize;
+    if (!halfSize) {
+      throw new Error('Cannot check bounds on non-root.');
+    }
+    vec2(-halfSize, -halfSize, nodeBounds.min);
+    vec2(halfSize, halfSize, nodeBounds.max);
+    return boundsContain(nodeBounds, bounds);
+  }
+
+  _grow(): QuadtreeNode {
+    const halfSize = this._halfSize;
+    if (!halfSize) {
+      throw new Error('Cannot grow non-root.');
+    }
+    // redistribute current children amongst new children
+    const newHalfSize = halfSize * 2;
+    const newParent = new QuadtreeNode(newHalfSize);
+    for (let ii = 0; ii < 4; ii++) {
+      const child = this._children[ii];
+      if (child) {
+        const newChild = (newParent._children[ii] = new QuadtreeNode());
+        newChild._children[3 - ii] = child;
+      }
+    }
+    // likewise with the entities of this node
+    for (const [entity, bounds] of this._entityBounds) {
+      for (let ii = 0; ii < 4; ii++) {
+        vec2(-newHalfSize, -newHalfSize, nodeBounds.min);
+        vec2(0.0, 0.0, nodeBounds.max);
+        if (ii & 1) {
+          nodeBounds.min.x += newHalfSize;
+          nodeBounds.max.x += newHalfSize;
+        }
+        if (ii & 2) {
+          nodeBounds.min.y += newHalfSize;
+          nodeBounds.max.y += newHalfSize;
+        }
+        if (boundsIntersect(nodeBounds, bounds)) {
+          let newChild = newParent._children[ii];
+          if (!newChild) {
+            newChild = newParent._children[ii] = new QuadtreeNode();
+            newChild._entityBounds.set(entity, bounds);
+          }
+        }
+      }
+    }
+    return newParent;
   }
 }
 
@@ -451,7 +726,7 @@ export class Scene extends Resource {
     }
     this._idTree = new IdTreeLeafNode();
     this._entityHierarchy = new EntityHierarchyNode();
-    this._quadtree = new QuadtreeNode();
+    this._quadtree = new QuadtreeNode(8);
     const storedEntities = jsonOrIdTree.entities;
     storedEntities && this._createEntities(storedEntities);
     // create the initial entities that don't yet exist
@@ -546,7 +821,7 @@ export class Scene extends Resource {
     const lastEntity = lineage[lineage.length - 1];
     const bounds = emptyBounds();
     for (const key in lastEntity.state) {
-      const data = Geometry[key];
+      const data = ComponentGeometry[key];
       data && data.addToBounds(bounds, lastEntity.state[key]);
     }
     return transformBoundsEquals(bounds, this._getWorldTransform(lineage));

@@ -874,6 +874,16 @@ export function roundToPrecision(value: number, precision: number): number {
 export type Bounds = {min: Vector2, max: Vector2};
 
 /**
+ * Checks whether a set of bounds are valid (minima <= maxima).
+ *
+ * @param bounds the bounds to check.
+ * @return whether or not the bounds are valid.
+ */
+export function boundsValid(bounds: Bounds): boolean {
+  return bounds.min.x <= bounds.max.x && bounds.min.y <= bounds.max.y;
+}
+
+/**
  * Creates an empty bounds object.
  *
  * @param [result] the bounds in which to store the result (otherwise, a new
@@ -887,6 +897,38 @@ export function emptyBounds(result?: Bounds): Bounds {
   vec2(Infinity, Infinity, result.min);
   vec2(-Infinity, -Infinity, result.max);
   return result;
+}
+
+/**
+ * Checks whether one set of bounds contains another entirely.
+ *
+ * @param first the first bounds to check.
+ * @param second the second bounds to check.
+ * @return whether the first bounds contain the second.
+ */
+export function boundsContain(first: Bounds, second: Bounds): boolean {
+  return (
+    first.min.x <= second.min.x &&
+    first.max.x >= second.max.x &&
+    first.min.y <= second.min.y &&
+    first.max.y >= second.max.y
+  );
+}
+
+/**
+ * Checks whether two sets of bounds intersect.
+ *
+ * @param first the first bounds to check.
+ * @param second the second bounds to check.
+ * @return whether the bounds intersect.
+ */
+export function boundsIntersect(first: Bounds, second: Bounds): boolean {
+  return (
+    first.min.x <= second.max.x &&
+    first.max.x >= second.min.x &&
+    first.min.y <= second.max.y &&
+    first.max.y >= second.min.y
+  );
 }
 
 /**
