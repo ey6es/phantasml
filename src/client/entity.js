@@ -9,6 +9,8 @@ import * as React from 'react';
 import * as ReactRedux from 'react-redux';
 import {FormattedMessage} from 'react-intl';
 import {StoreActions, store, createUuid} from './store';
+import type {ComponentData} from './component';
+import {GeometryComponents} from './geometry/components';
 import {Menu, MenuItem, Submenu, renderText} from './util/ui';
 import type {Resource, Entity} from '../server/store/resource';
 import {EntityHierarchyNode, Scene, SceneActions} from '../server/store/scene';
@@ -17,29 +19,49 @@ const ENTITY_TYPES = {
   group: {},
 };
 
+function ShapeMenu(props: {
+  createEntity: (React.Element<any>, Object) => void,
+}) {
+  const entries: [string, ComponentData][] = (Object.entries(
+    GeometryComponents,
+  ): [string, any][]);
+  return (
+    <Submenu
+      label={<FormattedMessage id="entity.shape" defaultMessage="Shape" />}>
+      {entries.map(([name, data]) => (
+        <MenuItem
+          key={name}
+          onClick={() =>
+            props.createEntity(data.label, {[name]: {}, shapeRenderer: {}})
+          }>
+          {data.label}
+        </MenuItem>
+      ))}
+    </Submenu>
+  );
+}
+
 /**
  * The entity menu dropdown.
  */
 export class EntityDropdown extends React.Component<{locale: string}, {}> {
   render() {
+    const groupLabel = (
+      <FormattedMessage id="entity.group" defaultMessage="Group" />
+    );
     return (
       <Menu
-        label={<FormattedMessage id="entity.title" defaultMessage="Entity" />}>
-        <Submenu
-          label={<FormattedMessage id="entity.new" defaultMessage="New" />}>
-          {Object.entries(ENTITY_TYPES).map(([type, state]) => (
-            <MenuItem
-              key={type}
-              onClick={() => this._createEntity(type, (state: any))}>
-              <EntityType type={type} />
-            </MenuItem>
-          ))}
-        </Submenu>
+        label={<FormattedMessage id="entity.title" defaultMessage="Entity" />}
+        omitChildrenWhenClosed={true}>
+        <MenuItem onClick={() => this._createEntity(groupLabel)}>
+          {groupLabel}
+        </MenuItem>
+        <ShapeMenu createEntity={this._createEntity} />
       </Menu>
     );
   }
 
-  _createEntity(type: string, state: Object = {}) {
+  _createEntity = (label: React.Element<any>, state: Object = {}) => {
     const storeState = store.getState();
     const resource = storeState.resource;
     if (!(resource instanceof Scene)) {
@@ -50,29 +72,18 @@ export class EntityDropdown extends React.Component<{locale: string}, {}> {
       return;
     }
     store.dispatch(
-      SceneActions.editEntities.create(
-        Object.assign(
+      SceneActions.editEntities.create({
+        [createUuid()]: Object.assign(
           {
-            [createUuid()]: {
-              parent: {ref: storeState.page},
-              name: pageNode.getUniqueName(
-                renderText(<EntityType type={type} />, this.props.locale),
-              ),
-              order: pageNode.highestChildOrder + 1,
-            },
+            parent: {ref: storeState.page},
+            name: pageNode.getUniqueName(renderText(label, this.props.locale)),
+            order: pageNode.highestChildOrder + 1,
           },
           state,
         ),
-      ),
+      }),
     );
-  }
-}
-
-function EntityType(props: {type: string}) {
-  switch (props.type) {
-    case 'group':
-      return <FormattedMessage id="entity.type.group" defaultMessage="Group" />;
-  }
+  };
 }
 
 /**
