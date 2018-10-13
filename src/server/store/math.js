@@ -5,12 +5,6 @@
  * @flow
  */
 
-export type Vector2 = {x: number, y: number};
-
-export type LineSegment = {start: Vector2, end: Vector2};
-
-export type Plane = {normal: Vector2, constant: number};
-
 /** General transform type. */
 export type Transform = ?{
   translation?: ?Vector2 | {x?: number, y?: number},
@@ -276,6 +270,12 @@ export function getTransformScale(transform: Transform): Vector2 {
   }
   return (scale: any);
 }
+
+/** Basic two-element vector type. */
+export type Vector2 = {x: number, y: number};
+
+/** Simple line segment type. */
+export type LineSegment = {start: Vector2, end: Vector2};
 
 /**
  * Creates a new vector or assigns a new value to an existing one.
@@ -679,6 +679,9 @@ export function roundEquals(vector: Vector2): Vector2 {
   return round(vector, vector);
 }
 
+/** A plane (or line). */
+export type Plane = {normal: Vector2, constant: number};
+
 /**
  * Creates a plane from a pair of points.
  *
@@ -865,4 +868,139 @@ export function degrees(value: number): number {
 export function roundToPrecision(value: number, precision: number): number {
   const multiplier = Math.pow(10, precision);
   return Math.round(value * multiplier) / multiplier;
+}
+
+/** Axis-aligned bounds type. */
+export type Bounds = {min: Vector2, max: Vector2};
+
+/**
+ * Creates an empty bounds object.
+ *
+ * @param [result] the bounds in which to store the result (otherwise, a new
+ * bounds object will be created).
+ * @return a reference to the result bounds.
+ */
+export function emptyBounds(result?: Bounds): Bounds {
+  if (!result) {
+    return {min: vec2(Infinity, Infinity), max: vec2(-Infinity, -Infinity)};
+  }
+  vec2(Infinity, Infinity, result.min);
+  vec2(-Infinity, -Infinity, result.max);
+  return result;
+}
+
+/**
+ * Applies a transform to a bounds object.
+ *
+ * @param bounds the bounds to transform.
+ * @param transform the transform to apply.
+ * @param [result] the bounds in which to store the result (otherwise, a new
+ * bounds object will be created).
+ * @return a reference to the result bounds.
+ */
+export function transformBounds(
+  bounds: Bounds,
+  transform: Transform,
+  result?: Bounds,
+): Bounds {
+  const matrix = getTransformMatrix(transform);
+  let minX = matrix[6];
+  let minY = matrix[7];
+  let maxX = matrix[6];
+  let maxY = matrix[7];
+  if (matrix[0] > 0) {
+    minX += matrix[0] * bounds.min.x;
+    maxX += matrix[0] * bounds.max.x;
+  } else {
+    minX += matrix[0] * bounds.max.x;
+    maxX += matrix[0] * bounds.min.x;
+  }
+  if (matrix[3] > 0) {
+    minX += matrix[3] * bounds.min.y;
+    maxX += matrix[3] * bounds.max.y;
+  } else {
+    minX += matrix[3] * bounds.max.y;
+    maxX += matrix[3] * bounds.min.y;
+  }
+  if (matrix[1] > 0) {
+    minY += matrix[1] * bounds.min.x;
+    maxY += matrix[1] * bounds.max.x;
+  } else {
+    minY += matrix[1] * bounds.max.x;
+    maxY += matrix[1] * bounds.min.x;
+  }
+  if (matrix[4] > 0) {
+    minY += matrix[4] * bounds.min.y;
+    maxY += matrix[4] * bounds.max.y;
+  } else {
+    minY += matrix[4] * bounds.max.y;
+    maxY += matrix[4] * bounds.min.y;
+  }
+  if (!result) {
+    return {min: vec2(minX, minY), max: vec2(maxX, maxY)};
+  }
+  vec2(minX, minY, result.min);
+  vec2(maxX, maxY, result.max);
+  return bounds;
+}
+
+/**
+ * Applies a transform to a bounds object.
+ *
+ * @param bounds the bounds to transform.
+ * @param transform the transform to apply.
+ * @return a reference to the bounds.
+ */
+export function transformBoundsEquals(
+  bounds: Bounds,
+  transform: Transform,
+): Bounds {
+  return transformBounds(bounds, transform, bounds);
+}
+
+/**
+ * Adds a location to a bounds object.
+ *
+ * @param bounds the bounds to expand.
+ * @param x the x coordinate of the location to add.
+ * @param y the y coordinate of the location to add.
+ * @param [result] the bounds in which to store the result (otherwise, a new
+ * bounds object will be created).
+ * @return a reference to the result bounds.
+ */
+export function addToBounds(
+  bounds: Bounds,
+  x: number,
+  y: number,
+  result?: Bounds,
+): Bounds {
+  if (!result) {
+    return {
+      min: vec2(Math.min(bounds.min.x, x), Math.min(bounds.min.y, y)),
+      max: vec2(Math.max(bounds.max.x, x), Math.max(bounds.max.y, y)),
+    };
+  }
+  result.min.x = Math.min(bounds.min.x, x);
+  result.min.y = Math.min(bounds.min.y, y);
+  result.max.x = Math.max(bounds.max.x, x);
+  result.max.y = Math.max(bounds.max.y, y);
+  return result;
+}
+
+/**
+ * Adds a location to a bounds object.
+ *
+ * @param bounds the bounds to expand.
+ * @param x the x coordinate of the location to add.
+ * @param y the y coordinate of the location to add.
+ * @param [result] the bounds in which to store the result (otherwise, a new
+ * bounds object will be created).
+ * @return a reference to the result bounds.
+ */
+export function addToBoundsEquals(
+  bounds: Bounds,
+  x: number,
+  y: number,
+): Bounds {
+  return addToBounds(bounds, x, y, bounds);
 }

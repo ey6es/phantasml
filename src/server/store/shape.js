@@ -1,7 +1,7 @@
 /**
- * Shape renderer.
+ * Shape definitions.
  *
- * @module client/renderer/shape
+ * @module server/store/shape
  * @flow
  */
 

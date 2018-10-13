@@ -7,8 +7,9 @@
 
 import {Resource, Entity, addResourceTypeConstructor} from './resource';
 import type {ResourceAction} from './resource';
-import type {Transform} from './math';
-import {composeTransforms} from './math';
+import type {Transform, Bounds} from './math';
+import {composeTransforms, emptyBounds, transformBoundsEquals} from './math';
+import {Geometry} from './geometry';
 import type {ResourceType} from '../api';
 
 const LEAF_EXPAND_SIZE = 16;
@@ -399,6 +400,22 @@ export class EntityHierarchyNode {
 }
 
 /**
+ * A node in the bounding region quadtree.
+ */
+class QuadtreeNode {
+  _entities: Entity[] = [];
+  _children: QuadtreeNode[] = [];
+
+  addEntity(entity: Entity, bounds: Bounds): QuadtreeNode {
+    return this;
+  }
+
+  removeEntity(entity: Entity, bounds: Bounds): QuadtreeNode {
+    return this;
+  }
+}
+
+/**
  * The state of a virtual scene.
  *
  * @param json the JSON representation of the scene, or null to create
@@ -407,13 +424,18 @@ export class EntityHierarchyNode {
 export class Scene extends Resource {
   _idTree: IdTreeNode;
   _entityHierarchy: EntityHierarchyNode;
+  _quadtree: QuadtreeNode;
 
   /** Returns a reference to the entity hierarchy root node. */
   get entityHierarchy(): EntityHierarchyNode {
     return this._entityHierarchy;
   }
 
-  constructor(jsonOrIdTree: Object, entityHierarchy?: EntityHierarchyNode) {
+  constructor(
+    jsonOrIdTree: Object,
+    entityHierarchy?: EntityHierarchyNode,
+    quadtree?: QuadtreeNode,
+  ) {
     super();
     if (jsonOrIdTree instanceof IdTreeNode) {
       this._idTree = jsonOrIdTree;
@@ -421,10 +443,15 @@ export class Scene extends Resource {
         throw new Error('Missing entity hierarchy.');
       }
       this._entityHierarchy = entityHierarchy;
+      if (!quadtree) {
+        throw new Error('Missing quadtree.');
+      }
+      this._quadtree = quadtree;
       return;
     }
     this._idTree = new IdTreeLeafNode();
     this._entityHierarchy = new EntityHierarchyNode();
+    this._quadtree = new QuadtreeNode();
     const storedEntities = jsonOrIdTree.entities;
     storedEntities && this._createEntities(storedEntities);
     // create the initial entities that don't yet exist
@@ -460,9 +487,11 @@ export class Scene extends Resource {
 
   addEntity(entity: Entity): Resource {
     const newIdTree = this._idTree.addEntity(entity);
+    const lineage = newIdTree.getEntityLineage(entity);
     return new this.constructor(
       newIdTree,
-      this._entityHierarchy.addEntity(newIdTree.getEntityLineage(entity)),
+      this._entityHierarchy.addEntity(lineage),
+      this._quadtree.addEntity(entity, this._getWorldBounds(lineage)),
     );
   }
 
@@ -473,12 +502,16 @@ export class Scene extends Resource {
    * @return the entity's world transform.
    */
   getWorldTransform(id: string): Transform {
-    const entity = this.getEntity(id);
-    if (!entity) {
+    return this._getWorldTransform(this.getEntityLineage(this.getEntity(id)));
+  }
+
+  _getWorldTransform(lineage: Entity[]): Transform {
+    const lastIndex = lineage.length - 1;
+    if (lastIndex < 0) {
       return null;
     }
-    return entity.getDerivedValue(
-      this.getEntityLineage(entity),
+    return lineage[lastIndex].getDerivedValue(
+      lineage,
       'worldTransform',
       this._computeWorldTransform,
     );
@@ -499,6 +532,24 @@ export class Scene extends Resource {
       ),
       localTransform,
     );
+  };
+
+  _getWorldBounds(lineage: Entity[]): Bounds {
+    return lineage[lineage.length - 1].getDerivedValue(
+      lineage,
+      'worldBounds',
+      this._computeWorldBounds,
+    );
+  }
+
+  _computeWorldBounds = (lineage: Entity[]) => {
+    const lastEntity = lineage[lineage.length - 1];
+    const bounds = emptyBounds();
+    for (const key in lastEntity.state) {
+      const data = Geometry[key];
+      data && data.addToBounds(bounds, lastEntity.state[key]);
+    }
+    return transformBoundsEquals(bounds, this._getWorldTransform(lineage));
   };
 
   /**
@@ -577,9 +628,11 @@ export class Scene extends Resource {
     if (!entity) {
       return this;
     }
+    const lineage = newIdTree.getEntityLineage(entity);
     return new this.constructor(
       newIdTree,
-      this._entityHierarchy.removeEntity(newIdTree.getEntityLineage(entity)),
+      this._entityHierarchy.removeEntity(lineage),
+      this._quadtree.removeEntity(entity, this._getWorldBounds(lineage)),
     );
   }
 
@@ -659,19 +712,26 @@ export class Scene extends Resource {
 
     // process hierarchy removals with old id tree
     let newEntityHierarchy = this._entityHierarchy;
+    let newQuadtree = this._quadtree;
     for (const entity of removedEntities) {
-      newEntityHierarchy = newEntityHierarchy.removeEntity(
-        this._idTree.getEntityLineage(entity),
+      const lineage = this._idTree.getEntityLineage(entity);
+      newEntityHierarchy = newEntityHierarchy.removeEntity(lineage);
+      newQuadtree = newQuadtree.removeEntity(
+        entity,
+        this._getWorldBounds(lineage),
       );
     }
 
     // then the additions with the new one
     for (const entity of addedEntities) {
-      newEntityHierarchy = newEntityHierarchy.addEntity(
-        newIdTree.getEntityLineage(entity),
+      const lineage = newIdTree.getEntityLineage(entity);
+      newEntityHierarchy = newEntityHierarchy.addEntity(lineage);
+      newQuadtree = newQuadtree.addEntity(
+        entity,
+        this._getWorldBounds(lineage),
       );
     }
-    return new this.constructor(newIdTree, newEntityHierarchy);
+    return new this.constructor(newIdTree, newEntityHierarchy, newQuadtree);
   }
 
   _createEntities(states: Object, except: Object = {}) {
@@ -698,6 +758,10 @@ export class Scene extends Resource {
         this._idTree = newIdTree;
       } else {
         this._entityHierarchy = this._entityHierarchy.addEntity(lineage);
+        this._quadtree = this._quadtree.addEntity(
+          entity,
+          this._getWorldBounds(lineage),
+        );
       }
     }
   }
