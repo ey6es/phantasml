@@ -104,7 +104,14 @@ function CategorySubmenus() {
             onClick={() => {
               const map = {};
               for (const entity of entities) {
-                map[entity.id] = {[name]: {}};
+                let highestOrder = 0;
+                for (const key in entity.state) {
+                  highestOrder = Math.max(
+                    highestOrder,
+                    entity.state[key].order || 0,
+                  );
+                }
+                map[entity.id] = {[name]: {order: highestOrder + 1}};
               }
               store.dispatch(SceneActions.editEntities.create(map));
             }}>

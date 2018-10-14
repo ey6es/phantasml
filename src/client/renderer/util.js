@@ -123,6 +123,9 @@ export class Program {
     key: T,
     content: ValueArray | (T => ValueArray),
   ) {
+    if (key === undefined) {
+      key = (null: any); // can't use undefined as key
+    }
     if (this._uniformValues.get(name) !== key) {
       this.bind();
       const value = typeof content === 'function' ? content(key) : content;
@@ -167,6 +170,9 @@ export class Program {
     key: T,
     content: ValueArray | (T => ValueArray),
   ) {
+    if (key === undefined) {
+      key = (null: any); // can't use undefined as key
+    }
     if (this._uniformValues.get(name) !== key) {
       this.bind();
       const value = typeof content === 'function' ? content(key) : content;

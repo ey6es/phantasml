@@ -1126,6 +1126,9 @@ function reverseEdit(state: Object, edit: Object): Object {
 function mergeEntityEdits(first: Object, second: Object): Object {
   const merged = {};
   for (const key in first) {
+    if (key.charAt(0) === '_') {
+      continue; // derived property; no merging
+    }
     const firstValue = first[key];
     const secondValue = second[key];
     if (secondValue === undefined) {
@@ -1148,7 +1151,7 @@ function mergeEntityEdits(first: Object, second: Object): Object {
   }
   // add anything from the second that wasn't in the first
   for (const key in second) {
-    if (first[key] === undefined) {
+    if (first[key] === undefined && key.charAt(0) !== '_') {
       merged[key] = second[key];
     }
   }

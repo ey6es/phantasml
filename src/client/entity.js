@@ -15,10 +15,6 @@ import {Menu, MenuItem, Submenu, renderText} from './util/ui';
 import type {Resource, Entity} from '../server/store/resource';
 import {EntityHierarchyNode, Scene, SceneActions} from '../server/store/scene';
 
-const ENTITY_TYPES = {
-  group: {},
-};
-
 function ShapeMenu(props: {
   createEntity: (React.Element<any>, Object) => void,
 }) {
@@ -32,7 +28,10 @@ function ShapeMenu(props: {
         <MenuItem
           key={name}
           onClick={() =>
-            props.createEntity(data.label, {[name]: {}, shapeRenderer: {}})
+            props.createEntity(data.label, {
+              [name]: {order: 1},
+              shapeRenderer: {order: 2},
+            })
           }>
           {data.label}
         </MenuItem>

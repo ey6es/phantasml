@@ -10,7 +10,7 @@ export type Transform = ?{
   translation?: ?Vector2 | {x?: number, y?: number},
   rotation?: ?number,
   scale?: ?Vector2 | {x?: number, y?: number},
-  matrix?: ?(number[]),
+  _matrix?: ?(number[]),
 };
 
 /**
@@ -35,7 +35,7 @@ export function invertTransform(transform: Transform): Transform {
   const scale = 1.0 / determinant;
   return {
     // prettier-ignore
-    matrix: [
+    _matrix: [
       (m[4] * m[8] - m[7] * m[5]) * scale,
       (m[7] * m[2] - m[1] * m[8]) * scale,
       (m[1] * m[5] - m[4] * m[2]) * scale,
@@ -70,9 +70,9 @@ export function simplifyTransform(
   const rotation = getTransformRotation(transform);
   const scale = getTransformScale(transform);
   if (deleteRedundant) {
-    delete transform.matrix;
+    delete transform._matrix;
   } else {
-    transform.matrix = null;
+    transform._matrix = null;
   }
   let redundantCount = 0;
   if (translation.x === 0.0 && translation.y === 0.0) {
@@ -123,7 +123,7 @@ export function composeTransforms(
   const m1 = getTransformMatrix(first);
   return {
     // prettier-ignore
-    matrix: [
+    _matrix: [
       m2[0] * m1[0] + m2[3] * m1[1] + m2[6] * m1[2],
       m2[1] * m1[0] + m2[4] * m1[1] + m2[7] * m1[2],
       m2[2] * m1[0] + m2[5] * m1[1] + m2[8] * m1[2],
@@ -156,7 +156,7 @@ export function getTransformMatrix(transform: Transform): number[] {
   if (!transform) {
     return IDENTITY_MATRIX;
   }
-  if (!transform.matrix) {
+  if (!transform._matrix) {
     let tx: ?number;
     let ty: ?number;
     if (transform.translation) {
@@ -176,13 +176,13 @@ export function getTransformMatrix(transform: Transform): number[] {
     const sr = Math.sin(rotation);
 
     // prettier-ignore
-    transform.matrix = [
+    transform._matrix = [
       cr * sx, sr * sx, 0,
       -sr * sy, cr * sy, 0,
       tx || 0, ty || 0, 1,
     ];
   }
-  return transform.matrix;
+  return transform._matrix;
 }
 
 const ZERO_VECTOR = {x: 0.0, y: 0.0};
@@ -202,10 +202,10 @@ export function getTransformTranslation(transform: Transform): Vector2 {
     transform.translation = translation = {};
   }
   if (translation.x == null) {
-    translation.x = transform.matrix ? transform.matrix[6] : 0.0;
+    translation.x = transform._matrix ? transform._matrix[6] : 0.0;
   }
   if (translation.y == null) {
-    translation.y = transform.matrix ? transform.matrix[7] : 0.0;
+    translation.y = transform._matrix ? transform._matrix[7] : 0.0;
   }
   return (translation: any);
 }
@@ -222,10 +222,10 @@ export function getTransformRotation(transform: Transform): number {
   }
   let rotation = transform.rotation;
   if (rotation == null) {
-    if (transform.matrix) {
+    if (transform._matrix) {
       transform.rotation = rotation = Math.atan2(
-        -transform.matrix[3],
-        transform.matrix[4],
+        -transform._matrix[3],
+        transform._matrix[4],
       );
     } else {
       transform.rotation = rotation = 0.0;
@@ -251,18 +251,18 @@ export function getTransformScale(transform: Transform): Vector2 {
     transform.scale = scale = {};
   }
   if (scale.x == null) {
-    if (transform.matrix) {
-      const dx = transform.matrix[0];
-      const dy = transform.matrix[1];
+    if (transform._matrix) {
+      const dx = transform._matrix[0];
+      const dy = transform._matrix[1];
       scale.x = Math.sqrt(dx * dx + dy * dy);
     } else {
       scale.x = 1.0;
     }
   }
   if (scale.y == null) {
-    if (transform.matrix) {
-      const dx = transform.matrix[3];
-      const dy = transform.matrix[4];
+    if (transform._matrix) {
+      const dx = transform._matrix[3];
+      const dy = transform._matrix[4];
       scale.y = Math.sqrt(dx * dx + dy * dy);
     } else {
       scale.y = 1.0;
