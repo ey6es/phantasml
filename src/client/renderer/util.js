@@ -328,6 +328,7 @@ export class Renderer {
   vertexShaders: Map<mixed, WebGLShader> = new Map();
   fragmentShaders: Map<mixed, WebGLShader> = new Map();
   programs: Map<mixed, Program> = new Map();
+  levelOfDetail = 1.0 / 4.0;
 
   _renderCallbacks: ((Renderer) => void)[] = [];
   _frameDirty = false;

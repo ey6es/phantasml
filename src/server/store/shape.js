@@ -46,7 +46,7 @@ type GeometryStats = {
  *
  * @param [loop=false] whether or not the path represents a loop.
  */
-class Path {
+export class Path {
   loop: boolean;
   commands: PathCommand[] = [];
 
@@ -58,6 +58,20 @@ class Path {
 
   constructor(loop: boolean = false) {
     this.loop = loop;
+  }
+
+  /**
+   * Checks whether the path requires tessellation (because it has curves).
+   *
+   * @return whether or not the path requires tessellation.
+   */
+  requiresTessellation(): boolean {
+    for (const command of this.commands) {
+      if (command.requiresTessellation()) {
+        return true;
+      }
+    }
+    return false;
   }
 
   /**
@@ -210,6 +224,10 @@ class PathCommand {
     this.dest = dest;
     this.zOrder = zOrder;
     this.attributes = attributes;
+  }
+
+  requiresTessellation(): boolean {
+    return false;
   }
 
   updateStats(
@@ -499,6 +517,10 @@ class ArcTo extends PathCommand {
     this.radius = radius;
   }
 
+  requiresTessellation(): boolean {
+    return true;
+  }
+
   updateStats(
     stats: GeometryStats,
     tessellation: number,
@@ -603,6 +625,10 @@ class CurveTo extends PathCommand {
     super(dest, zOrder, attributes);
     this.c1 = c1;
     this.c2 = c2;
+  }
+
+  requiresTessellation(): boolean {
+    return true;
   }
 
   updateStats(
@@ -718,12 +744,21 @@ type Vertex = {
  *
  * @param exterior the path defining the shape's exterior boundary.
  */
-class Shape {
+export class Shape {
   exterior: Path;
 
   constructor(exterior: Path) {
     this.exterior = exterior;
     this.exterior.loop = true;
+  }
+
+  /**
+   * Checks whether the shape requires tessellation (because it has curves).
+   *
+   * @return whether or not the shape requires tessellation.
+   */
+  requiresTessellation(): boolean {
+    return this.exterior.requiresTessellation();
   }
 
   updateStats(stats: GeometryStats, tessellation: number) {
@@ -891,6 +926,36 @@ export class ShapeList {
   constructor(shapes: Shape[] = [], paths: Path[] = []) {
     this.shapes = shapes;
     this.paths = paths;
+  }
+
+  /**
+   * Adds the contents of another shape list to this one.
+   *
+   * @param other the list to add.
+   */
+  add(other: ShapeList) {
+    this.shapes = this.shapes.concat(other.shapes);
+    this.paths = this.paths.concat(other.paths);
+  }
+
+  /**
+   * Checks whether the shape list requires tessellation (because it has curved
+   * paths).
+   *
+   * @return whether or not the shape list requires tessellation.
+   */
+  requiresTessellation(): boolean {
+    for (const shape of this.shapes) {
+      if (shape.requiresTessellation()) {
+        return true;
+      }
+    }
+    for (const path of this.paths) {
+      if (path.requiresTessellation()) {
+        return true;
+      }
+    }
+    return false;
   }
 
   /**

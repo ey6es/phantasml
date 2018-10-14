@@ -59,7 +59,7 @@ export const RendererComponents: {[string]: ComponentData} = {
             defaultMessage="Path Color:"
           />
         ),
-        defaultValue: '#222222',
+        defaultValue: '#ffffff',
       },
       fillColor: {
         type: 'color',
@@ -69,7 +69,7 @@ export const RendererComponents: {[string]: ComponentData} = {
             defaultMessage="Fill Color:"
           />
         ),
-        defaultValue: '#282828',
+        defaultValue: '#808080',
       },
       zOrder: {
         type: 'number',

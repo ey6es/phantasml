@@ -12,12 +12,16 @@ import {
   DEFAULT_THICKNESS,
   DEFAULT_LINE_LENGTH,
   DEFAULT_LINE_GROUP_VERTICES,
+  DEFAULT_LINE_GROUP_LOOP,
   DEFAULT_POLYGON_VERTICES,
+  DEFAULT_POLYGON_FILL,
   DEFAULT_RECTANGLE_WIDTH,
   DEFAULT_RECTANGLE_HEIGHT,
+  DEFAULT_RECTANGLE_FILL,
   DEFAULT_ARC_RADIUS,
   DEFAULT_ARC_START_ANGLE,
   DEFAULT_ARC_END_ANGLE,
+  DEFAULT_ARC_FILL,
   DEFAULT_CURVE_SPAN,
   DEFAULT_CURVE_C1,
   DEFAULT_CURVE_C2,
@@ -43,6 +47,10 @@ const ThicknessProperty = {
     min: 0,
   },
 };
+
+const FillLabel = (
+  <FormattedMessage id="geometry.fill" defaultMessage="Fill:" />
+);
 
 export const GeometryComponents: {[string]: ComponentData} = {
   point: {
@@ -74,6 +82,11 @@ export const GeometryComponents: {[string]: ComponentData} = {
     ),
     properties: {
       ...ThicknessProperty,
+      loop: {
+        type: 'boolean',
+        label: <FormattedMessage id="line_group.loop" defaultMessage="Loop:" />,
+        defaultValue: DEFAULT_LINE_GROUP_LOOP,
+      },
     },
     category: 'geometry',
   },
@@ -83,8 +96,8 @@ export const GeometryComponents: {[string]: ComponentData} = {
       ...ThicknessProperty,
       fill: {
         type: 'boolean',
-        label: <FormattedMessage id="polygon.fill" defaultMessage="Fill:" />,
-        defaultValue: true,
+        label: FillLabel,
+        defaultValue: DEFAULT_POLYGON_FILL,
       },
     },
     category: 'geometry',
@@ -114,6 +127,11 @@ export const GeometryComponents: {[string]: ComponentData} = {
         wheelStep: 0.1,
         precision: 2,
         min: 0,
+      },
+      fill: {
+        type: 'boolean',
+        label: FillLabel,
+        defaultValue: DEFAULT_RECTANGLE_FILL,
       },
     },
     category: 'geometry',
@@ -150,7 +168,8 @@ export const GeometryComponents: {[string]: ComponentData} = {
       },
       fill: {
         type: 'boolean',
-        label: <FormattedMessage id="arc.fill" defaultMessage="Fill:" />,
+        label: FillLabel,
+        defaultValue: DEFAULT_ARC_FILL,
       },
     },
     category: 'geometry',
