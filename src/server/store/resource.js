@@ -138,6 +138,8 @@ export class Entity {
   state: Object;
   visit = 0;
 
+  _cachedValues: ?Map<string, mixed>;
+
   _derivedValues: ?Map<string, mixed>;
   _derivedLineage: ?(Entity[]);
 
@@ -171,6 +173,27 @@ export class Entity {
    */
   getName(): ?string {
     return this.state.name;
+  }
+
+  /**
+   * Gets a value derived from the entity (only) through the cache.
+   *
+   * @param name the name of the desired value.
+   * @param fn the function to compute the desired value from the entity.
+   */
+  getCachedValue<T>(name: string, fn: Entity => T): T {
+    let cachedValues = this._cachedValues;
+    if (cachedValues) {
+      const value = cachedValues.get(name);
+      if (value !== undefined) {
+        return (value: any);
+      }
+    } else {
+      cachedValues = this._cachedValues = new Map();
+    }
+    const value = fn(this);
+    cachedValues.set(name, value);
+    return value;
   }
 
   /**

@@ -5,7 +5,8 @@
  * @flow
  */
 
-import type {Vector2} from '../../server/store/math';
+import {vec2} from '../../server/store/math';
+import type {Vector2, Bounds} from '../../server/store/math';
 
 /**
  * Converts a hex color string to an array of floats that we can use as a
@@ -425,6 +426,28 @@ export class Renderer {
     }
     result.x = x;
     result.y = y;
+    return result;
+  }
+
+  /**
+   * Finds the bounds of the camera in world space.
+   *
+   * @param [result] optional bounds to hold the result.  If not given, new
+   * bounds will be created.
+   * @return the result bounds.
+   */
+  getCameraBounds(result?: Bounds): Bounds {
+    const camera = this._camera;
+    const halfHeight = camera.size * 0.5;
+    const halfWidth = halfHeight * camera.aspect;
+    if (!result) {
+      return {
+        min: vec2(camera.x - halfWidth, camera.y - halfHeight),
+        max: vec2(camera.x + halfWidth, camera.y + halfHeight),
+      };
+    }
+    vec2(camera.x - halfWidth, camera.y - halfHeight, result.min);
+    vec2(camera.x + halfWidth, camera.y + halfHeight, result.max);
     return result;
   }
 

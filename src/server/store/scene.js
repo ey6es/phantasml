@@ -706,6 +706,11 @@ export class Scene extends Resource {
     return this._entityHierarchy;
   }
 
+  /** Returns a reference to the quadtree root node. */
+  get quadtree(): QuadtreeNode {
+    return this._quadtree;
+  }
+
   constructor(
     jsonOrIdTree: Object,
     entityHierarchy?: EntityHierarchyNode,

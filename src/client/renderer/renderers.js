@@ -9,11 +9,15 @@ import type {Renderer} from './util';
 import type {Entity} from '../../server/store/resource';
 
 type RendererData = {
-  render: (Renderer, Object, Entity) => void,
+  getZOrder: Object => number,
+  createRenderFn: (Object, Entity) => Renderer => void,
 };
 
-const ComponentRenderers: {[string]: RendererData} = {
+export const ComponentRenderers: {[string]: RendererData} = {
   shapeRenderer: {
-    render: (renderer: Renderer, data: Object, entity: Entity) => {},
+    getZOrder: (data: Object) => data.zOrder || 0,
+    createRenderFn: (data: Object, entity: Entity) => {
+      return (renderer: Renderer) => {};
+    },
   },
 };
