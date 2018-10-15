@@ -159,6 +159,8 @@ export class Path {
   }
 
   updateStats(stats: GeometryStats, tessellation: number, edge: boolean) {
+    this._ensureStartPosition(0);
+    const previousVertices = stats.vertices;
     for (let ii = 0; ii < this.commands.length; ii++) {
       const command = this.commands[ii];
       let previous: ?PathCommand;
@@ -169,6 +171,17 @@ export class Path {
         previous = this.commands[ii - 1];
       }
       command.updateStats(stats, tessellation, previous, edge);
+    }
+    if (stats.vertices === previousVertices) {
+      // special handling for zero-length paths
+      stats.vertices += 4;
+      const start = stats.indices;
+      stats.indices += 6;
+      stats.groups.push({
+        start,
+        end: stats.indices,
+        zOrder: this.commands[0].zOrder,
+      });
     }
   }
 
@@ -183,6 +196,7 @@ export class Path {
     tessellation: number,
     edge: boolean,
   ): [number, number] {
+    const previousGroupIndex = groupIndex;
     for (let ii = 0; ii < this.commands.length; ii++) {
       const command = this.commands[ii];
       let previous: ?PathCommand;
@@ -210,6 +224,38 @@ export class Path {
         start,
         end,
       );
+    }
+    if (groupIndex === previousGroupIndex) {
+      // special handling for zero-length paths
+      const baseIndex = arrayIndex / vertexSize;
+
+      const command = this.commands[0];
+      for (let ii = 0; ii < 4; ii++) {
+        const vertexIndex = arrayIndex + attributeOffsets.vertex;
+        arrayBuffer[vertexIndex] = command.dest.x;
+        arrayBuffer[vertexIndex + 1] = command.dest.y;
+        const vectorIndex = arrayIndex + attributeOffsets.vector;
+        arrayBuffer[vectorIndex] = ii & 1 ? -1 : 1;
+        arrayBuffer[vectorIndex + 1] = ii & 2 ? 1 : -1;
+        command._writeAttributes(
+          arrayBuffer,
+          arrayIndex,
+          attributeOffsets,
+          1.0,
+          command,
+        );
+        arrayIndex += vertexSize;
+      }
+
+      let elementArrayIndex = groups[groupIndex++].start;
+
+      elementArrayBuffer[elementArrayIndex++] = baseIndex;
+      elementArrayBuffer[elementArrayIndex++] = baseIndex + 2;
+      elementArrayBuffer[elementArrayIndex++] = baseIndex + 1;
+
+      elementArrayBuffer[elementArrayIndex++] = baseIndex + 1;
+      elementArrayBuffer[elementArrayIndex++] = baseIndex + 2;
+      elementArrayBuffer[elementArrayIndex++] = baseIndex + 3;
     }
     return [arrayIndex, groupIndex];
   }
@@ -462,8 +508,13 @@ class LineTo extends PathCommand {
     previous: ?PathCommand,
     edge: boolean,
   ) {
+    if (!previous) {
+      throw new Error('Missing previous command.');
+    }
     super.updateStats(stats, tessellation, previous, edge);
-    this._addToStats(stats, 1, edge);
+    if (distance(previous.dest, this.dest) > 0) {
+      this._addToStats(stats, 1, edge);
+    }
   }
 
   populateBuffers(
@@ -483,23 +534,25 @@ class LineTo extends PathCommand {
     if (!previous) {
       throw new Error('Missing previous command.');
     }
-    let elementArrayIndex = groups[groupIndex++].start;
-    [arrayIndex, elementArrayIndex] = this._writeDivision(
-      arrayBuffer,
-      elementArrayBuffer,
-      arrayIndex,
-      elementArrayIndex,
-      attributeOffsets,
-      vertexSize,
-      previous,
-      edge,
-      previous.dest,
-      0.0,
-      this.dest,
-      1.0,
-      start,
-      end,
-    );
+    if (distance(previous.dest, this.dest) > 0) {
+      let elementArrayIndex = groups[groupIndex++].start;
+      [arrayIndex, elementArrayIndex] = this._writeDivision(
+        arrayBuffer,
+        elementArrayBuffer,
+        arrayIndex,
+        elementArrayIndex,
+        attributeOffsets,
+        vertexSize,
+        previous,
+        edge,
+        previous.dest,
+        0.0,
+        this.dest,
+        1.0,
+        start,
+        end,
+      );
+    }
     return [arrayIndex, groupIndex];
   }
 }
