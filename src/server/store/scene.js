@@ -530,11 +530,28 @@ class QuadtreeNode {
         const child = this._children[ii];
         if (child) {
           const newChild = child._removeEntity(entity, bounds, depth - 1);
-          newNode._children[ii] = newChild._isEmpty() ? null : newChild;
+          newNode._children[ii] = newChild.isEmpty() ? null : newChild;
         }
       }
     }
     return newNode;
+  }
+
+  /**
+   * Checks whether the node is empty.
+   *
+   * @return whether or not the node is empty.
+   */
+  isEmpty(): boolean {
+    if (this._entityBounds.size > 0) {
+      return false;
+    }
+    for (let ii = 0; ii < 4; ii++) {
+      if (this._children[ii]) {
+        return false;
+      }
+    }
+    return true;
   }
 
   /**
@@ -603,18 +620,6 @@ class QuadtreeNode {
         boundsIntersect(bounds, nodeBounds) &&
         !child._applyToEntities(bounds, op, boundsContain(bounds, nodeBounds))
       ) {
-        return false;
-      }
-    }
-    return true;
-  }
-
-  _isEmpty(): boolean {
-    if (this._entityBounds.size > 0) {
-      return false;
-    }
-    for (let ii = 0; ii < 4; ii++) {
-      if (this._children[ii]) {
         return false;
       }
     }
@@ -690,6 +695,94 @@ class QuadtreeNode {
   }
 }
 
+function addToQuadtrees(
+  quadtrees: Map<string, QuadtreeNode>,
+  lineage: Entity[],
+): Map<string, QuadtreeNode> {
+  if (lineage.length < 2) {
+    return quadtrees;
+  }
+  const newQuadtrees = new Map(quadtrees);
+  const page = lineage[0].id;
+  const root = newQuadtrees.get(page) || new QuadtreeNode(8);
+  newQuadtrees.set(
+    page,
+    root.addEntity(lineage[lineage.length - 1], getWorldBounds(lineage)),
+  );
+  return newQuadtrees;
+}
+
+function removeFromQuadtrees(
+  quadtrees: Map<string, QuadtreeNode>,
+  lineage: Entity[],
+): Map<string, QuadtreeNode> {
+  if (lineage.length < 2) {
+    return quadtrees;
+  }
+  const newQuadtrees = new Map(quadtrees);
+  const page = lineage[0].id;
+  let root = newQuadtrees.get(page);
+  if (root) {
+    root = root.removeEntity(
+      lineage[lineage.length - 1],
+      getWorldBounds(lineage),
+    );
+    if (root.isEmpty()) {
+      newQuadtrees.delete(page);
+    } else {
+      newQuadtrees.set(page, root);
+    }
+  }
+  return newQuadtrees;
+}
+
+function getWorldBounds(lineage: Entity[]): Bounds {
+  return lineage[lineage.length - 1].getDerivedValue(
+    lineage,
+    'worldBounds',
+    computeWorldBounds,
+  );
+}
+
+function computeWorldBounds(lineage: Entity[]): Bounds {
+  const lastEntity = lineage[lineage.length - 1];
+  const bounds = emptyBounds();
+  for (const key in lastEntity.state) {
+    const data = ComponentGeometry[key];
+    data && data.addToBounds(bounds, lastEntity.state[key]);
+  }
+  return transformBoundsEquals(bounds, getWorldTransform(lineage));
+}
+
+function getWorldTransform(lineage: Entity[]): Transform {
+  const lastIndex = lineage.length - 1;
+  if (lastIndex < 0) {
+    return null;
+  }
+  return lineage[lastIndex].getDerivedValue(
+    lineage,
+    'worldTransform',
+    computeWorldTransform,
+  );
+}
+
+function computeWorldTransform(lineage: Entity[]): Transform {
+  const lastIndex = lineage.length - 1;
+  const lastEntity = lineage[lastIndex];
+  const localTransform = lastEntity.state.transform;
+  if (lastIndex === 0) {
+    return localTransform;
+  }
+  return composeTransforms(
+    lineage[lastIndex - 1].getDerivedValue(
+      lineage.slice(0, lastIndex),
+      'worldTransform',
+      computeWorldTransform,
+    ),
+    localTransform,
+  );
+}
+
 /**
  * The state of a virtual scene.
  *
@@ -699,22 +792,17 @@ class QuadtreeNode {
 export class Scene extends Resource {
   _idTree: IdTreeNode;
   _entityHierarchy: EntityHierarchyNode;
-  _quadtree: QuadtreeNode;
+  _quadtrees: Map<string, QuadtreeNode>;
 
   /** Returns a reference to the entity hierarchy root node. */
   get entityHierarchy(): EntityHierarchyNode {
     return this._entityHierarchy;
   }
 
-  /** Returns a reference to the quadtree root node. */
-  get quadtree(): QuadtreeNode {
-    return this._quadtree;
-  }
-
   constructor(
     jsonOrIdTree: Object,
     entityHierarchy?: EntityHierarchyNode,
-    quadtree?: QuadtreeNode,
+    quadtrees?: Map<string, QuadtreeNode>,
   ) {
     super();
     if (jsonOrIdTree instanceof IdTreeNode) {
@@ -723,15 +811,15 @@ export class Scene extends Resource {
         throw new Error('Missing entity hierarchy.');
       }
       this._entityHierarchy = entityHierarchy;
-      if (!quadtree) {
-        throw new Error('Missing quadtree.');
+      if (!quadtrees) {
+        throw new Error('Missing quadtrees.');
       }
-      this._quadtree = quadtree;
+      this._quadtrees = quadtrees;
       return;
     }
     this._idTree = new IdTreeLeafNode();
     this._entityHierarchy = new EntityHierarchyNode();
-    this._quadtree = new QuadtreeNode(8);
+    this._quadtrees = new Map();
     const storedEntities = jsonOrIdTree.entities;
     storedEntities && this._createEntities(storedEntities);
     // create the initial entities that don't yet exist
@@ -771,7 +859,7 @@ export class Scene extends Resource {
     return new this.constructor(
       newIdTree,
       this._entityHierarchy.addEntity(lineage),
-      this._quadtree.addEntity(entity, this._getWorldBounds(lineage)),
+      addToQuadtrees(this._quadtrees, lineage),
     );
   }
 
@@ -782,55 +870,8 @@ export class Scene extends Resource {
    * @return the entity's world transform.
    */
   getWorldTransform(id: string): Transform {
-    return this._getWorldTransform(this.getEntityLineage(this.getEntity(id)));
+    return getWorldTransform(this.getEntityLineage(this.getEntity(id)));
   }
-
-  _getWorldTransform(lineage: Entity[]): Transform {
-    const lastIndex = lineage.length - 1;
-    if (lastIndex < 0) {
-      return null;
-    }
-    return lineage[lastIndex].getDerivedValue(
-      lineage,
-      'worldTransform',
-      this._computeWorldTransform,
-    );
-  }
-
-  _computeWorldTransform = (lineage: Entity[]) => {
-    const lastIndex = lineage.length - 1;
-    const lastEntity = lineage[lastIndex];
-    const localTransform = lastEntity.state.transform;
-    if (lastIndex === 0) {
-      return localTransform;
-    }
-    return composeTransforms(
-      lineage[lastIndex - 1].getDerivedValue(
-        lineage.slice(0, lastIndex),
-        'worldTransform',
-        this._computeWorldTransform,
-      ),
-      localTransform,
-    );
-  };
-
-  _getWorldBounds(lineage: Entity[]): Bounds {
-    return lineage[lineage.length - 1].getDerivedValue(
-      lineage,
-      'worldBounds',
-      this._computeWorldBounds,
-    );
-  }
-
-  _computeWorldBounds = (lineage: Entity[]) => {
-    const lastEntity = lineage[lineage.length - 1];
-    const bounds = emptyBounds();
-    for (const key in lastEntity.state) {
-      const data = ComponentGeometry[key];
-      data && data.addToBounds(bounds, lastEntity.state[key]);
-    }
-    return transformBoundsEquals(bounds, this._getWorldTransform(lineage));
-  };
 
   /**
    * Given an entity id, checks whether the ids of any of its ancestors (but
@@ -912,8 +953,22 @@ export class Scene extends Resource {
     return new this.constructor(
       newIdTree,
       this._entityHierarchy.removeEntity(lineage),
-      this._quadtree.removeEntity(entity, this._getWorldBounds(lineage)),
+      removeFromQuadtrees(this._quadtrees, lineage),
     );
+  }
+
+  /**
+   * Applies an operation to all entities whose bounds intersect the ones
+   * provided.
+   *
+   * @param page the page to search.
+   * @param bounds the bounds to check.
+   * @param op the operation to perform on each entity.  Return false to abort
+   * the search.
+   */
+  applyToEntities(page: string, bounds: Bounds, op: Entity => ?boolean) {
+    const quadtree = this._quadtrees.get(page);
+    quadtree && quadtree.applyToEntities(bounds, op);
   }
 
   /**
@@ -992,26 +1047,20 @@ export class Scene extends Resource {
 
     // process hierarchy removals with old id tree
     let newEntityHierarchy = this._entityHierarchy;
-    let newQuadtree = this._quadtree;
+    let newQuadtrees = this._quadtrees;
     for (const entity of removedEntities) {
       const lineage = this._idTree.getEntityLineage(entity);
       newEntityHierarchy = newEntityHierarchy.removeEntity(lineage);
-      newQuadtree = newQuadtree.removeEntity(
-        entity,
-        this._getWorldBounds(lineage),
-      );
+      newQuadtrees = removeFromQuadtrees(newQuadtrees, lineage);
     }
 
     // then the additions with the new one
     for (const entity of addedEntities) {
       const lineage = newIdTree.getEntityLineage(entity);
       newEntityHierarchy = newEntityHierarchy.addEntity(lineage);
-      newQuadtree = newQuadtree.addEntity(
-        entity,
-        this._getWorldBounds(lineage),
-      );
+      newQuadtrees = addToQuadtrees(newQuadtrees, lineage);
     }
-    return new this.constructor(newIdTree, newEntityHierarchy, newQuadtree);
+    return new this.constructor(newIdTree, newEntityHierarchy, newQuadtrees);
   }
 
   _createEntities(states: Object, except: Object = {}) {
@@ -1038,10 +1087,7 @@ export class Scene extends Resource {
         this._idTree = newIdTree;
       } else {
         this._entityHierarchy = this._entityHierarchy.addEntity(lineage);
-        this._quadtree = this._quadtree.addEntity(
-          entity,
-          this._getWorldBounds(lineage),
-        );
+        this._quadtrees = addToQuadtrees(this._quadtrees, lineage);
       }
     }
   }

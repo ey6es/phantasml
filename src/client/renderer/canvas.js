@@ -138,7 +138,7 @@ class RenderCanvasImpl extends React.Component<
 
     // traverse scene to find renderable entities in frame (and z orders)
     renderer.getCameraBounds(cameraBounds);
-    resource.quadtree.applyToEntities(cameraBounds, collectZOrdersOp);
+    resource.applyToEntities(this.props.page, cameraBounds, collectZOrdersOp);
 
     // sort by increasing z-order
     entityZOrders.sort(compareEntityZOrders);
