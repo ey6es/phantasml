@@ -49,9 +49,37 @@ export function undoStackReducer(
 }
 
 /**
+ * Base class for reference-counted objects.
+ */
+export class RefCounted {
+  _refCount = 0;
+
+  /**
+   * Increments the object's reference count.
+   */
+  ref() {
+    this._refCount++;
+  }
+
+  /**
+   * Decrements the object's reference count.  When the reference count reaches
+   * zero, the object is disposed.
+   */
+  deref() {
+    if (--this._refCount === 0) {
+      this._dispose();
+    }
+  }
+
+  _dispose() {
+    // nothing by default
+  }
+}
+
+/**
  * Base class for all resources.
  */
-export class Resource {
+export class Resource extends RefCounted {
   /**
    * Returns the type of the resource.
    *
@@ -133,7 +161,7 @@ export type EntityReference = {ref: string};
  * @param id the entity's unique identifier.
  * @param json the entity's JSON state.
  */
-export class Entity {
+export class Entity extends RefCounted {
   id: string;
   state: Object;
   visit = 0;
@@ -144,6 +172,7 @@ export class Entity {
   _derivedLineage: ?(Entity[]);
 
   constructor(id: string, state: Object = {}) {
+    super();
     this.id = id;
     this.state = state;
   }
@@ -251,6 +280,16 @@ export class Entity {
       }
     }
     return this.state;
+  }
+
+  _dispose() {
+    const cachedValues = this._cachedValues;
+    if (cachedValues) {
+      for (const value: any of cachedValues.values()) {
+        value && value.dispose && value.dispose();
+      }
+      this._cachedValues = null;
+    }
   }
 }
 

@@ -104,7 +104,12 @@ function reducer(state: StoreState, action: StoreAction): StoreState {
   // first try the store actions
   const handler = StoreActions[action.type];
   if (handler) {
-    state = handler.reduce(state, action);
+    const newState = handler.reduce(state, action);
+    if (state.resource !== newState.resource) {
+      state.resource && state.resource.deref();
+      newState.resource && newState.resource.ref();
+    }
+    state = newState;
   }
   // then the resource actions
   const undoStack = undoStackReducer(state.resource, state.undoStack, action);
@@ -120,6 +125,10 @@ function reducer(state: StoreState, action: StoreAction): StoreState {
         action.expanded = oldExpanded;
         action.selection = oldSelection;
       }
+    }
+    if (resource !== state.resource) {
+      state.resource && state.resource.deref();
+      resource && resource.ref();
     }
     state = Object.assign({}, state, {resource, undoStack, redoStack});
   }
@@ -444,7 +453,7 @@ export const StoreActions = {
   },
   setResource: {
     create: ResourceActions.setResource.create,
-    reduce: (state: ?Resource, action: ResourceAction) => {
+    reduce: (state: StoreState, action: ResourceAction) => {
       return Object.assign({}, state, {
         savedEditNumber: 0,
         undoStack: [],

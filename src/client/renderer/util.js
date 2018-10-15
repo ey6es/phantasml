@@ -302,6 +302,7 @@ export class Geometry {
       renderer.clearArrayBuffer(this);
       renderer.clearElementArrayBuffer(this);
     }
+    this._renderers = new Set();
   }
 }
 

@@ -5,7 +5,12 @@
  * @flow
  */
 
-import {Resource, Entity, addResourceTypeConstructor} from './resource';
+import {
+  Resource,
+  RefCounted,
+  Entity,
+  addResourceTypeConstructor,
+} from './resource';
 import type {ResourceAction} from './resource';
 import type {Transform, Bounds} from './math';
 import {
@@ -26,7 +31,7 @@ const LEAF_COLLAPSE_SIZE = 8;
 /**
  * Maps ids to entities in a tree structure, limiting the changed object size.
  */
-class IdTreeNode {
+class IdTreeNode extends RefCounted {
   getEntity(id: string, depth: number = 0): ?Entity {
     throw new Error('Not implemented.');
   }
@@ -71,6 +76,14 @@ class IdTreeLeafNode extends IdTreeNode {
   constructor(entities: Map<string, Entity> = new Map()) {
     super();
     this._entities = entities;
+    for (const entity of entities.values()) {
+      entity.ref();
+    }
+  }
+  _dispose() {
+    for (const entity of this._entities.values()) {
+      entity.deref();
+    }
   }
   getEntity(id: string, depth: number = 0): ?Entity {
     return this._entities.get(id);
@@ -130,6 +143,12 @@ class IdTreeInternalNode extends IdTreeNode {
     super();
     this._even = even;
     this._odd = odd;
+    even.ref();
+    odd.ref();
+  }
+  _dispose() {
+    this._even.deref();
+    this._odd.deref();
   }
   getEntity(id: string, depth: number = 0): ?Entity {
     return (isIdEven(id, depth) ? this._even : this._odd).getEntity(
@@ -815,15 +834,20 @@ export class Scene extends Resource {
         throw new Error('Missing quadtrees.');
       }
       this._quadtrees = quadtrees;
-      return;
+    } else {
+      this._idTree = new IdTreeLeafNode();
+      this._entityHierarchy = new EntityHierarchyNode();
+      this._quadtrees = new Map();
+      const storedEntities = jsonOrIdTree.entities;
+      storedEntities && this._createEntities(storedEntities);
+      // create the initial entities that don't yet exist
+      this._createEntities(this._getInitialEntities(), storedEntities);
     }
-    this._idTree = new IdTreeLeafNode();
-    this._entityHierarchy = new EntityHierarchyNode();
-    this._quadtrees = new Map();
-    const storedEntities = jsonOrIdTree.entities;
-    storedEntities && this._createEntities(storedEntities);
-    // create the initial entities that don't yet exist
-    this._createEntities(this._getInitialEntities(), storedEntities);
+    this._idTree.ref();
+  }
+
+  _dispose() {
+    this._idTree.deref();
   }
 
   reduce(action: ResourceAction): ?Resource {
