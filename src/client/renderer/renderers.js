@@ -125,10 +125,11 @@ const SHAPE_FRAGMENT_SHADER = `
   varying float stepSize;
   void main(void) {
     float dist = length(interpolatedVector);
+    float filled = 1.0 - step(dist, 0.0);
     float inside = 1.0 - smoothstep(1.0 - stepSize, 1.0, dist);
     // joints are drawn twice, so adjust alpha accordingly
     float joint = smoothstep(0.0, stepSize, interpolatedJoint);
     float alpha = mix(2.0 * inside - inside * inside, inside, joint);
-    gl_FragColor = vec4(pathColor, alpha);
+    gl_FragColor = vec4(mix(fillColor, pathColor, filled), alpha);
   }
 `;
