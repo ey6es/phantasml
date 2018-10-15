@@ -99,8 +99,14 @@ module.exports = function(grunt) {
           dest: `dist/${key}/app.min.js`,
         };
         taskConfig[key + '-icon'] = {
-          src: 'src/client/favicon.ico',
-          dest: `dist/${key}/favicon.ico`,
+          files: [
+            {
+              expand: true,
+              cwd: 'src/client/favicon',
+              src: '*',
+              dest: `dist/${key}/`,
+            },
+          ],
         };
       }
       return taskConfig;
