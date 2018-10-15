@@ -422,6 +422,7 @@ function ComponentPanel(props: {
  * label.
  * @param [props.padding=true] whether or not to use padding between the
  * columns.
+ * @param [props.rightAlign=false] whether or not to right-align editors.
  * @param props.values the object containing the values.
  * @param props.setValue the function to set a value.
  * @return an array containing the editor elements.
@@ -430,6 +431,7 @@ export function PropertyEditorGroup(props: {
   properties: {[string]: PropertyData},
   labelSize?: number,
   padding?: boolean,
+  rightAlign?: boolean,
   values: any,
   setValue: (string, any) => void,
 }) {
@@ -452,6 +454,7 @@ export function PropertyEditorGroup(props: {
           property={property}
           sm={12 - labelSize}
           classSuffix={props.padding === false ? ' pl-0' : ''}
+          rightAlign={props.rightAlign}
           value={props.values[key]}
           setValue={value => props.setValue(key, value)}
         />
@@ -512,6 +515,7 @@ const PropertyEditors = {
     property: PropertyData,
     sm: number,
     classSuffix: string,
+    rightAlign: ?boolean,
     value: ?boolean,
     setValue: boolean => void,
   }) => {
@@ -520,7 +524,7 @@ const PropertyEditors = {
         <CustomInput
           id={props.id}
           type="checkbox"
-          className="text-right"
+          className={props.rightAlign ? 'text-right' : undefined}
           cssModule={{'custom-control-label': 'custom-control-label mb-2'}}
           checked={getValue(props.value, props.property.defaultValue || false)}
           onChange={event => props.setValue(event.target.checked)}
@@ -533,6 +537,7 @@ const PropertyEditors = {
     property: PropertyData,
     sm: number,
     classSuffix: string,
+    rightAlign: ?boolean,
     value: ?number,
     setValue: number => void,
   }) => {
@@ -560,6 +565,7 @@ const PropertyEditors = {
     property: PropertyData,
     sm: number,
     classSuffix: string,
+    rightAlign: ?boolean,
     value: ?string,
     setValue: string => void,
   }) => {
@@ -579,6 +585,7 @@ const PropertyEditors = {
     property: PropertyData,
     sm: number,
     classSuffix: string,
+    rightAlign: ?boolean,
     value: ?number,
     setValue: number => void,
   }) => {
@@ -589,7 +596,6 @@ const PropertyEditors = {
           initialValue={degrees(
             getValue(props.value, props.property.defaultValue || 0.0),
           )}
-          initialValue={props.value && degrees(props.value)}
           setValue={value => props.setValue(radians(value))}
           precision={2}
           min={-180}
@@ -604,6 +610,7 @@ const PropertyEditors = {
     property: PropertyData,
     sm: number,
     classSuffix: string,
+    rightAlign: ?boolean,
     value: ?Object,
     setValue: Object => void,
   }) => {

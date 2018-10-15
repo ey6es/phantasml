@@ -307,6 +307,7 @@ class Tool extends React.Component<ToolProps, Object> {
           properties={this._options}
           labelSize={6}
           padding={false}
+          rightAlign={true}
           values={this.state}
           setValue={(key, value) => this.setState({[key]: value})}
         />

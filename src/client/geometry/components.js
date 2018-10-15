@@ -160,7 +160,7 @@ export const GeometryComponents: {[string]: ComponentData} = {
         defaultValue: DEFAULT_ARC_START_ANGLE,
       },
       endAngle: {
-        type: 'number',
+        type: 'angle',
         label: (
           <FormattedMessage id="arc.end_angle" defaultMessage="End Angle:" />
         ),
