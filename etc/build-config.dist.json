@@ -1,10 +1,9 @@
 {
-  "fromEmail": "noreply@phantasml.com",
-  "firstAdminEmail": "drzej.k@gmail.com",
-  "googleClientId":
-    "114489240374-0v2m4cscs3rbtqh9pc8oclh1pb2ot4jo.apps.googleusercontent.com",
-  "facebookAppId": "632605827132529",
-  "resourceBucket": "phantasml-resources",
+  "fromEmail": "noreply@nowhere.com",
+  "firstAdminEmail": "nobody@nowhere.com",
+  "googleClientId": "...",
+  "facebookAppId": "...",
+  "resourceBucket": "...",
   "distributions": {
     "local": {
       "beautify": true,
@@ -14,11 +13,11 @@
     },
     "production": {
       "nodeEnv": "production",
-      "siteUrl": "https://www.phantasml.com",
-      "apiEndpoint": "https://www.phantasml.com/api",
-      "bucket": "phantasml",
-      "role": "arn:aws:iam::856032110029:role/phantasml_api",
-      "cloudfrontId": "EMZD3XPF3PNDC"
+      "siteUrl": "https://www.nowhere.com",
+      "apiEndpoint": "https://www.nowhere.com/api",
+      "bucket": "...",
+      "role": "...",
+      "cloudfrontId": "..."
     }
   }
 }
