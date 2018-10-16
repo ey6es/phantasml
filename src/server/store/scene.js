@@ -38,6 +38,7 @@ class IdTreeNode extends RefCounted {
   editEntity(
     id: string,
     state: Object,
+    mergeState: boolean = true,
     depth: number = 0,
   ): [IdTreeNode, ?Entity, Entity] {
     throw new Error('Not implemented.');
@@ -91,6 +92,7 @@ class IdTreeLeafNode extends IdTreeNode {
   editEntity(
     id: string,
     state: Object,
+    mergeState: boolean = true,
     depth: number = 0,
   ): [IdTreeNode, ?Entity, Entity] {
     const oldEntity = this._entities.get(id);
@@ -99,7 +101,10 @@ class IdTreeLeafNode extends IdTreeNode {
       return [this.addEntity(newEntity, depth), null, newEntity];
     }
     const newEntities = new Map(this._entities);
-    const newEntity = new Entity(id, mergeEntityEdits(oldEntity.state, state));
+    const newEntity = new Entity(
+      id,
+      mergeState ? mergeEntityEdits(oldEntity.state, state) : state,
+    );
     newEntities.set(id, newEntity);
     return [new IdTreeLeafNode(newEntities), oldEntity, newEntity];
   }
@@ -159,6 +164,7 @@ class IdTreeInternalNode extends IdTreeNode {
   editEntity(
     id: string,
     state: Object,
+    mergeState: boolean = true,
     depth: number = 0,
   ): [IdTreeNode, ?Entity, Entity] {
     let even = this._even;
@@ -166,9 +172,19 @@ class IdTreeInternalNode extends IdTreeNode {
     let oldEntity: ?Entity;
     let newEntity: Entity;
     if (isIdEven(id, depth)) {
-      [even, oldEntity, newEntity] = even.editEntity(id, state, depth + 1);
+      [even, oldEntity, newEntity] = even.editEntity(
+        id,
+        state,
+        mergeState,
+        depth + 1,
+      );
     } else {
-      [odd, oldEntity, newEntity] = odd.editEntity(id, state, depth + 1);
+      [odd, oldEntity, newEntity] = odd.editEntity(
+        id,
+        state,
+        mergeState,
+        depth + 1,
+      );
     }
     return [new IdTreeInternalNode(even, odd), oldEntity, newEntity];
   }
@@ -756,10 +772,10 @@ function removeFromQuadtrees(
 }
 
 function getWorldBounds(lineage: Entity[]): Bounds {
-  return lineage[lineage.length - 1].getDerivedValue(
-    lineage,
+  return lineage[lineage.length - 1].getCachedValue(
     'worldBounds',
     computeWorldBounds,
+    lineage,
   );
 }
 
@@ -778,10 +794,10 @@ function getWorldTransform(lineage: Entity[]): Transform {
   if (lastIndex < 0) {
     return null;
   }
-  return lineage[lastIndex].getDerivedValue(
-    lineage,
+  return lineage[lastIndex].getCachedValue(
     'worldTransform',
     computeWorldTransform,
+    lineage,
   );
 }
 
@@ -793,10 +809,10 @@ function computeWorldTransform(lineage: Entity[]): Transform {
     return localTransform;
   }
   return composeTransforms(
-    lineage[lastIndex - 1].getDerivedValue(
-      lineage.slice(0, lastIndex),
+    lineage[lastIndex - 1].getCachedValue(
       'worldTransform',
       computeWorldTransform,
+      lineage.slice(0, lastIndex),
     ),
     localTransform,
   );
@@ -1062,7 +1078,13 @@ export class Scene extends Resource {
           node &&
             node.applyToEntities(entity => {
               if (map[entity.id] === undefined) {
-                addedEntities.push(entity);
+                [newIdTree, oldEntity, newEntity] = newIdTree.editEntity(
+                  entity.id,
+                  entity.state,
+                  false,
+                );
+                addedEntities.push(newEntity);
+                oldEntity && removedEntities.push(oldEntity);
               }
             });
         }

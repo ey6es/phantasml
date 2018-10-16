@@ -22,7 +22,9 @@ type EntityZOrder = {entity: Entity, zOrder: number};
 const entityZOrders: EntityZOrder[] = [];
 
 const collectZOrdersOp = (entity: Entity) => {
-  entityZOrders.push(entity.getCachedValue('entityZOrder', getEntityZOrder));
+  entityZOrders.push(
+    entity.getCachedValue('entityZOrder', getEntityZOrder, entity),
+  );
 };
 
 function getEntityZOrder(entity: Entity): EntityZOrder {
@@ -146,7 +148,9 @@ class RenderCanvasImpl extends React.Component<
     // render in sorted order
     for (const entityZOrder of entityZOrders) {
       const entity = entityZOrder.entity;
-      entity.getCachedValue('entityRenderer', getEntityRenderer)(renderer);
+      entity.getCachedValue('entityRenderer', getEntityRenderer, entity)(
+        renderer,
+      );
     }
 
     // clear for next time

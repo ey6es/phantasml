@@ -46,17 +46,17 @@ export const ComponentRenderers: {[string]: RendererData} = {
           return new Geometry(...shapeList.createGeometry());
         });
         return (renderer: Renderer) => {
-          const transform: Transform = entity.getLastDerivedValue(
+          const transform: Transform = entity.getLastCachedValue(
             'worldTransform',
           );
           renderShape(renderer, transform, pathColor, fillColor, geometry);
         };
       }
-      const getGeometry = (entity: Entity, exponent: number) => {
+      const getGeometry = (exponent: number) => {
         return new Geometry(...shapeList.createGeometry(2 ** exponent));
       };
       return (renderer: Renderer) => {
-        const transform: Transform = entity.getLastDerivedValue(
+        const transform: Transform = entity.getLastCachedValue(
           'worldTransform',
         );
         const scale = getTransformScale(transform);
@@ -67,7 +67,7 @@ export const ComponentRenderers: {[string]: RendererData} = {
           return;
         }
         const exponent = Math.round(Math.log(tessellation) / Math.LN2);
-        const geometry = entity.getCachedValue(exponent, getGeometry);
+        const geometry = entity.getCachedValue(exponent, getGeometry, exponent);
         renderShape(renderer, transform, pathColor, fillColor, geometry);
       };
     },

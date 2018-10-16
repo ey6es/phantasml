@@ -168,9 +168,6 @@ export class Entity extends RefCounted {
 
   _cachedValues: ?Map<mixed, mixed>;
 
-  _derivedValues: ?Map<string, mixed>;
-  _derivedLineage: ?(Entity[]);
-
   constructor(id: string, state: Object = {}) {
     super();
     this.id = id;
@@ -205,13 +202,24 @@ export class Entity extends RefCounted {
   }
 
   /**
+   * Returns the most recently cached value under the specified key, if any.
+   *
+   * @param key the key of the desired value.
+   * @return the cached value, if present.
+   */
+  getLastCachedValue<K, V>(key: K): ?V {
+    return this._cachedValues && (this._cachedValues.get(key): any);
+  }
+
+  /**
    * Gets a value derived from the entity (only) through the cache.
    *
    * @param key the key of the desired value.
-   * @param fn the function to compute the desired value from the entity and
-   * key.
+   * @param fn the function to compute the desired value.  Any additional
+   * arguments will be passed to this function.
+   * @return the cached value.
    */
-  getCachedValue<K, V>(key: K, fn: (Entity, K) => V): V {
+  getCachedValue<K, A, V>(key: K, fn: (...A[]) => V, ...args: A[]): V {
     let cachedValues = this._cachedValues;
     if (cachedValues) {
       const value = cachedValues.get(key);
@@ -221,46 +229,8 @@ export class Entity extends RefCounted {
     } else {
       cachedValues = this._cachedValues = new Map();
     }
-    const value = fn(this, key);
+    const value = fn(...args);
     cachedValues.set(key, value);
-    return value;
-  }
-
-  /**
-   * Gets the most recently cached derived value, if any.
-   *
-   * @param name the name of the desired value.
-   * @return the cached value.
-   */
-  getLastDerivedValue<T>(name: string): ?T {
-    return this._derivedValues && (this._derivedValues.get(name): any);
-  }
-
-  /**
-   * Gets a value derived from the entity's lineage through the cache.
-   *
-   * @param lineage the entity's current lineage.
-   * @param name the name of the desired value.
-   * @param fn the function to compute the desired value from the lineage.
-   */
-  getDerivedValue<T>(lineage: Entity[], name: string, fn: (Entity[]) => T): T {
-    // clear the cache if the lineage has changed
-    const currentLineage = this._derivedLineage;
-    if (currentLineage && !lineagesEqual(currentLineage, lineage)) {
-      this._derivedValues = null;
-      this._derivedLineage = lineage;
-    }
-    let derivedValues = this._derivedValues;
-    if (derivedValues) {
-      const value = derivedValues.get(name);
-      if (value !== undefined) {
-        return (value: any);
-      }
-    } else {
-      derivedValues = this._derivedValues = new Map();
-    }
-    const value = fn(lineage);
-    derivedValues.set(name, value);
     return value;
   }
 
@@ -291,18 +261,6 @@ export class Entity extends RefCounted {
       this._cachedValues = null;
     }
   }
-}
-
-function lineagesEqual(first: Entity[], second: Entity[]): boolean {
-  if (first.length !== second.length) {
-    return false;
-  }
-  for (let ii = 0; ii < first.length; ii++) {
-    if (first[ii] !== second[ii]) {
-      return false;
-    }
-  }
-  return true;
 }
 
 // the map from resource type to constructor
