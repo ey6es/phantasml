@@ -64,7 +64,7 @@ export function simplifyTransform(
   deleteRedundant: boolean = false,
 ): Transform {
   if (!transform) {
-    return transform;
+    return null;
   }
   const translation = getTransformTranslation(transform);
   const rotation = getTransformRotation(transform);

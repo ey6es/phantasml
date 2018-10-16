@@ -14,6 +14,11 @@ import {GeometryComponents} from './geometry/components';
 import {Menu, MenuItem, Submenu, renderText} from './util/ui';
 import type {Resource, Entity} from '../server/store/resource';
 import {EntityHierarchyNode, Scene, SceneActions} from '../server/store/scene';
+import {
+  invertTransform,
+  composeTransforms,
+  simplifyTransform,
+} from '../server/store/math';
 
 function ShapeMenu(props: {
   createEntity: (React.Element<any>, Object) => void,
@@ -424,9 +429,14 @@ function isDroppable(
 }
 
 function drop(parentId: string, beforeOrder: ?number, afterOrder: ?number) {
+  const state = store.getState();
+  const resource = state.resource;
+  if (!(resource instanceof Scene)) {
+    return;
+  }
   const map = {};
   const parent = {ref: parentId};
-  const selection = store.getState().selection;
+  const selection = state.selection;
   let order: number;
   let orderIncrement: number;
   if (beforeOrder != null && afterOrder != null) {
@@ -441,8 +451,14 @@ function drop(parentId: string, beforeOrder: ?number, afterOrder: ?number) {
   } else {
     throw new Error('Unbounded interval.');
   }
+  const inverseParentTransform = invertTransform(
+    resource.getWorldTransform(parentId),
+  );
   for (const id of selection) {
-    map[id] = {parent, order};
+    const transform = simplifyTransform(
+      composeTransforms(inverseParentTransform, resource.getWorldTransform(id)),
+    );
+    map[id] = {parent, order, transform};
     order += orderIncrement;
   }
   store.dispatch(SceneActions.editEntities.create(map));
