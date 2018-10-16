@@ -43,12 +43,12 @@ export type SbrrnOptions = {
 };
 
 /**
- * Stochastic binary rule reinforcement network.
+ * Base class for stochastic binary rule reinforcement networks.
  *
  * @param options the options for the model.
  * @param [canvas] an existing canvas to use rather than creating a new one.
  */
-export class Sbrrn {
+export class AbstractSbrrn {
   /** The options provided to the constructor. */
   options: SbrrnOptions;
 
@@ -909,6 +909,22 @@ export class Sbrrn {
   }
 }
 
+/**
+ * First iteration of SBRRN model.
+ *
+ * @param options the options for the model.
+ * @param [canvas] an existing canvas to use rather than creating a new one.
+ */
+export class Sbrrn extends AbstractSbrrn {}
+
+/**
+ * Second iteration of SBRRN model.
+ *
+ * @param options the options for the model.
+ * @param [canvas] an existing canvas to use rather than creating a new one.
+ */
+export class Sbrrn2 extends AbstractSbrrn {}
+
 type TextureVisualizerMode = 'connection' | 'probability' | 'history';
 
 /**
@@ -925,12 +941,12 @@ export class TextureVisualizer {
   canvas: HTMLCanvasElement;
 
   _ctx: CanvasRenderingContext2D;
-  _model: Sbrrn;
+  _model: AbstractSbrrn;
   _mode: TextureVisualizerMode;
   _swizzle: boolean;
 
   constructor(
-    model: Sbrrn,
+    model: AbstractSbrrn,
     mode: TextureVisualizerMode,
     swizzle: boolean = false,
     canvas?: ?HTMLCanvasElement,
@@ -1016,7 +1032,7 @@ export class StateVisualizer {
   _backCanvas: HTMLCanvasElement;
   _ctx: CanvasRenderingContext2D;
   _backCtx: CanvasRenderingContext2D;
-  _model: Sbrrn;
+  _model: AbstractSbrrn;
   _locations: Point[];
   _length: number;
   _fillStyle: string;
@@ -1027,7 +1043,7 @@ export class StateVisualizer {
   _averages: {states: number[], sum: number}[] = [];
 
   constructor(
-    model: Sbrrn,
+    model: AbstractSbrrn,
     locations: Point[],
     length: number,
     fillStyle: string = '#FFF',

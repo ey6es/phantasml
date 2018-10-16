@@ -52,7 +52,7 @@ module.exports = function(grunt) {
           files: [
             {
               expand: true,
-              src: 'build/client/exercises/+([0-9])-+([a-z-]).js',
+              src: 'build/client/exercises/+([0-9])-+([a-z0-9-]).js',
               ext: '.bundle.js',
             },
           ],
@@ -314,15 +314,24 @@ module.exports = function(grunt) {
       options: {logConcurrentOutput: true},
       local: ['watch:local', 'exec:localApi', 'open:local'],
     },
-    rsync: {
+    ftps_deploy: {
       exercises: {
         options: {
-          src: 'dist/exercises/',
-          dest: '/usr/share/wordpress/phantasml/exercises',
-          host: 'www.fungibleinsight.com',
-          delete: true,
-          recursive: true,
+          auth: {
+            host: 'ftp.fungibleinsight.com',
+            port: 21,
+            authKey: 'key',
+            secure: true,
+          },
         },
+        files: [
+          {
+            expand: true,
+            cwd: 'dist',
+            src: 'exercises/*',
+            dest: '/',
+          },
+        ],
       },
     },
     documentation: {
@@ -398,7 +407,7 @@ module.exports = function(grunt) {
   ]);
   grunt.registerTask('publish-exercises', 'Publishes the exercises.', [
     'build-exercises',
-    'rsync:exercises',
+    'ftps_deploy:exercises',
   ]);
 
   // builds local distribution and watches for changes

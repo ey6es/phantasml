@@ -2,3 +2,5 @@ node_modules
 build
 dist
 etc/build-config.json
+.ftppass
+
