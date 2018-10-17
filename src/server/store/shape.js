@@ -694,7 +694,7 @@ class CurveTo extends PathCommand {
       throw new Error('Missing previous command.');
     }
     super.updateStats(stats, tessellation, previous, edge);
-    const [a, b, c, d, length, divisions] = this._getSplineParameters(
+    const [a, b, c, d, divisions] = this._getSplineParameters(
       tessellation,
       previous,
     );
@@ -718,15 +718,10 @@ class CurveTo extends PathCommand {
     if (!previous) {
       throw new Error('Missing previous command.');
     }
-    const [a, b, c, d, length, divisions] = this._getSplineParameters(
+    const [a, b, c, d, divisions] = this._getSplineParameters(
       tessellation,
       previous,
     );
-    // get the coefficients of the quartic length function for normalization
-    const aa = 0.5 * dot(a, a);
-    const bb = dot(a, b);
-    const cc = dot(a, c) + 0.5 * dot(b, b);
-    const dd = dot(c, b);
     const parameterIncrement = 1.0 / divisions;
     let parameter = 0.0;
     const point = equals(previous.dest);
@@ -736,18 +731,7 @@ class CurveTo extends PathCommand {
       equals(point, lastPoint);
       const lastParameter = parameter;
       parameter += parameterIncrement;
-      // approximate the normalized spline parameter using Newton's method
-      const ee = -(length * parameter);
-      let t = parameter;
-      const ITERATIONS = 0;
-      for (let jj = 0; jj < ITERATIONS; jj++) {
-        const value = t * (t * (t * (t * aa + bb) + cc) + dd) + ee;
-        const derivative = t * (t * (4 * t * aa + 3 * bb) + 2 * cc) + dd;
-        if (derivative !== 0.0) {
-          t -= value / derivative;
-        }
-      }
-      t = clamp(t, 0.0, 1.0);
+      const t = parameter;
       point.x = t * (t * (t * a.x + b.x) + c.x) + d.x;
       point.y = t * (t * (t * a.y + b.y) + c.y) + d.y;
       [arrayIndex, elementArrayIndex] = this._writeDivision(
@@ -773,7 +757,7 @@ class CurveTo extends PathCommand {
   _getSplineParameters(
     tessellation: number,
     previous: PathCommand,
-  ): [Vector2, Vector2, Vector2, Vector2, number, number] {
+  ): [Vector2, Vector2, Vector2, Vector2, number] {
     const d = previous.dest;
     const c = timesEquals(minus(this.c1, previous.dest), 3);
     const b = timesEquals(
@@ -781,10 +765,24 @@ class CurveTo extends PathCommand {
       3.0,
     );
     const a = minusEquals(minusEquals(minus(this.dest, b), c), d);
-    const length =
-      0.5 * dot(a, a) + 0.5 * dot(b, b) + dot(a, b) + dot(a, c) + dot(c, b);
-    const divisions = 32; // Math.ceil(length * tessellation);
-    return [a, b, c, d, length, divisions];
+    // approx. length using gaussian quadrature
+    // https://pomax.github.io/bezierinfo/#arclength
+    const a3 = times(a, 3.0);
+    const b2 = times(b, 2.0);
+    const fn = (t: number) => {
+      const x = t * (t * a3.x + b2.x) + c.x;
+      const y = t * (t * a3.y + b2.y) + c.y;
+      return Math.sqrt(x * x + y * y);
+    };
+    const approxLength =
+      0.5 *
+      (0.5688888889 * fn(0.5) +
+        0.4786286705 * fn(0.230765345) +
+        0.4786286705 * fn(0.769234655) +
+        0.2369268851 * fn(0.046910077) +
+        0.2369268851 * fn(0.953089923));
+    const divisions = Math.ceil(approxLength * tessellation);
+    return [a, b, c, d, divisions];
   }
 }
 
