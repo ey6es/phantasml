@@ -180,12 +180,13 @@ export const ComponentGeometry: {[string]: GeometryData} = {
     },
     createShapeList: data => {
       const thickness = getValue(data.thickness, DEFAULT_THICKNESS);
-      const span = getValue(data.span, DEFAULT_CURVE_SPAN);
+      const halfSpan = getValue(data.span, DEFAULT_CURVE_SPAN) * 0.5;
       const c1 = getValue(data.c1, DEFAULT_CURVE_C1);
       const c2 = getValue(data.c2, DEFAULT_CURVE_C2);
       const attributes = {thickness};
-      const path = new Path();
-      path.curveTo(vec2(span, 0), c1, c2, 0, {thickness});
+      const path = new Path()
+        .moveTo(vec2(-halfSpan, 0), 0, attributes)
+        .curveTo(vec2(halfSpan, 0), c1, c2, 0, attributes);
       return new ShapeList([], [path]);
     },
   },

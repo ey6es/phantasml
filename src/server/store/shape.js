@@ -739,7 +739,7 @@ class CurveTo extends PathCommand {
       // approximate the normalized spline parameter using Newton's method
       const ee = -(length * parameter);
       let t = parameter;
-      const ITERATIONS = 3;
+      const ITERATIONS = 0;
       for (let jj = 0; jj < ITERATIONS; jj++) {
         const value = t * (t * (t * (t * aa + bb) + cc) + dd) + ee;
         const derivative = t * (t * (4 * t * aa + 3 * bb) + 2 * cc) + dd;
@@ -775,12 +775,15 @@ class CurveTo extends PathCommand {
     previous: PathCommand,
   ): [Vector2, Vector2, Vector2, Vector2, number, number] {
     const d = previous.dest;
-    const c = minus(this.c1, previous.dest);
-    const b = minus(this.c2, previous.dest);
+    const c = timesEquals(minus(this.c1, previous.dest), 3);
+    const b = timesEquals(
+      plusEquals(plusEquals(times(this.c1, -2), previous.dest), this.c2),
+      3.0,
+    );
     const a = minusEquals(minusEquals(minus(this.dest, b), c), d);
     const length =
       0.5 * dot(a, a) + 0.5 * dot(b, b) + dot(a, b) + dot(a, c) + dot(c, b);
-    const divisions = Math.ceil(length * tessellation);
+    const divisions = 32; // Math.ceil(length * tessellation);
     return [a, b, c, d, length, divisions];
   }
 }
