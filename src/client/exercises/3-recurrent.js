@@ -53,7 +53,7 @@ class RecurrentExercise extends React.Component<
     return (
       <div className="top">
         <div className="titled-table">
-          <h4>Training Data</h4>
+          <h5>Training Data</h5>
           <table className="table table-bordered table-condensed truth-table">
             <thead>
               <tr>
@@ -111,7 +111,7 @@ class RecurrentExercise extends React.Component<
           </button>
         </div>
         <div className="titled-table">
-          <h4>Internal Weights</h4>
+          <h5>Internal Weights</h5>
           <table className="table table-bordered table-condensed recurrent-weight-table">
             <thead>
               <tr>
@@ -131,7 +131,7 @@ class RecurrentExercise extends React.Component<
               ))}
             </tbody>
           </table>
-          <h4>Output Weights</h4>
+          <h5>Output Weights</h5>
           <table className="table table-bordered table-condensed weight-table">
             <thead>
               <tr>
@@ -150,7 +150,7 @@ class RecurrentExercise extends React.Component<
           </table>
         </div>
         <div className="titled-table">
-          <h4>Test Results</h4>
+          <h5>Test Results</h5>
           <table className="table table-bordered table-condensed recurrent-results">
             <thead>
               <tr>

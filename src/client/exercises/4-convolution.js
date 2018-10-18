@@ -103,9 +103,9 @@ class ConvolutionExercise extends React.Component<
             ))}
           </select>
           {this.state.prediction === null ? null : (
-            <h4 class="prediction">
+            <h5 class="prediction">
               {`Prediction: ${this.state.prediction ? 'B' : 'A'}`}
-            </h4>
+            </h5>
           )}
         </div>
       </div>
@@ -234,7 +234,7 @@ function PatternEditor(props: {
   setPattern: (newPattern: boolean[]) => void,
 }) {
   return [
-    <h4>{props.title}</h4>,
+    <h5>{props.title}</h5>,
     <div className="pattern">
       {props.pattern.map((value, index) => (
         <div

@@ -102,7 +102,7 @@ function TruthTable(props: {
 }) {
   return (
     <div className="titled-table">
-      <h4>{props.title}</h4>
+      <h5>{props.title}</h5>
       <table className="table table-bordered table-condensed truth-table">
         <thead>
           <tr>
@@ -229,7 +229,7 @@ export class AbstractSbrrnExercise extends React.Component<
     return (
       <div className="top">
         <div className="titled-table">
-          <h4>Controls</h4>
+          <h5>Controls</h5>
           <form className="form-horizontal">
             <div className="form-group">
               <label className="control-label" for="width">
@@ -305,7 +305,7 @@ export class AbstractSbrrnExercise extends React.Component<
           </form>
         </div>
         <div className="titled-table">
-          <h4>Reward Function</h4>
+          <h5>Reward Function</h5>
           <select
             value={this.state.rewardFunction}
             onChange={event =>
@@ -330,14 +330,14 @@ export class AbstractSbrrnExercise extends React.Component<
           </button>
         </div>
         <div className="titled-table">
-          <h4>State Array</h4>
+          <h5>State Array</h5>
           <canvas className="states" ref={this._modelCanvasRef} />
-          <h4 className="visualizer-title">Output</h4>
-          <span>
+          <h5 className="visualizer-title">Output</h5>
+          <span className="pb-3">
             <canvas className="visualizer" ref={this._visualizerCanvasRef} />
             {' ' + this.state.averageOutput.toFixed(2)}
           </span>
-          <h4>Probabilities</h4>
+          <h5>Probabilities</h5>
           <canvas className="states" ref={this._textureCanvasRef} />
         </div>
       </div>

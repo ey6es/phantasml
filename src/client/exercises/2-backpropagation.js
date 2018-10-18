@@ -73,7 +73,7 @@ class BackpropagationExercise extends BinaryExercise {
   _renderTrainingResults(): React.Element<any> {
     return (
       <div className="titled-table">
-        <h4>Internal Weights</h4>
+        <h5>Internal Weights</h5>
         <table className="table table-bordered table-condensed weight-table">
           <thead>
             <tr>
@@ -88,7 +88,7 @@ class BackpropagationExercise extends BinaryExercise {
             ))}
           </tbody>
         </table>
-        <h4>Output Weights</h4>
+        <h5>Output Weights</h5>
         <table className="table table-bordered table-condensed output-weight-table">
           <thead>
             <tr>

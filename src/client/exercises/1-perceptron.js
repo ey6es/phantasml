@@ -37,7 +37,7 @@ class PerceptronExercise extends BinaryExercise {
   _renderTrainingResults(): React.Element<any> {
     return (
       <div className="titled-table">
-        <h4>Input Weights</h4>
+        <h5>Input Weights</h5>
         <table className="table table-bordered table-condensed weight-table">
           <thead>
             <tr>
