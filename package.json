@@ -50,7 +50,7 @@
     "grunt-documentation": "^1.2.3",
     "grunt-env": "^0.4.4",
     "grunt-exec": "^3.0.0",
-    "grunt-ftps-deploy": "^0.1.16",
+    "grunt-ftp-deploy": "^0.2.0",
     "grunt-json-generator": "^0.1.0",
     "grunt-replace": "^1.0.1",
     "husky": "^0.14.3",

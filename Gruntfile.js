@@ -314,24 +314,15 @@ module.exports = function(grunt) {
       options: {logConcurrentOutput: true},
       local: ['watch:local', 'exec:localApi', 'open:local'],
     },
-    ftps_deploy: {
-      exercises: {
-        options: {
-          auth: {
-            host: 'ftp.fungibleinsight.com',
-            port: 21,
-            authKey: 'key',
-            secure: true,
-          },
+    'ftp-deploy': {
+      build: {
+        auth: {
+          host: 'ftp.fungibleinsight.com',
+          port: 21,
+          authKey: 'key',
         },
-        files: [
-          {
-            expand: true,
-            cwd: 'dist',
-            src: 'exercises/*',
-            dest: '/',
-          },
-        ],
+        src: 'dist/exercises',
+        dest: '/public_html/static/exercises',
       },
     },
     documentation: {
@@ -407,7 +398,7 @@ module.exports = function(grunt) {
   ]);
   grunt.registerTask('publish-exercises', 'Publishes the exercises.', [
     'build-exercises',
-    'ftps_deploy:exercises',
+    'ftp-deploy',
   ]);
 
   // builds local distribution and watches for changes
