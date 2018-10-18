@@ -156,11 +156,16 @@ export const ComponentGeometry: {[string]: GeometryData} = {
       const startAngle = getValue(data.startAngle, DEFAULT_ARC_START_ANGLE);
       const endAngle = getValue(data.endAngle, DEFAULT_ARC_END_ANGLE);
       const fill = getValue(data.fill, DEFAULT_ARC_FILL);
-      return new ShapeList()
-        .move(radius, 0, 90)
+      const shapeList = new ShapeList()
+        .move(radius, 0, 90, {thickness})
         .arc(startAngle, radius)
+        .pushState()
         .penDown(fill)
-        .arc(endAngle - startAngle, radius, {thickness});
+        .arc(endAngle - startAngle, radius);
+      if (fill && Math.abs(endAngle - startAngle) < 2 * Math.PI) {
+        shapeList.move(0, 0).popState();
+      }
+      return shapeList;
     },
   },
   curve: {

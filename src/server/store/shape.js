@@ -960,6 +960,13 @@ export class Shape {
   }
 }
 
+type StackEntry = {
+  position: Vector2,
+  rotation: number,
+  zOrder: number,
+  attributes: VertexAttributes,
+};
+
 /**
  * A general collection of shapes and paths with Logo-like builder tools.
  *
@@ -976,6 +983,8 @@ export class ShapeList {
   attributes: VertexAttributes = {};
 
   _drawingPath: ?Path;
+
+  _stack: StackEntry[] = [];
 
   constructor(shapes: Shape[] = [], paths: Path[] = []) {
     this.shapes = shapes;
@@ -1104,6 +1113,38 @@ export class ShapeList {
         this.zOrder,
         Object.assign({}, this.attributes),
       );
+    }
+    return this;
+  }
+
+  /**
+   * Pushes the current position, rotation, etc., onto the stack.
+   *
+   * @return a reference to the list, for chaining.
+   */
+  pushState(): ShapeList {
+    this._stack.push({
+      position: equals(this.position),
+      rotation: this.rotation,
+      zOrder: this.zOrder,
+      attributes: Object.assign({}, this.attributes),
+    });
+    return this;
+  }
+
+  /**
+   * Pops the current position, rotation, etc., from the stack.
+   *
+   * @return a reference to the list, for chaining.
+   */
+  popState(): ShapeList {
+    const entry = this._stack.pop();
+    equals(entry.position, this.position);
+    this.rotation = entry.rotation;
+    this.zOrder = entry.zOrder;
+    Object.assign(this.attributes, entry.attributes);
+    if (this._drawingPath) {
+      this._drawingPath.lineTo(entry.position, this.zOrder, entry.attributes);
     }
     return this;
   }
