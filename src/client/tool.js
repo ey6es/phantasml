@@ -51,6 +51,7 @@ import {
   renderRotationHandle,
   renderScaleHandle,
 } from './renderer/helpers';
+import {Shortcut} from './util/ui';
 import type {Resource} from '../server/store/resource';
 import {Scene, SceneActions} from '../server/store/scene';
 import type {Vector2, LineSegment, Transform} from '../server/store/math';
@@ -106,6 +107,7 @@ class ToolsetImpl extends React.Component<
     resource: ?Resource,
     selection: Set<string>,
     tool: ToolType,
+    tempTool: ?ToolType,
     renderer: ?Renderer,
   },
   {options: ?React.Element<any>},
@@ -170,6 +172,7 @@ export const Toolset = ReactRedux.connect(state => ({
   resource: state.resource,
   selection: state.selection,
   tool: state.tool,
+  tempTool: state.tempTool,
 }))(ToolsetImpl);
 
 function PlayControl(props: {icon: string, disabled?: boolean}) {
@@ -182,6 +185,7 @@ function PlayControl(props: {icon: string, disabled?: boolean}) {
 
 type ToolProps = {
   activeTool: ToolType,
+  tempTool: ?ToolType,
   resource: ?Resource,
   selection: Set<string>,
   renderer: ?Renderer,
@@ -194,10 +198,22 @@ class Tool extends React.Component<ToolProps, Object> {
   _type: ToolType;
   _icon: string;
   _name: React.Element<any>;
+  _tempActivateShortcut: Shortcut;
+  _activateShortcut: Shortcut;
   _options: {[string]: PropertyData};
 
   /** Checks whether the tool is active. */
   get active(): boolean {
+    return this.tempActive || (!this.props.tempTool && this.permActive);
+  }
+
+  /** Checks whether the tool is temporarily active. */
+  get tempActive(): boolean {
+    return this.props.tempTool === this._type;
+  }
+
+  /** Checks whether the tool is "permanently" active. */
+  get permActive(): boolean {
     return this.props.activeTool === this._type;
   }
 
@@ -205,6 +221,7 @@ class Tool extends React.Component<ToolProps, Object> {
     type: ToolType,
     icon: string,
     name: React.Element<any>,
+    charOrCode: string | number,
     options: {[string]: PropertyData},
     ...args: any[]
   ) {
@@ -212,6 +229,8 @@ class Tool extends React.Component<ToolProps, Object> {
     this._type = type;
     this._icon = icon;
     this._name = name;
+    this._tempActivateShortcut = new Shortcut(charOrCode);
+    this._activateShortcut = new Shortcut(charOrCode, Shortcut.SHIFT);
     this._options = options;
   }
 
@@ -221,18 +240,30 @@ class Tool extends React.Component<ToolProps, Object> {
         key="button"
         id={this._type}
         color="primary"
-        active={this.active}
-        onClick={() => store.dispatch(StoreActions.setTool.create(this._type))}>
+        active={this.permActive}
+        className={this.tempActive ? 'temp-active' : undefined}
+        onClick={this._activate}>
         <FontAwesomeIcon icon={this._icon} />
       </Button>,
       <UncontrolledTooltip
         key="tooltip"
         delay={{show: 750, hide: 0}}
         target={this._type}>
-        {this._name}
+        <FormattedMessage
+          id="tool.tip"
+          defaultMessage="{name} ({shortcut})"
+          values={{
+            name: this._name,
+            shortcut: this._tempActivateShortcut.render(),
+          }}
+        />
       </UncontrolledTooltip>,
     ];
   }
+
+  _activate = () => {
+    store.dispatch(StoreActions.setTool.create(this._type));
+  };
 
   componentDidMount() {
     this.props.renderer && this._subscribeToRenderer(this.props.renderer);
@@ -248,7 +279,9 @@ class Tool extends React.Component<ToolProps, Object> {
       prevProps.renderer && this._unsubscribeFromRenderer(prevProps.renderer);
       renderer && this._subscribeToRenderer(renderer);
     } else if (renderer) {
-      const wasActive = prevProps.activeTool === this._type;
+      const wasActive =
+        prevProps.tempTool === this._type ||
+        (!prevProps.tempTool && prevProps.activeTool === this._type);
       if (wasActive !== this.active) {
         wasActive ? this._onDeactivate(renderer) : this._onActivate(renderer);
       }
@@ -274,6 +307,8 @@ class Tool extends React.Component<ToolProps, Object> {
     renderer.canvas.addEventListener('mousedown', this._onMouseDown);
     document.addEventListener('mouseup', this._onMouseUp);
     document.addEventListener('mousemove', this._onMouseMove);
+    document.addEventListener('keydown', this._onKeyDown);
+    document.addEventListener('keyup', this._onKeyUp);
     renderer.canvas.addEventListener('wheel', this._onWheel);
     this.active && this._onActivate(renderer);
   }
@@ -283,6 +318,8 @@ class Tool extends React.Component<ToolProps, Object> {
     renderer.canvas.removeEventListener('mousedown', this._onMouseDown);
     document.removeEventListener('mouseup', this._onMouseUp);
     document.removeEventListener('mousemove', this._onMouseMove);
+    document.removeEventListener('keydown', this._onKeyDown);
+    document.removeEventListener('keyup', this._onKeyUp);
     renderer.canvas.removeEventListener('wheel', this._onWheel);
     this.active && this._onDeactivate(renderer);
   }
@@ -357,6 +394,23 @@ class Tool extends React.Component<ToolProps, Object> {
     // nothing by default
   };
 
+  _onKeyDown = (event: KeyboardEvent) => {
+    if (this._activateShortcut.matches(event)) {
+      this._activate();
+    } else if (this._tempActivateShortcut.matches(event)) {
+      store.dispatch(StoreActions.setTempTool.create(this._type));
+    }
+  };
+
+  _onKeyUp = (event: KeyboardEvent) => {
+    if (
+      this.props.tempTool === this._type &&
+      this._tempActivateShortcut.matches(event)
+    ) {
+      store.dispatch(StoreActions.setTempTool.create(null));
+    }
+  };
+
   _onWheel = (event: WheelEvent) => {
     // nothing by default
   };
@@ -380,6 +434,7 @@ class SelectPanTool extends Tool {
       'selectPan',
       'mouse-pointer',
       <FormattedMessage id="tool.select_pan" defaultMessage="Select/Pan" />,
+      'Q',
       {
         gridSnap: {type: 'boolean', label: <GridSnapLabel />},
         featureSnap: {type: 'boolean', label: <FeatureSnapLabel />},
@@ -389,10 +444,11 @@ class SelectPanTool extends Tool {
   }
 
   _renderHelpers = (renderer: Renderer) => {
+    const activeTool = this.props.tempTool || this.props.activeTool;
     if (
-      this.props.activeTool === 'translate' ||
-      this.props.activeTool === 'rotate' ||
-      this.props.activeTool === 'scale'
+      activeTool === 'translate' ||
+      activeTool === 'rotate' ||
+      activeTool === 'scale'
     ) {
       return; // transform tools have their own axes
     }
@@ -460,6 +516,7 @@ class RectSelectTool extends Tool {
       'rectSelect',
       'expand',
       <FormattedMessage id="tool.rect_select" defaultMessage="Rect Select" />,
+      'W',
       {
         gridSnap: {type: 'boolean', label: <GridSnapLabel />},
       },
@@ -505,35 +562,6 @@ class RectSelectTool extends Tool {
     this._rect = Object.assign({}, this._rect, {end: position});
     renderer.requestFrameRender();
   };
-}
-
-class ContiguousSelectTool extends Tool {
-  constructor(...args: any[]) {
-    super(
-      'contiguousSelect',
-      'magic',
-      <FormattedMessage
-        id="tool.contiguous_select"
-        defaultMessage="Contiguous Select"
-      />,
-      {
-        radius: {
-          type: 'number',
-          label: (
-            <FormattedMessage
-              id="tool.contiguous_select.radius"
-              defaultMessage="Radius:"
-            />
-          ),
-          defaultValue: 1.0,
-          step: 0.01,
-          wheelStep: 0.1,
-          min: 0.0,
-        },
-      },
-      ...args,
-    );
-  }
 }
 
 class HandleTool extends Tool {
@@ -686,6 +714,7 @@ class TranslateTool extends HandleTool {
       'translate',
       'arrows-alt',
       <FormattedMessage id="tool.translate" defaultMessage="Translate" />,
+      'E',
       {
         gridSnap: {type: 'boolean', label: <GridSnapLabel />},
         local: {type: 'boolean', label: <LocalAxesLabel />},
@@ -737,6 +766,7 @@ class RotateTool extends HandleTool {
       'rotate',
       'sync-alt',
       <FormattedMessage id="tool.rotate" defaultMessage="Rotate" />,
+      'R',
       {
         snap: {
           type: 'boolean',
@@ -807,6 +837,7 @@ class ScaleTool extends HandleTool {
       'scale',
       'compress',
       <FormattedMessage id="tool.scale" defaultMessage="Scale" />,
+      'T',
       {
         snap: {
           type: 'boolean',
@@ -881,12 +912,43 @@ class ScaleTool extends HandleTool {
   }
 }
 
+class ContiguousSelectTool extends Tool {
+  constructor(...args: any[]) {
+    super(
+      'contiguousSelect',
+      'magic',
+      <FormattedMessage
+        id="tool.contiguous_select"
+        defaultMessage="Contiguous Select"
+      />,
+      'A',
+      {
+        radius: {
+          type: 'number',
+          label: (
+            <FormattedMessage
+              id="tool.contiguous_select.radius"
+              defaultMessage="Radius:"
+            />
+          ),
+          defaultValue: 1.0,
+          step: 0.01,
+          wheelStep: 0.1,
+          min: 0.0,
+        },
+      },
+      ...args,
+    );
+  }
+}
+
 class EraseTool extends Tool {
   constructor(...args: any[]) {
     super(
       'erase',
       'eraser',
       <FormattedMessage id="tool.erase" defaultMessage="Erase" />,
+      'S',
       {
         gridSnap: {type: 'boolean', label: <GridSnapLabel />},
       },
@@ -901,6 +963,7 @@ class PointTool extends Tool {
       'point',
       'dot-circle',
       <FormattedMessage id="tool.point" defaultMessage="Point" />,
+      'D',
       {
         gridSnap: {type: 'boolean', label: <GridSnapLabel />},
         featureSnap: {type: 'boolean', label: <FeatureSnapLabel />},
@@ -916,6 +979,7 @@ class LineTool extends Tool {
       'line',
       'pencil-alt',
       <FormattedMessage id="tool.line" defaultMessage="Line" />,
+      'F',
       {
         gridSnap: {type: 'boolean', label: <GridSnapLabel />},
         featureSnap: {type: 'boolean', label: <FeatureSnapLabel />},
@@ -931,6 +995,7 @@ class LineGroupTool extends Tool {
       'lineGroup',
       'project-diagram',
       <FormattedMessage id="tool.line_group" defaultMessage="Line Group" />,
+      'G',
       {
         gridSnap: {type: 'boolean', label: <GridSnapLabel />},
         featureSnap: {type: 'boolean', label: <FeatureSnapLabel />},
@@ -946,6 +1011,7 @@ class PolygonTool extends Tool {
       'polygon',
       'draw-polygon',
       <FormattedMessage id="tool.polygon" defaultMessage="Polygon" />,
+      'Z',
       {
         gridSnap: {type: 'boolean', label: <GridSnapLabel />},
         featureSnap: {type: 'boolean', label: <FeatureSnapLabel />},
@@ -961,6 +1027,7 @@ class RectangleTool extends Tool {
       'rectangle',
       'vector-square',
       <FormattedMessage id="tool.rectangle" defaultMessage="Rectangle" />,
+      'X',
       {
         gridSnap: {type: 'boolean', label: <GridSnapLabel />},
         featureSnap: {type: 'boolean', label: <FeatureSnapLabel />},
@@ -976,6 +1043,7 @@ class ArcTool extends Tool {
       'arc',
       'circle-notch',
       <FormattedMessage id="tool.arc" defaultMessage="Arc" />,
+      'C',
       {
         gridSnap: {type: 'boolean', label: <GridSnapLabel />},
         featureSnap: {type: 'boolean', label: <FeatureSnapLabel />},
@@ -991,6 +1059,7 @@ class CurveTool extends Tool {
       'curve',
       'bezier-curve',
       <FormattedMessage id="tool.curve" defaultMessage="Bezier Curve" />,
+      'V',
       {
         gridSnap: {type: 'boolean', label: <GridSnapLabel />},
         featureSnap: {type: 'boolean', label: <FeatureSnapLabel />},
@@ -1006,6 +1075,7 @@ class StampTool extends Tool {
       'stamp',
       'stamp',
       <FormattedMessage id="tool.stamp" defaultMessage="Clone Stamp" />,
+      'B',
       {
         gridSnap: {type: 'boolean', label: <GridSnapLabel />},
         featureSnap: {type: 'boolean', label: <FeatureSnapLabel />},

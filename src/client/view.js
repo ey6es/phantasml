@@ -83,20 +83,20 @@ export class ViewDropdown extends React.Component<{}, {}> {
             }>
             <FormattedMessage id="view.zoom.1_4" defaultMessage="1:4" />
           </MenuItem>
-          <PanShortcutHandler char="W" dx={0.0} dy={1.0} />
-          <PanShortcutHandler char="A" dx={-1.0} dy={0.0} />
-          <PanShortcutHandler char="S" dx={0.0} dy={-1.0} />
-          <PanShortcutHandler char="D" dx={1.0} dy={0.0} />
+          <PanShortcutHandler keyCode={38} dx={0.0} dy={1.0} />
+          <PanShortcutHandler keyCode={37} dx={-1.0} dy={0.0} />
+          <PanShortcutHandler keyCode={40} dx={0.0} dy={-1.0} />
+          <PanShortcutHandler keyCode={39} dx={1.0} dy={0.0} />
         </Submenu>
       </Menu>
     );
   }
 }
 
-function PanShortcutHandler(props: {char: string, dx: number, dy: number}) {
+function PanShortcutHandler(props: {keyCode: number, dx: number, dy: number}) {
   return (
     <FrameShortcutHandler
-      shortcut={new Shortcut(props.char)}
+      shortcut={new Shortcut(props.keyCode)}
       onFrame={elapsed => {
         const state = store.getState();
         const pageState = state.pageStates.get(state.page) || {};

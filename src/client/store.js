@@ -65,6 +65,7 @@ type StoreState = {
   pageStates: Map<string, PageState>,
   draggingPage: ?string,
   tool: ToolType,
+  tempTool: ?ToolType,
   expanded: Set<string>,
   selection: Set<string>,
   draggingSelection: boolean,
@@ -84,6 +85,7 @@ const initialState = {
   pageStates: new Map(),
   draggingPage: null,
   tool: 'selectPan',
+  tempTool: null,
   expanded: new Set(),
   selection: new Set(),
   draggingSelection: false,
@@ -449,6 +451,12 @@ export const StoreActions = {
     create: (tool: ToolType) => ({type: 'setTool', tool}),
     reduce: (state: StoreState, action: StoreAction) => {
       return Object.assign({}, state, {tool: action.tool});
+    },
+  },
+  setTempTool: {
+    create: (tool: ?ToolType) => ({type: 'setTempTool', tool}),
+    reduce: (state: StoreState, action: StoreAction) => {
+      return Object.assign({}, state, {tempTool: action.tool});
     },
   },
   setResource: {
