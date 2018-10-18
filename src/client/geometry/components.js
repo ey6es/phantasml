@@ -48,6 +48,10 @@ const ThicknessProperty = {
   },
 };
 
+const VerticesLabel = (
+  <FormattedMessage id="geometry.vertices" defaultMessage="Vertices:" />
+);
+
 const FillLabel = (
   <FormattedMessage id="geometry.fill" defaultMessage="Fill:" />
 );
@@ -82,6 +86,12 @@ export const GeometryComponents: {[string]: ComponentData} = {
     ),
     properties: {
       ...ThicknessProperty,
+      vertices: {
+        type: 'array',
+        elements: {type: 'vector'},
+        label: VerticesLabel,
+        defaultValue: DEFAULT_LINE_GROUP_VERTICES,
+      },
       loop: {
         type: 'boolean',
         label: <FormattedMessage id="line_group.loop" defaultMessage="Loop:" />,
@@ -94,6 +104,12 @@ export const GeometryComponents: {[string]: ComponentData} = {
     label: <FormattedMessage id="polygon.title" defaultMessage="Polygon" />,
     properties: {
       ...ThicknessProperty,
+      vertices: {
+        type: 'array',
+        elements: {type: 'vector'},
+        label: VerticesLabel,
+        defaultValue: DEFAULT_POLYGON_VERTICES,
+      },
       fill: {
         type: 'boolean',
         label: FillLabel,

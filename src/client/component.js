@@ -19,6 +19,9 @@ import {
   Card,
   CardHeader,
   CardBody,
+  Container,
+  Row,
+  Col,
   Button,
   Dropdown,
   DropdownToggle,
@@ -526,7 +529,10 @@ const PropertyEditors = {
           type="checkbox"
           className={props.rightAlign ? 'text-right' : undefined}
           cssModule={{'custom-control-label': 'custom-control-label mb-2'}}
-          checked={getValue(props.value, props.property.defaultValue || false)}
+          checked={getValue(
+            props.value,
+            props.property.defaultValue || DefaultValues.boolean,
+          )}
           onChange={event => props.setValue(event.target.checked)}
         />
       </div>
@@ -547,7 +553,7 @@ const PropertyEditors = {
           id={props.id}
           initialValue={getValue(
             props.value,
-            props.property.defaultValue || 0.0,
+            props.property.defaultValue || DefaultValues.number,
           )}
           setValue={value => props.setValue(value)}
           step={props.property.step}
@@ -574,7 +580,7 @@ const PropertyEditors = {
         <ColorField
           id={props.id}
           initialValue={props.value}
-          defaultValue={props.property.defaultValue || '#000000'}
+          defaultValue={props.property.defaultValue || DefaultValues.color}
           setValue={props.setValue}
         />
       </div>
@@ -594,7 +600,10 @@ const PropertyEditors = {
         <NumberField
           id={props.id}
           initialValue={degrees(
-            getValue(props.value, props.property.defaultValue || 0.0),
+            getValue(
+              props.value,
+              props.property.defaultValue || DefaultValues.angle,
+            ),
           )}
           setValue={value => props.setValue(radians(value))}
           precision={2}
@@ -614,8 +623,8 @@ const PropertyEditors = {
     value: ?Object,
     setValue: Object => void,
   }) => {
-    const vector = props.value ||
-      props.property.defaultValue || {x: 0.0, y: 0.0};
+    const vector =
+      props.value || props.property.defaultValue || DefaultValues.vector;
     const halfSm = props.sm / 2;
     return [
       <VectorComponent
@@ -634,6 +643,76 @@ const PropertyEditors = {
       />,
     ];
   },
+  array: (props: {
+    id: string,
+    property: PropertyData,
+    sm: number,
+    classSuffix: string,
+    rightAlign: ?boolean,
+    value: ?Array<any>,
+    setValue: (Array<any>) => void,
+  }) => {
+    const elementProperty = props.property.elements;
+    const PropertyEditor = PropertyEditors[elementProperty.type];
+    const array =
+      props.value || props.property.defaultValue || DefaultValues.array;
+    return (
+      <Container className={`col-sm-${props.sm}${props.classSuffix}`}>
+        {array.map((value, index) => (
+          <Row key={index} className="mb-1">
+            <PropertyEditor
+              property={elementProperty}
+              sm={12}
+              classSuffix={props.classSuffix}
+              rightAlign={props.rightAlign}
+              value={value}
+              setValue={value => {
+                const newArray = array.slice();
+                newArray[index] = value;
+                props.setValue(newArray);
+              }}
+            />
+          </Row>
+        ))}
+        <Row>
+          <Col sm={6} className="pr-1">
+            <Button
+              className="w-100"
+              onClick={() => {
+                const newArray = array.slice();
+                newArray.push(
+                  elementProperty.defaultValue == null
+                    ? DefaultValues[elementProperty.type]
+                    : elementProperty.defaultValue,
+                );
+                props.setValue(newArray);
+              }}>
+              <FormattedMessage id="array.add" defaultMessage="Add" />
+            </Button>
+          </Col>
+          <Col sm={6} className="pl-0">
+            <Button
+              className="w-100"
+              disabled={array.length === 0}
+              onClick={() => {
+                props.setValue(array.slice(0, array.length - 1));
+              }}>
+              <FormattedMessage id="array.remove" defaultMessage="Remove" />
+            </Button>
+          </Col>
+        </Row>
+      </Container>
+    );
+  },
+};
+
+const DefaultValues = {
+  boolean: false,
+  number: 0,
+  color: '#000000',
+  angle: 0,
+  vector: vec2(),
+  array: [],
 };
 
 function VectorComponent(props: {

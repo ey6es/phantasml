@@ -1200,6 +1200,8 @@ function reverseEdit(state: Object, edit: Object): Object {
       reversed[key] =
         typeof oldValue === 'object' &&
         typeof newValue === 'object' &&
+        !Array.isArray(oldValue) &&
+        !Array.isArray(newValue) &&
         newValue !== null
           ? reverseEdit(oldValue, newValue)
           : oldValue;
@@ -1232,7 +1234,9 @@ function mergeEntityEdits(first: Object, second: Object): Object {
     } else if (
       typeof firstValue === 'object' &&
       firstValue !== null &&
-      typeof secondValue === 'object'
+      typeof secondValue === 'object' &&
+      !Array.isArray(firstValue) &&
+      !Array.isArray(secondValue)
     ) {
       // values are mergeable; merge recursively
       merged[key] = mergeEntityEdits(firstValue, secondValue);

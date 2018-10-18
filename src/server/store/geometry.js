@@ -17,9 +17,17 @@ type GeometryData = {
 
 export const DEFAULT_THICKNESS = 0.2;
 export const DEFAULT_LINE_LENGTH = 5;
-export const DEFAULT_LINE_GROUP_VERTICES = [vec2(5, 0), vec2(0, 2.5)];
+export const DEFAULT_LINE_GROUP_VERTICES = [
+  vec2(-2.5, -1.5),
+  vec2(2.5, -1.5),
+  vec2(0, 3),
+];
 export const DEFAULT_LINE_GROUP_LOOP = false;
-export const DEFAULT_POLYGON_VERTICES = [vec2(5, 0), vec2(0, 2.5)];
+export const DEFAULT_POLYGON_VERTICES = [
+  vec2(-2.5, -1.5),
+  vec2(2.5, -1.5),
+  vec2(0, 3),
+];
 export const DEFAULT_POLYGON_FILL = false;
 export const DEFAULT_RECTANGLE_WIDTH = 5;
 export const DEFAULT_RECTANGLE_HEIGHT = 5;
@@ -82,6 +90,7 @@ export const ComponentGeometry: {[string]: GeometryData} = {
       for (let ii = 1; ii < vertices.length; ii++) {
         path.lineTo(vertices[ii], 0, attributes);
       }
+      loop && path.lineTo(vertices[0], 0, attributes);
       return new ShapeList([], [path]);
     },
   },
@@ -107,6 +116,7 @@ export const ComponentGeometry: {[string]: GeometryData} = {
       for (let ii = 1; ii < vertices.length; ii++) {
         path.lineTo(vertices[ii], 0, attributes);
       }
+      path.lineTo(vertices[0], 0, attributes);
       return fill
         ? new ShapeList([new Shape(path)])
         : new ShapeList([], [path]);
