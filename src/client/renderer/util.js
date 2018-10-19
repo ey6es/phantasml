@@ -163,18 +163,21 @@ export class Program {
    *
    * @param name the name of the uniform to set.
    * @param key the value key.
-   * @param content the value or value generator.
+   * @param [content] the value or value generator.  If omitted, use the key.
    */
   setUniformMatrix<T>(
     name: string,
     key: T,
-    content: ValueArray | (T => ValueArray),
+    content?: ValueArray | (T => ValueArray),
   ) {
     if (key === undefined) {
       key = (null: any); // can't use undefined as key
     }
     if (this._uniformValues.get(name) !== key) {
       this.bind();
+      if (!content) {
+        content = (key: any);
+      }
       const value = typeof content === 'function' ? content(key) : content;
       switch (value.length) {
         case 4:
@@ -335,7 +338,7 @@ export class Renderer {
   vertexShaders: Map<mixed, WebGLShader> = new Map();
   fragmentShaders: Map<mixed, WebGLShader> = new Map();
   programs: Map<mixed, Program> = new Map();
-  levelOfDetail = 1.0 / 16.0;
+  levelOfDetail = 1.0 / 8.0;
 
   _renderCallbacks: ((Renderer) => void)[] = [];
   _frameDirty = false;

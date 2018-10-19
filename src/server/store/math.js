@@ -11,6 +11,7 @@ export type Transform = ?{
   rotation?: ?number,
   scale?: ?Vector2 | {x?: number, y?: number},
   _matrix?: ?(number[]),
+  _vectorMatrix?: ?(number[]),
 };
 
 /**
@@ -71,8 +72,10 @@ export function simplifyTransform(
   const scale = getTransformScale(transform);
   if (deleteRedundant) {
     delete transform._matrix;
+    delete transform._vectorMatrix;
   } else {
     transform._matrix = null;
+    transform._vectorMatrix = null;
   }
   let redundantCount = 0;
   if (translation.x === 0.0 && translation.y === 0.0) {
@@ -185,6 +188,47 @@ export function getTransformMatrix(transform: Transform): number[] {
   return transform._matrix;
 }
 
+// prettier-ignore
+const IDENTITY_VECTOR_MATRIX = [
+  1, 0,
+  0, 1,
+];
+
+/**
+ * Retrieves the vector matrix corresponding to the provided transform.  The
+ * (2x2) vector matrix contains only the rotation and uniform scale components.
+ *
+ * @param transform the transform of interest.
+ * @return the vector matrix.
+ */
+export function getTransformVectorMatrix(transform: Transform): number[] {
+  if (!transform) {
+    return IDENTITY_VECTOR_MATRIX;
+  }
+  if (!transform._vectorMatrix) {
+    const scale = getTransformScale(transform);
+    let sx = Math.abs(scale.x);
+    let sy = Math.abs(scale.y);
+    if (sx > sy) {
+      sy = scale.y < 0 ? -sx : sx;
+      sx = scale.x;
+    } else {
+      sx = scale.x < 0 ? -sy : sy;
+      sy = scale.y;
+    }
+    const rotation = getTransformRotation(transform);
+    const cr = Math.cos(rotation);
+    const sr = Math.sin(rotation);
+
+    // prettier-ignore
+    transform._vectorMatrix = [
+      cr * sx, sr * sx,
+      -sr * sy, cr * sy,
+    ];
+  }
+  return transform._vectorMatrix;
+}
+
 const ZERO_VECTOR = {x: 0.0, y: 0.0};
 
 /**
@@ -232,6 +276,17 @@ export function getTransformRotation(transform: Transform): number {
     }
   }
   return rotation;
+}
+
+/**
+ * Returns the maximum scale magnitude of a given transform.
+ *
+ * @param transform the transform of interest.
+ * @return the maximum scale magnitude.
+ */
+export function getTransformMaxScaleMagnitude(transform: Transform): number {
+  const scale = getTransformScale(transform);
+  return Math.max(Math.abs(scale.x), Math.abs(scale.y));
 }
 
 const ONE_VECTOR = {x: 1.0, y: 1.0};
