@@ -16,7 +16,7 @@ import {getTransformMatrix, getTransformScale} from '../../server/store/math';
 
 type RendererData = {
   getZOrder: Object => number,
-  createRenderFn: (Object, Entity) => Renderer => void,
+  createRenderFn: (Object, Entity) => (Renderer, boolean) => void,
 };
 
 export const ComponentRenderers: {[string]: RendererData} = {
@@ -45,17 +45,24 @@ export const ComponentRenderers: {[string]: RendererData} = {
         const geometry = entity.getCachedValue('geometry', () => {
           return new Geometry(...shapeList.createGeometry());
         });
-        return (renderer: Renderer) => {
+        return (renderer: Renderer, selected: boolean) => {
           const transform: Transform = entity.getLastCachedValue(
             'worldTransform',
           );
-          renderShape(renderer, transform, pathColor, fillColor, geometry);
+          renderShape(
+            renderer,
+            transform,
+            pathColor,
+            fillColor,
+            geometry,
+            selected,
+          );
         };
       }
       const getGeometry = (exponent: number) => {
         return new Geometry(...shapeList.createGeometry(2 ** exponent));
       };
-      return (renderer: Renderer) => {
+      return (renderer: Renderer, selected: boolean) => {
         const transform: Transform = entity.getLastCachedValue(
           'worldTransform',
         );
@@ -68,11 +75,20 @@ export const ComponentRenderers: {[string]: RendererData} = {
         }
         const exponent = Math.round(Math.log(tessellation) / Math.LN2);
         const geometry = entity.getCachedValue(exponent, getGeometry, exponent);
-        renderShape(renderer, transform, pathColor, fillColor, geometry);
+        renderShape(
+          renderer,
+          transform,
+          pathColor,
+          fillColor,
+          geometry,
+          selected,
+        );
       };
     },
   },
 };
+
+const selectedKey = {};
 
 function renderShape(
   renderer: Renderer,
@@ -80,12 +96,19 @@ function renderShape(
   pathColor: string,
   fillColor: string,
   geometry: Geometry,
+  selected: boolean,
 ) {
-  const program = renderer.getProgram(
-    renderShape,
-    renderer.getVertexShader(renderShape, SHAPE_VERTEX_SHADER),
-    renderer.getFragmentShader(renderShape, SHAPE_FRAGMENT_SHADER),
-  );
+  const program = selected
+    ? renderer.getProgram(
+        selectedKey,
+        renderer.getVertexShader(selectedKey, SELECTED_SHAPE_VERTEX_SHADER),
+        renderer.getFragmentShader(selectedKey, SELECTED_SHAPE_FRAGMENT_SHADER),
+      )
+    : renderer.getProgram(
+        renderShape,
+        renderer.getVertexShader(renderShape, SHAPE_VERTEX_SHADER),
+        renderer.getFragmentShader(renderShape, SHAPE_FRAGMENT_SHADER),
+      );
   program.setUniformViewProjectionMatrix('viewProjectionMatrix');
   program.setUniformMatrix('modelMatrix', transform, getTransformMatrix);
   program.setUniformFloat('pixelsToWorldUnits', renderer.pixelsToWorldUnits);
@@ -131,5 +154,53 @@ const SHAPE_FRAGMENT_SHADER = `
     float joint = smoothstep(0.0, stepSize, interpolatedJoint);
     float alpha = mix(2.0 * inside - inside * inside, inside, joint);
     gl_FragColor = vec4(mix(fillColor, pathColor, filled), alpha);
+  }
+`;
+
+const SELECTED_SHAPE_VERTEX_SHADER = `
+  uniform mat3 modelMatrix;
+  uniform mat3 viewProjectionMatrix;
+  uniform float pixelsToWorldUnits;
+  attribute vec2 vertex;
+  attribute vec2 vector;
+  attribute float joint;
+  attribute float thickness;
+  varying vec2 interpolatedVector;
+  varying float interpolatedJoint;
+  varying float stepSize;
+  varying float outline;
+  void main(void) {
+    interpolatedVector = vector;
+    interpolatedJoint = joint;
+    float expandedThickness = thickness + 0.1;
+    stepSize = pixelsToWorldUnits / expandedThickness;
+    outline = 1.0 - 0.1 / expandedThickness;
+    vec2 point = vertex + vector * expandedThickness;
+    vec3 position = viewProjectionMatrix * (modelMatrix * vec3(point, 1.0));
+    gl_Position = vec4(position.xy, 0.0, 1.0);
+  }
+`;
+
+const SELECTED_SHAPE_FRAGMENT_SHADER = `
+  precision mediump float;
+  uniform vec3 pathColor;
+  uniform vec3 fillColor;
+  varying vec2 interpolatedVector;
+  varying float interpolatedJoint;
+  varying float stepSize;
+  varying float outline;
+  void main(void) {
+    float dist = length(interpolatedVector);
+    float filled = 1.0 - step(dist, 0.0);
+    float inside = 1.0 - smoothstep(1.0 - stepSize, 1.0, dist);
+    // joints are drawn twice, so adjust alpha accordingly
+    float joint = smoothstep(0.0, stepSize, interpolatedJoint);
+    float alpha = mix(2.0 * inside - inside * inside, inside, joint);
+    vec3 strokeColor = mix(
+      pathColor,
+      vec3(0.0, 0.74, 0.55),
+      step(outline, dist)
+    );
+    gl_FragColor = vec4(mix(fillColor, strokeColor, filled), alpha);
   }
 `;

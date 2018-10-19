@@ -43,8 +43,8 @@ function compareEntityZOrders(a: EntityZOrder, b: EntityZOrder): number {
   return a.zOrder - b.zOrder;
 }
 
-function getEntityRenderer(entity: Entity): Renderer => void {
-  let renderFn: ?(Renderer) => void;
+function getEntityRenderer(entity: Entity): (Renderer, boolean) => void {
+  let renderFn: ?(Renderer, boolean) => void;
   for (const key in entity.state) {
     const componentRenderer = ComponentRenderers[key];
     if (componentRenderer) {
@@ -54,9 +54,9 @@ function getEntityRenderer(entity: Entity): Renderer => void {
       );
       if (renderFn) {
         const previousRenderFn = renderFn;
-        renderFn = (renderer: Renderer) => {
-          previousRenderFn(renderer);
-          currentRenderFn(renderer);
+        renderFn = (renderer: Renderer, selected: boolean) => {
+          previousRenderFn(renderer, selected);
+          currentRenderFn(renderer, selected);
         };
       } else {
         renderFn = currentRenderFn;
@@ -150,6 +150,7 @@ class RenderCanvasImpl extends React.Component<
       const entity = entityZOrder.entity;
       entity.getCachedValue('entityRenderer', getEntityRenderer, entity)(
         renderer,
+        this.props.selection.has(entity.id),
       );
     }
 
