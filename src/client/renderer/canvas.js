@@ -9,6 +9,7 @@ import * as React from 'react';
 import * as ReactRedux from 'react-redux';
 import {renderBackground} from './background';
 import {Renderer} from './util';
+import type {HoverState} from './renderers';
 import {ComponentRenderers} from './renderers';
 import {DEFAULT_PAGE_SIZE} from '../store';
 import type {PageState, ToolType} from '../store';
@@ -43,8 +44,10 @@ function compareEntityZOrders(a: EntityZOrder, b: EntityZOrder): number {
   return a.zOrder - b.zOrder;
 }
 
-function getEntityRenderer(entity: Entity): (Renderer, boolean) => void {
-  let renderFn: ?(Renderer, boolean) => void;
+function getEntityRenderer(
+  entity: Entity,
+): (Renderer, boolean, HoverState) => void {
+  let renderFn: ?(Renderer, boolean, HoverState) => void;
   for (const key in entity.state) {
     const componentRenderer = ComponentRenderers[key];
     if (componentRenderer) {
@@ -54,9 +57,9 @@ function getEntityRenderer(entity: Entity): (Renderer, boolean) => void {
       );
       if (renderFn) {
         const previousRenderFn = renderFn;
-        renderFn = (renderer: Renderer, selected: boolean) => {
-          previousRenderFn(renderer, selected);
-          currentRenderFn(renderer, selected);
+        renderFn = (renderer, selected, hoverState) => {
+          previousRenderFn(renderer, selected, hoverState);
+          currentRenderFn(renderer, selected, hoverState);
         };
       } else {
         renderFn = currentRenderFn;
@@ -72,6 +75,7 @@ class RenderCanvasImpl extends React.Component<
     page: string,
     pageState: ?PageState,
     selection: Set<string>,
+    hover: Set<string>,
     tool: ToolType,
     setRenderer: (?Renderer) => void,
   },
@@ -151,6 +155,7 @@ class RenderCanvasImpl extends React.Component<
       entity.getCachedValue('entityRenderer', getEntityRenderer, entity)(
         renderer,
         this.props.selection.has(entity.id),
+        this.props.hover.has(entity.id),
       );
     }
 
@@ -167,5 +172,6 @@ export const RenderCanvas = ReactRedux.connect(state => ({
   page: state.page,
   pageState: state.pageStates.get(state.page),
   selection: state.selection,
+  hover: state.hover,
   tool: state.tool,
 }))(RenderCanvasImpl);

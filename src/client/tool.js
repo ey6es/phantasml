@@ -79,6 +79,7 @@ import {
   dot,
   cross,
   length,
+  boundsContain,
 } from '../server/store/math';
 
 library.add(faPlay);
@@ -106,6 +107,8 @@ class ToolsetImpl extends React.Component<
   {
     resource: ?Resource,
     selection: Set<string>,
+    hover: Set<string>,
+    page: string,
     tool: ToolType,
     tempTool: ?ToolType,
     renderer: ?Renderer,
@@ -171,6 +174,8 @@ class ToolsetImpl extends React.Component<
 export const Toolset = ReactRedux.connect(state => ({
   resource: state.resource,
   selection: state.selection,
+  hover: state.hover,
+  page: state.page,
   tool: state.tool,
   tempTool: state.tempTool,
 }))(ToolsetImpl);
@@ -188,6 +193,8 @@ type ToolProps = {
   tempTool: ?ToolType,
   resource: ?Resource,
   selection: Set<string>,
+  hover: Set<string>,
+  page: string,
   renderer: ?Renderer,
   setOptions: (?React.Element<any>) => void,
 };
@@ -427,6 +434,8 @@ function FeatureSnapLabel() {
 }
 
 class SelectPanTool extends Tool {
+  _lastClientX = -1;
+  _lastClientY = -1;
   _panning = false;
 
   constructor(...args: any[]) {
@@ -458,8 +467,19 @@ class SelectPanTool extends Tool {
 
   _onMouseDown = (event: MouseEvent) => {
     if (this.active && event.button === 0) {
-      (document.body: any).style.cursor = 'all-scroll';
-      this._panning = true;
+      if (this.props.hover.size > 0) {
+        const map = {};
+        for (const id of this.props.hover) {
+          map[id] = true;
+        }
+        store.dispatch(StoreActions.select.create(map));
+      } else {
+        if (this.props.selection.size > 0) {
+          store.dispatch(StoreActions.select.create({}));
+        }
+        (document.body: any).style.cursor = 'all-scroll';
+        this._panning = true;
+      }
     }
   };
 
@@ -471,19 +491,50 @@ class SelectPanTool extends Tool {
   };
 
   _onMouseMove = (event: MouseEvent) => {
-    const renderer = this.props.renderer;
-    if (!(renderer && this._panning)) {
+    this._lastClientX = event.clientX;
+    this._lastClientY = event.clientY;
+
+    if (this._panning) {
+      const renderer = this.props.renderer;
+      if (!renderer) {
+        return;
+      }
+      const camera = renderer.camera;
+      const pixelsToWorldUnits = renderer.pixelsToWorldUnits;
+      store.dispatch(
+        StoreActions.setPagePosition.create(
+          camera.x - event.movementX * pixelsToWorldUnits,
+          camera.y + event.movementY * pixelsToWorldUnits,
+        ),
+      );
+    } else {
+      this._updateHover();
+    }
+  };
+
+  _updateHover() {
+    if (!this.active) {
       return;
     }
-    const camera = renderer.camera;
-    const pixelsToWorldUnits = renderer.pixelsToWorldUnits;
-    store.dispatch(
-      StoreActions.setPagePosition.create(
-        camera.x - event.movementX * pixelsToWorldUnits,
-        camera.y + event.movementY * pixelsToWorldUnits,
-      ),
+    const renderer = this.props.renderer;
+    const resource = this.props.resource;
+    if (!(renderer && resource instanceof Scene)) {
+      return;
+    }
+    const position = renderer.getEventPosition(
+      this._lastClientX,
+      this._lastClientY,
     );
-  };
+    const hover: Set<string> = new Set();
+    const bounds = {min: position, max: position};
+    if (boundsContain(renderer.getCameraBounds(), bounds)) {
+      resource.applyToEntities(this.props.page, bounds, entity => {
+        hover.add(entity.id);
+      });
+    }
+    (document.body: any).style.cursor = hover.size > 0 ? 'pointer' : null;
+    store.dispatch(StoreActions.setHover.create(hover));
+  }
 
   _onWheel = (event: WheelEvent) => {
     const renderer = this.props.renderer;

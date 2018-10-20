@@ -18,9 +18,11 @@ import {
   getTransformMaxScaleMagnitude,
 } from '../../server/store/math';
 
+export type HoverState = boolean;
+
 type RendererData = {
   getZOrder: Object => number,
-  createRenderFn: (Object, Entity) => (Renderer, boolean) => void,
+  createRenderFn: (Object, Entity) => (Renderer, boolean, HoverState) => void,
 };
 
 export const ComponentRenderers: {[string]: RendererData} = {
@@ -49,7 +51,7 @@ export const ComponentRenderers: {[string]: RendererData} = {
         const geometry = entity.getCachedValue('geometry', () => {
           return new Geometry(...shapeList.createGeometry());
         });
-        return (renderer: Renderer, selected: boolean) => {
+        return (renderer, selected, hoverState) => {
           const transform: Transform = entity.getLastCachedValue(
             'worldTransform',
           );
@@ -60,13 +62,14 @@ export const ComponentRenderers: {[string]: RendererData} = {
             fillColor,
             geometry,
             selected,
+            hoverState,
           );
         };
       }
       const getGeometry = (exponent: number) => {
         return new Geometry(...shapeList.createGeometry(2 ** exponent));
       };
-      return (renderer: Renderer, selected: boolean) => {
+      return (renderer, selected, hoverState) => {
         const transform: Transform = entity.getLastCachedValue(
           'worldTransform',
         );
@@ -85,6 +88,7 @@ export const ComponentRenderers: {[string]: RendererData} = {
           fillColor,
           geometry,
           selected,
+          hoverState,
         );
       };
     },
@@ -100,9 +104,10 @@ function renderShape(
   fillColor: string,
   geometry: Geometry,
   selected: boolean,
+  hoverState: HoverState,
 ) {
-  if (selected) {
-    renderBackdrop(renderer, transform, geometry);
+  if (selected || hoverState) {
+    renderBackdrop(renderer, transform, geometry, selected, hoverState);
   }
   const program = renderer.getProgram(
     renderShape,
@@ -123,6 +128,8 @@ function renderBackdrop(
   renderer: Renderer,
   transform: Transform,
   geometry: Geometry,
+  selected: boolean,
+  hoverState: HoverState,
 ) {
   const program = renderer.getProgram(
     renderBackdrop,
@@ -133,6 +140,8 @@ function renderBackdrop(
   program.setUniformMatrix('modelMatrix', transform, getTransformMatrix);
   program.setUniformMatrix('vectorMatrix', getTransformVectorMatrix(transform));
   program.setUniformFloat('pixelsToWorldUnits', renderer.pixelsToWorldUnits);
+  program.setUniformColor('color', '#00bc8c');
+  program.setUniformFloat('alpha', selected ? 1.0 : 0.25);
   renderer.setEnabled(renderer.gl.BLEND, true);
   geometry.draw(program);
 }
@@ -207,6 +216,8 @@ const BACKDROP_VERTEX_SHADER = `
 
 const BACKDROP_FRAGMENT_SHADER = `
   precision mediump float;
+  uniform vec3 color;
+  uniform float alpha;
   varying vec2 interpolatedVector;
   varying float interpolatedJoint;
   varying float stepSize;
@@ -215,7 +226,7 @@ const BACKDROP_FRAGMENT_SHADER = `
     float inside = 1.0 - smoothstep(1.0 - stepSize, 1.0, dist);
     // joints are drawn twice, so adjust alpha accordingly
     float joint = smoothstep(0.0, stepSize, interpolatedJoint);
-    float alpha = mix(2.0 * inside - inside * inside, inside, joint);
-    gl_FragColor = vec4(0.0, 0.74, 0.55, alpha);
+    float baseAlpha = mix(2.0 * inside - inside * inside, inside, joint);
+    gl_FragColor = vec4(color, baseAlpha * alpha);
   }
 `;

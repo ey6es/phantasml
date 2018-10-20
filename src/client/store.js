@@ -68,6 +68,7 @@ type StoreState = {
   tempTool: ?ToolType,
   expanded: Set<string>,
   selection: Set<string>,
+  hover: Set<string>,
   draggingSelection: boolean,
   draggingComponent: ?string,
   clipboard: Map<string, Object>,
@@ -88,6 +89,7 @@ const initialState = {
   tempTool: null,
   expanded: new Set(),
   selection: new Set(),
+  hover: new Set(),
   draggingSelection: false,
   draggingComponent: null,
   clipboard: new Map(),
@@ -204,6 +206,12 @@ export const StoreActions = {
         action.map[key] ? selection.add(key) : selection.delete(key);
       }
       return Object.assign({}, state, {selection});
+    },
+  },
+  setHover: {
+    create: (hover: Set<string>) => ({type: 'setHover', hover}),
+    reduce: (state: StoreState, action: StoreAction) => {
+      return Object.assign({}, state, {hover: action.hover});
     },
   },
   cut: {
