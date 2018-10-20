@@ -112,10 +112,7 @@ function renderShape(
   program.setUniformViewProjectionMatrix('viewProjectionMatrix');
   program.setUniformMatrix('modelMatrix', transform, getTransformMatrix);
   program.setUniformMatrix('vectorMatrix', getTransformVectorMatrix(transform));
-  program.setUniformFloat(
-    'pixelsToModelUnits',
-    renderer.pixelsToWorldUnits / getTransformMaxScaleMagnitude(transform),
-  );
+  program.setUniformFloat('pixelsToWorldUnits', renderer.pixelsToWorldUnits);
   program.setUniformColor('pathColor', pathColor);
   program.setUniformColor('fillColor', fillColor);
   renderer.setEnabled(renderer.gl.BLEND, true);
@@ -135,10 +132,7 @@ function renderBackdrop(
   program.setUniformViewProjectionMatrix('viewProjectionMatrix');
   program.setUniformMatrix('modelMatrix', transform, getTransformMatrix);
   program.setUniformMatrix('vectorMatrix', getTransformVectorMatrix(transform));
-  program.setUniformFloat(
-    'pixelsToModelUnits',
-    renderer.pixelsToWorldUnits / getTransformMaxScaleMagnitude(transform),
-  );
+  program.setUniformFloat('pixelsToWorldUnits', renderer.pixelsToWorldUnits);
   renderer.setEnabled(renderer.gl.BLEND, true);
   geometry.draw(program);
 }
@@ -147,7 +141,7 @@ const SHAPE_VERTEX_SHADER = `
   uniform mat3 modelMatrix;
   uniform mat2 vectorMatrix;
   uniform mat3 viewProjectionMatrix;
-  uniform float pixelsToModelUnits;
+  uniform float pixelsToWorldUnits;
   attribute vec2 vertex;
   attribute vec2 vector;
   attribute float joint;
@@ -158,7 +152,7 @@ const SHAPE_VERTEX_SHADER = `
   void main(void) {
     interpolatedVector = vector;
     interpolatedJoint = joint;
-    stepSize = pixelsToModelUnits / thickness;
+    stepSize = pixelsToWorldUnits / thickness;
     vec3 point =
       modelMatrix * vec3(vertex, 1.0) +
       vec3(vectorMatrix * vector, 0.0) * thickness;
@@ -189,7 +183,7 @@ const BACKDROP_VERTEX_SHADER = `
   uniform mat3 modelMatrix;
   uniform mat2 vectorMatrix;
   uniform mat3 viewProjectionMatrix;
-  uniform float pixelsToModelUnits;
+  uniform float pixelsToWorldUnits;
   uniform float expansion;
   attribute vec2 vertex;
   attribute vec2 vector;
@@ -201,8 +195,8 @@ const BACKDROP_VERTEX_SHADER = `
   void main(void) {
     interpolatedVector = vector;
     interpolatedJoint = joint;
-    float expandedThickness = thickness + pixelsToModelUnits * 3.0;
-    stepSize = pixelsToModelUnits / expandedThickness;
+    float expandedThickness = thickness + pixelsToWorldUnits * 3.0;
+    stepSize = pixelsToWorldUnits / expandedThickness;
     vec3 point =
       modelMatrix * vec3(vertex, 1.0) +
       vec3(vectorMatrix * vector, 0.0) * expandedThickness;

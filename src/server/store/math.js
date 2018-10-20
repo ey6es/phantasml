@@ -196,7 +196,7 @@ const IDENTITY_VECTOR_MATRIX = [
 
 /**
  * Retrieves the vector matrix corresponding to the provided transform.  The
- * (2x2) vector matrix contains only the rotation and uniform scale components.
+ * (2x2) vector matrix contains only the rotation and scale sign components.
  *
  * @param transform the transform of interest.
  * @return the vector matrix.
@@ -206,19 +206,12 @@ export function getTransformVectorMatrix(transform: Transform): number[] {
     return IDENTITY_VECTOR_MATRIX;
   }
   if (!transform._vectorMatrix) {
-    const scale = getTransformScale(transform);
-    let sx = Math.abs(scale.x);
-    let sy = Math.abs(scale.y);
-    if (sx > sy) {
-      sy = scale.y < 0 ? -sx : sx;
-      sx = scale.x;
-    } else {
-      sx = scale.x < 0 ? -sy : sy;
-      sy = scale.y;
-    }
     const rotation = getTransformRotation(transform);
     const cr = Math.cos(rotation);
     const sr = Math.sin(rotation);
+    const scale = getTransformScale(transform);
+    const sx = scale.x < 0 ? -1 : 1;
+    const sy = scale.y < 0 ? -1 : 1;
 
     // prettier-ignore
     transform._vectorMatrix = [
@@ -1090,8 +1083,6 @@ export function addToBounds(
  * @param bounds the bounds to expand.
  * @param x the x coordinate of the location to add.
  * @param y the y coordinate of the location to add.
- * @param [result] the bounds in which to store the result (otherwise, a new
- * bounds object will be created).
  * @return a reference to the result bounds.
  */
 export function addToBoundsEquals(
@@ -1100,4 +1091,40 @@ export function addToBoundsEquals(
   y: number,
 ): Bounds {
   return addToBounds(bounds, x, y, bounds);
+}
+
+/**
+ * Expands a bounds object by a fixed amount in both directions.
+ *
+ * @param bounds the bounds to expand.
+ * @param amount the expansion amount.
+ * @param [result] the bounds in which to store the result (otherwise, a new
+ * bounds object will be created).
+ * @return a reference to the result bounds.
+ */
+export function expandBounds(
+  bounds: Bounds,
+  amount: number,
+  result?: Bounds,
+): Bounds {
+  if (!result) {
+    return {
+      min: vec2(bounds.min.x - amount, bounds.min.y - amount),
+      max: vec2(bounds.max.x + amount, bounds.max.y + amount),
+    };
+  }
+  vec2(bounds.min.x - amount, bounds.min.y - amount, result.min);
+  vec2(bounds.max.x + amount, bounds.max.y + amount, result.max);
+  return result;
+}
+
+/**
+ * Expands a bounds object by a fixed amount in both directions.
+ *
+ * @param bounds the bounds to expand.
+ * @param amount the expansion amount.
+ * @return a reference to the result bounds.
+ */
+export function expandBoundsEquals(bounds: Bounds, amount: number): Bounds {
+  return expandBounds(bounds, amount, bounds);
 }

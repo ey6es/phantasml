@@ -8,7 +8,12 @@
 import type {Renderer} from './util';
 import {Geometry} from './util';
 import type {LineSegment, Transform} from '../../server/store/math';
-import {getTransformMatrix, radians, degrees} from '../../server/store/math';
+import {
+  getTransformMatrix,
+  getTransformVectorMatrix,
+  radians,
+  degrees,
+} from '../../server/store/math';
 import {ShapeList} from '../../server/store/shape';
 
 const RECTANGLE_VERTEX_SHADER = `
@@ -92,7 +97,9 @@ export function renderRectangle(
 
 const AXES_VERTEX_SHADER = `
   uniform mat3 modelMatrix;
+  uniform mat2 vectorMatrix;
   uniform mat3 viewProjectionMatrix;
+  uniform float pixelsToWorldUnits;
   attribute vec2 vertex;
   attribute vec2 vector;
   attribute float joint;
@@ -100,22 +107,27 @@ const AXES_VERTEX_SHADER = `
   varying vec2 interpolatedVector;
   varying float interpolatedJoint;
   varying float interpolatedPart;
+  varying float stepSize;
   void main(void) {
     interpolatedVector = vector;
     interpolatedJoint = joint;
     interpolatedPart = part;
-    vec2 point = vertex + vector * 2.0;
-    vec3 position = viewProjectionMatrix * (modelMatrix * vec3(point, 1.0));
+    float thickness = 2.0 * pixelsToWorldUnits;
+    stepSize = pixelsToWorldUnits / thickness;
+    vec3 point =
+      modelMatrix * vec3(vertex, 1.0) +
+      vec3(vectorMatrix * vector, 0.0) * thickness;
+    vec3 position = viewProjectionMatrix * point;
     gl_Position = vec4(position.xy, 0.0, 1.0);
   }
 `;
 
 const AXES_FRAGMENT_SHADER = `
   precision mediump float;
-  uniform float stepSize;
   varying vec2 interpolatedVector;
   varying float interpolatedJoint;
   varying float interpolatedPart;
+  varying float stepSize;
   void main(void) {
     float dist = length(interpolatedVector);
     float inside = 1.0 - smoothstep(1.0 - stepSize, 1.0, dist);
@@ -161,7 +173,8 @@ export function renderAxes(renderer: Renderer, transform: Transform) {
   );
   program.setUniformViewProjectionMatrix('viewProjectionMatrix');
   program.setUniformMatrix('modelMatrix', transform, getTransformMatrix);
-  program.setUniformFloat('stepSize', renderer.pixelsToWorldUnits / 2.0);
+  program.setUniformMatrix('vectorMatrix', getTransformVectorMatrix(transform));
+  program.setUniformFloat('pixelsToWorldUnits', renderer.pixelsToWorldUnits);
   renderer.setEnabled(renderer.gl.BLEND, true);
   AxesGeometry.draw(program);
 }
@@ -301,6 +314,7 @@ export function renderScaleHandle(
 
 const HANDLE_VERTEX_SHADER = `
   uniform mat3 modelMatrix;
+  uniform mat2 vectorMatrix;
   uniform mat3 viewProjectionMatrix;
   uniform float pixelsToWorldUnits;
   uniform vec3 hoverParts;
@@ -325,11 +339,13 @@ const HANDLE_VERTEX_SHADER = `
       step(0.25, part)
     );
     interpolatedActive = mix(0.73, mix(0.80, 1.0, pressed), hover);
-    float thickness = mix(1.0, 1.5, hover * pressed);
+    float thickness = mix(1.0, 1.5, hover * pressed) * pixelsToWorldUnits;
     inner = 1.0 / thickness;
     stepSize = pixelsToWorldUnits / thickness;
-    vec2 point = vertex + vector * thickness;
-    vec3 position = viewProjectionMatrix * (modelMatrix * vec3(point, 1.0));
+    vec3 point =
+      modelMatrix * vec3(vertex, 1.0) +
+      vec3(vectorMatrix * vector, 0.0) * thickness;
+    vec3 position = viewProjectionMatrix * point;
     gl_Position = vec4(position.xy, 0.0, 1.0);
   }
 `;
@@ -386,6 +402,7 @@ function renderHandle(
   );
   program.setUniformViewProjectionMatrix('viewProjectionMatrix');
   program.setUniformMatrix('modelMatrix', transform, getTransformMatrix);
+  program.setUniformMatrix('vectorMatrix', getTransformVectorMatrix(transform));
   program.setUniformArray('hoverParts', hover, getHoverParts);
   program.setUniformFloat('pressed', pressed ? 1.0 : 0.0);
   program.setUniformFloat('pixelsToWorldUnits', renderer.pixelsToWorldUnits);

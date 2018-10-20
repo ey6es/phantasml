@@ -21,6 +21,7 @@ import {
   boundsContain,
   boundsIntersect,
   transformBoundsEquals,
+  expandBoundsEquals,
 } from './math';
 import {ComponentGeometry} from './geometry';
 import type {ResourceType} from '../api';
@@ -782,11 +783,18 @@ function getWorldBounds(lineage: Entity[]): Bounds {
 function computeWorldBounds(lineage: Entity[]): Bounds {
   const lastEntity = lineage[lineage.length - 1];
   const bounds = emptyBounds();
+  let maxThickness = 0.0;
   for (const key in lastEntity.state) {
     const data = ComponentGeometry[key];
-    data && data.addToBounds(bounds, lastEntity.state[key]);
+    if (data) {
+      maxThickness = Math.max(
+        maxThickness,
+        data.addToBounds(bounds, lastEntity.state[key]),
+      );
+    }
   }
-  return transformBoundsEquals(bounds, getWorldTransform(lineage));
+  transformBoundsEquals(bounds, getWorldTransform(lineage));
+  return expandBoundsEquals(bounds, maxThickness);
 }
 
 function getWorldTransform(lineage: Entity[]): Transform {
