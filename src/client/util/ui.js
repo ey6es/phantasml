@@ -676,6 +676,39 @@ export class MenuItem extends React.Component<
 }
 
 /**
+ * Handles a shortcut not associated with a menu item.
+ *
+ * @param props.shortcut the shortcut to activate the command.
+ * @param [props.disabled] whether or not the item is disabled.
+ * @param props.onPress the function to call when the shortcut is pressed.
+ */
+export class ShortcutHandler extends React.Component<
+  {shortcut: Shortcut, disabled?: boolean, onPress: () => void},
+  {},
+> {
+  render() {
+    return null;
+  }
+
+  componentDidMount() {
+    document.addEventListener('keydown', this._keydown);
+  }
+
+  componentWillUnmount() {
+    document.removeEventListener('keydown', this._keydown);
+  }
+
+  _keydown = (event: KeyboardEvent) => {
+    if (this.props.shortcut.matches(event)) {
+      event.preventDefault();
+      if (!this.props.disabled) {
+        this.props.onPress();
+      }
+    }
+  };
+}
+
+/**
  * Calls a function every frame a shortcut is pressed.
  *
  * @param props.shortcut the shortcut to activate the command.

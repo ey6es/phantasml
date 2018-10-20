@@ -16,6 +16,7 @@ import {
   Submenu,
   MenuItem,
   Shortcut,
+  ShortcutHandler,
   FrameShortcutHandler,
   renderText,
 } from './util/ui';
@@ -234,6 +235,67 @@ const PageTabs = ReactRedux.connect(state => ({
             +
           </NavLink>
         </NavItem>
+        <ShortcutHandler
+          shortcut={new Shortcut(33)} // page up
+          onPress={() => {
+            const index = resource.entityHierarchy.getChildIndex(
+              props.selectedPage,
+            );
+            if (index > 0) {
+              store.dispatch(
+                StoreActions.setPage.create(
+                  resource.entityHierarchy.children[index - 1].id || '',
+                ),
+              );
+            }
+          }}
+        />
+        <ShortcutHandler
+          shortcut={new Shortcut(34)} // page down
+          onPress={() => {
+            const index = resource.entityHierarchy.getChildIndex(
+              props.selectedPage,
+            );
+            if (index < resource.entityHierarchy.children.length - 1) {
+              store.dispatch(
+                StoreActions.setPage.create(
+                  resource.entityHierarchy.children[index + 1].id || '',
+                ),
+              );
+            }
+          }}
+        />
+        <ShortcutHandler
+          shortcut={new Shortcut(36)} // home
+          onPress={() => {
+            const index = resource.entityHierarchy.getChildIndex(
+              props.selectedPage,
+            );
+            if (index > 0) {
+              store.dispatch(
+                StoreActions.setPage.create(
+                  resource.entityHierarchy.children[0].id || '',
+                ),
+              );
+            }
+          }}
+        />
+        <ShortcutHandler
+          shortcut={new Shortcut(35)} // end
+          onPress={() => {
+            const index = resource.entityHierarchy.getChildIndex(
+              props.selectedPage,
+            );
+            const lastIndex = resource.entityHierarchy.children.length - 1;
+            if (index < lastIndex) {
+              store.dispatch(
+                StoreActions.setPage.create(
+                  resource.entityHierarchy.children[lastIndex].id || '',
+                ),
+              );
+            }
+          }}
+        />
       </Nav>
     );
   },

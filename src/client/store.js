@@ -643,7 +643,9 @@ export function createUuid(): string {
 }
 
 // split edits when we press a key or mouse button
-document.addEventListener('keydown', advanceEditNumber);
+document.addEventListener('keydown', (event: KeyboardEvent) => {
+  event.repeat || advanceEditNumber();
+});
 document.addEventListener('mousedown', advanceEditNumber);
 
 /**
