@@ -29,7 +29,7 @@ import {
   signedDistance,
   mix,
 } from './math';
-import type {ConvexPolygon} from './collision';
+import type {CollisionPath, CollisionPolygon} from './collision';
 import {CollisionGeometry} from './collision';
 
 type VertexAttributes = {[string]: number | number[]};
@@ -194,16 +194,12 @@ export class Path {
 
   updateCollisionStats(stats: CollisionGeometryStats, tessellation: number) {
     this._ensureStartPosition(0);
-    for (let ii = 0; ii < this.commands.length; ii++) {
-      const command = this.commands[ii];
-      let previous: ?PathCommand;
-      if (this.loop) {
-        const lastIndex = this.commands.length - 1;
-        previous = this.commands[(ii + lastIndex) % this.commands.length];
-      } else {
-        previous = this.commands[ii - 1];
-      }
-      command.updateCollisionStats(stats, tessellation, previous);
+    for (let ii = this.loop ? 1 : 0; ii < this.commands.length; ii++) {
+      this.commands[ii].updateCollisionStats(
+        stats,
+        tessellation,
+        this.commands[ii - 1],
+      );
     }
   }
 
@@ -285,31 +281,27 @@ export class Path {
   populateCollisionBuffer(
     arrayBuffer: Float32Array,
     arrayIndex: number,
-    pathLengths: number[],
+    paths: CollisionPath[],
     attributeOffsets: {[string]: number},
     vertexSize: number,
     tessellation: number,
   ): number {
-    const previousVertices = arrayIndex / vertexSize;
-    for (let ii = 0; ii < this.commands.length; ii++) {
-      const command = this.commands[ii];
-      let previous: ?PathCommand;
-      if (this.loop) {
-        const lastIndex = this.commands.length - 1;
-        previous = this.commands[(ii + lastIndex) % this.commands.length];
-      } else {
-        previous = this.commands[ii - 1];
-      }
-      arrayIndex = command.populateCollisionBuffer(
+    const firstIndex = arrayIndex / vertexSize;
+    for (let ii = this.loop ? 1 : 0; ii < this.commands.length; ii++) {
+      arrayIndex = this.commands[ii].populateCollisionBuffer(
         arrayBuffer,
         arrayIndex,
         attributeOffsets,
         vertexSize,
         tessellation,
-        previous,
+        this.commands[ii - 1],
       );
     }
-    pathLengths.push(arrayIndex / vertexSize - previousVertices);
+    paths.push({
+      firstIndex,
+      lastIndex: arrayIndex / vertexSize,
+      loop: this.loop,
+    });
     return arrayIndex;
   }
 }
@@ -1145,12 +1137,69 @@ export class Shape {
         }: any),
       );
     }
+    this._earcut(vertices, (v1, v2, v3) => {
+      elementArrayBuffer[elementArrayIndex++] = v1.index;
+      elementArrayBuffer[elementArrayIndex++] = v2.index;
+      elementArrayBuffer[elementArrayIndex++] = v3.index;
+    });
+    return [arrayIndex, groupIndex];
+  }
+
+  populateCollisionBuffer(
+    arrayBuffer: Float32Array,
+    arrayIndex: number,
+    polygons: CollisionPolygon[],
+    attributeOffsets: {[string]: number},
+    vertexSize: number,
+    tessellation: number,
+  ): number {
+    const paths: CollisionPath[] = [];
+    arrayIndex = this.exterior.populateCollisionBuffer(
+      arrayBuffer,
+      arrayIndex,
+      paths,
+      attributeOffsets,
+      vertexSize,
+      tessellation,
+    );
+    const path = paths[0];
+    const firstIndex = path.firstIndex;
+    const lastIndex = path.lastIndex;
+    const vertexOffset = attributeOffsets.vertex;
+
+    // create the linked array of vertex objects
+    const vertices: Vertex[] = [];
+    for (let index = firstIndex; index < lastIndex; index++) {
+      const arrayIndex = index * vertexSize + vertexOffset;
+      vertices.push(
+        ({
+          index,
+          position: vec2(arrayBuffer[arrayIndex], arrayBuffer[arrayIndex + 1]),
+        }: any),
+      );
+    }
+    const polygonVertices: Vertex[][] = [];
+    this._earcut(vertices, (v1, v2, v3) => {
+      polygonVertices.push([v1, v2, v3]);
+    });
+
+    // add just the indices to the list
+    for (const polygon of polygonVertices) {
+      const indices: number[] = [];
+      for (const vertex of polygon) {
+        indices.push(vertex.index);
+      }
+      polygons.push({indices});
+    }
+    return arrayIndex;
+  }
+
+  _earcut(vertices: Vertex[], addTriangle: (Vertex, Vertex, Vertex) => void) {
     for (let ii = 0; ii < vertices.length; ii++) {
       const vertex = vertices[ii];
       vertex.left = vertices[(ii + vertices.length - 1) % vertices.length];
       vertex.right = vertices[(ii + 1) % vertices.length];
     }
-
     const leftMiddle = vec2();
     const leftRight = vec2();
     const convexVertices: Set<Vertex> = new Set();
@@ -1220,9 +1269,7 @@ export class Shape {
           convexVertices.delete(vertex.right);
           concaveVertices.add(vertex.right);
         }
-        elementArrayBuffer[elementArrayIndex++] = vertex.left.index;
-        elementArrayBuffer[elementArrayIndex++] = vertex.index;
-        elementArrayBuffer[elementArrayIndex++] = vertex.right.index;
+        addTriangle(vertex.left, vertex, vertex.right);
 
         remainingTriangles--;
         foundTriangle = true;
@@ -1234,27 +1281,6 @@ export class Shape {
         iterationsWithoutTriangle++;
       }
     }
-    return [arrayIndex, groupIndex];
-  }
-
-  populateCollisionBuffer(
-    arrayBuffer: Float32Array,
-    arrayIndex: number,
-    polygons: ConvexPolygon[],
-    attributeOffsets: {[string]: number},
-    vertexSize: number,
-    tessellation: number,
-  ): number {
-    const pathLength: number[] = [];
-    arrayIndex = this.exterior.populateCollisionBuffer(
-      arrayBuffer,
-      arrayIndex,
-      pathLength,
-      attributeOffsets,
-      vertexSize,
-      tessellation,
-    );
-    return arrayIndex;
   }
 }
 
@@ -1650,18 +1676,18 @@ export class ShapeList {
     // now allocate the buffer and populate
     const arrayBuffer = new Float32Array(stats.vertices * vertexSize);
     let arrayIndex = 0;
-    const pathLengths: number[] = [];
+    const paths: CollisionPath[] = [];
     for (const path of this.paths) {
       arrayIndex = path.populateCollisionBuffer(
         arrayBuffer,
         arrayIndex,
-        pathLengths,
+        paths,
         attributeOffsets,
         vertexSize,
         tessellation,
       );
     }
-    const polygons: ConvexPolygon[] = [];
+    const polygons: CollisionPolygon[] = [];
     for (const shape of this.shapes) {
       arrayIndex = shape.populateCollisionBuffer(
         arrayBuffer,
@@ -1675,7 +1701,7 @@ export class ShapeList {
     return new CollisionGeometry(
       arrayBuffer,
       stats.attributeSizes,
-      pathLengths,
+      paths,
       polygons,
     );
   }

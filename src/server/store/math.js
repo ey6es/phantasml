@@ -612,6 +612,19 @@ export function distance(from: Vector2, to: Vector2): number {
 }
 
 /**
+ * Computes the squared distance between two points.
+ *
+ * @param from the source point.
+ * @param to the destination point.
+ * @return the squared distance between the points.
+ */
+export function squareDistance(from: Vector2, to: Vector2): number {
+  const vx = to.x - from.x;
+  const vy = to.y - from.y;
+  return vx * vx + vy * vy;
+}
+
+/**
  * Computes and returns the dot product of two vectors.
  *
  * @param first the first vector.
