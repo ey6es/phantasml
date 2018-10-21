@@ -28,6 +28,9 @@ import {
 } from '../../server/store/geometry';
 import {vec2} from '../../server/store/math';
 
+/**
+ * The geometry component category.
+ */
 export const GeometryCategory: {[string]: CategoryData} = {
   geometry: {
     label: <FormattedMessage id="geometry.title" defaultMessage="Geometry" />,
@@ -56,6 +59,9 @@ const FillLabel = (
   <FormattedMessage id="geometry.fill" defaultMessage="Fill:" />
 );
 
+/**
+ * Geometry component metadata mapped by component name.
+ */
 export const GeometryComponents: {[string]: ComponentData} = {
   point: {
     label: <FormattedMessage id="point.title" defaultMessage="Point" />,

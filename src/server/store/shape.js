@@ -29,6 +29,8 @@ import {
   signedDistance,
   mix,
 } from './math';
+import type {ConvexPolygon} from './collision';
+import {CollisionGeometry} from './collision';
 
 type VertexAttributes = {[string]: number | number[]};
 
@@ -39,6 +41,11 @@ type GeometryStats = {
   vertices: number,
   indices: number,
   groups: GeometryGroup[],
+};
+
+type CollisionGeometryStats = {
+  attributeSizes: {[string]: number},
+  vertices: number,
 };
 
 /**
@@ -185,6 +192,21 @@ export class Path {
     }
   }
 
+  updateCollisionStats(stats: CollisionGeometryStats, tessellation: number) {
+    this._ensureStartPosition(0);
+    for (let ii = 0; ii < this.commands.length; ii++) {
+      const command = this.commands[ii];
+      let previous: ?PathCommand;
+      if (this.loop) {
+        const lastIndex = this.commands.length - 1;
+        previous = this.commands[(ii + lastIndex) % this.commands.length];
+      } else {
+        previous = this.commands[ii - 1];
+      }
+      command.updateCollisionStats(stats, tessellation, previous);
+    }
+  }
+
   populateBuffers(
     arrayBuffer: Float32Array,
     elementArrayBuffer: Uint32Array,
@@ -259,6 +281,37 @@ export class Path {
     }
     return [arrayIndex, groupIndex];
   }
+
+  populateCollisionBuffer(
+    arrayBuffer: Float32Array,
+    arrayIndex: number,
+    pathLengths: number[],
+    attributeOffsets: {[string]: number},
+    vertexSize: number,
+    tessellation: number,
+  ): number {
+    const previousVertices = arrayIndex / vertexSize;
+    for (let ii = 0; ii < this.commands.length; ii++) {
+      const command = this.commands[ii];
+      let previous: ?PathCommand;
+      if (this.loop) {
+        const lastIndex = this.commands.length - 1;
+        previous = this.commands[(ii + lastIndex) % this.commands.length];
+      } else {
+        previous = this.commands[ii - 1];
+      }
+      arrayIndex = command.populateCollisionBuffer(
+        arrayBuffer,
+        arrayIndex,
+        attributeOffsets,
+        vertexSize,
+        tessellation,
+        previous,
+      );
+    }
+    pathLengths.push(arrayIndex / vertexSize - previousVertices);
+    return arrayIndex;
+  }
 }
 
 class PathCommand {
@@ -282,12 +335,24 @@ class PathCommand {
     previous: ?PathCommand,
     edge: boolean,
   ) {
+    this._updateAttributeSizes(stats.attributeSizes);
+  }
+
+  updateCollisionStats(
+    stats: CollisionGeometryStats,
+    tessellation: number,
+    previous: ?PathCommand,
+  ) {
+    this._updateAttributeSizes(stats.attributeSizes);
+  }
+
+  _updateAttributeSizes(attributeSizes: {[string]: number}) {
     if (this.attributes) {
       for (const name in this.attributes) {
         const value = this.attributes[name];
         const length = Array.isArray(value) ? value.length : 1;
-        if (!(length <= stats.attributeSizes[name])) {
-          stats.attributeSizes[name] = length;
+        if (!(length <= attributeSizes[name])) {
+          attributeSizes[name] = length;
         }
       }
     }
@@ -319,6 +384,39 @@ class PathCommand {
     end: boolean,
   ): [number, number] {
     return [arrayIndex, groupIndex];
+  }
+
+  populateCollisionBuffer(
+    arrayBuffer: Float32Array,
+    arrayIndex: number,
+    attributeOffsets: {[string]: number},
+    vertexSize: number,
+    tessellation: number,
+    previous: ?PathCommand,
+  ): number {
+    return arrayIndex;
+  }
+
+  _writeCollisionVertex(
+    arrayBuffer: Float32Array,
+    arrayIndex: number,
+    attributeOffsets: {[string]: number},
+    vertexSize: number,
+    previous: ?PathCommand,
+    position: Vector2,
+    parameter: number,
+  ): number {
+    const vertexIndex = arrayIndex + attributeOffsets.vertex;
+    arrayBuffer[vertexIndex] = position.x;
+    arrayBuffer[vertexIndex + 1] = position.y;
+    this._writeAttributes(
+      arrayBuffer,
+      arrayIndex,
+      attributeOffsets,
+      parameter,
+      previous,
+    );
+    return arrayIndex + vertexSize;
   }
 
   _writeDivision(
@@ -449,7 +547,7 @@ class PathCommand {
     arrayIndex: number,
     attributeOffsets: {[string]: number},
     parameter: number,
-    previous: PathCommand,
+    previous: ?PathCommand,
   ) {
     const previousAttributes = previous && previous.attributes;
     if (previousAttributes) {
@@ -499,7 +597,35 @@ class PathCommand {
   }
 }
 
-class MoveTo extends PathCommand {}
+class MoveTo extends PathCommand {
+  updateCollisionStats(
+    stats: CollisionGeometryStats,
+    tessellation: number,
+    previous: ?PathCommand,
+  ) {
+    stats.vertices++;
+  }
+
+  populateCollisionBuffer(
+    arrayBuffer: Float32Array,
+    arrayIndex: number,
+    attributeOffsets: {[string]: number},
+    vertexSize: number,
+    tessellation: number,
+    previous: ?PathCommand,
+  ): number {
+    arrayIndex = this._writeCollisionVertex(
+      arrayBuffer,
+      arrayIndex,
+      attributeOffsets,
+      vertexSize,
+      previous,
+      this.dest,
+      1.0,
+    );
+    return arrayIndex;
+  }
+}
 
 class LineTo extends PathCommand {
   updateStats(
@@ -514,6 +640,20 @@ class LineTo extends PathCommand {
     super.updateStats(stats, tessellation, previous, edge);
     if (distance(previous.dest, this.dest) > 0) {
       this._addToStats(stats, 1, edge);
+    }
+  }
+
+  updateCollisionStats(
+    stats: CollisionGeometryStats,
+    tessellation: number,
+    previous: ?PathCommand,
+  ) {
+    if (!previous) {
+      throw new Error('Missing previous command.');
+    }
+    super.updateCollisionStats(stats, tessellation, previous);
+    if (distance(previous.dest, this.dest) > 0) {
+      stats.vertices++;
     }
   }
 
@@ -555,6 +695,31 @@ class LineTo extends PathCommand {
     }
     return [arrayIndex, groupIndex];
   }
+
+  populateCollisionBuffer(
+    arrayBuffer: Float32Array,
+    arrayIndex: number,
+    attributeOffsets: {[string]: number},
+    vertexSize: number,
+    tessellation: number,
+    previous: ?PathCommand,
+  ): number {
+    if (!previous) {
+      throw new Error('Missing previous command.');
+    }
+    if (distance(previous.dest, this.dest) > 0) {
+      arrayIndex = this._writeCollisionVertex(
+        arrayBuffer,
+        arrayIndex,
+        attributeOffsets,
+        vertexSize,
+        previous,
+        this.dest,
+        1.0,
+      );
+    }
+    return arrayIndex;
+  }
 }
 
 class ArcTo extends PathCommand {
@@ -586,6 +751,19 @@ class ArcTo extends PathCommand {
     super.updateStats(stats, tessellation, previous, edge);
     const [length, divisions] = this._getArcParameters(tessellation, previous);
     this._addToStats(stats, divisions, edge);
+  }
+
+  updateCollisionStats(
+    stats: CollisionGeometryStats,
+    tessellation: number,
+    previous: ?PathCommand,
+  ) {
+    if (!previous) {
+      throw new Error('Missing previous command.');
+    }
+    super.updateCollisionStats(stats, tessellation, previous);
+    const [length, divisions] = this._getArcParameters(tessellation, previous);
+    stats.vertices += divisions;
   }
 
   populateBuffers(
@@ -652,6 +830,54 @@ class ArcTo extends PathCommand {
     return [arrayIndex, groupIndex];
   }
 
+  populateCollisionBuffer(
+    arrayBuffer: Float32Array,
+    arrayIndex: number,
+    attributeOffsets: {[string]: number},
+    vertexSize: number,
+    tessellation: number,
+    previous: ?PathCommand,
+  ): number {
+    if (!previous) {
+      throw new Error('Missing previous command.');
+    }
+    const [length, divisions] = this._getArcParameters(tessellation, previous);
+    const angle = length / this.radius;
+    const midpoint = timesEquals(plus(this.dest, previous.dest), 0.5);
+    const distanceToCenter = this.radius * Math.cos(angle * 0.5);
+    const directionToCenter = orthonormalizeEquals(
+      minus(this.dest, previous.dest),
+    );
+    const center = plusEquals(
+      times(directionToCenter, distanceToCenter),
+      midpoint,
+    );
+    const a0 = Math.atan2(
+      previous.dest.y - center.y,
+      previous.dest.x - center.x,
+    );
+    const parameterIncrement = 1.0 / divisions;
+    let parameter = 0.0;
+    const point = equals(previous.dest);
+    const lastPoint = vec2();
+    for (let ii = 0; ii < divisions; ii++) {
+      parameter += parameterIncrement;
+      const a = a0 + parameter * angle;
+      point.x = center.x + this.radius * Math.cos(a);
+      point.y = center.y + this.radius * Math.sin(a);
+      arrayIndex = this._writeCollisionVertex(
+        arrayBuffer,
+        arrayIndex,
+        attributeOffsets,
+        vertexSize,
+        previous,
+        point,
+        parameter,
+      );
+    }
+    return arrayIndex;
+  }
+
   _getArcParameters(
     tessellation: number,
     previous: PathCommand,
@@ -699,6 +925,22 @@ class CurveTo extends PathCommand {
       previous,
     );
     this._addToStats(stats, divisions, edge);
+  }
+
+  updateCollisionStats(
+    stats: CollisionGeometryStats,
+    tessellation: number,
+    previous: ?PathCommand,
+  ) {
+    if (!previous) {
+      throw new Error('Missing previous command.');
+    }
+    super.updateCollisionStats(stats, tessellation, previous);
+    const [a, b, c, d, divisions] = this._getSplineParameters(
+      tessellation,
+      previous,
+    );
+    stats.vertices += divisions;
   }
 
   populateBuffers(
@@ -752,6 +994,42 @@ class CurveTo extends PathCommand {
       );
     }
     return [arrayIndex, groupIndex];
+  }
+
+  populateCollisionBuffer(
+    arrayBuffer: Float32Array,
+    arrayIndex: number,
+    attributeOffsets: {[string]: number},
+    vertexSize: number,
+    tessellation: number,
+    previous: ?PathCommand,
+  ): number {
+    if (!previous) {
+      throw new Error('Missing previous command.');
+    }
+    const [a, b, c, d, divisions] = this._getSplineParameters(
+      tessellation,
+      previous,
+    );
+    const parameterIncrement = 1.0 / divisions;
+    let parameter = 0.0;
+    const point = equals(previous.dest);
+    for (let ii = 0; ii < divisions; ii++) {
+      parameter += parameterIncrement;
+      const t = parameter;
+      point.x = t * (t * (t * a.x + b.x) + c.x) + d.x;
+      point.y = t * (t * (t * a.y + b.y) + c.y) + d.y;
+      arrayIndex = this._writeCollisionVertex(
+        arrayBuffer,
+        arrayIndex,
+        attributeOffsets,
+        vertexSize,
+        previous,
+        point,
+        parameter,
+      );
+    }
+    return arrayIndex;
   }
 
   _getSplineParameters(
@@ -957,6 +1235,26 @@ export class Shape {
       }
     }
     return [arrayIndex, groupIndex];
+  }
+
+  populateCollisionBuffer(
+    arrayBuffer: Float32Array,
+    arrayIndex: number,
+    polygons: ConvexPolygon[],
+    attributeOffsets: {[string]: number},
+    vertexSize: number,
+    tessellation: number,
+  ): number {
+    const pathLength: number[] = [];
+    arrayIndex = this.exterior.populateCollisionBuffer(
+      arrayBuffer,
+      arrayIndex,
+      pathLength,
+      attributeOffsets,
+      vertexSize,
+      tessellation,
+    );
+    return arrayIndex;
   }
 }
 
@@ -1322,6 +1620,64 @@ export class ShapeList {
   apply(op: ShapeList => mixed): ShapeList {
     op(this);
     return this;
+  }
+
+  /**
+   * Creates the collision geometry for this shape list.
+   *
+   * @param tessellation the tessellation level.
+   * @return the collision geometry.
+   */
+  createCollisionGeometry(tessellation: number = 4.0): CollisionGeometry {
+    // first pass: get stats
+    const stats: CollisionGeometryStats = {
+      attributeSizes: {vertex: 2, thickness: 1},
+      vertices: 0,
+    };
+    for (const shape of this.shapes) {
+      shape.exterior.updateCollisionStats(stats, tessellation);
+    }
+    for (const path of this.paths) {
+      path.updateCollisionStats(stats, tessellation);
+    }
+    const attributeOffsets: {[string]: number} = {};
+    let vertexSize = 0;
+    for (const name in stats.attributeSizes) {
+      attributeOffsets[name] = vertexSize;
+      vertexSize += stats.attributeSizes[name];
+    }
+
+    // now allocate the buffer and populate
+    const arrayBuffer = new Float32Array(stats.vertices * vertexSize);
+    let arrayIndex = 0;
+    const pathLengths: number[] = [];
+    for (const path of this.paths) {
+      arrayIndex = path.populateCollisionBuffer(
+        arrayBuffer,
+        arrayIndex,
+        pathLengths,
+        attributeOffsets,
+        vertexSize,
+        tessellation,
+      );
+    }
+    const polygons: ConvexPolygon[] = [];
+    for (const shape of this.shapes) {
+      arrayIndex = shape.populateCollisionBuffer(
+        arrayBuffer,
+        arrayIndex,
+        polygons,
+        attributeOffsets,
+        vertexSize,
+        tessellation,
+      );
+    }
+    return new CollisionGeometry(
+      arrayBuffer,
+      stats.attributeSizes,
+      pathLengths,
+      polygons,
+    );
   }
 
   /**

@@ -5,10 +5,12 @@
  * @flow
  */
 
-import type {Bounds} from './math';
-import {vec2, addToBoundsEquals} from './math';
+import type {Entity} from './resource';
+import type {Transform, Bounds} from './math';
+import {vec2, getTransformMaxScaleMagnitude, addToBoundsEquals} from './math';
 import {getValue} from './util';
 import {Path, Shape, ShapeList} from './shape';
+import type {CollisionGeometry} from './collision';
 
 type GeometryData = {
   addToBounds: (Bounds, Object) => number,
@@ -40,6 +42,59 @@ export const DEFAULT_CURVE_SPAN = 5;
 export const DEFAULT_CURVE_C1 = vec2(-0.833, 2);
 export const DEFAULT_CURVE_C2 = vec2(0.833, -2);
 
+/**
+ * Gets the collision geometry for the specified entity through the cache.
+ *
+ * @param entity the entity whose collision geometry is desired.
+ * @return the collision geometry, if any.
+ */
+export function getCollisionGeometry(entity: Entity): ?CollisionGeometry {
+  return entity.getCachedValue(
+    'collisionGeometry',
+    createCollisionGeometry,
+    entity,
+  );
+}
+
+function createCollisionGeometry(entity: Entity): ?CollisionGeometry {
+  const shapeList = getShapeList(entity);
+  if (!shapeList) {
+    return null;
+  }
+  const transform: Transform = entity.getLastCachedValue('worldTransform');
+  const magnitude = getTransformMaxScaleMagnitude(transform);
+  const tessellation = magnitude * 4.0;
+  return shapeList.createCollisionGeometry(tessellation);
+}
+
+/**
+ * Gets the shape list for the specified entity through the cache.
+ *
+ * @param entity the entity whose shape list is desired.
+ * @return the shape list, if any.
+ */
+export function getShapeList(entity: Entity): ?ShapeList {
+  return entity.getCachedValue('shapeList', createShapeList, entity);
+}
+
+function createShapeList(entity: Entity): ?ShapeList {
+  let currentShapeList: ?ShapeList;
+  for (const key in entity.state) {
+    const data = ComponentGeometry[key];
+    if (data) {
+      if (currentShapeList) {
+        currentShapeList.add(data.createShapeList(entity.state[key]));
+      } else {
+        currentShapeList = data.createShapeList(entity.state[key]);
+      }
+    }
+  }
+  return currentShapeList;
+}
+
+/**
+ * Geometry component functions mapped by component name.
+ */
 export const ComponentGeometry: {[string]: GeometryData} = {
   point: {
     addToBounds: (bounds, data) => {

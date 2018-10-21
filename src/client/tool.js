@@ -62,6 +62,7 @@ import {
   getTransformTranslation,
   getTransformRotation,
   getTransformScale,
+  getTransformInverseMatrix,
   vec2,
   equals,
   plus,
@@ -79,8 +80,10 @@ import {
   dot,
   cross,
   length,
+  transformPoint,
   boundsContain,
 } from '../server/store/math';
+import {getCollisionGeometry} from '../server/store/geometry';
 
 library.add(faPlay);
 library.add(faPause);
@@ -525,11 +528,26 @@ class SelectPanTool extends Tool {
       this._lastClientX,
       this._lastClientY,
     );
+    const localPosition = vec2();
     const hover: Set<string> = new Set();
     const bounds = {min: position, max: position};
     if (boundsContain(renderer.getCameraBounds(), bounds)) {
       resource.applyToEntities(this.props.page, bounds, entity => {
-        hover.add(entity.id);
+        const collisionGeometry = getCollisionGeometry(entity);
+        if (
+          collisionGeometry &&
+          collisionGeometry.intersectsPoint(
+            transformPoint(
+              position,
+              getTransformInverseMatrix(
+                entity.getLastCachedValue('worldTransform'),
+              ),
+              localPosition,
+            ),
+          )
+        ) {
+          hover.add(entity.id);
+        }
       });
     }
     (document.body: any).style.cursor = hover.size > 0 ? 'pointer' : null;

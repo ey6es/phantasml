@@ -12,6 +12,7 @@ export type Transform = ?{
   scale?: ?Vector2 | {x?: number, y?: number},
   _matrix?: ?(number[]),
   _vectorMatrix?: ?(number[]),
+  _inverseMatrix?: ?(number[]),
 };
 
 /**
@@ -24,32 +25,7 @@ export function invertTransform(transform: Transform): Transform {
   if (!transform) {
     return transform;
   }
-  // https://www.wikihow.com/Find-the-Inverse-of-a-3x3-Matrix
-  const m = getTransformMatrix(transform);
-  const determinant =
-    m[0] * (m[4] * m[8] - m[5] * m[7]) +
-    m[1] * (m[5] * m[6] - m[3] * m[8]) +
-    m[2] * (m[3] * m[7] - m[4] * m[6]);
-  if (determinant === 0.0) {
-    return null;
-  }
-  const scale = 1.0 / determinant;
-  return {
-    // prettier-ignore
-    _matrix: [
-      (m[4] * m[8] - m[7] * m[5]) * scale,
-      (m[7] * m[2] - m[1] * m[8]) * scale,
-      (m[1] * m[5] - m[4] * m[2]) * scale,
-      
-      (m[6] * m[5] - m[3] * m[8]) * scale,
-      (m[0] * m[8] - m[6] * m[2]) * scale,
-      (m[3] * m[2] - m[0] * m[5]) * scale,
-      
-      (m[3] * m[7] - m[6] * m[4]) * scale,
-      (m[6] * m[1] - m[0] * m[7]) * scale,
-      (m[0] * m[4] - m[3] * m[1]) * scale,
-    ]
-  };
+  return {_matrix: getTransformInverseMatrix(transform)};
 }
 
 /**
@@ -73,9 +49,11 @@ export function simplifyTransform(
   if (deleteRedundant) {
     delete transform._matrix;
     delete transform._vectorMatrix;
+    delete transform._inverseMatrix;
   } else {
     transform._matrix = null;
     transform._vectorMatrix = null;
+    transform._inverseMatrix = null;
   }
   let redundantCount = 0;
   if (translation.x === 0.0 && translation.y === 0.0) {
@@ -220,6 +198,47 @@ export function getTransformVectorMatrix(transform: Transform): number[] {
     ];
   }
   return transform._vectorMatrix;
+}
+
+/**
+ * Retrieves the inverse matrix corresponding to the provided transform.
+ *
+ * @param transform the transform of interest.
+ * @return the inverse matrix.
+ */
+export function getTransformInverseMatrix(transform: Transform): number[] {
+  if (!transform) {
+    return IDENTITY_MATRIX;
+  }
+  if (!transform._inverseMatrix) {
+    // https://www.wikihow.com/Find-the-Inverse-of-a-3x3-Matrix
+    const m = getTransformMatrix(transform);
+    const determinant =
+      m[0] * (m[4] * m[8] - m[5] * m[7]) +
+      m[1] * (m[5] * m[6] - m[3] * m[8]) +
+      m[2] * (m[3] * m[7] - m[4] * m[6]);
+    if (determinant === 0.0) {
+      transform._inverseMatrix = IDENTITY_MATRIX;
+    } else {
+      const scale = 1.0 / determinant;
+
+      // prettier-ignore
+      transform._inverseMatrix = [
+        (m[4] * m[8] - m[7] * m[5]) * scale,
+        (m[7] * m[2] - m[1] * m[8]) * scale,
+        (m[1] * m[5] - m[4] * m[2]) * scale,
+        
+        (m[6] * m[5] - m[3] * m[8]) * scale,
+        (m[0] * m[8] - m[6] * m[2]) * scale,
+        (m[3] * m[2] - m[0] * m[5]) * scale,
+        
+        (m[3] * m[7] - m[6] * m[4]) * scale,
+        (m[6] * m[1] - m[0] * m[7]) * scale,
+        (m[0] * m[4] - m[3] * m[1]) * scale,
+      ];
+    }
+  }
+  return transform._inverseMatrix;
 }
 
 const ZERO_VECTOR = {x: 0.0, y: 0.0};
@@ -725,6 +744,44 @@ export function round(vector: Vector2, result?: Vector2): Vector2 {
  */
 export function roundEquals(vector: Vector2): Vector2 {
   return round(vector, vector);
+}
+
+/**
+ * Transforms a point by a 3x3 matrix.
+ *
+ * @param point the point to transform.
+ * @param matrix the matrix to transform by.
+ * @param [result] the vector in which to store the result (otherwise, a new
+ * vector will be created).
+ * @return a reference to the result vector, for chaining.
+ */
+export function transformPoint(
+  point: Vector2,
+  matrix: number[],
+  result?: Vector2,
+): Vector2 {
+  const x = point.x * matrix[0] + point.y * matrix[3] + matrix[6];
+  const y = point.x * matrix[1] + point.y * matrix[4] + matrix[7];
+  if (!result) {
+    return {x, y};
+  }
+  result.x = x;
+  result.y = y;
+  return result;
+}
+
+/**
+ * Transforms a point by a 3x3 matrix.
+ *
+ * @param point the point to transform.
+ * @param matrix the matrix to transform by.
+ * @return a reference to the result vector, for chaining.
+ */
+export function transformPointEquals(
+  point: Vector2,
+  matrix: number[],
+): Vector2 {
+  return transformPoint(point, matrix, point);
 }
 
 /** A plane (or line). */

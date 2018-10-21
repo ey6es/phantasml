@@ -10,7 +10,7 @@ import type {Renderer} from './util';
 import {Geometry} from './util';
 import type {Entity} from '../../server/store/resource';
 import type {ShapeList} from '../../server/store/shape';
-import {ComponentGeometry} from '../../server/store/geometry';
+import {getShapeList} from '../../server/store/geometry';
 import type {Transform} from '../../server/store/math';
 import {
   getTransformMatrix,
@@ -25,6 +25,9 @@ type RendererData = {
   createRenderFn: (Object, Entity) => (Renderer, boolean, HoverState) => void,
 };
 
+/**
+ * Renderer component functions mapped by component name.
+ */
 export const ComponentRenderers: {[string]: RendererData} = {
   shapeRenderer: {
     getZOrder: (data: Object) => data.zOrder || 0,
@@ -32,18 +35,7 @@ export const ComponentRenderers: {[string]: RendererData} = {
       const props = RendererComponents.shapeRenderer.properties;
       const pathColor = data.pathColor || props.pathColor.defaultValue;
       const fillColor = data.fillColor || props.fillColor.defaultValue;
-      let currentShapeList: ?ShapeList;
-      for (const key in entity.state) {
-        const data = ComponentGeometry[key];
-        if (data) {
-          if (currentShapeList) {
-            currentShapeList.add(data.createShapeList(entity.state[key]));
-          } else {
-            currentShapeList = data.createShapeList(entity.state[key]);
-          }
-        }
-      }
-      const shapeList = currentShapeList;
+      const shapeList = getShapeList(entity);
       if (!shapeList) {
         return () => {};
       }
@@ -76,10 +68,10 @@ export const ComponentRenderers: {[string]: RendererData} = {
         const magnitude = getTransformMaxScaleMagnitude(transform);
         const world = renderer.pixelsToWorldUnits / renderer.levelOfDetail;
         const tessellation = magnitude / world;
-        if (tessellation === 0.0) {
-          return;
-        }
-        const exponent = Math.round(Math.log(tessellation) / Math.LN2);
+        const exponent =
+          tessellation === 0.0
+            ? 0.0
+            : Math.round(Math.log(tessellation) / Math.LN2);
         const geometry = entity.getCachedValue(exponent, getGeometry, exponent);
         renderShape(
           renderer,

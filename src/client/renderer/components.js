@@ -9,12 +9,18 @@ import * as React from 'react';
 import {FormattedMessage} from 'react-intl';
 import type {ComponentData, CategoryData} from '../component';
 
+/**
+ * The renderer component category.
+ */
 export const RendererCategory: {[string]: CategoryData} = {
   renderer: {
     label: <FormattedMessage id="renderer.title" defaultMessage="Renderer" />,
   },
 };
 
+/**
+ * Renderer component metadata mapped by component name.
+ */
 export const RendererComponents: {[string]: ComponentData} = {
   background: {
     label: (
