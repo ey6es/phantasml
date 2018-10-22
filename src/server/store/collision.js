@@ -68,10 +68,7 @@ export class CollisionGeometry {
     for (const path of this._paths) {
       if (path.lastIndex === path.firstIndex + 1) {
         // single point path
-        const arrayIndex = path.firstIndex * vertexSize;
-        const vertexIndex = arrayIndex + attributeOffsets.vertex;
-        vec2(arrayBuffer[vertexIndex], arrayBuffer[vertexIndex + 1], vertex);
-        const thickness = arrayBuffer[arrayIndex + attributeOffsets.thickness];
+        const thickness = this._getVertexThickness(path.firstIndex, vertex);
         if (distance(point, vertex) <= thickness) {
           return true;
         }
@@ -104,6 +101,38 @@ export class CollisionGeometry {
           }
         }
       }
+    }
+    polygonLoop: for (const polygon of this._polygons) {
+      for (let ii = 0; ii < polygon.indices.length; ii++) {
+        const fromIndex = polygon.indices[ii];
+        const toIndex = polygon.indices[(ii + 1) % polygon.indices.length];
+        const fromThickness = this._getVertexThickness(fromIndex, from);
+        const toThickness = this._getVertexThickness(toIndex, to);
+        minus(point, from, v1);
+        minus(to, from, v2);
+        const cp = cross(v1, v2);
+        if (cp > 0.0) {
+          const squareLength = squareDistance(from, to);
+          const dp = dot(v1, v2);
+          if (dp <= 0.0) {
+            if (distance(point, from) <= fromThickness) {
+              return true;
+            }
+          } else if (dp >= squareLength) {
+            if (distance(point, to) <= toThickness) {
+              return true;
+            }
+          } else {
+            const t = dp / squareLength;
+            const thickness = mix(fromThickness, toThickness, t);
+            if (cp <= thickness * Math.sqrt(squareLength)) {
+              return true;
+            }
+          }
+          continue polygonLoop;
+        }
+      }
+      return true;
     }
     return false;
   }
