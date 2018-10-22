@@ -760,6 +760,29 @@ export function roundEquals(vector: Vector2): Vector2 {
 }
 
 /**
+ * Transforms an array of points by a 3x3 matrix.
+ *
+ * @param points the points to transform.
+ * @param matrix the matrix to transform by.
+ * @param [result] the array in which to store the result (otherwise, a new
+ * array will be created).
+ * @return a reference to the result array.
+ */
+export function transformPoints(
+  points: Vector2[],
+  matrix: number[],
+  result?: Vector2[],
+): Vector2[] {
+  if (!result) {
+    result = [];
+  }
+  for (let ii = 0; ii < points.length; ii++) {
+    result[ii] = transformPoint(points[ii], matrix, result[ii]);
+  }
+  return result;
+}
+
+/**
  * Transforms a point by a 3x3 matrix.
  *
  * @param point the point to transform.
@@ -795,6 +818,42 @@ export function transformPointEquals(
   matrix: number[],
 ): Vector2 {
   return transformPoint(point, matrix, point);
+}
+
+/**
+ * Retrieves the minimum of each vector's components.
+ *
+ * @param v1 the first vector to compare.
+ * @param v2 the second vector to compare.
+ * @param [result] the vector in which to store the result (otherwise, a new
+ * vector will be created).
+ * @return a reference to the result vector, for chaining.
+ */
+export function min(v1: Vector2, v2: Vector2, result?: Vector2): Vector2 {
+  if (!result) {
+    return vec2(Math.min(v1.x, v2.x), Math.min(v1.y, v2.y));
+  }
+  result.x = Math.min(v1.x, v2.x);
+  result.y = Math.min(v1.y, v2.y);
+  return result;
+}
+
+/**
+ * Retrieves the maximum of each vector's components.
+ *
+ * @param v1 the first vector to compare.
+ * @param v2 the second vector to compare.
+ * @param [result] the vector in which to store the result (otherwise, a new
+ * vector will be created).
+ * @return a reference to the result vector, for chaining.
+ */
+export function max(v1: Vector2, v2: Vector2, result?: Vector2): Vector2 {
+  if (!result) {
+    return vec2(Math.max(v1.x, v2.x), Math.max(v1.y, v2.y));
+  }
+  result.x = Math.max(v1.x, v2.x);
+  result.y = Math.max(v1.y, v2.y);
+  return result;
 }
 
 /** A plane (or line). */
@@ -1197,4 +1256,26 @@ export function expandBounds(
  */
 export function expandBoundsEquals(bounds: Bounds, amount: number): Bounds {
   return expandBounds(bounds, amount, bounds);
+}
+
+/**
+ * Gets the vertices of the provided bounds in CCW order.
+ *
+ * @param bounds the bounds of interest.
+ * @param [result] an optional array of vectors to hold the result (otherwise,
+ * a new array will be created).
+ * @return a reference to the result array.
+ */
+export function getBoundsVertices(
+  bounds: Bounds,
+  result?: Vector2[],
+): Vector2[] {
+  if (!result) {
+    result = [];
+  }
+  result[0] = vec2(bounds.min.x, bounds.min.y, result[0]);
+  result[1] = vec2(bounds.max.x, bounds.min.y, result[1]);
+  result[2] = vec2(bounds.max.x, bounds.max.y, result[2]);
+  result[3] = vec2(bounds.min.x, bounds.max.y, result[3]);
+  return result;
 }

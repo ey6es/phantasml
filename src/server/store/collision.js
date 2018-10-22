@@ -28,7 +28,7 @@ const v2 = vec2();
  * @param arrayBuffer the array containing the vertex data.
  * @param attributeSizes the map containing the size of the vertex attributes.
  * @param paths the paths in the list.
- * @param polygons the polygons in the list.
+ * @param polygons the (convex) polygons in the list.
  */
 export class CollisionGeometry {
   _arrayBuffer: Float32Array;
@@ -62,9 +62,6 @@ export class CollisionGeometry {
    * @return whether or not the point intersects.
    */
   intersectsPoint(point: Vector2): boolean {
-    const arrayBuffer = this._arrayBuffer;
-    const attributeOffsets = this._attributeOffsets;
-    const vertexSize = this._vertexSize;
     for (const path of this._paths) {
       if (path.lastIndex === path.firstIndex + 1) {
         // single point path
@@ -111,7 +108,7 @@ export class CollisionGeometry {
         minus(point, from, v1);
         minus(to, from, v2);
         const cp = cross(v1, v2);
-        if (cp > 0.0) {
+        if (cp >= 0.0) {
           const squareLength = squareDistance(from, to);
           const dp = dot(v1, v2);
           if (dp <= 0.0) {
@@ -137,6 +134,28 @@ export class CollisionGeometry {
     return false;
   }
 
+  /**
+   * Checks whether the geometry intersects the provided convex polygon.
+   *
+   * @param points the points comprising the polygon.
+   * @return whether or not the point intersects.
+   */
+  intersectsConvexPolygon(points: Vector2[]): boolean {
+    for (const path of this._paths) {
+      if (path.lastIndex === path.firstIndex + 1) {
+        // single point path
+        const thickness = this._getVertexThickness(path.firstIndex, vertex);
+        if (getPolygonDistance(points, vertex) <= thickness) {
+          return true;
+        }
+        continue;
+      }
+    }
+    for (const polygon of this._polygons) {
+    }
+    return false;
+  }
+
   _getVertexThickness(index: number, vertex: Vector2): number {
     const arrayIndex = index * this._vertexSize;
     const vertexIndex = arrayIndex + this._attributeOffsets.vertex;
@@ -147,4 +166,26 @@ export class CollisionGeometry {
     );
     return this._arrayBuffer[arrayIndex + this._attributeOffsets.thickness];
   }
+}
+
+function getPolygonDistance(points: Vector2[], vertex: Vector2): number {
+  for (let ii = 0; ii < points.length; ii++) {
+    const from = points[ii];
+    const to = points[(ii + 1) % points.length];
+    minus(vertex, from, v1);
+    minus(to, from, v2);
+    const cp = cross(v1, v2);
+    if (cp >= 0.0) {
+      const squareLength = squareDistance(from, to);
+      const dp = dot(v1, v2);
+      if (dp <= 0.0) {
+        return distance(vertex, from);
+      } else if (dp >= squareLength) {
+        return distance(vertex, to);
+      } else {
+        return cp / Math.sqrt(squareLength);
+      }
+    }
+  }
+  return 0.0;
 }

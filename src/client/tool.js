@@ -81,9 +81,14 @@ import {
   cross,
   length,
   transformPoint,
+  transformPoints,
+  min,
+  max,
   boundsContain,
+  getBoundsVertices,
 } from '../server/store/math';
 import {getCollisionGeometry} from '../server/store/geometry';
+import {setsEqual} from '../server/store/util';
 
 library.add(faPlay);
 library.add(faPause);
@@ -455,6 +460,11 @@ class SelectPanTool extends Tool {
     );
   }
 
+  componentDidUpdate(prevProps: ToolProps, prevState: Object) {
+    super.componentDidUpdate(prevProps, prevState);
+    this._updateHover();
+  }
+
   _renderHelpers = (renderer: Renderer) => {
     const activeTool = this.props.tempTool || this.props.activeTool;
     if (
@@ -551,7 +561,9 @@ class SelectPanTool extends Tool {
       });
     }
     (document.body: any).style.cursor = hover.size > 0 ? 'pointer' : null;
-    store.dispatch(StoreActions.setHover.create(hover));
+    if (!setsEqual(hover, this.props.hover)) {
+      store.dispatch(StoreActions.setHover.create(hover));
+    }
   }
 
   _onWheel = (event: WheelEvent) => {
@@ -593,6 +605,11 @@ class RectSelectTool extends Tool {
     );
   }
 
+  componentDidUpdate(prevProps: ToolProps, prevState: Object) {
+    super.componentDidUpdate(prevProps, prevState);
+    this._updateHover();
+  }
+
   _onActivate(renderer: Renderer) {
     super._onActivate(renderer);
     renderer.canvas.style.cursor = 'crosshair';
@@ -612,6 +629,7 @@ class RectSelectTool extends Tool {
     if (this.active && event.button === 0 && renderer) {
       const position = getMousePosition(renderer, this.state.gridSnap, event);
       this._rect = {start: position, end: position};
+      this._updateHover();
     }
   };
 
@@ -619,6 +637,12 @@ class RectSelectTool extends Tool {
     if (this._rect && this.props.renderer) {
       this._rect = null;
       this.props.renderer.requestFrameRender();
+      const map: {[string]: boolean} = {};
+      for (const id of this.props.hover) {
+        map[id] = true;
+      }
+      store.dispatch(StoreActions.select.create(map));
+      store.dispatch(StoreActions.setHover.create(new Set()));
     }
   };
 
@@ -629,8 +653,44 @@ class RectSelectTool extends Tool {
     }
     const position = getMousePosition(renderer, this.state.gridSnap, event);
     this._rect = Object.assign({}, this._rect, {end: position});
+    this._updateHover();
     renderer.requestFrameRender();
   };
+
+  _updateHover() {
+    const rect = this._rect;
+    const resource = this.props.resource;
+    if (!(rect && resource instanceof Scene)) {
+      return;
+    }
+    const bounds = {
+      min: min(rect.start, rect.end),
+      max: max(rect.start, rect.end),
+    };
+    const vertices = getBoundsVertices(bounds);
+    const localVertices = [];
+    const hover: Set<string> = new Set();
+    resource.applyToEntities(this.props.page, bounds, entity => {
+      const collisionGeometry = getCollisionGeometry(entity);
+      if (!collisionGeometry) {
+        return;
+      }
+      transformPoints(
+        vertices,
+        getTransformInverseMatrix(entity.getLastCachedValue('worldTransform')),
+        localVertices,
+      );
+      if (
+        collisionGeometry &&
+        collisionGeometry.intersectsConvexPolygon(localVertices)
+      ) {
+        hover.add(entity.id);
+      }
+    });
+    if (!setsEqual(hover, this.props.hover)) {
+      store.dispatch(StoreActions.setHover.create(hover));
+    }
+  }
 }
 
 class HandleTool extends Tool {
