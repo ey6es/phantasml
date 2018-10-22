@@ -242,12 +242,7 @@ export class Entity extends RefCounted {
   toJSON(): Object {
     // special handling for transforms; simplify to remove redundant data
     if (this.state.transform !== undefined) {
-      const simplified = simplifyTransform(this.state.transform, true);
-      if (simplified) {
-        this.state.transform = simplified;
-      } else {
-        delete this.state.transform;
-      }
+      simplifyTransform(this.state.transform, true);
     }
     return this.state;
   }

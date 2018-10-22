@@ -41,28 +41,26 @@ export function simplifyTransform(
   deleteRedundant: boolean = false,
 ): Transform {
   if (!transform) {
-    return null;
+    return {
+      translation: null,
+      rotation: null,
+      scale: null,
+    };
   }
   const translation = getTransformTranslation(transform);
   const rotation = getTransformRotation(transform);
   const scale = getTransformScale(transform);
-  if (deleteRedundant) {
-    delete transform._matrix;
-    delete transform._vectorMatrix;
-    delete transform._inverseMatrix;
-  } else {
-    transform._matrix = null;
-    transform._vectorMatrix = null;
-    transform._inverseMatrix = null;
-  }
-  let redundantCount = 0;
+
+  delete transform._matrix;
+  delete transform._vectorMatrix;
+  delete transform._inverseMatrix;
+
   if (translation.x === 0.0 && translation.y === 0.0) {
     if (deleteRedundant) {
       delete transform.translation;
     } else {
       transform.translation = null;
     }
-    redundantCount++;
   }
   if (rotation === 0.0) {
     if (deleteRedundant) {
@@ -70,7 +68,6 @@ export function simplifyTransform(
     } else {
       transform.rotation = null;
     }
-    redundantCount++;
   }
   if (scale.x === 1.0 && scale.y === 1.0) {
     if (deleteRedundant) {
@@ -78,9 +75,8 @@ export function simplifyTransform(
     } else {
       transform.scale = null;
     }
-    redundantCount++;
   }
-  return redundantCount === 3 ? null : transform;
+  return transform;
 }
 
 /**

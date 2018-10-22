@@ -483,14 +483,13 @@ class SelectPanTool extends Tool {
       if (this.props.hover.size > 0) {
         const map = {};
         for (const id of this.props.hover) {
-          map[id] = true;
+          map[id] = event.ctrlKey ? !this.props.selection.has(id) : true;
         }
-        store.dispatch(StoreActions.select.create(map));
+        store.dispatch(StoreActions.select.create(map, event.ctrlKey));
       } else {
         if (this.props.selection.size > 0) {
           store.dispatch(StoreActions.select.create({}));
         }
-        (document.body: any).style.cursor = 'all-scroll';
         this._panning = true;
       }
     }
@@ -520,6 +519,7 @@ class SelectPanTool extends Tool {
           camera.y + event.movementY * pixelsToWorldUnits,
         ),
       );
+      (document.body: any).style.cursor = 'all-scroll';
     } else {
       this._updateHover();
     }
@@ -639,9 +639,9 @@ class RectSelectTool extends Tool {
       this.props.renderer.requestFrameRender();
       const map: {[string]: boolean} = {};
       for (const id of this.props.hover) {
-        map[id] = true;
+        map[id] = event.ctrlKey ? !this.props.selection.has(id) : true;
       }
-      store.dispatch(StoreActions.select.create(map));
+      store.dispatch(StoreActions.select.create(map, event.ctrlKey));
       store.dispatch(StoreActions.setHover.create(new Set()));
     }
   };
