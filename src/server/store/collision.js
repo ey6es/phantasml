@@ -5,8 +5,21 @@
  * @flow
  */
 
-import type {Vector2} from './math';
-import {vec2, minus, distance, squareDistance, dot, cross, mix} from './math';
+import type {Vector2, Plane} from './math';
+import {
+  vec2,
+  minus,
+  plus,
+  times,
+  distance,
+  squareDistance,
+  orthonormalizeEquals,
+  dot,
+  cross,
+  planeFromPoints,
+  signedDistance,
+  mix,
+} from './math';
 
 export type CollisionPath = {
   firstIndex: number,
@@ -21,6 +34,9 @@ const from = vec2();
 const to = vec2();
 const v1 = vec2();
 const v2 = vec2();
+const plane = {normal: vec2(), constant: 0.0};
+const leftPlane = {normal: vec2(), constant: 0.0};
+const rightPlane = {normal: vec2(), constant: 0.0};
 
 /**
  * Geometry representation for collision detection/response.
@@ -150,8 +166,89 @@ export class CollisionGeometry {
         }
         continue;
       }
+      const finalIndex = path.lastIndex - 1;
+      const endIndex = path.loop ? path.lastIndex : finalIndex;
+      divisionLoop: for (
+        let fromIndex = path.firstIndex;
+        fromIndex < endIndex;
+        fromIndex++
+      ) {
+        const toIndex =
+          fromIndex === finalIndex ? path.firstIndex : fromIndex + 1;
+        const fromThickness = this._getVertexThickness(fromIndex, from);
+        const toThickness = this._getVertexThickness(toIndex, to);
+        getOffsetPlane(from, fromThickness, to, toThickness, rightPlane);
+        getOffsetPlane(to, toThickness, from, fromThickness, leftPlane);
+
+        let maxRightDistance = -Infinity;
+        let maxLeftDistance = -Infinity;
+        for (let ii = 0; ii < points.length; ii++) {
+          const start = points[ii];
+          maxRightDistance = Math.max(
+            maxRightDistance,
+            signedDistance(rightPlane, start),
+          );
+          maxLeftDistance = Math.max(
+            maxLeftDistance,
+            signedDistance(leftPlane, start),
+          );
+          const end = points[(ii + 1) % points.length];
+          planeFromPoints(start, end, plane);
+
+          const maxDistance = Math.max(
+            signedDistance(plane, from) + fromThickness,
+            signedDistance(plane, to) + toThickness,
+          );
+          if (maxDistance < 0.0) {
+            continue divisionLoop;
+          }
+        }
+        if (maxRightDistance < 0.0 || maxLeftDistance < 0.0) {
+          continue divisionLoop;
+        }
+        return true;
+      }
     }
-    for (const polygon of this._polygons) {
+    polygonLoop: for (const polygon of this._polygons) {
+      for (let ii = 0; ii < polygon.indices.length; ii++) {
+        const fromIndex = polygon.indices[ii];
+        const toIndex = polygon.indices[(ii + 1) % polygon.indices.length];
+        const fromThickness = this._getVertexThickness(fromIndex, from);
+        const toThickness = this._getVertexThickness(toIndex, to);
+        getOffsetPlane(from, fromThickness, to, toThickness, plane);
+
+        let maxDistance = -Infinity;
+        for (let jj = 0; jj < points.length; jj++) {
+          maxDistance = Math.max(
+            maxDistance,
+            signedDistance(plane, points[jj]),
+          );
+        }
+        if (maxDistance < 0.0) {
+          continue polygonLoop;
+        }
+      }
+      for (let ii = 0; ii < points.length; ii++) {
+        const start = points[ii];
+        const end = points[(ii + 1) % points.length];
+        planeFromPoints(start, end, plane);
+
+        let maxDistance = -Infinity;
+        for (let jj = 0; jj < polygon.indices.length; jj++) {
+          const thickness = this._getVertexThickness(
+            polygon.indices[jj],
+            vertex,
+          );
+          maxDistance = Math.max(
+            maxDistance,
+            signedDistance(plane, vertex) + thickness,
+          );
+        }
+        if (maxDistance < 0.0) {
+          continue polygonLoop;
+        }
+      }
+      return true;
     }
     return false;
   }
@@ -188,4 +285,22 @@ function getPolygonDistance(points: Vector2[], vertex: Vector2): number {
     }
   }
   return 0.0;
+}
+
+const p1 = vec2();
+const p2 = vec2();
+const normal = vec2();
+const vector = vec2();
+
+function getOffsetPlane(
+  from: Vector2,
+  fromThickness: number,
+  to: Vector2,
+  toThickness: number,
+  result?: Plane,
+): Plane {
+  orthonormalizeEquals(minus(to, from, normal));
+  plus(from, times(normal, -fromThickness, vector), p1);
+  plus(to, times(normal, -toThickness, vector), p2);
+  return planeFromPoints(p1, p2, result);
 }
