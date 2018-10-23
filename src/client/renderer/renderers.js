@@ -18,7 +18,7 @@ import {
   getTransformMaxScaleMagnitude,
 } from '../../server/store/math';
 
-export type HoverState = boolean;
+export type HoverState = boolean | 'erase';
 
 type RendererData = {
   getZOrder: Object => number,
@@ -132,7 +132,10 @@ function renderBackdrop(
   program.setUniformMatrix('modelMatrix', transform, getTransformMatrix);
   program.setUniformMatrix('vectorMatrix', getTransformVectorMatrix(transform));
   program.setUniformFloat('pixelsToWorldUnits', renderer.pixelsToWorldUnits);
-  program.setUniformColor('color', '#00bc8c');
+  program.setUniformColor(
+    'color',
+    hoverState === 'erase' ? '#e74c3c' : '#00bc8c',
+  );
   program.setUniformFloat('alpha', selected ? 1.0 : 0.25);
   renderer.setEnabled(renderer.gl.BLEND, true);
   geometry.draw(program);

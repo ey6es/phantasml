@@ -429,6 +429,78 @@ class Tool extends React.Component<ToolProps, Object> {
   _onWheel = (event: WheelEvent) => {
     // nothing by default
   };
+
+  _updatePointHover(clientX: number, clientY: number) {
+    if (!this.active) {
+      return;
+    }
+    const renderer = this.props.renderer;
+    const resource = this.props.resource;
+    if (!(renderer && resource instanceof Scene)) {
+      return;
+    }
+    const position = renderer.getEventPosition(clientX, clientY);
+    const localPosition = vec2();
+    const hover: Set<string> = new Set();
+    const bounds = {min: position, max: position};
+    if (boundsContain(renderer.getCameraBounds(), bounds)) {
+      resource.applyToEntities(this.props.page, bounds, entity => {
+        const collisionGeometry = getCollisionGeometry(entity);
+        if (
+          collisionGeometry &&
+          collisionGeometry.intersectsPoint(
+            transformPoint(
+              position,
+              getTransformInverseMatrix(
+                entity.getLastCachedValue('worldTransform'),
+              ),
+              localPosition,
+            ),
+          )
+        ) {
+          hover.add(entity.id);
+        }
+      });
+    }
+    (document.body: any).style.cursor = hover.size > 0 ? 'pointer' : null;
+    if (!setsEqual(hover, this.props.hover)) {
+      store.dispatch(StoreActions.setHover.create(hover));
+    }
+  }
+
+  _updateRectHover(rect: ?LineSegment) {
+    const resource = this.props.resource;
+    if (!(rect && resource instanceof Scene)) {
+      return;
+    }
+    const bounds = {
+      min: min(rect.start, rect.end),
+      max: max(rect.start, rect.end),
+    };
+    const vertices = getBoundsVertices(bounds);
+    const localVertices = [];
+    const hover: Set<string> = new Set();
+    resource.applyToEntities(this.props.page, bounds, entity => {
+      const collisionGeometry = getCollisionGeometry(entity);
+      if (!collisionGeometry) {
+        return;
+      }
+      transformPoints(
+        vertices,
+        getTransformInverseMatrix(entity.getLastCachedValue('worldTransform')),
+        localVertices,
+      );
+      if (
+        collisionGeometry &&
+        collisionGeometry.intersectsConvexPolygon(localVertices)
+      ) {
+        hover.add(entity.id);
+      }
+    });
+    if (!setsEqual(hover, this.props.hover)) {
+      store.dispatch(StoreActions.setHover.create(hover));
+    }
+  }
 }
 
 function GridSnapLabel() {
@@ -462,7 +534,7 @@ class SelectPanTool extends Tool {
 
   componentDidUpdate(prevProps: ToolProps, prevState: Object) {
     super.componentDidUpdate(prevProps, prevState);
-    this._updateHover();
+    this._updatePointHover(this._lastClientX, this._lastClientY);
   }
 
   _renderHelpers = (renderer: Renderer) => {
@@ -521,50 +593,9 @@ class SelectPanTool extends Tool {
       );
       (document.body: any).style.cursor = 'all-scroll';
     } else {
-      this._updateHover();
+      this._updatePointHover(this._lastClientX, this._lastClientY);
     }
   };
-
-  _updateHover() {
-    if (!this.active) {
-      return;
-    }
-    const renderer = this.props.renderer;
-    const resource = this.props.resource;
-    if (!(renderer && resource instanceof Scene)) {
-      return;
-    }
-    const position = renderer.getEventPosition(
-      this._lastClientX,
-      this._lastClientY,
-    );
-    const localPosition = vec2();
-    const hover: Set<string> = new Set();
-    const bounds = {min: position, max: position};
-    if (boundsContain(renderer.getCameraBounds(), bounds)) {
-      resource.applyToEntities(this.props.page, bounds, entity => {
-        const collisionGeometry = getCollisionGeometry(entity);
-        if (
-          collisionGeometry &&
-          collisionGeometry.intersectsPoint(
-            transformPoint(
-              position,
-              getTransformInverseMatrix(
-                entity.getLastCachedValue('worldTransform'),
-              ),
-              localPosition,
-            ),
-          )
-        ) {
-          hover.add(entity.id);
-        }
-      });
-    }
-    (document.body: any).style.cursor = hover.size > 0 ? 'pointer' : null;
-    if (!setsEqual(hover, this.props.hover)) {
-      store.dispatch(StoreActions.setHover.create(hover));
-    }
-  }
 
   _onWheel = (event: WheelEvent) => {
     const renderer = this.props.renderer;
@@ -607,7 +638,7 @@ class RectSelectTool extends Tool {
 
   componentDidUpdate(prevProps: ToolProps, prevState: Object) {
     super.componentDidUpdate(prevProps, prevState);
-    this._updateHover();
+    this._updateRectHover(this._rect);
   }
 
   _onActivate(renderer: Renderer) {
@@ -629,7 +660,7 @@ class RectSelectTool extends Tool {
     if (this.active && event.button === 0 && renderer) {
       const position = getMousePosition(renderer, this.state.gridSnap, event);
       this._rect = {start: position, end: position};
-      this._updateHover();
+      this._updateRectHover(this._rect);
     }
   };
 
@@ -653,44 +684,9 @@ class RectSelectTool extends Tool {
     }
     const position = getMousePosition(renderer, this.state.gridSnap, event);
     this._rect = Object.assign({}, this._rect, {end: position});
-    this._updateHover();
+    this._updateRectHover(this._rect);
     renderer.requestFrameRender();
   };
-
-  _updateHover() {
-    const rect = this._rect;
-    const resource = this.props.resource;
-    if (!(rect && resource instanceof Scene)) {
-      return;
-    }
-    const bounds = {
-      min: min(rect.start, rect.end),
-      max: max(rect.start, rect.end),
-    };
-    const vertices = getBoundsVertices(bounds);
-    const localVertices = [];
-    const hover: Set<string> = new Set();
-    resource.applyToEntities(this.props.page, bounds, entity => {
-      const collisionGeometry = getCollisionGeometry(entity);
-      if (!collisionGeometry) {
-        return;
-      }
-      transformPoints(
-        vertices,
-        getTransformInverseMatrix(entity.getLastCachedValue('worldTransform')),
-        localVertices,
-      );
-      if (
-        collisionGeometry &&
-        collisionGeometry.intersectsConvexPolygon(localVertices)
-      ) {
-        hover.add(entity.id);
-      }
-    });
-    if (!setsEqual(hover, this.props.hover)) {
-      store.dispatch(StoreActions.setHover.create(hover));
-    }
-  }
 }
 
 class HandleTool extends Tool {
@@ -1072,6 +1068,10 @@ class ContiguousSelectTool extends Tool {
 }
 
 class EraseTool extends Tool {
+  _lastClientX = -1;
+  _lastClientY = -1;
+  _rect: ?LineSegment;
+
   constructor(...args: any[]) {
     super(
       'erase',
@@ -1084,6 +1084,70 @@ class EraseTool extends Tool {
       ...args,
     );
   }
+
+  componentDidUpdate(prevProps: ToolProps, prevState: Object) {
+    super.componentDidUpdate(prevProps, prevState);
+    if (this._rect) {
+      this._updateRectHover(this._rect);
+    } else {
+      this._updatePointHover(this._lastClientX, this._lastClientY);
+    }
+  }
+
+  _renderHelpers = (renderer: Renderer) => {
+    this._rect && renderRectangle(renderer, this._rect, '#e74c3c');
+  };
+
+  _onMouseDown = (event: MouseEvent) => {
+    const renderer = this.props.renderer;
+    if (this.active && event.button === 0 && renderer) {
+      if (this.props.hover.size === 0) {
+        const position = getMousePosition(renderer, this.state.gridSnap, event);
+        this._rect = {start: position, end: position};
+        this._updateRectHover(this._rect);
+        renderer.canvas.style.cursor = 'crosshair';
+      } else {
+        this._deleteHovered();
+      }
+    }
+  };
+
+  _onMouseUp = (event: MouseEvent) => {
+    const renderer = this.props.renderer;
+    if (this._rect && renderer) {
+      this._rect = null;
+      renderer.requestFrameRender();
+      this._deleteHovered();
+      renderer.canvas.style.cursor = 'inherit';
+    }
+  };
+
+  _deleteHovered() {
+    if (this.props.hover.size === 0) {
+      return;
+    }
+    const map = {};
+    for (const id of this.props.hover) {
+      map[id] = null;
+    }
+    store.dispatch(SceneActions.editEntities.create(map));
+    store.dispatch(StoreActions.setHover.create(new Set()));
+  }
+
+  _onMouseMove = (event: MouseEvent) => {
+    this._lastClientX = event.clientX;
+    this._lastClientY = event.clientY;
+
+    const renderer = this.props.renderer;
+    if (renderer && this._rect) {
+      const position = getMousePosition(renderer, this.state.gridSnap, event);
+      this._rect = Object.assign({}, this._rect, {end: position});
+      this._updateRectHover(this._rect);
+      renderer.requestFrameRender();
+    } else {
+      this._updatePointHover(this._lastClientX, this._lastClientY);
+    }
+  };
 }
 
 class PointTool extends Tool {

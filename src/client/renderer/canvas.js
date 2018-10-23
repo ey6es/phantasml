@@ -77,6 +77,7 @@ class RenderCanvasImpl extends React.Component<
     selection: Set<string>,
     hover: Set<string>,
     tool: ToolType,
+    tempTool: ?ToolType,
     setRenderer: (?Renderer) => void,
   },
   {},
@@ -150,12 +151,14 @@ class RenderCanvasImpl extends React.Component<
     entityZOrders.sort(compareEntityZOrders);
 
     // render in sorted order
+    const hoverState =
+      (this.props.tempTool || this.props.tool) === 'erase' ? 'erase' : true;
     for (const entityZOrder of entityZOrders) {
       const entity = entityZOrder.entity;
       entity.getCachedValue('entityRenderer', getEntityRenderer, entity)(
         renderer,
         this.props.selection.has(entity.id),
-        this.props.hover.has(entity.id),
+        this.props.hover.has(entity.id) ? hoverState : false,
       );
     }
 
@@ -174,4 +177,5 @@ export const RenderCanvas = ReactRedux.connect(state => ({
   selection: state.selection,
   hover: state.hover,
   tool: state.tool,
+  tempTool: state.tempTool,
 }))(RenderCanvasImpl);
