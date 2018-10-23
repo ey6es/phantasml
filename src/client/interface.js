@@ -33,6 +33,7 @@ import {EntityDropdown} from './entity';
 import {ComponentDropdown} from './component';
 import {AdminDropdown} from './admin';
 import {AppTitle, HelpDropdown} from './help';
+import type {Renderer} from './renderer/util';
 import {getFromApi} from './util/api';
 import {
   MenuBar,
@@ -65,6 +66,7 @@ export class Interface extends React.Component<
     search: string,
     resource: ?ResourceDescriptor,
     dialog: ?React.Element<any>,
+    renderer: ?Renderer,
   },
 > {
   state = {
@@ -74,6 +76,7 @@ export class Interface extends React.Component<
     search: location.search,
     resource: null,
     dialog: null,
+    renderer: null,
   };
 
   render() {
@@ -129,7 +132,10 @@ export class Interface extends React.Component<
                 setDialog={this._setDialog}
               />
             ) : null}
-            <HelpDropdown setDialog={this._setDialog} />
+            <HelpDropdown
+              setDialog={this._setDialog}
+              renderer={this.state.renderer}
+            />
           </Nav>
           <Nav className="ml-auto" navbar>
             <TransferSpinner transferring={this.state.transferring} />
@@ -227,6 +233,8 @@ export class Interface extends React.Component<
               setLoading={this._setLoading}
               resource={this.state.resource}
               setResource={this._setResource}
+              renderer={this.state.renderer}
+              setRenderer={this._setRenderer}
             />
           );
         }
@@ -245,6 +253,8 @@ export class Interface extends React.Component<
   _setResource = (resource: ?ResourceDescriptor) => this.setState({resource});
 
   _setDialog = (dialog: ?React.Element<any>) => this.setState({dialog});
+
+  _setRenderer = (renderer: ?Renderer) => this.setState({renderer});
 }
 
 const WindowTitleSetter = ReactRedux.connect(state => ({

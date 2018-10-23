@@ -8,6 +8,7 @@
 import * as React from 'react';
 import {FormattedMessage, FormattedDate, injectIntl} from 'react-intl';
 import {Form, FormGroup, Label, Input} from 'reactstrap';
+import type {Renderer} from './renderer/util';
 import {buildTime, recentLogEntries, postToApi} from './util/api';
 import {
   Menu,
@@ -33,7 +34,7 @@ export function AppTitle(props: {}) {
  * The dropdown menu for help.
  */
 export class HelpDropdown extends React.Component<
-  {setDialog: (?React.Element<any>) => void},
+  {setDialog: (?React.Element<any>) => void, renderer: ?Renderer},
   {},
 > {
   render() {
@@ -41,7 +42,12 @@ export class HelpDropdown extends React.Component<
       <Menu label={<FormattedMessage id="help.title" defaultMessage="Help" />}>
         <MenuItem
           onClick={() =>
-            this._setDialog(<ReportBugDialog onClosed={this._clearDialog} />)
+            this._setDialog(
+              <ReportBugDialog
+                renderer={this.props.renderer}
+                onClosed={this._clearDialog}
+              />,
+            )
           }>
           <FormattedMessage
             id="help.report_bug"
@@ -64,7 +70,7 @@ export class HelpDropdown extends React.Component<
 }
 
 class ReportBugDialogImpl extends React.Component<
-  {intl: Object, onClosed: () => void},
+  {intl: Object, renderer: ?Renderer, onClosed: () => void},
   {description: string},
 > {
   state = {description: ''};
@@ -118,12 +124,26 @@ class ReportBugDialogImpl extends React.Component<
   }
 
   _makeRequest = async () => {
+    // get the screenshot if we have a renderer
+    const renderer = this.props.renderer;
+    let screenshot: ?string;
+    if (renderer) {
+      screenshot = await new Promise(resolve => {
+        const callback = renderer => {
+          resolve(renderer.canvas.toDataURL());
+          renderer.removeRenderCallback(callback);
+        };
+        renderer.addRenderCallback(callback, Infinity);
+        renderer.requestFrameRender();
+      });
+    }
     const request: HelpReportBugRequest = {
       description: this.state.description,
       userAgent: navigator.userAgent,
       url: location.href,
       buildTime,
       recentLogEntries,
+      screenshot,
     };
     return await postToApi('/help/bug', request);
   };

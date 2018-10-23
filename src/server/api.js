@@ -206,6 +206,7 @@ export type HelpReportBugRequest = ApiRequest & {
   url: string,
   buildTime: string,
   recentLogEntries: string[],
+  screenshot: ?string,
 };
 export const HelpReportBugRequestType = (reify: Type<HelpReportBugRequest>);
 export type HelpReportBugResponse = {};

@@ -50,6 +50,21 @@ export function reportBug(
       const bugReportEmail = getBugReportEmail(settings);
       const subject = collapseWhitespace(request.description);
       const boundary = randomBytes(32).toString('hex');
+      let screenshot = '';
+      const requestScreenshot = request.screenshot;
+      if (requestScreenshot) {
+        // https://www.w3.org/Protocols/rfc1341/5_Content-Transfer-Encoding.html
+        // (supposed to use lines of 76 characters)
+        for (
+          let index = requestScreenshot.indexOf(',') + 1;
+          index < requestScreenshot.length;
+
+        ) {
+          const endIndex = index + 76;
+          screenshot += requestScreenshot.substring(index, endIndex) + '\n';
+          index = endIndex;
+        }
+      }
       const message = `From: "Phantasml bugs" <${FROM_EMAIL}>
 To: ${bugReportEmail}
 Subject: "${subject.length > 40 ? subject.substring(0, 40) + '...' : subject}"
@@ -68,6 +83,19 @@ URL: ${request.url}
 Client Build: ${getTimeString(request.buildTime)}
 Server Build: ${getTimeString(BUILD_TIME)}
 
+${
+        screenshot
+          ? `--${boundary}
+Content-Type: image/png; name="screenshot.png"
+Content-Description: screenshot.png
+Content-Disposition: attachment;filename="screenshot.png";
+    creation-date="${new Date().toUTCString()}";
+Content-Transfer-Encoding: base64
+
+${screenshot}
+`
+          : ''
+      }
 --${boundary}
 Content-Type: text/plain; name="client.txt"
 Content-Description: client.txt

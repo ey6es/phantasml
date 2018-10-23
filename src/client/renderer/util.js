@@ -340,7 +340,7 @@ export class Renderer {
   programs: Map<mixed, Program> = new Map();
   levelOfDetail = 1.0 / 8.0;
 
-  _renderCallbacks: ((Renderer) => void)[] = [];
+  _renderCallbacks: [(Renderer) => void, number][] = [];
   _frameDirty = false;
 
   _boundArrayBuffer: ?WebGLBuffer;
@@ -478,9 +478,18 @@ export class Renderer {
    * Adds a render callback to the list.
    *
    * @param callback the callback to add.
+   * @param [order=0] the order in which to invoke the callback.  Callbacks
+   * are invoked in increasing order.
    */
-  addRenderCallback(callback: Renderer => void) {
-    this._renderCallbacks.push(callback);
+  addRenderCallback(callback: Renderer => void, order: number = 0) {
+    for (let ii = 0; ii < this._renderCallbacks.length; ii++) {
+      const [otherCallback, otherOrder] = this._renderCallbacks[ii];
+      if (order < otherOrder) {
+        this._renderCallbacks.splice(ii, 0, [callback, order]);
+        return;
+      }
+    }
+    this._renderCallbacks.push([callback, order]);
   }
 
   /**
@@ -489,15 +498,19 @@ export class Renderer {
    * @param callback the callback to remove.
    */
   removeRenderCallback(callback: Renderer => void) {
-    const index = this._renderCallbacks.indexOf(callback);
-    index === -1 || this._renderCallbacks.splice(index, 1);
+    for (let ii = 0; ii < this._renderCallbacks.length; ii++) {
+      const [otherCallback, otherOrder] = this._renderCallbacks[ii];
+      if (otherCallback === callback) {
+        this._renderCallbacks.splice(ii, 1);
+      }
+    }
   }
 
   /**
    * Renders a frame by calling all of our render callbacks in order.
    */
   renderFrame() {
-    for (const callback of this._renderCallbacks) {
+    for (const [callback, order] of this._renderCallbacks) {
       callback(this);
     }
     this._frameDirty = false;

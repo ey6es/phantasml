@@ -490,10 +490,12 @@ export class ResourceContent extends React.Component<
     setLoading: (Object, boolean) => void,
     resource: ?ResourceDescriptor,
     setResource: (?ResourceDescriptor) => void,
+    renderer: ?Renderer,
+    setRenderer: (?Renderer) => void,
   },
-  {dialog: ?React.Element<any>, renderer: ?Renderer},
+  {dialog: ?React.Element<any>},
 > {
-  state = {dialog: null, renderer: null};
+  state = {dialog: null};
 
   render() {
     return (
@@ -545,13 +547,13 @@ export class ResourceContent extends React.Component<
         return (
           <div className="full-interface d-flex">
             <div className="d-flex flex-column left-column">
-              <Toolset renderer={this.state.renderer} />
-              <EntityTree renderer={this.state.renderer} />
+              <Toolset renderer={this.props.renderer} />
+              <EntityTree renderer={this.props.renderer} />
             </div>
             <div className="flex-grow-1 d-flex flex-column">
               <SceneView
                 locale={this.props.locale}
-                setRenderer={this._setRenderer}
+                setRenderer={this.props.setRenderer}
               />
             </div>
             <div className="d-flex flex-column right-column">
@@ -567,8 +569,6 @@ export class ResourceContent extends React.Component<
   _setDialog = (dialog: ?React.Element<any>) => this.setState({dialog});
 
   _clearDialog = () => this.setState({dialog: null});
-
-  _setRenderer = (renderer: ?Renderer) => this.setState({renderer});
 }
 
 function isResourceOwned(
