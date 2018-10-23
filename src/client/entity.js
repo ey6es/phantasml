@@ -76,6 +76,9 @@ export class EntityDropdown extends React.Component<{locale: string}, {}> {
     if (!pageNode) {
       return;
     }
+    const pageState = storeState.pageStates.get(storeState.page) || {};
+    const x = pageState.x || 0.0;
+    const y = pageState.y || 0.0;
     store.dispatch(
       SceneActions.editEntities.create({
         [createUuid()]: Object.assign(
@@ -83,6 +86,7 @@ export class EntityDropdown extends React.Component<{locale: string}, {}> {
             parent: {ref: storeState.page},
             name: pageNode.getUniqueName(renderText(label, this.props.locale)),
             order: pageNode.highestChildOrder + 1,
+            transform: {translation: {x, y}},
           },
           state,
         ),
