@@ -258,14 +258,14 @@ export const StoreActions = {
     },
   },
   paste: {
-    create: () => ({type: 'paste'}),
+    create: (asChildren: boolean = false) => ({type: 'paste', asChildren}),
     reduce: (state: StoreState, action: StoreAction) => {
       const resource = state.resource;
       if (!(resource instanceof Scene)) {
         return state;
       }
       const parentId =
-        state.selection.size === 1
+        state.selection.size > 0 && action.asChildren
           ? (state.selection.values().next().value: any)
           : state.page;
       const parentNode = resource.getEntityHierarchyNode(parentId);
@@ -513,8 +513,11 @@ function updateRefs(
 ): Object {
   const newMap = {};
   for (const key in map) {
+    if (key.charAt(0) === '_') {
+      continue; // omit derived property
+    }
     const value = map[key];
-    if (typeof value === 'object' && value !== null) {
+    if (typeof value === 'object' && !Array.isArray(value) && value !== null) {
       const ref = value.ref;
       if (ref !== undefined) {
         const newId = ids.get(ref);

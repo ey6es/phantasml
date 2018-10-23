@@ -1210,6 +1210,9 @@ export function advanceEditNumber() {
 function reverseEdit(state: Object, edit: Object): Object {
   const reversed = {};
   for (const key in edit) {
+    if (key.charAt(0) === '_') {
+      continue; // derived property; no merging
+    }
     const oldValue = state[key];
     const newValue = edit[key];
     if (oldValue === undefined || oldValue === null) {
