@@ -8,6 +8,7 @@
 import * as Redux from 'redux';
 import uuid from 'uuid/v1';
 import {getFromApi, putToApi} from './util/api';
+import type {Renderer} from './renderer/util';
 import type {ResourceType} from '../server/api';
 import type {
   Resource,
@@ -21,6 +22,7 @@ import {
   undoStackReducer,
 } from '../server/store/resource';
 import {Scene, SceneActions, advanceEditNumber} from '../server/store/scene';
+import {getTransformTranslation, boundsValid} from '../server/store/math';
 
 type StoreAction = {type: string, [string]: any};
 
@@ -666,4 +668,35 @@ document.addEventListener('mousedown', advanceEditNumber);
 export function isResourceDirty(state: StoreState): boolean {
   const lastAction = state.undoStack[state.undoStack.length - 1];
   return state.savedEditNumber !== (lastAction ? lastAction.editNumber : 0);
+}
+
+export function centerPageOnSelection(renderer: Renderer) {
+  const state = store.getState();
+  const resource = state.resource;
+  if (!(state.selection.size > 0 && resource instanceof Scene)) {
+    return;
+  }
+  for (const id of state.selection) {
+    const transform = resource.getWorldTransform(id);
+    const translation = getTransformTranslation(transform);
+    store.dispatch(
+      StoreActions.setPagePosition.create(translation.x, translation.y),
+    );
+    const bounds = resource.getWorldBounds(id);
+    if (boundsValid(bounds)) {
+      const minHeight =
+        2 *
+        Math.max(bounds.max.y - translation.y, translation.y - bounds.min.y);
+      const minWidth =
+        2 *
+        Math.max(bounds.max.x - translation.x, translation.x - bounds.min.x);
+      const minSize = Math.max(minHeight, minWidth / renderer.camera.aspect);
+      const pageState = state.pageStates.get(state.page) || {};
+      const currentSize = pageState.size || DEFAULT_PAGE_SIZE;
+      if (minSize > currentSize) {
+        store.dispatch(StoreActions.setPageSize.create(minSize));
+      }
+    }
+    return;
+  }
 }

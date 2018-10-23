@@ -922,6 +922,16 @@ export class Scene extends Resource {
   }
 
   /**
+   * Given an entity id, returns its world bounds.
+   *
+   * @param id the id of the entity of interest.
+   * @return the entity's world bounds.
+   */
+  getWorldBounds(id: string): Bounds {
+    return getWorldBounds(this.getEntityLineage(this.getEntity(id)));
+  }
+
+  /**
    * Given an entity id, checks whether the ids of any of its ancestors (but
    * not the entity itself) are in the provided set.
    *

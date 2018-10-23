@@ -39,7 +39,7 @@ import {faProjectDiagram} from '@fortawesome/free-solid-svg-icons/faProjectDiagr
 import {faVectorSquare} from '@fortawesome/free-solid-svg-icons/faVectorSquare';
 import {faStamp} from '@fortawesome/free-solid-svg-icons/faStamp';
 import type {ToolType} from './store';
-import {StoreActions, store} from './store';
+import {StoreActions, store, centerPageOnSelection} from './store';
 import type {PropertyData} from './component';
 import {PropertyEditorGroup} from './component';
 import type {Renderer} from './renderer/util';
@@ -320,6 +320,7 @@ class Tool extends React.Component<ToolProps, Object> {
   _subscribeToRenderer(renderer: Renderer) {
     renderer.addRenderCallback(this._renderHelpers);
     renderer.canvas.addEventListener('mousedown', this._onMouseDown);
+    renderer.canvas.addEventListener('dblclick', this._onDoubleClick);
     document.addEventListener('mouseup', this._onMouseUp);
     document.addEventListener('mousemove', this._onMouseMove);
     document.addEventListener('keydown', this._onKeyDown);
@@ -331,6 +332,7 @@ class Tool extends React.Component<ToolProps, Object> {
   _unsubscribeFromRenderer(renderer: Renderer) {
     renderer.removeRenderCallback(this._renderHelpers);
     renderer.canvas.removeEventListener('mousedown', this._onMouseDown);
+    renderer.canvas.removeEventListener('dblclick', this._onDoubleClick);
     document.removeEventListener('mouseup', this._onMouseUp);
     document.removeEventListener('mousemove', this._onMouseMove);
     document.removeEventListener('keydown', this._onKeyDown);
@@ -398,6 +400,10 @@ class Tool extends React.Component<ToolProps, Object> {
   }
 
   _onMouseDown = (event: MouseEvent) => {
+    // nothing by default
+  };
+
+  _onDoubleClick = (event: MouseEvent) => {
     // nothing by default
   };
 
@@ -565,6 +571,10 @@ class SelectPanTool extends Tool {
         this._panning = true;
       }
     }
+  };
+
+  _onDoubleClick = (event: MouseEvent) => {
+    this.props.renderer && centerPageOnSelection(this.props.renderer);
   };
 
   _onMouseUp = (event: MouseEvent) => {

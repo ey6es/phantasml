@@ -546,7 +546,7 @@ export class ResourceContent extends React.Component<
           <div className="full-interface d-flex">
             <div className="d-flex flex-column left-column">
               <Toolset renderer={this.state.renderer} />
-              <EntityTree />
+              <EntityTree renderer={this.state.renderer} />
             </div>
             <div className="flex-grow-1 d-flex flex-column">
               <SceneView

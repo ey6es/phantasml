@@ -8,9 +8,10 @@
 import * as React from 'react';
 import * as ReactRedux from 'react-redux';
 import {FormattedMessage} from 'react-intl';
-import {StoreActions, store, createUuid} from './store';
+import {StoreActions, store, createUuid, centerPageOnSelection} from './store';
 import type {ComponentData} from './component';
 import {GeometryComponents} from './geometry/components';
+import type {Renderer} from './renderer/util';
 import {Menu, MenuItem, Submenu, renderText} from './util/ui';
 import type {Resource, Entity} from '../server/store/resource';
 import {EntityHierarchyNode, Scene, SceneActions} from '../server/store/scene';
@@ -135,6 +136,7 @@ export const EntityTree = ReactRedux.connect(state => ({
     expanded: Set<string>,
     selection: Set<string>,
     dragging: boolean,
+    renderer: ?Renderer,
   }) => {
     const resource = props.resource;
     if (!(resource instanceof Scene)) {
@@ -166,6 +168,7 @@ export const EntityTree = ReactRedux.connect(state => ({
           expanded={props.expanded}
           selection={props.selection}
           dragging={props.dragging}
+          renderer={props.renderer}
         />
       </div>
     );
@@ -178,6 +181,7 @@ function EntityTreeChildren(props: {
   expanded: Set<string>,
   selection: Set<string>,
   dragging: boolean,
+  renderer: ?Renderer,
 }) {
   const children = props.node.children;
   if (children.length === 0) {
@@ -193,6 +197,7 @@ function EntityTreeChildren(props: {
           expanded={props.expanded}
           selection={props.selection}
           dragging={props.dragging}
+          renderer={props.renderer}
           previousOrder={index === 0 ? null : children[index - 1].order}
           nextOrder={
             index === children.length - 1 ? null : children[index + 1].order
@@ -209,6 +214,7 @@ function EntityTreeNode(props: {
   expanded: Set<string>,
   selection: Set<string>,
   dragging: boolean,
+  renderer: ?Renderer,
   previousOrder: ?number,
   nextOrder: ?number,
 }) {
@@ -272,6 +278,9 @@ function EntityTreeNode(props: {
               store.dispatch(StoreActions.select.create({[entity.id]: true}));
             }
           }}
+          onDoubleClick={event => {
+            props.renderer && centerPageOnSelection(props.renderer);
+          }}
           draggable
           onDragStart={event => {
             event.dataTransfer.setData('text', entity.id);
@@ -321,6 +330,7 @@ function EntityTreeNode(props: {
             expanded={props.expanded}
             selection={props.selection}
             dragging={props.dragging}
+            renderer={props.renderer}
           />
         ) : null}
       </div>
