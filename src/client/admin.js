@@ -16,6 +16,7 @@ import {isEmailValid} from '../server/constants';
 /**
  * The dropdown menu for admins.
  *
+ * @param props the element properties.
  * @param props.locale the currently configured locale.
  */
 export class AdminDropdown extends React.Component<

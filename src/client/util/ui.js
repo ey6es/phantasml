@@ -33,6 +33,7 @@ import {store} from '../store';
 /**
  * Base for dialogs that make requests to the server.
  *
+ * @param props the element properties.
  * @param props.header the contents of the dialog header.
  * @param props.children the contents of the dialog body.
  * @param props.loadState optional function to load the initial dialog state.
@@ -199,6 +200,7 @@ export class RequestDialog<T: Object> extends React.Component<
 /**
  * A simple dialog to report an error message.
  *
+ * @param props the element properties.
  * @param props.error the error to report.
  * @param props.getErrorMessage an optional function to retrieve the formatted
  * message corresponding to the error.
@@ -235,6 +237,7 @@ export function ErrorTitle() {
 /**
  * A simple dialog to report a feedback message.
  *
+ * @param props the element properties.
  * @param props.title the title of the message.
  * @param props.children the contents of the message.
  * @param props.closeMessage the message to show on the close button ('OK' by
@@ -326,6 +329,7 @@ function OkMessage() {
 /**
  * Renders an error message.
  *
+ * @param props the element properties.
  * @param props.error the error to report.
  * @param props.getErrorMessage an optional function to retrieve the formatted
  * message corresponding to the error.
@@ -371,6 +375,7 @@ function ErrorMessage(props: {
 /**
  * A checkbox with a translatable label.
  *
+ * @param props the element properties.
  * @param props properties to pass to the input component.
  * @param props.label the label to apply to the checkbox (must be a
  * FormattedMessage).
@@ -394,6 +399,7 @@ const MenuBarContext = React.createContext(dummyComponent);
 /**
  * A menu bar.
  *
+ * @param props the element properties.
  * @param props.disabled if true, disable all menus on the bar.
  * @param props.brand the contents of the brand section.
  * @param props.children the bar contents.
@@ -436,6 +442,7 @@ class ContainedDropdown extends Dropdown {
 /**
  * A dropdown menu with submenu support.
  *
+ * @param props the element properties.
  * @param props.label the menu label.
  * @param props.disabled whether or not the menu is disabled.
  * @param props.children the menu contents.
@@ -624,6 +631,7 @@ export class Shortcut {
 /**
  * A simple menu item.
  *
+ * @param props the element properties.
  * @param props.shortcut the item shortcut, if any.
  * @param props.disabled whether or not the item is disabled.
  * @param props.onClick the item click handler.
@@ -678,6 +686,7 @@ export class MenuItem extends React.Component<
 /**
  * Handles a shortcut not associated with a menu item.
  *
+ * @param props the element properties.
  * @param props.shortcut the shortcut to activate the command.
  * @param [props.disabled] whether or not the item is disabled.
  * @param props.onPress the function to call when the shortcut is pressed.
@@ -711,6 +720,7 @@ export class ShortcutHandler extends React.Component<
 /**
  * Calls a function every frame a shortcut is pressed.
  *
+ * @param props the element properties.
  * @param props.shortcut the shortcut to activate the command.
  * @param [props.disabled] whether or not the item is disabled.
  * @param props.onFrame the function to call each frame with the amount of time
@@ -774,6 +784,7 @@ function RawButton(props: Object) {
 /**
  * A menu activated from a button.
  *
+ * @param props the element properties.
  * @param props.label the button label.
  * @param props.direction the menu direction.
  * @param props.disabled whether or not the button is disabled.
@@ -828,6 +839,7 @@ export class ButtonMenu extends React.Component<
 /**
  * A submenu for dropdown menus.
  *
+ * @param props the element properties.
  * @param props.label the menu label.
  * @param props.disabled whether or not the menu is disabled.
  * @param props.children the menu contents.

@@ -69,6 +69,7 @@ export function getAutoSaveMinutes(
 /**
  * The dropdown menu for resources.
  *
+ * @param props the element properties.
  * @param props.userStatus the current user status.
  * @param props.resource the current resource descriptor, if any.
  * @param props.setResource the function to set the resource descriptor.
@@ -264,6 +265,7 @@ const RevertItem = ReactRedux.connect(state => ({
 /**
  * Content for browsing available resources.
  *
+ * @param props the element properties.
  * @param props.userStatus the current user status.
  * @param props.setLoading the function to set the loading state.
  * @param props.pushSearch the function to push a search URL.
@@ -425,6 +427,7 @@ function DeleteResourceMessage(props: {}) {
 /**
  * A translatable message for the name of a resource.
  *
+ * @param props the element properties.
  * @param props.resource the resource descriptor.
  * @return the resource name message.
  */
@@ -444,6 +447,7 @@ export function ResourceName(props: {resource: ResourceDescriptor}) {
 /**
  * Returns the formatted message identifying the specified resource type.
  *
+ * @param props the element properties.
  * @param props.type the type to label.
  * @return the formatted message.
  */
@@ -471,6 +475,7 @@ export function ResourceTypeMessage(props: {type: ResourceType}) {
 /**
  * Content for viewing/editing resources.
  *
+ * @param props the element properties.
  * @param props.id the id of the resource to load.
  * @param props.locale the current locale.
  * @param props.userStatus the current user status.

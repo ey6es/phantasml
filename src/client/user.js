@@ -60,6 +60,7 @@ type LoginDialogTab = 'sign_in' | 'create_user' | 'forgot_password';
 /**
  * A dialog used for logging in or requesting user creation or password reset.
  *
+ * @param props the element properties.
  * @param props.canCreateUser whether we currently allow creating new users.
  * @param props.setUserStatus the function used to set the user properties in
  * the containing context.
@@ -348,6 +349,7 @@ export class LoginDialog extends React.Component<
 /**
  * A dialog used to perform initial user setup.
  *
+ * @param props the element properties.
  * @param props.setUserStatus the function used to set the user status in the
  * containing context.
  */
@@ -466,6 +468,7 @@ export class UserSetupDialog extends React.Component<
 /**
  * A dialog used to reset the user's password from an email.
  *
+ * @param props the element properties.
  * @param props.setUserStatus the function used to set the user status in the
  * containing context.
  */
@@ -536,6 +539,7 @@ export class PasswordResetDialog extends React.Component<
 /**
  * Form groups for entering a password and reentering it for verification.
  *
+ * @param props the element properties.
  * @param props.password the value of the password field.
  * @param props.setPassword the function to set the password field.
  * @param props.reenterPassword the value of the reentered field.
@@ -588,6 +592,7 @@ function VerifiedPasswordGroups(props: {
 /**
  * A form group for entering a password.
  *
+ * @param props the element properties.
  * @param props.current whether or not this is the current password, as opposed
  * to a new one (for autocomplete).
  * @param props.value the value of the field.
@@ -620,6 +625,7 @@ function PasswordGroup(props: {
  * A labeled checkbox providing the option to stay logged in (that is, to
  * create a persistent session).
  *
+ * @param props the element properties.
  * @param props.value the value of the checkbox.
  * @param props.setValue the function to set the value.
  */
@@ -648,6 +654,7 @@ function StayLoggedInCheckbox(props: {
  * in, providing access to user-related controls like "log out."  If not logged
  * in, shows the login button.
  *
+ * @param props the element properties.
  * @param props.userStatus the current user status.
  * @param props.setUserStatus the function to set the user status.
  * @param props.locale the configured locale.
@@ -1176,6 +1183,7 @@ function EmailGroup(props: {
 /**
  * Renders the Google/Facebook login buttons.
  *
+ * @param props the element properties.
  * @param [props.setGoogleToken] the setter for the Google id token.
  * @param [props.setFacebookToken] the setter for the Facebook access token.
  */

@@ -420,6 +420,7 @@ function ComponentPanel(props: {
 /**
  * Component for editing the properties of an object.
  *
+ * @param props the element properties.
  * @param props.properties the property metadata.
  * @param [props.labelSize=4] the number of columns (out of 12) to use for the
  * label.

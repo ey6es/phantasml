@@ -93,6 +93,7 @@ export class EntityDropdown extends React.Component<{locale: string}, {}> {
 /**
  * Renders the name of an entity.
  *
+ * @param props the element properties.
  * @param props.entity the entity whose name should be rendered.
  */
 export function EntityName(props: {entity: Entity}) {
