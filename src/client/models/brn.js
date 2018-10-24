@@ -1,35 +1,35 @@
 /**
- * Binary reinforcement hierarchy.
+ * Binary reinforcement network.
  *
- * @module client/models/brh
+ * @module client/models/brn
  * @flow
  */
 
 import {Sbrrn} from './sbrrn';
 import type {SbrrnOptions} from './sbrrn';
 
-export type BrhModelOptions = SbrrnOptions & {
+export type BrnModelOptions = SbrrnOptions & {
   parentInputBits?: number,
   parentOutputBits?: number,
 };
 
 /**
- * Binary reinforcement hierarchy.
+ * Binary reinforcement network.
  *
  * @param modelOptions the options for the models at each level (assumes
  * symmetry).
  * @param [parent] the parent node, if not the root.
  */
-export class Brh {
-  _parent: ?Brh;
+export class Brn {
+  _parent: ?Brn;
   _model: Sbrrn;
   _parentInputBits: number;
   _parentOutputBits: number;
   _inputBuffer: Uint8Array;
   _outputBuffer: Uint8Array;
-  _children: Brh[] = [];
+  _children: Brn[] = [];
 
-  constructor(modelOptions: BrhModelOptions[], parent?: Brh) {
+  constructor(modelOptions: BrnModelOptions[], parent?: Brn) {
     this._parent = parent;
     const options = modelOptions[0];
     this._model = new Sbrrn(options);
@@ -40,8 +40,8 @@ export class Brh {
     const remainingOptions = modelOptions.slice(1);
     if (remainingOptions.length > 0) {
       this._children.push(
-        new Brh(remainingOptions, this),
-        new Brh(remainingOptions, this),
+        new Brn(remainingOptions, this),
+        new Brn(remainingOptions, this),
       );
     }
   }
