@@ -87,8 +87,6 @@ export const ComponentRenderers: {[string]: RendererData} = {
   },
 };
 
-const selectedKey = {};
-
 function renderShape(
   renderer: Renderer,
   transform: Transform,

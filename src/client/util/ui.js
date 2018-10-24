@@ -1040,7 +1040,7 @@ export class ColorField extends React.Component<
     return (
       <div className="d-flex">
         <Input
-          className="flex-grow-1"
+          className="flex-grow-1 color-input"
           type="text"
           size="8"
           value={this.state.value}

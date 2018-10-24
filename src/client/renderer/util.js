@@ -402,13 +402,20 @@ export class Renderer {
    *
    * @param clientX the x coordinate relative to the window.
    * @param clientY the y coordinate relative to the window.
+   * @param [result] an optional vector to hold the result.  If not given, a
+   * new vector will be created.
    * @return the world position of the event.
    */
-  getEventPosition(clientX: number, clientY: number): Vector2 {
+  getEventPosition(
+    clientX: number,
+    clientY: number,
+    result?: Vector2,
+  ): Vector2 {
     const rect = this.canvas.getBoundingClientRect();
     return this.getWorldPosition(
       Math.round(clientX) - Math.round(rect.left),
       Math.round(clientY) - Math.round(rect.top),
+      result,
     );
   }
 
@@ -424,7 +431,7 @@ export class Renderer {
   getWorldPosition(
     offsetX: number,
     offsetY: number,
-    result?: Vector2,
+    result?: ?Vector2,
   ): Vector2 {
     const camera = this._camera;
     const canvas = this.canvas;

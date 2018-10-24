@@ -19,6 +19,22 @@ export const RendererCategory: {[string]: CategoryData} = {
 };
 
 /**
+ * Shared path color property.
+ */
+export const PathColorProperty = {
+  pathColor: {
+    type: 'color',
+    label: (
+      <FormattedMessage
+        id="shape_renderer.path_color"
+        defaultMessage="Path Color:"
+      />
+    ),
+    defaultValue: '#ffffff',
+  },
+};
+
+/**
  * Renderer component metadata mapped by component name.
  */
 export const RendererComponents: {[string]: ComponentData} = {

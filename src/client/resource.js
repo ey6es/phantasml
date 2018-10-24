@@ -547,7 +547,10 @@ export class ResourceContent extends React.Component<
         return (
           <div className="full-interface d-flex">
             <div className="d-flex flex-column left-column">
-              <Toolset renderer={this.props.renderer} />
+              <Toolset
+                locale={this.props.locale}
+                renderer={this.props.renderer}
+              />
               <EntityTree renderer={this.props.renderer} />
             </div>
             <div className="flex-grow-1 d-flex flex-column">

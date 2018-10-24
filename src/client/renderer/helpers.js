@@ -409,3 +409,81 @@ function renderHandle(
   renderer.setEnabled(renderer.gl.BLEND, true);
   geometry.draw(program);
 }
+
+/**
+ * Renders a shape helper (used for drawing tools).
+ *
+ * @param renderer the renderer to use.
+ * @param transform the (world) transform to apply.
+ * @param thickness the path thickness to use.
+ * @param pathColor the color to use for paths.
+ * @param fillColor the color to use for filling.
+ * @param geometry the geometry to render.
+ */
+export function renderShapeHelper(
+  renderer: Renderer,
+  transform: Transform,
+  thickness: number,
+  pathColor: string,
+  fillColor: string,
+  geometry: Geometry,
+) {
+  const program = renderer.getProgram(
+    renderShapeHelper,
+    renderer.getVertexShader(renderShapeHelper, SHAPE_HELPER_VERTEX_SHADER),
+    renderer.getFragmentShader(renderShapeHelper, SHAPE_HELPER_FRAGMENT_SHADER),
+  );
+  program.setUniformViewProjectionMatrix('viewProjectionMatrix');
+  program.setUniformMatrix('modelMatrix', transform, getTransformMatrix);
+  program.setUniformMatrix('vectorMatrix', getTransformVectorMatrix(transform));
+  program.setUniformFloat('pixelsToWorldUnits', renderer.pixelsToWorldUnits);
+  program.setUniformFloat('thicknessScale', thickness);
+  program.setUniformColor('pathColor', pathColor);
+  program.setUniformColor('fillColor', fillColor);
+  renderer.setEnabled(renderer.gl.BLEND, true);
+  geometry.draw(program);
+}
+
+const SHAPE_HELPER_VERTEX_SHADER = `
+  uniform mat3 modelMatrix;
+  uniform mat2 vectorMatrix;
+  uniform mat3 viewProjectionMatrix;
+  uniform float pixelsToWorldUnits;
+  uniform float thicknessScale;
+  attribute vec2 vertex;
+  attribute vec2 vector;
+  attribute float joint;
+  attribute float thickness;
+  varying vec2 interpolatedVector;
+  varying float interpolatedJoint;
+  varying float stepSize;
+  void main(void) {
+    interpolatedVector = vector;
+    interpolatedJoint = joint;
+    float scaledThickness = thickness * thicknessScale;
+    stepSize = pixelsToWorldUnits / scaledThickness;
+    vec3 point =
+      modelMatrix * vec3(vertex, 1.0) +
+      vec3(vectorMatrix * vector, 0.0) * scaledThickness;
+    vec3 position = viewProjectionMatrix * point;
+    gl_Position = vec4(position.xy, 0.0, 1.0);
+  }
+`;
+
+const SHAPE_HELPER_FRAGMENT_SHADER = `
+  precision mediump float;
+  uniform vec3 pathColor;
+  uniform vec3 fillColor;
+  varying vec2 interpolatedVector;
+  varying float interpolatedJoint;
+  varying float stepSize;
+  void main(void) {
+    float dist = length(interpolatedVector);
+    float filled = 1.0 - step(dist, 0.0);
+    float inside = 1.0 - smoothstep(1.0 - stepSize, 1.0, dist);
+    // joints are drawn twice, so adjust alpha accordingly
+    float joint = smoothstep(0.0, stepSize, interpolatedJoint);
+    float alpha = mix(2.0 * inside - inside * inside, inside, joint);
+    gl_FragColor = vec4(mix(fillColor, pathColor, filled), alpha);
+  }
+`;

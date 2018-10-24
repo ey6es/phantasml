@@ -15,6 +15,7 @@ import type {Renderer} from './renderer/util';
 import {Menu, MenuItem, Submenu, renderText} from './util/ui';
 import type {Resource, Entity} from '../server/store/resource';
 import {EntityHierarchyNode, Scene, SceneActions} from '../server/store/scene';
+import type {Transform} from '../server/store/math';
 import {
   invertTransform,
   composeTransforms,
@@ -68,31 +69,49 @@ export class EntityDropdown extends React.Component<{locale: string}, {}> {
 
   _createEntity = (label: React.Element<any>, state: Object = {}) => {
     const storeState = store.getState();
-    const resource = storeState.resource;
-    if (!(resource instanceof Scene)) {
-      return;
-    }
-    const pageNode = resource.entityHierarchy.getChild(storeState.page);
-    if (!pageNode) {
-      return;
-    }
     const pageState = storeState.pageStates.get(storeState.page) || {};
-    const x = pageState.x || 0.0;
-    const y = pageState.y || 0.0;
-    store.dispatch(
-      SceneActions.editEntities.create({
-        [createUuid()]: Object.assign(
-          {
-            parent: {ref: storeState.page},
-            name: pageNode.getUniqueName(renderText(label, this.props.locale)),
-            order: pageNode.highestChildOrder + 1,
-            transform: {translation: {x, y}},
-          },
-          state,
-        ),
-      }),
-    );
+    const x: number = pageState.x || 0.0;
+    const y: number = pageState.y || 0.0;
+    createEntity(label, this.props.locale, state, {translation: {x, y}});
   };
+}
+
+/**
+ * Creates an entity on the page.
+ *
+ * @param label the base name of the entity.
+ * @param locale the locale to use for translation.
+ * @param state the entity state.
+ * @param transform the entity transform.
+ */
+export function createEntity(
+  label: React.Element<any>,
+  locale: string,
+  state: Object,
+  transform: Transform,
+) {
+  const storeState = store.getState();
+  const resource = storeState.resource;
+  if (!(resource instanceof Scene)) {
+    return;
+  }
+  const pageNode = resource.entityHierarchy.getChild(storeState.page);
+  if (!pageNode) {
+    return;
+  }
+  store.dispatch(
+    SceneActions.editEntities.create({
+      [createUuid()]: Object.assign(
+        {
+          parent: {ref: storeState.page},
+          name: pageNode.getUniqueName(renderText(label, locale)),
+          order: pageNode.highestChildOrder + 1,
+          transform,
+        },
+        state,
+      ),
+    }),
+  );
 }
 
 /**

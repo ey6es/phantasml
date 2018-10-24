@@ -37,7 +37,10 @@ export const GeometryCategory: {[string]: CategoryData} = {
   },
 };
 
-const ThicknessProperty = {
+/**
+ * Shared property for thickness.
+ */
+export const ThicknessProperty = {
   thickness: {
     type: 'number',
     label: (

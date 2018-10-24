@@ -42,7 +42,9 @@ import type {ToolType} from './store';
 import {StoreActions, store, centerPageOnSelection} from './store';
 import type {PropertyData} from './component';
 import {PropertyEditorGroup} from './component';
+import {createEntity} from './entity';
 import type {Renderer} from './renderer/util';
+import {Geometry} from './renderer/util';
 import type {HoverType} from './renderer/helpers';
 import {
   renderRectangle,
@@ -50,7 +52,10 @@ import {
   renderTranslationHandle,
   renderRotationHandle,
   renderScaleHandle,
+  renderShapeHelper,
 } from './renderer/helpers';
+import {PathColorProperty} from './renderer/components';
+import {ThicknessProperty, GeometryComponents} from './geometry/components';
 import {Shortcut} from './util/ui';
 import type {Resource} from '../server/store/resource';
 import {Scene, SceneActions} from '../server/store/scene';
@@ -87,8 +92,12 @@ import {
   boundsContain,
   getBoundsVertices,
 } from '../server/store/math';
-import {getCollisionGeometry} from '../server/store/geometry';
-import {setsEqual} from '../server/store/util';
+import {
+  DEFAULT_THICKNESS,
+  getCollisionGeometry,
+} from '../server/store/geometry';
+import {ShapeList} from '../server/store/shape';
+import {getValue, setsEqual} from '../server/store/util';
 
 library.add(faPlay);
 library.add(faPause);
@@ -113,6 +122,7 @@ library.add(faStamp);
 
 class ToolsetImpl extends React.Component<
   {
+    locale: string,
     resource: ?Resource,
     selection: Set<string>,
     hover: Set<string>,
@@ -197,6 +207,7 @@ function PlayControl(props: {icon: string, disabled?: boolean}) {
 }
 
 type ToolProps = {
+  locale: string,
   activeTool: ToolType,
   tempTool: ?ToolType,
   resource: ?Resource,
@@ -1160,7 +1171,15 @@ class EraseTool extends Tool {
   };
 }
 
+const PointHelperGeometry = new Geometry(
+  ...new ShapeList().penDown(false, {thickness: 1.0}).createGeometry(),
+);
+
 class PointTool extends Tool {
+  _lastClientX = -1;
+  _lastClientY = -1;
+  _translation = vec2();
+
   constructor(...args: any[]) {
     super(
       'point',
@@ -1170,10 +1189,60 @@ class PointTool extends Tool {
       {
         gridSnap: {type: 'boolean', label: <GridSnapLabel />},
         featureSnap: {type: 'boolean', label: <FeatureSnapLabel />},
+        ...ThicknessProperty,
+        ...PathColorProperty,
       },
       ...args,
     );
   }
+
+  _onMouseMove = (event: MouseEvent) => {
+    this._lastClientX = event.clientX;
+    this._lastClientY = event.clientY;
+    this.active &&
+      this.props.renderer &&
+      this.props.renderer.requestFrameRender();
+  };
+
+  _onMouseDown = (event: MouseEvent) => {
+    this.active &&
+      createEntity(
+        GeometryComponents.point.label,
+        this.props.locale,
+        {
+          point: {
+            thickness: this.state.thickness,
+            order: 1,
+          },
+          shapeRenderer: {
+            pathColor: this.state.pathColor,
+            order: 2,
+          },
+        },
+        {translation: equals(this._translation)},
+      );
+  };
+
+  _renderHelpers = (renderer: Renderer) => {
+    if (!this.active) {
+      return;
+    }
+    const translation = this._translation;
+    renderer.getEventPosition(
+      this._lastClientX,
+      this._lastClientY,
+      translation,
+    );
+    this.state.gridSnap && roundEquals(translation);
+    renderShapeHelper(
+      renderer,
+      {translation},
+      getValue(this.state.thickness, DEFAULT_THICKNESS),
+      getValue(this.state.pathColor, PathColorProperty.pathColor.defaultValue),
+      '#ffffff',
+      PointHelperGeometry,
+    );
+  };
 }
 
 class LineTool extends Tool {
@@ -1186,6 +1255,8 @@ class LineTool extends Tool {
       {
         gridSnap: {type: 'boolean', label: <GridSnapLabel />},
         featureSnap: {type: 'boolean', label: <FeatureSnapLabel />},
+        ...ThicknessProperty,
+        ...PathColorProperty,
       },
       ...args,
     );
@@ -1202,6 +1273,8 @@ class LineGroupTool extends Tool {
       {
         gridSnap: {type: 'boolean', label: <GridSnapLabel />},
         featureSnap: {type: 'boolean', label: <FeatureSnapLabel />},
+        ...ThicknessProperty,
+        ...PathColorProperty,
       },
       ...args,
     );
@@ -1218,6 +1291,8 @@ class PolygonTool extends Tool {
       {
         gridSnap: {type: 'boolean', label: <GridSnapLabel />},
         featureSnap: {type: 'boolean', label: <FeatureSnapLabel />},
+        ...ThicknessProperty,
+        ...PathColorProperty,
       },
       ...args,
     );
@@ -1234,6 +1309,8 @@ class RectangleTool extends Tool {
       {
         gridSnap: {type: 'boolean', label: <GridSnapLabel />},
         featureSnap: {type: 'boolean', label: <FeatureSnapLabel />},
+        ...ThicknessProperty,
+        ...PathColorProperty,
       },
       ...args,
     );
@@ -1250,6 +1327,8 @@ class ArcTool extends Tool {
       {
         gridSnap: {type: 'boolean', label: <GridSnapLabel />},
         featureSnap: {type: 'boolean', label: <FeatureSnapLabel />},
+        ...ThicknessProperty,
+        ...PathColorProperty,
       },
       ...args,
     );
@@ -1266,6 +1345,8 @@ class CurveTool extends Tool {
       {
         gridSnap: {type: 'boolean', label: <GridSnapLabel />},
         featureSnap: {type: 'boolean', label: <FeatureSnapLabel />},
+        ...ThicknessProperty,
+        ...PathColorProperty,
       },
       ...args,
     );
