@@ -44,7 +44,6 @@ import type {PropertyData} from './component';
 import {PropertyEditorGroup} from './component';
 import {createEntity} from './entity';
 import type {Renderer} from './renderer/util';
-import {Geometry} from './renderer/util';
 import type {HoverType} from './renderer/helpers';
 import {
   renderRectangle,
@@ -52,7 +51,8 @@ import {
   renderTranslationHandle,
   renderRotationHandle,
   renderScaleHandle,
-  renderShapeHelper,
+  renderPointHelper,
+  renderLineHelper,
 } from './renderer/helpers';
 import {PathColorProperty} from './renderer/components';
 import {ThicknessProperty, GeometryComponents} from './geometry/components';
@@ -89,6 +89,7 @@ import {
   transformPoints,
   min,
   max,
+  distance,
   boundsContain,
   getBoundsVertices,
 } from '../server/store/math';
@@ -96,7 +97,6 @@ import {
   DEFAULT_THICKNESS,
   getCollisionGeometry,
 } from '../server/store/geometry';
-import {ShapeList} from '../server/store/shape';
 import {getValue, setsEqual} from '../server/store/util';
 
 library.add(faPlay);
@@ -1171,15 +1171,38 @@ class EraseTool extends Tool {
   };
 }
 
-const PointHelperGeometry = new Geometry(
-  ...new ShapeList().penDown(false, {thickness: 1.0}).createGeometry(),
-);
-
-class PointTool extends Tool {
+class DrawTool extends Tool {
   _lastClientX = -1;
   _lastClientY = -1;
   _translation = vec2();
 
+  _onMouseMove = (event: MouseEvent) => {
+    this._lastClientX = event.clientX;
+    this._lastClientY = event.clientY;
+    this.active &&
+      this.props.renderer &&
+      this.props.renderer.requestFrameRender();
+  };
+
+  _renderHelpers = (renderer: Renderer) => {
+    if (!this.active) {
+      return;
+    }
+    renderer.getEventPosition(
+      this._lastClientX,
+      this._lastClientY,
+      this._translation,
+    );
+    this.state.gridSnap && roundEquals(this._translation);
+    this._renderDrawHelper(renderer, this._translation);
+  };
+
+  _renderDrawHelper(renderer: Renderer, translation: Vector2) {
+    throw new Error('Not implemented.');
+  }
+}
+
+class PointTool extends DrawTool {
   constructor(...args: any[]) {
     super(
       'point',
@@ -1195,14 +1218,6 @@ class PointTool extends Tool {
       ...args,
     );
   }
-
-  _onMouseMove = (event: MouseEvent) => {
-    this._lastClientX = event.clientX;
-    this._lastClientY = event.clientY;
-    this.active &&
-      this.props.renderer &&
-      this.props.renderer.requestFrameRender();
-  };
 
   _onMouseDown = (event: MouseEvent) => {
     this.active &&
@@ -1223,29 +1238,19 @@ class PointTool extends Tool {
       );
   };
 
-  _renderHelpers = (renderer: Renderer) => {
-    if (!this.active) {
-      return;
-    }
-    const translation = this._translation;
-    renderer.getEventPosition(
-      this._lastClientX,
-      this._lastClientY,
-      translation,
-    );
-    this.state.gridSnap && roundEquals(translation);
-    renderShapeHelper(
+  _renderDrawHelper(renderer: Renderer, translation: Vector2) {
+    renderPointHelper(
       renderer,
       {translation},
       getValue(this.state.thickness, DEFAULT_THICKNESS),
       getValue(this.state.pathColor, PathColorProperty.pathColor.defaultValue),
-      '#ffffff',
-      PointHelperGeometry,
     );
-  };
+  }
 }
 
-class LineTool extends Tool {
+class LineTool extends DrawTool {
+  _start: ?Vector2;
+
   constructor(...args: any[]) {
     super(
       'line',
@@ -1261,9 +1266,62 @@ class LineTool extends Tool {
       ...args,
     );
   }
+
+  _onMouseDown = (event: MouseEvent) => {
+    if (this.active) {
+      this._start = equals(this._translation);
+    }
+  };
+
+  _onMouseUp = (event: MouseEvent) => {
+    const start = this._start;
+    if (!start) {
+      return;
+    }
+    createEntity(
+      GeometryComponents.line.label,
+      this.props.locale,
+      {
+        line: {
+          thickness: this.state.thickness,
+          length: distance(start, this._translation),
+          order: 1,
+        },
+        shapeRenderer: {
+          pathColor: this.state.pathColor,
+          order: 2,
+        },
+      },
+      this._getTransform(),
+    );
+    this._start = null;
+    this.props.renderer && this.props.renderer.requestFrameRender();
+  };
+
+  _renderDrawHelper(renderer: Renderer, translation: Vector2) {
+    renderLineHelper(
+      renderer,
+      this._getTransform(),
+      getValue(this.state.thickness, DEFAULT_THICKNESS),
+      getValue(this.state.pathColor, PathColorProperty.pathColor.defaultValue),
+      this._start ? distance(this._start, translation) : 0.0,
+    );
+  }
+
+  _getTransform(): Transform {
+    const start = this._start;
+    if (!start) {
+      return {translation: equals(this._translation)};
+    }
+    const vector = minus(this._translation, start);
+    return {
+      translation: timesEquals(plus(start, this._translation), 0.5),
+      rotation: Math.atan2(vector.y, vector.x),
+    };
+  }
 }
 
-class LineGroupTool extends Tool {
+class LineGroupTool extends DrawTool {
   constructor(...args: any[]) {
     super(
       'lineGroup',
@@ -1299,7 +1357,7 @@ class PolygonTool extends Tool {
   }
 }
 
-class RectangleTool extends Tool {
+class RectangleTool extends DrawTool {
   constructor(...args: any[]) {
     super(
       'rectangle',
@@ -1317,7 +1375,7 @@ class RectangleTool extends Tool {
   }
 }
 
-class ArcTool extends Tool {
+class ArcTool extends DrawTool {
   constructor(...args: any[]) {
     super(
       'arc',
@@ -1335,7 +1393,7 @@ class ArcTool extends Tool {
   }
 }
 
-class CurveTool extends Tool {
+class CurveTool extends DrawTool {
   constructor(...args: any[]) {
     super(
       'curve',
