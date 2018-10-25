@@ -163,10 +163,7 @@ const SHAPE_VERTEX_SHADER = `
   }
 `;
 
-/**
- * Fragment shader for standard shapes.
- */
-export const SHAPE_FRAGMENT_SHADER = `
+const SHAPE_FRAGMENT_SHADER = `
   precision mediump float;
   uniform vec3 pathColor;
   uniform vec3 fillColor;

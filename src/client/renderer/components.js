@@ -35,6 +35,22 @@ export const PathColorProperty = {
 };
 
 /**
+ * Shared fill color property.
+ */
+export const FillColorProperty = {
+  fillColor: {
+    type: 'color',
+    label: (
+      <FormattedMessage
+        id="shape_renderer.fill_color"
+        defaultMessage="Fill Color:"
+      />
+    ),
+    defaultValue: '#808080',
+  },
+};
+
+/**
  * Renderer component metadata mapped by component name.
  */
 export const RendererComponents: {[string]: ComponentData} = {
@@ -73,26 +89,8 @@ export const RendererComponents: {[string]: ComponentData} = {
       />
     ),
     properties: {
-      pathColor: {
-        type: 'color',
-        label: (
-          <FormattedMessage
-            id="shape_renderer.path_color"
-            defaultMessage="Path Color:"
-          />
-        ),
-        defaultValue: '#ffffff',
-      },
-      fillColor: {
-        type: 'color',
-        label: (
-          <FormattedMessage
-            id="shape_renderer.fill_color"
-            defaultMessage="Fill Color:"
-          />
-        ),
-        defaultValue: '#808080',
-      },
+      ...PathColorProperty,
+      ...FillColorProperty,
       zOrder: {
         type: 'number',
         label: (

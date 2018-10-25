@@ -11,17 +11,14 @@ import type {ComponentData, CategoryData} from '../component';
 import {
   DEFAULT_THICKNESS,
   DEFAULT_LINE_LENGTH,
-  DEFAULT_LINE_GROUP_VERTICES,
+  DEFAULT_VERTICES,
   DEFAULT_LINE_GROUP_LOOP,
-  DEFAULT_POLYGON_VERTICES,
-  DEFAULT_POLYGON_FILL,
+  DEFAULT_FILL,
   DEFAULT_RECTANGLE_WIDTH,
   DEFAULT_RECTANGLE_HEIGHT,
-  DEFAULT_RECTANGLE_FILL,
   DEFAULT_ARC_RADIUS,
   DEFAULT_ARC_START_ANGLE,
   DEFAULT_ARC_END_ANGLE,
-  DEFAULT_ARC_FILL,
   DEFAULT_CURVE_SPAN,
   DEFAULT_CURVE_C1,
   DEFAULT_CURVE_C2,
@@ -54,13 +51,27 @@ export const ThicknessProperty = {
   },
 };
 
-const VerticesLabel = (
-  <FormattedMessage id="geometry.vertices" defaultMessage="Vertices:" />
-);
+const VerticesProperty = {
+  vertices: {
+    type: 'array',
+    elements: {type: 'vector'},
+    label: (
+      <FormattedMessage id="geometry.vertices" defaultMessage="Vertices:" />
+    ),
+    defaultValue: DEFAULT_VERTICES,
+  },
+};
 
-const FillLabel = (
-  <FormattedMessage id="geometry.fill" defaultMessage="Fill:" />
-);
+/**
+ * The shared fill property.
+ */
+export const FillProperty = {
+  fill: {
+    type: 'boolean',
+    label: <FormattedMessage id="geometry.fill" defaultMessage="Fill:" />,
+    defaultValue: DEFAULT_FILL,
+  },
+};
 
 /**
  * Geometry component metadata mapped by component name.
@@ -95,12 +106,7 @@ export const GeometryComponents: {[string]: ComponentData} = {
     ),
     properties: {
       ...ThicknessProperty,
-      vertices: {
-        type: 'array',
-        elements: {type: 'vector'},
-        label: VerticesLabel,
-        defaultValue: DEFAULT_LINE_GROUP_VERTICES,
-      },
+      ...VerticesProperty,
       loop: {
         type: 'boolean',
         label: <FormattedMessage id="line_group.loop" defaultMessage="Loop:" />,
@@ -113,17 +119,8 @@ export const GeometryComponents: {[string]: ComponentData} = {
     label: <FormattedMessage id="polygon.title" defaultMessage="Polygon" />,
     properties: {
       ...ThicknessProperty,
-      vertices: {
-        type: 'array',
-        elements: {type: 'vector'},
-        label: VerticesLabel,
-        defaultValue: DEFAULT_POLYGON_VERTICES,
-      },
-      fill: {
-        type: 'boolean',
-        label: FillLabel,
-        defaultValue: DEFAULT_POLYGON_FILL,
-      },
+      ...VerticesProperty,
+      ...FillProperty,
     },
     category: 'geometry',
   },
@@ -153,11 +150,7 @@ export const GeometryComponents: {[string]: ComponentData} = {
         precision: 2,
         min: 0,
       },
-      fill: {
-        type: 'boolean',
-        label: FillLabel,
-        defaultValue: DEFAULT_RECTANGLE_FILL,
-      },
+      ...FillProperty,
     },
     category: 'geometry',
   },
@@ -191,11 +184,7 @@ export const GeometryComponents: {[string]: ComponentData} = {
         ),
         defaultValue: DEFAULT_ARC_END_ANGLE,
       },
-      fill: {
-        type: 'boolean',
-        label: FillLabel,
-        defaultValue: DEFAULT_ARC_FILL,
-      },
+      ...FillProperty,
     },
     category: 'geometry',
   },

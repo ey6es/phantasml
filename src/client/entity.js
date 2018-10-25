@@ -83,13 +83,14 @@ export class EntityDropdown extends React.Component<{locale: string}, {}> {
  * @param locale the locale to use for translation.
  * @param state the entity state.
  * @param transform the entity transform.
+ * @return the id of the newly created entity, if successful.
  */
 export function createEntity(
   label: React.Element<any>,
   locale: string,
   state: Object,
   transform: Transform,
-) {
+): ?string {
   const storeState = store.getState();
   const resource = storeState.resource;
   if (!(resource instanceof Scene)) {
@@ -99,9 +100,10 @@ export function createEntity(
   if (!pageNode) {
     return;
   }
+  const id = createUuid();
   store.dispatch(
     SceneActions.editEntities.create({
-      [createUuid()]: Object.assign(
+      [id]: Object.assign(
         {
           parent: {ref: storeState.page},
           name: pageNode.getUniqueName(renderText(label, locale)),
@@ -112,6 +114,7 @@ export function createEntity(
       ),
     }),
   );
+  return id;
 }
 
 /**

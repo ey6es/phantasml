@@ -53,9 +53,14 @@ import {
   renderScaleHandle,
   renderPointHelper,
   renderLineHelper,
+  renderRectangleHelper,
 } from './renderer/helpers';
-import {PathColorProperty} from './renderer/components';
-import {ThicknessProperty, GeometryComponents} from './geometry/components';
+import {PathColorProperty, FillColorProperty} from './renderer/components';
+import {
+  ThicknessProperty,
+  FillProperty,
+  GeometryComponents,
+} from './geometry/components';
 import {Shortcut} from './util/ui';
 import type {Resource} from '../server/store/resource';
 import {Scene, SceneActions} from '../server/store/scene';
@@ -331,6 +336,7 @@ class Tool extends React.Component<ToolProps, Object> {
   _subscribeToRenderer(renderer: Renderer) {
     renderer.addRenderCallback(this._renderHelpers);
     renderer.canvas.addEventListener('mousedown', this._onMouseDown);
+    renderer.canvas.addEventListener('contextmenu', this._onContextMenu);
     renderer.canvas.addEventListener('dblclick', this._onDoubleClick);
     document.addEventListener('mouseup', this._onMouseUp);
     document.addEventListener('mousemove', this._onMouseMove);
@@ -343,6 +349,7 @@ class Tool extends React.Component<ToolProps, Object> {
   _unsubscribeFromRenderer(renderer: Renderer) {
     renderer.removeRenderCallback(this._renderHelpers);
     renderer.canvas.removeEventListener('mousedown', this._onMouseDown);
+    renderer.canvas.removeEventListener('contextmenu', this._onContextMenu);
     renderer.canvas.removeEventListener('dblclick', this._onDoubleClick);
     document.removeEventListener('mouseup', this._onMouseUp);
     document.removeEventListener('mousemove', this._onMouseMove);
@@ -411,6 +418,10 @@ class Tool extends React.Component<ToolProps, Object> {
   }
 
   _onMouseDown = (event: MouseEvent) => {
+    // nothing by default
+  };
+
+  _onContextMenu = (event: MouseEvent) => {
     // nothing by default
   };
 
@@ -1270,6 +1281,7 @@ class LineTool extends DrawTool {
   _onMouseDown = (event: MouseEvent) => {
     if (this.active) {
       this._start = equals(this._translation);
+      this.props.renderer && this.props.renderer.requestFrameRender();
     }
   };
 
@@ -1305,6 +1317,7 @@ class LineTool extends DrawTool {
       getValue(this.state.thickness, DEFAULT_THICKNESS),
       getValue(this.state.pathColor, PathColorProperty.pathColor.defaultValue),
       this._start ? distance(this._start, translation) : 0.0,
+      !this._start,
     );
   }
 
@@ -1322,6 +1335,11 @@ class LineTool extends DrawTool {
 }
 
 class LineGroupTool extends DrawTool {
+  _start: ?Vector2;
+  _id: ?string;
+  _reference = vec2();
+  _vertices: Vector2[] = [];
+
   constructor(...args: any[]) {
     super(
       'lineGroup',
@@ -1337,6 +1355,90 @@ class LineGroupTool extends DrawTool {
       ...args,
     );
   }
+
+  _onMouseDown = (event: MouseEvent) => {
+    const id = this._id;
+    const start = this._start;
+    if (id && start) {
+      if (event.button === 2 || distance(start, this._translation) === 0.0) {
+        this._id = null;
+        this._start = null;
+      } else {
+        this._vertices = this._vertices.slice();
+        this._vertices.push(minus(this._translation, this._reference));
+        store.dispatch(
+          SceneActions.editEntities.create({
+            [id]: {
+              lineGroup: {vertices: this._vertices},
+            },
+          }),
+        );
+        this._start = equals(this._translation);
+      }
+      this.props.renderer && this.props.renderer.requestFrameRender();
+    } else if (this.active) {
+      this._start = equals(this._translation);
+      this.props.renderer && this.props.renderer.requestFrameRender();
+    }
+  };
+
+  _onContextMenu = (event: MouseEvent) => {
+    event.preventDefault();
+  };
+
+  _onMouseUp = (event: MouseEvent) => {
+    const start = this._start;
+    if (!start || this._id) {
+      return;
+    }
+    equals(start, this._reference);
+    this._vertices = [vec2()];
+    const firstPoint = minus(this._translation, start);
+    if (length(firstPoint) > 0) {
+      this._vertices.push(firstPoint);
+    }
+    this._id = createEntity(
+      GeometryComponents.lineGroup.label,
+      this.props.locale,
+      {
+        lineGroup: {
+          thickness: this.state.thickness,
+          vertices: this._vertices,
+          order: 1,
+        },
+        shapeRenderer: {
+          pathColor: this.state.pathColor,
+          order: 2,
+        },
+      },
+      {translation: start},
+    );
+    this._start = equals(this._translation);
+    this.props.renderer && this.props.renderer.requestFrameRender();
+  };
+
+  _renderDrawHelper(renderer: Renderer, translation: Vector2) {
+    renderLineHelper(
+      renderer,
+      this._getTransform(),
+      getValue(this.state.thickness, DEFAULT_THICKNESS),
+      getValue(this.state.pathColor, PathColorProperty.pathColor.defaultValue),
+      this._start ? distance(this._start, translation) : 0.0,
+      !this._start,
+    );
+  }
+
+  _getTransform(): Transform {
+    const start = this._start;
+    if (!start) {
+      return {translation: equals(this._translation)};
+    }
+    const vector = minus(this._translation, start);
+    return {
+      translation: timesEquals(plus(start, this._translation), 0.5),
+      rotation: Math.atan2(vector.y, vector.x),
+    };
+  }
 }
 
 class PolygonTool extends Tool {
@@ -1351,13 +1453,19 @@ class PolygonTool extends Tool {
         featureSnap: {type: 'boolean', label: <FeatureSnapLabel />},
         ...ThicknessProperty,
         ...PathColorProperty,
+        ...FillColorProperty,
+        ...FillProperty,
       },
       ...args,
     );
   }
+
+  _renderDrawHelper(renderer: Renderer, translation: Vector2) {}
 }
 
 class RectangleTool extends DrawTool {
+  _start: ?Vector2;
+
   constructor(...args: any[]) {
     super(
       'rectangle',
@@ -1369,9 +1477,71 @@ class RectangleTool extends DrawTool {
         featureSnap: {type: 'boolean', label: <FeatureSnapLabel />},
         ...ThicknessProperty,
         ...PathColorProperty,
+        ...FillColorProperty,
+        ...FillProperty,
       },
       ...args,
     );
+  }
+
+  _onMouseDown = (event: MouseEvent) => {
+    if (this.active) {
+      this._start = equals(this._translation);
+      this.props.renderer && this.props.renderer.requestFrameRender();
+    }
+  };
+
+  _onMouseUp = (event: MouseEvent) => {
+    const start = this._start;
+    if (!start) {
+      return;
+    }
+    createEntity(
+      GeometryComponents.rectangle.label,
+      this.props.locale,
+      {
+        rectangle: {
+          thickness: this.state.thickness,
+          width: Math.abs(this._translation.x - start.x),
+          height: Math.abs(this._translation.y - start.y),
+          fill: this.state.fill,
+          order: 1,
+        },
+        shapeRenderer: {
+          pathColor: this.state.pathColor,
+          fillColor: this.state.fillColor,
+          order: 2,
+        },
+      },
+      this._getTransform(),
+    );
+    this._start = null;
+    this.props.renderer && this.props.renderer.requestFrameRender();
+  };
+
+  _renderDrawHelper(renderer: Renderer, translation: Vector2) {
+    renderRectangleHelper(
+      renderer,
+      this._getTransform(),
+      getValue(this.state.thickness, DEFAULT_THICKNESS),
+      getValue(this.state.pathColor, PathColorProperty.pathColor.defaultValue),
+      getValue(this.state.fillColor, FillColorProperty.fillColor.defaultValue),
+      getValue(this.state.fill, FillProperty.fill.defaultValue),
+      this._start ? Math.abs(translation.x - this._start.x) : 0.0,
+      this._start ? Math.abs(translation.y - this._start.y) : 0.0,
+      !this._start,
+    );
+  }
+
+  _getTransform(): Transform {
+    const start = this._start;
+    if (!start) {
+      return {translation: equals(this._translation)};
+    }
+    const vector = minus(this._translation, start);
+    return {
+      translation: timesEquals(plus(start, this._translation), 0.5),
+    };
   }
 }
 
@@ -1387,10 +1557,14 @@ class ArcTool extends DrawTool {
         featureSnap: {type: 'boolean', label: <FeatureSnapLabel />},
         ...ThicknessProperty,
         ...PathColorProperty,
+        ...FillColorProperty,
+        ...FillProperty,
       },
       ...args,
     );
   }
+
+  _renderDrawHelper(renderer: Renderer, translation: Vector2) {}
 }
 
 class CurveTool extends DrawTool {
@@ -1409,6 +1583,8 @@ class CurveTool extends DrawTool {
       ...args,
     );
   }
+
+  _renderDrawHelper(renderer: Renderer, translation: Vector2) {}
 }
 
 class StampTool extends Tool {

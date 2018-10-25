@@ -19,25 +19,14 @@ type GeometryData = {
 
 export const DEFAULT_THICKNESS = 0.2;
 export const DEFAULT_LINE_LENGTH = 5;
-export const DEFAULT_LINE_GROUP_VERTICES = [
-  vec2(-2.5, -1.5),
-  vec2(2.5, -1.5),
-  vec2(0, 3),
-];
+export const DEFAULT_VERTICES = [vec2(-2.5, -1.5), vec2(2.5, -1.5), vec2(0, 3)];
 export const DEFAULT_LINE_GROUP_LOOP = false;
-export const DEFAULT_POLYGON_VERTICES = [
-  vec2(-2.5, -1.5),
-  vec2(2.5, -1.5),
-  vec2(0, 3),
-];
-export const DEFAULT_POLYGON_FILL = false;
+export const DEFAULT_FILL = false;
 export const DEFAULT_RECTANGLE_WIDTH = 5;
 export const DEFAULT_RECTANGLE_HEIGHT = 5;
-export const DEFAULT_RECTANGLE_FILL = false;
 export const DEFAULT_ARC_RADIUS = 2.5;
 export const DEFAULT_ARC_START_ANGLE = -Math.PI;
 export const DEFAULT_ARC_END_ANGLE = Math.PI;
-export const DEFAULT_ARC_FILL = false;
 export const DEFAULT_CURVE_SPAN = 5;
 export const DEFAULT_CURVE_C1 = vec2(-0.833, 2);
 export const DEFAULT_CURVE_C2 = vec2(0.833, -2);
@@ -127,7 +116,7 @@ export const ComponentGeometry: {[string]: GeometryData} = {
   lineGroup: {
     addToBounds: (bounds, data) => {
       const thickness = getValue(data.thickness, DEFAULT_THICKNESS);
-      const vertices = getValue(data.vertices, DEFAULT_LINE_GROUP_VERTICES);
+      const vertices = getValue(data.vertices, DEFAULT_VERTICES);
       for (const vertex of vertices) {
         addToBoundsEquals(bounds, vertex.x, vertex.y);
       }
@@ -135,7 +124,7 @@ export const ComponentGeometry: {[string]: GeometryData} = {
     },
     createShapeList: data => {
       const thickness = getValue(data.thickness, DEFAULT_THICKNESS);
-      const vertices = getValue(data.vertices, DEFAULT_LINE_GROUP_VERTICES);
+      const vertices = getValue(data.vertices, DEFAULT_VERTICES);
       const loop = getValue(data.loop, DEFAULT_LINE_GROUP_LOOP);
       if (vertices.length === 0) {
         return new ShapeList();
@@ -153,7 +142,7 @@ export const ComponentGeometry: {[string]: GeometryData} = {
   polygon: {
     addToBounds: (bounds, data) => {
       const thickness = getValue(data.thickness, DEFAULT_THICKNESS);
-      const vertices = getValue(data.vertices, DEFAULT_POLYGON_VERTICES);
+      const vertices = getValue(data.vertices, DEFAULT_VERTICES);
       for (const vertex of vertices) {
         addToBoundsEquals(bounds, vertex.x, vertex.y);
       }
@@ -161,8 +150,8 @@ export const ComponentGeometry: {[string]: GeometryData} = {
     },
     createShapeList: data => {
       const thickness = getValue(data.thickness, DEFAULT_THICKNESS);
-      const vertices = getValue(data.vertices, DEFAULT_POLYGON_VERTICES);
-      const fill = getValue(data.fill, DEFAULT_POLYGON_FILL);
+      const vertices = getValue(data.vertices, DEFAULT_VERTICES);
+      const fill = getValue(data.fill, DEFAULT_FILL);
       if (vertices.length === 0) {
         return new ShapeList();
       }
@@ -191,7 +180,7 @@ export const ComponentGeometry: {[string]: GeometryData} = {
       const thickness = getValue(data.thickness, DEFAULT_THICKNESS);
       const width = getValue(data.width, DEFAULT_RECTANGLE_WIDTH);
       const height = getValue(data.height, DEFAULT_RECTANGLE_HEIGHT);
-      const fill = getValue(data.fill, DEFAULT_RECTANGLE_FILL);
+      const fill = getValue(data.fill, DEFAULT_FILL);
       return new ShapeList()
         .move(width * -0.5, height * -0.5)
         .penDown(fill, {thickness})
@@ -219,7 +208,7 @@ export const ComponentGeometry: {[string]: GeometryData} = {
       const radius = getValue(data.radius, DEFAULT_ARC_RADIUS);
       const startAngle = getValue(data.startAngle, DEFAULT_ARC_START_ANGLE);
       const endAngle = getValue(data.endAngle, DEFAULT_ARC_END_ANGLE);
-      const fill = getValue(data.fill, DEFAULT_ARC_FILL);
+      const fill = getValue(data.fill, DEFAULT_FILL);
       const shapeList = new ShapeList()
         .move(radius, 0, 90, {thickness})
         .arc(startAngle, radius)

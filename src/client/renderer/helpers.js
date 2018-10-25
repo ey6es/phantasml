@@ -7,7 +7,6 @@
 
 import type {Renderer} from './util';
 import {Geometry} from './util';
-import {SHAPE_FRAGMENT_SHADER} from './renderers';
 import type {LineSegment, Transform} from '../../server/store/math';
 import {
   getTransformMatrix,
@@ -432,7 +431,7 @@ export function renderPointHelper(
   const program = renderer.getProgram(
     renderPointHelper,
     renderer.getVertexShader(renderPointHelper, POINT_HELPER_VERTEX_SHADER),
-    renderer.getFragmentShader(renderPointHelper, SHAPE_FRAGMENT_SHADER),
+    renderer.getFragmentShader(renderPointHelper, SHAPE_HELPER_FRAGMENT_SHADER),
   );
   program.setUniformViewProjectionMatrix('viewProjectionMatrix');
   program.setUniformMatrix('modelMatrix', transform, getTransformMatrix);
@@ -440,6 +439,7 @@ export function renderPointHelper(
   program.setUniformFloat('pixelsToWorldUnits', renderer.pixelsToWorldUnits);
   program.setUniformFloat('thicknessScale', thickness);
   program.setUniformColor('pathColor', pathColor);
+  program.setUniformFloat('alphaScale', 0.25);
   renderer.setEnabled(renderer.gl.BLEND, true);
   PointHelperGeometry.draw(program);
 }
@@ -470,6 +470,25 @@ const POINT_HELPER_VERTEX_SHADER = `
   }
 `;
 
+const SHAPE_HELPER_FRAGMENT_SHADER = `
+  precision mediump float;
+  uniform vec3 pathColor;
+  uniform vec3 fillColor;
+  uniform float alphaScale;
+  varying vec2 interpolatedVector;
+  varying float interpolatedJoint;
+  varying float stepSize;
+  void main(void) {
+    float dist = length(interpolatedVector);
+    float filled = 1.0 - step(dist, 0.0);
+    float inside = 1.0 - smoothstep(1.0 - stepSize, 1.0, dist);
+    // joints are drawn twice, so adjust alpha accordingly
+    float joint = smoothstep(0.0, stepSize, interpolatedJoint);
+    float alpha = mix(2.0 * inside - inside * inside, inside, joint);
+    gl_FragColor = vec4(mix(fillColor, pathColor, filled), alpha * alphaScale);
+  }
+`;
+
 const LineHelperGeometry = new Geometry(
   ...new ShapeList()
     .move(-0.5, 0)
@@ -486,6 +505,7 @@ const LineHelperGeometry = new Geometry(
  * @param thickness the path thickness to use.
  * @param pathColor the color to use for paths.
  * @param length the length of the line.
+ * @param translucent whether or not to draw the line as translucent.
  */
 export function renderLineHelper(
   renderer: Renderer,
@@ -493,11 +513,12 @@ export function renderLineHelper(
   thickness: number,
   pathColor: string,
   length: number,
+  translucent: boolean,
 ) {
   const program = renderer.getProgram(
     renderLineHelper,
     renderer.getVertexShader(renderLineHelper, LINE_HELPER_VERTEX_SHADER),
-    renderer.getFragmentShader(renderLineHelper, SHAPE_FRAGMENT_SHADER),
+    renderer.getFragmentShader(renderLineHelper, SHAPE_HELPER_FRAGMENT_SHADER),
   );
   program.setUniformViewProjectionMatrix('viewProjectionMatrix');
   program.setUniformMatrix('modelMatrix', transform, getTransformMatrix);
@@ -506,6 +527,7 @@ export function renderLineHelper(
   program.setUniformFloat('thicknessScale', thickness);
   program.setUniformFloat('lineLength', length);
   program.setUniformColor('pathColor', pathColor);
+  program.setUniformFloat('alphaScale', translucent ? 0.25 : 1.0);
   renderer.setEnabled(renderer.gl.BLEND, true);
   LineHelperGeometry.draw(program);
 }
@@ -530,6 +552,107 @@ const LINE_HELPER_VERTEX_SHADER = `
     float scaledThickness = thickness * thicknessScale;
     stepSize = pixelsToWorldUnits / scaledThickness;
     vec2 scaledVertex = vertex * vec2(lineLength, 1.0);
+    vec3 point =
+      modelMatrix * vec3(scaledVertex, 1.0) +
+      vec3(vectorMatrix * vector, 0.0) * scaledThickness;
+    vec3 position = viewProjectionMatrix * point;
+    gl_Position = vec4(position.xy, 0.0, 1.0);
+  }
+`;
+
+const RectangleHelperGeometry = new Geometry(
+  ...createRectangleShapeList(false).createGeometry(),
+);
+
+const FilledRectangleHelperGeometry = new Geometry(
+  ...createRectangleShapeList(true).createGeometry(),
+);
+
+function createRectangleShapeList(fill: boolean): ShapeList {
+  return new ShapeList()
+    .move(-0.5, -0.5)
+    .penDown(fill, {thickness: 1.0})
+    .advance(1.0)
+    .pivot(90)
+    .advance(1.0)
+    .pivot(90)
+    .advance(1.0)
+    .pivot(90)
+    .advance(1.0);
+}
+
+/**
+ * Renders a rectangle helper (used for drawing tools).
+ *
+ * @param renderer the renderer to use.
+ * @param transform the transform to apply to the rectangle.
+ * @param thickness the path thickness to use.
+ * @param pathColor the color to use for paths.
+ * @param fillColor the color to use for fill.
+ * @param fill whether or not to fill the rectangle.
+ * @param width the width of the rectangle.
+ * @param height the height of the rectangle.
+ * @param translucent whether or not to draw the rectangle as translucent.
+ */
+export function renderRectangleHelper(
+  renderer: Renderer,
+  transform: Transform,
+  thickness: number,
+  pathColor: string,
+  fillColor: string,
+  fill: boolean,
+  width: number,
+  height: number,
+  translucent: boolean,
+) {
+  const program = renderer.getProgram(
+    renderRectangleHelper,
+    renderer.getVertexShader(
+      renderRectangleHelper,
+      RECTANGLE_HELPER_VERTEX_SHADER,
+    ),
+    renderer.getFragmentShader(
+      renderRectangleHelper,
+      SHAPE_HELPER_FRAGMENT_SHADER,
+    ),
+  );
+  program.setUniformViewProjectionMatrix('viewProjectionMatrix');
+  program.setUniformMatrix('modelMatrix', transform, getTransformMatrix);
+  program.setUniformMatrix('vectorMatrix', getTransformVectorMatrix(transform));
+  program.setUniformFloat('pixelsToWorldUnits', renderer.pixelsToWorldUnits);
+  program.setUniformFloat('thicknessScale', thickness);
+  program.setUniformFloat('rectangleWidth', width);
+  program.setUniformFloat('rectangleHeight', height);
+  program.setUniformColor('pathColor', pathColor);
+  program.setUniformColor('fillColor', fillColor);
+  program.setUniformFloat('alphaScale', translucent ? 0.25 : 1.0);
+  renderer.setEnabled(renderer.gl.BLEND, true);
+  (fill ? FilledRectangleHelperGeometry : RectangleHelperGeometry).draw(
+    program,
+  );
+}
+
+const RECTANGLE_HELPER_VERTEX_SHADER = `
+  uniform mat3 modelMatrix;
+  uniform mat2 vectorMatrix;
+  uniform mat3 viewProjectionMatrix;
+  uniform float pixelsToWorldUnits;
+  uniform float thicknessScale;
+  uniform float rectangleWidth;
+  uniform float rectangleHeight;
+  attribute vec2 vertex;
+  attribute vec2 vector;
+  attribute float joint;
+  attribute float thickness;
+  varying vec2 interpolatedVector;
+  varying float interpolatedJoint;
+  varying float stepSize;
+  void main(void) {
+    interpolatedVector = vector;
+    interpolatedJoint = joint;
+    float scaledThickness = thickness * thicknessScale;
+    stepSize = pixelsToWorldUnits / scaledThickness;
+    vec2 scaledVertex = vertex * vec2(rectangleWidth, rectangleHeight);
     vec3 point =
       modelMatrix * vec3(scaledVertex, 1.0) +
       vec3(vectorMatrix * vector, 0.0) * scaledThickness;
