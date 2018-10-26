@@ -54,6 +54,7 @@ import {
   renderPointHelper,
   renderLineHelper,
   renderRectangleHelper,
+  renderArcHelper,
   renderCurveHelper,
 } from './renderer/helpers';
 import {PathColorProperty, FillColorProperty} from './renderer/components';
@@ -98,6 +99,7 @@ import {
   distance,
   boundsContain,
   getBoundsVertices,
+  clamp,
 } from '../server/store/math';
 import {
   DEFAULT_THICKNESS,
@@ -1583,6 +1585,9 @@ class RectangleTool extends DrawTool {
 }
 
 class ArcTool extends DrawTool {
+  _center: ?Vector2;
+  _startVector: ?Vector2;
+
   constructor(...args: any[]) {
     super(
       'arc',
@@ -1601,7 +1606,139 @@ class ArcTool extends DrawTool {
     );
   }
 
-  _renderDrawHelper(renderer: Renderer, translation: Vector2) {}
+  _onMouseDown = (event: MouseEvent) => {
+    const center = this._center;
+    const startVector = this._startVector;
+    if (center && startVector) {
+      const radius = length(startVector);
+      const currentVector = minus(this._translation, center);
+      const baseAngle = Math.acos(
+        clamp(
+          dot(startVector, currentVector) / (radius * length(currentVector)),
+          -1.0,
+          1.0,
+        ),
+      );
+      const angle =
+        cross(startVector, currentVector) > 0
+          ? baseAngle
+          : 2 * Math.PI - baseAngle;
+      createEntity(
+        GeometryComponents.arc.label,
+        this.props.locale,
+        {
+          arc: {
+            thickness: this.state.thickness,
+            radius,
+            angle,
+            fill: this.state.fill,
+            order: 1,
+          },
+          shapeRenderer: {
+            pathColor: this.state.pathColor,
+            fillColor: this.state.fillColor,
+            order: 2,
+          },
+        },
+        this._getTransform(),
+      );
+      this._center = null;
+      this._startVector = null;
+      this.props.renderer && this.props.renderer.requestFrameRender();
+    } else if (center) {
+      this._startVector = minus(this._translation, center);
+      this.props.renderer && this.props.renderer.requestFrameRender();
+    } else if (this.active) {
+      this._center = equals(this._translation);
+      this.props.renderer && this.props.renderer.requestFrameRender();
+    }
+  };
+
+  _onMouseUp = (event: MouseEvent) => {
+    const center = this._center;
+    if (!center) {
+      return;
+    }
+    if (!this._startVector && distance(this._translation, center) > 0) {
+      this._startVector = minus(this._translation, center);
+      this.props.renderer && this.props.renderer.requestFrameRender();
+    }
+  };
+
+  _renderDrawHelper(renderer: Renderer, translation: Vector2) {
+    const center = this._center;
+    const transform = this._getTransform();
+    if (!center) {
+      renderPointHelper(
+        renderer,
+        transform,
+        getValue(this.state.thickness, DEFAULT_THICKNESS),
+        getValue(
+          this.state.pathColor,
+          PathColorProperty.pathColor.defaultValue,
+        ),
+      );
+      return;
+    }
+    const startVector = this._startVector;
+    if (!startVector) {
+      renderArcHelper(
+        renderer,
+        transform,
+        getValue(this.state.thickness, DEFAULT_THICKNESS),
+        getValue(
+          this.state.pathColor,
+          PathColorProperty.pathColor.defaultValue,
+        ),
+        getValue(
+          this.state.fillColor,
+          FillColorProperty.fillColor.defaultValue,
+        ),
+        getValue(this.state.fill, FillProperty.fill.defaultValue),
+        distance(center, this._translation),
+        2 * Math.PI,
+      );
+      return;
+    }
+    const radius = length(startVector);
+    const currentVector = minus(this._translation, center);
+    const baseAngle = Math.acos(
+      clamp(
+        dot(startVector, currentVector) / (radius * length(currentVector)),
+        -1.0,
+        1.0,
+      ),
+    );
+    const angle =
+      cross(startVector, currentVector) > 0
+        ? baseAngle
+        : 2 * Math.PI - baseAngle;
+    renderArcHelper(
+      renderer,
+      transform,
+      getValue(this.state.thickness, DEFAULT_THICKNESS),
+      getValue(this.state.pathColor, PathColorProperty.pathColor.defaultValue),
+      getValue(this.state.fillColor, FillColorProperty.fillColor.defaultValue),
+      getValue(this.state.fill, FillProperty.fill.defaultValue),
+      radius,
+      angle,
+    );
+  }
+
+  _getTransform(): Transform {
+    const center = this._center;
+    if (!center) {
+      return {translation: equals(this._translation)};
+    }
+    const startVector = this._startVector;
+    if (!startVector) {
+      return {translation: center};
+    }
+    return {
+      translation: center,
+      rotation: Math.atan2(startVector.y, startVector.x),
+    };
+  }
 }
 
 class CurveTool extends DrawTool {

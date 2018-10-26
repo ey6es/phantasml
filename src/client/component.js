@@ -608,8 +608,8 @@ const PropertyEditors = {
           )}
           setValue={value => props.setValue(radians(value))}
           precision={2}
-          min={-180}
-          max={180}
+          min={degrees(getValue(props.property.min, -Math.PI))}
+          max={degrees(getValue(props.property.max, Math.PI))}
           circular={true}
         />
       </div>

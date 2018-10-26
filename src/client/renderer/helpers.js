@@ -651,11 +651,118 @@ const RECTANGLE_HELPER_VERTEX_SHADER = `
   }
 `;
 
+const ArcHelperGeometry = new Geometry(
+  ...createArcShapeList(false, false).createGeometry(64.0),
+);
+
+const FilledArcHelperGeometry = new Geometry(
+  ...createArcShapeList(true, false).createGeometry(64.0),
+);
+
+const OpenFilledArcHelperGeometry = new Geometry(
+  ...createArcShapeList(true, true).createGeometry(64.0),
+);
+
+function createArcShapeList(fill: boolean, open: boolean): ShapeList {
+  const shapeList = new ShapeList()
+    .move(1.0, 0, 90, {t: 0.0})
+    .pushState()
+    .penDown(fill)
+    .arc(Math.PI, 1.0, {t: 0.5})
+    .arc(Math.PI, 1.0, {t: 1.0});
+  if (open) {
+    shapeList.move(0, 0).popState();
+  }
+  return shapeList;
+}
+
+/**
+ * Renders an arc helper (used for drawing tools).
+ *
+ * @param renderer the renderer to use.
+ * @param transform the transform to apply to the arc.
+ * @param thickness the path thickness to use.
+ * @param pathColor the color to use for paths.
+ * @param fillColor the color to use for fill.
+ * @param fill whether or not to fill the arc.
+ * @param radius the radius of the arc.
+ * @param angle the angle of the arc in radians.
+ */
+export function renderArcHelper(
+  renderer: Renderer,
+  transform: Transform,
+  thickness: number,
+  pathColor: string,
+  fillColor: string,
+  fill: boolean,
+  radius: number,
+  angle: number,
+) {
+  const program = renderer.getProgram(
+    renderArcHelper,
+    renderer.getVertexShader(renderArcHelper, ARC_HELPER_VERTEX_SHADER),
+    renderer.getFragmentShader(renderArcHelper, SHAPE_FRAGMENT_SHADER),
+  );
+  program.setUniformViewProjectionMatrix('viewProjectionMatrix');
+  program.setUniformMatrix('modelMatrix', transform, getTransformMatrix);
+  program.setUniformMatrix('vectorMatrix', getTransformVectorMatrix(transform));
+  program.setUniformFloat('pixelsToWorldUnits', renderer.pixelsToWorldUnits);
+  program.setUniformFloat('thickness', thickness);
+  program.setUniformFloat('radius', radius);
+  let startAngle = 0.0;
+  let endAngle = angle;
+  if (angle < 0) {
+    startAngle = 2 * Math.PI + angle;
+    endAngle = -angle;
+  }
+  program.setUniformFloat('startAngle', startAngle);
+  program.setUniformFloat('endAngle', endAngle);
+  program.setUniformColor('pathColor', pathColor);
+  program.setUniformColor('fillColor', fillColor);
+  renderer.setEnabled(renderer.gl.BLEND, true);
+  (fill
+    ? endAngle < 2 * Math.PI
+      ? OpenFilledArcHelperGeometry
+      : FilledArcHelperGeometry
+    : ArcHelperGeometry
+  ).draw(program);
+}
+
+const ARC_HELPER_VERTEX_SHADER = `
+  uniform mat3 modelMatrix;
+  uniform mat2 vectorMatrix;
+  uniform mat3 viewProjectionMatrix;
+  uniform float pixelsToWorldUnits;
+  uniform float thickness;
+  uniform float radius;
+  uniform float startAngle;
+  uniform float endAngle;
+  attribute vec2 vertex;
+  attribute vec2 vector;
+  attribute float joint;
+  attribute float t;
+  varying vec2 interpolatedVector;
+  varying float interpolatedJoint;
+  varying float stepSize;
+  void main(void) {
+    interpolatedVector = vector;
+    interpolatedJoint = joint;
+    stepSize = pixelsToWorldUnits / thickness;
+    float angle = mix(startAngle, endAngle, t);
+    vec2 scaledVertex = vec2(cos(angle), sin(angle)) * radius * length(vertex);
+    vec3 point =
+      modelMatrix * vec3(scaledVertex, 1.0) +
+      vec3(vectorMatrix * vector, 0.0) * thickness;
+    vec3 position = viewProjectionMatrix * point;
+    gl_Position = vec4(position.xy, 0.0, 1.0);
+  }
+`;
+
 const curvePath = new Path()
   .moveTo(vec2(-0.5, 0), 0, {t: 0.0})
   .curveTo(vec2(0.5, 0), vec2(-0.25, 0), vec2(0.25, 0), 0, {t: 1.0});
 const CurveHelperGeometry = new Geometry(
-  ...new ShapeList([], [curvePath]).createGeometry(32.0),
+  ...new ShapeList([], [curvePath]).createGeometry(64.0),
 );
 
 /**

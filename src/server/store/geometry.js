@@ -25,8 +25,7 @@ export const DEFAULT_FILL = false;
 export const DEFAULT_RECTANGLE_WIDTH = 5;
 export const DEFAULT_RECTANGLE_HEIGHT = 5;
 export const DEFAULT_ARC_RADIUS = 2.5;
-export const DEFAULT_ARC_START_ANGLE = -Math.PI;
-export const DEFAULT_ARC_END_ANGLE = Math.PI;
+export const DEFAULT_ARC_ANGLE = 2 * Math.PI;
 export const DEFAULT_CURVE_SPAN = 5;
 export const DEFAULT_CURVE_C1 = vec2(-0.833, 2);
 export const DEFAULT_CURVE_C2 = vec2(0.833, -2);
@@ -197,8 +196,6 @@ export const ComponentGeometry: {[string]: GeometryData} = {
     addToBounds: (bounds, data) => {
       const thickness = getValue(data.thickness, DEFAULT_THICKNESS);
       const radius = getValue(data.radius, DEFAULT_ARC_RADIUS);
-      const startAngle = getValue(data.startAngle, DEFAULT_ARC_START_ANGLE);
-      const endAngle = getValue(data.endAngle, DEFAULT_ARC_END_ANGLE);
       addToBoundsEquals(bounds, -radius, -radius);
       addToBoundsEquals(bounds, radius, radius);
       return thickness;
@@ -206,16 +203,21 @@ export const ComponentGeometry: {[string]: GeometryData} = {
     createShapeList: data => {
       const thickness = getValue(data.thickness, DEFAULT_THICKNESS);
       const radius = getValue(data.radius, DEFAULT_ARC_RADIUS);
-      const startAngle = getValue(data.startAngle, DEFAULT_ARC_START_ANGLE);
-      const endAngle = getValue(data.endAngle, DEFAULT_ARC_END_ANGLE);
+      const angle = getValue(data.angle, DEFAULT_ARC_ANGLE);
       const fill = getValue(data.fill, DEFAULT_FILL);
+      let startAngle = 0.0;
+      let endAngle = angle;
+      if (angle < 0) {
+        startAngle = 2 * Math.PI + angle;
+        endAngle = -angle;
+      }
       const shapeList = new ShapeList()
         .move(radius, 0, 90, {thickness})
         .arc(startAngle, radius)
         .pushState()
         .penDown(fill)
-        .arc(endAngle - startAngle, radius);
-      if (fill && Math.abs(endAngle - startAngle) < 2 * Math.PI) {
+        .arc(endAngle, radius);
+      if (fill && endAngle < 2 * Math.PI) {
         shapeList.move(0, 0).popState();
       }
       return shapeList;

@@ -17,8 +17,7 @@ import {
   DEFAULT_RECTANGLE_WIDTH,
   DEFAULT_RECTANGLE_HEIGHT,
   DEFAULT_ARC_RADIUS,
-  DEFAULT_ARC_START_ANGLE,
-  DEFAULT_ARC_END_ANGLE,
+  DEFAULT_ARC_ANGLE,
   DEFAULT_CURVE_SPAN,
   DEFAULT_CURVE_C1,
   DEFAULT_CURVE_C2,
@@ -167,22 +166,12 @@ export const GeometryComponents: {[string]: ComponentData} = {
         precision: 2,
         min: 0,
       },
-      startAngle: {
+      angle: {
         type: 'angle',
-        label: (
-          <FormattedMessage
-            id="arc.start_angle"
-            defaultMessage="Start Angle:"
-          />
-        ),
-        defaultValue: DEFAULT_ARC_START_ANGLE,
-      },
-      endAngle: {
-        type: 'angle',
-        label: (
-          <FormattedMessage id="arc.end_angle" defaultMessage="End Angle:" />
-        ),
-        defaultValue: DEFAULT_ARC_END_ANGLE,
+        label: <FormattedMessage id="arc.angle" defaultMessage="Angle:" />,
+        defaultValue: DEFAULT_ARC_ANGLE,
+        min: -2 * Math.PI,
+        max: 2 * Math.PI,
       },
       ...FillProperty,
     },
