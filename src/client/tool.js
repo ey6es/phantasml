@@ -54,6 +54,7 @@ import {
   renderPointHelper,
   renderLineHelper,
   renderRectangleHelper,
+  renderCurveHelper,
 } from './renderer/helpers';
 import {PathColorProperty, FillColorProperty} from './renderer/components';
 import {
@@ -1311,13 +1312,25 @@ class LineTool extends DrawTool {
   };
 
   _renderDrawHelper(renderer: Renderer, translation: Vector2) {
+    const start = this._start;
+    if (!start) {
+      renderPointHelper(
+        renderer,
+        this._getTransform(),
+        getValue(this.state.thickness, DEFAULT_THICKNESS),
+        getValue(
+          this.state.pathColor,
+          PathColorProperty.pathColor.defaultValue,
+        ),
+      );
+      return;
+    }
     renderLineHelper(
       renderer,
       this._getTransform(),
       getValue(this.state.thickness, DEFAULT_THICKNESS),
       getValue(this.state.pathColor, PathColorProperty.pathColor.defaultValue),
-      this._start ? distance(this._start, translation) : 0.0,
-      !this._start,
+      distance(start, translation),
     );
   }
 
@@ -1418,13 +1431,25 @@ class LineGroupTool extends DrawTool {
   };
 
   _renderDrawHelper(renderer: Renderer, translation: Vector2) {
+    const start = this._start;
+    if (!start) {
+      renderPointHelper(
+        renderer,
+        this._getTransform(),
+        getValue(this.state.thickness, DEFAULT_THICKNESS),
+        getValue(
+          this.state.pathColor,
+          PathColorProperty.pathColor.defaultValue,
+        ),
+      );
+      return;
+    }
     renderLineHelper(
       renderer,
       this._getTransform(),
       getValue(this.state.thickness, DEFAULT_THICKNESS),
       getValue(this.state.pathColor, PathColorProperty.pathColor.defaultValue),
-      this._start ? distance(this._start, translation) : 0.0,
-      !this._start,
+      distance(start, translation),
     );
   }
 
@@ -1520,6 +1545,19 @@ class RectangleTool extends DrawTool {
   };
 
   _renderDrawHelper(renderer: Renderer, translation: Vector2) {
+    const start = this._start;
+    if (!start) {
+      renderPointHelper(
+        renderer,
+        this._getTransform(),
+        getValue(this.state.thickness, DEFAULT_THICKNESS),
+        getValue(
+          this.state.pathColor,
+          PathColorProperty.pathColor.defaultValue,
+        ),
+      );
+      return;
+    }
     renderRectangleHelper(
       renderer,
       this._getTransform(),
@@ -1527,9 +1565,8 @@ class RectangleTool extends DrawTool {
       getValue(this.state.pathColor, PathColorProperty.pathColor.defaultValue),
       getValue(this.state.fillColor, FillColorProperty.fillColor.defaultValue),
       getValue(this.state.fill, FillProperty.fill.defaultValue),
-      this._start ? Math.abs(translation.x - this._start.x) : 0.0,
-      this._start ? Math.abs(translation.y - this._start.y) : 0.0,
-      !this._start,
+      Math.abs(translation.x - start.x),
+      Math.abs(translation.y - start.y),
     );
   }
 
@@ -1568,6 +1605,10 @@ class ArcTool extends DrawTool {
 }
 
 class CurveTool extends DrawTool {
+  _start: ?Vector2;
+  _end: ?Vector2;
+  _controlCenter: ?Vector2;
+
   constructor(...args: any[]) {
     super(
       'curve',
@@ -1584,7 +1625,145 @@ class CurveTool extends DrawTool {
     );
   }
 
-  _renderDrawHelper(renderer: Renderer, translation: Vector2) {}
+  _onMouseDown = (event: MouseEvent) => {
+    const controlCenter = this._controlCenter;
+    const start = this._start;
+    const end = this._end;
+    if (controlCenter && start && end) {
+      const transform = this._getTransform();
+      const controlPoint = transformPoint(
+        controlCenter,
+        getTransformInverseMatrix(transform),
+      );
+      const leftPoint = transformPoint(
+        this._translation,
+        getTransformInverseMatrix(transform),
+      );
+      createEntity(
+        GeometryComponents.curve.label,
+        this.props.locale,
+        {
+          curve: {
+            thickness: this.state.thickness,
+            span: distance(start, end),
+            c1: leftPoint,
+            c2: minusEquals(times(controlPoint, 2.0), leftPoint),
+            order: 1,
+          },
+          shapeRenderer: {
+            pathColor: this.state.pathColor,
+            order: 2,
+          },
+        },
+        transform,
+      );
+      this._start = null;
+      this._end = null;
+      this._controlCenter = null;
+      this.props.renderer && this.props.renderer.requestFrameRender();
+    } else if (end) {
+      this._controlCenter = equals(this._translation);
+      this.props.renderer && this.props.renderer.requestFrameRender();
+    } else if (start) {
+      this._end = equals(this._translation);
+      this.props.renderer && this.props.renderer.requestFrameRender();
+    } else if (this.active) {
+      this._start = equals(this._translation);
+      this.props.renderer && this.props.renderer.requestFrameRender();
+    }
+  };
+
+  _onMouseUp = (event: MouseEvent) => {
+    const start = this._start;
+    if (!start) {
+      return;
+    }
+    if (!this._end && distance(start, this._translation) > 0) {
+      this._end = equals(this._translation);
+      this.props.renderer && this.props.renderer.requestFrameRender();
+    }
+  };
+
+  _renderDrawHelper(renderer: Renderer, translation: Vector2) {
+    const start = this._start;
+    const transform = this._getTransform();
+    if (!start) {
+      renderPointHelper(
+        renderer,
+        transform,
+        getValue(this.state.thickness, DEFAULT_THICKNESS),
+        getValue(
+          this.state.pathColor,
+          PathColorProperty.pathColor.defaultValue,
+        ),
+      );
+      return;
+    }
+    const end = this._end;
+    if (!end) {
+      renderLineHelper(
+        renderer,
+        transform,
+        getValue(this.state.thickness, DEFAULT_THICKNESS),
+        getValue(
+          this.state.pathColor,
+          PathColorProperty.pathColor.defaultValue,
+        ),
+        distance(start, this._translation),
+      );
+      return;
+    }
+    const controlCenter = this._controlCenter;
+    if (!controlCenter) {
+      const controlPoint = transformPoint(
+        this._translation,
+        getTransformInverseMatrix(transform),
+      );
+      renderCurveHelper(
+        renderer,
+        transform,
+        getValue(this.state.thickness, DEFAULT_THICKNESS),
+        getValue(
+          this.state.pathColor,
+          PathColorProperty.pathColor.defaultValue,
+        ),
+        distance(start, end),
+        controlPoint,
+        controlPoint,
+      );
+      return;
+    }
+    const controlPoint = transformPoint(
+      controlCenter,
+      getTransformInverseMatrix(transform),
+    );
+    const leftPoint = transformPoint(
+      this._translation,
+      getTransformInverseMatrix(transform),
+    );
+    renderCurveHelper(
+      renderer,
+      transform,
+      getValue(this.state.thickness, DEFAULT_THICKNESS),
+      getValue(this.state.pathColor, PathColorProperty.pathColor.defaultValue),
+      distance(start, end),
+      leftPoint,
+      minusEquals(times(controlPoint, 2.0), leftPoint),
+    );
+  }
+
+  _getTransform(): Transform {
+    const start = this._start;
+    if (!start) {
+      return {translation: equals(this._translation)};
+    }
+    const end = this._end || this._translation;
+    const vector = minus(end, start);
+    return {
+      translation: timesEquals(plus(start, end), 0.5),
+      rotation: Math.atan2(vector.y, vector.x),
+    };
+  }
 }
 
 class StampTool extends Tool {

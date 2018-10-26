@@ -112,6 +112,24 @@ export class Program {
   }
 
   /**
+   * Sets the value of a uniform to a vector.
+   *
+   * @param name the name of the uniform to set.
+   * @param value the value to set.
+   */
+  setUniformVector(name: string, value: Vector2) {
+    if (this._uniformValues.get(name) !== value) {
+      this.bind();
+      this.renderer.gl.uniform2f(
+        this.getUniformLocation(name),
+        value.x,
+        value.y,
+      );
+      this._uniformValues.set(name, value);
+    }
+  }
+
+  /**
    * Sets the value of a uniform to an array.
    *
    * @param name the name of the uniform to set.
