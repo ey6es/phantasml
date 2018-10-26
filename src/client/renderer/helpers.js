@@ -433,7 +433,7 @@ export function renderPointHelper(
   const program = renderer.getProgram(
     renderPointHelper,
     renderer.getVertexShader(renderPointHelper, POINT_HELPER_VERTEX_SHADER),
-    renderer.getFragmentShader(renderPointHelper, POINT_HELPER_FRAGMENT_SHADER),
+    renderer.getFragmentShader(renderPointHelper, SHAPE_HELPER_FRAGMENT_SHADER),
   );
   program.setUniformViewProjectionMatrix('viewProjectionMatrix');
   program.setUniformMatrix('modelMatrix', transform, getTransformMatrix);
@@ -441,6 +441,7 @@ export function renderPointHelper(
   program.setUniformFloat('pixelsToWorldUnits', renderer.pixelsToWorldUnits);
   program.setUniformFloat('thickness', thickness);
   program.setUniformColor('pathColor', pathColor);
+  program.setUniformFloat('alphaScale', 0.25);
   renderer.setEnabled(renderer.gl.BLEND, true);
   PointHelperGeometry.draw(program);
 }
@@ -469,10 +470,11 @@ const POINT_HELPER_VERTEX_SHADER = `
   }
 `;
 
-const POINT_HELPER_FRAGMENT_SHADER = `
+const SHAPE_HELPER_FRAGMENT_SHADER = `
   precision mediump float;
   uniform vec3 pathColor;
   uniform vec3 fillColor;
+  uniform float alphaScale;
   varying vec2 interpolatedVector;
   varying float interpolatedJoint;
   varying float stepSize;
@@ -483,7 +485,7 @@ const POINT_HELPER_FRAGMENT_SHADER = `
     // joints are drawn twice, so adjust alpha accordingly
     float joint = smoothstep(0.0, stepSize, interpolatedJoint);
     float alpha = mix(2.0 * inside - inside * inside, inside, joint);
-    gl_FragColor = vec4(mix(fillColor, pathColor, filled), alpha * 0.25);
+    gl_FragColor = vec4(mix(fillColor, pathColor, filled), alpha * alphaScale);
   }
 `;
 
@@ -503,6 +505,7 @@ const LineHelperGeometry = new Geometry(
  * @param thickness the path thickness to use.
  * @param pathColor the color to use for paths.
  * @param length the length of the line.
+ * @param [translucent=false] whether to draw the line as translucent.
  */
 export function renderLineHelper(
   renderer: Renderer,
@@ -510,11 +513,12 @@ export function renderLineHelper(
   thickness: number,
   pathColor: string,
   length: number,
+  translucent: boolean = false,
 ) {
   const program = renderer.getProgram(
     renderLineHelper,
     renderer.getVertexShader(renderLineHelper, LINE_HELPER_VERTEX_SHADER),
-    renderer.getFragmentShader(renderLineHelper, SHAPE_FRAGMENT_SHADER),
+    renderer.getFragmentShader(renderLineHelper, SHAPE_HELPER_FRAGMENT_SHADER),
   );
   program.setUniformViewProjectionMatrix('viewProjectionMatrix');
   program.setUniformMatrix('modelMatrix', transform, getTransformMatrix);
@@ -523,6 +527,7 @@ export function renderLineHelper(
   program.setUniformFloat('thickness', thickness);
   program.setUniformFloat('lineLength', length);
   program.setUniformColor('pathColor', pathColor);
+  program.setUniformFloat('alphaScale', translucent ? 0.25 : 1.0);
   renderer.setEnabled(renderer.gl.BLEND, true);
   LineHelperGeometry.draw(program);
 }
@@ -715,10 +720,16 @@ const CURVE_HELPER_VERTEX_SHADER = `
     vec2 c = 3.0 * (c1 - d);
     vec2 b = 3.0 * (d - 2.0 * c1 + c2);
     vec2 a = vec2(span * 0.5, 0.0) - b - c - d;
+    vec2 tangent = normalize(t * (t * a * 3.0 + b * 2.0) + c);
+    vec2 bitangent = vec2(-tangent.y, tangent.x);
+    vec2 rotatedVector = vec2(
+      tangent.x * vector.x + bitangent.x * vector.y,
+      tangent.y * vector.x + bitangent.y * vector.y
+    );
     vec2 curveVertex = t * (t * (t * a + b) + c) + d;
     vec3 point =
       modelMatrix * vec3(curveVertex, 1.0) +
-      vec3(vectorMatrix * vector, 0.0) * thickness;
+      vec3(vectorMatrix * rotatedVector, 0.0) * thickness;
     vec3 position = viewProjectionMatrix * point;
     gl_Position = vec4(position.xy, 0.0, 1.0);
   }

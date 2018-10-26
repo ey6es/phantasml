@@ -1635,7 +1635,7 @@ class CurveTool extends DrawTool {
         controlCenter,
         getTransformInverseMatrix(transform),
       );
-      const leftPoint = transformPoint(
+      const rightPoint = transformPoint(
         this._translation,
         getTransformInverseMatrix(transform),
       );
@@ -1646,8 +1646,8 @@ class CurveTool extends DrawTool {
           curve: {
             thickness: this.state.thickness,
             span: distance(start, end),
-            c1: leftPoint,
-            c2: minusEquals(times(controlPoint, 2.0), leftPoint),
+            c1: minusEquals(times(controlPoint, 2.0), rightPoint),
+            c2: rightPoint,
             order: 1,
           },
           shapeRenderer: {
@@ -1719,6 +1719,15 @@ class CurveTool extends DrawTool {
         this._translation,
         getTransformInverseMatrix(transform),
       );
+      renderPointHelper(
+        renderer,
+        {translation: this._translation},
+        getValue(this.state.thickness, DEFAULT_THICKNESS),
+        getValue(
+          this.state.pathColor,
+          PathColorProperty.pathColor.defaultValue,
+        ),
+      );
       renderCurveHelper(
         renderer,
         transform,
@@ -1737,9 +1746,23 @@ class CurveTool extends DrawTool {
       controlCenter,
       getTransformInverseMatrix(transform),
     );
-    const leftPoint = transformPoint(
+    const rightPoint = transformPoint(
       this._translation,
       getTransformInverseMatrix(transform),
+    );
+    renderLineHelper(
+      renderer,
+      {
+        translation: controlCenter,
+        rotation: Math.atan2(
+          controlCenter.y - this._translation.y,
+          controlCenter.x - this._translation.x,
+        ),
+      },
+      getValue(this.state.thickness, DEFAULT_THICKNESS),
+      getValue(this.state.pathColor, PathColorProperty.pathColor.defaultValue),
+      2.0 * distance(rightPoint, controlPoint),
+      true,
     );
     renderCurveHelper(
       renderer,
@@ -1747,8 +1770,8 @@ class CurveTool extends DrawTool {
       getValue(this.state.thickness, DEFAULT_THICKNESS),
       getValue(this.state.pathColor, PathColorProperty.pathColor.defaultValue),
       distance(start, end),
-      leftPoint,
-      minusEquals(times(controlPoint, 2.0), leftPoint),
+      minusEquals(times(controlPoint, 2.0), rightPoint),
+      rightPoint,
     );
   }
 
