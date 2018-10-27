@@ -72,6 +72,20 @@ export class CollisionGeometry {
   }
 
   /**
+   * Checks whether the geometry intersects the provided other geometry.
+   *
+   * @param other the other geometry to check.
+   * @return whether or not the two geometries intersect.
+   */
+  intersects(other: CollisionGeometry): boolean {
+    for (const path of this._paths) {
+    }
+    for (const polygon of this._polygons) {
+    }
+    return false;
+  }
+
+  /**
    * Checks whether the geometry intersects the provided point.
    *
    * @param point the point to check.
@@ -146,6 +160,21 @@ export class CollisionGeometry {
         }
       }
       return true;
+    }
+    return false;
+  }
+
+  /**
+   * Checks whether the geometry intersects the provided line segment.
+   *
+   * @param start the line segment starting position.
+   * @param end the line segment ending position.
+   * @return whether or not the segment intersects.
+   */
+  intersectsLineSegment(start: Vector2, end: Vector2): boolean {
+    for (const path of this._paths) {
+    }
+    for (const polygon of this._polygons) {
     }
     return false;
   }

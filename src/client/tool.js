@@ -71,6 +71,7 @@ import {
   renderCurveHelper,
 } from './renderer/helpers';
 import {PathColorProperty, FillColorProperty} from './renderer/components';
+import {SELECT_COLOR, ERASE_COLOR} from './renderer/renderers';
 import {
   ThicknessProperty,
   FillProperty,
@@ -78,7 +79,7 @@ import {
   GeometryComponents,
 } from './geometry/components';
 import {Shortcut} from './util/ui';
-import type {Resource} from '../server/store/resource';
+import type {Resource, Entity} from '../server/store/resource';
 import {Scene, SceneActions} from '../server/store/scene';
 import type {Vector2, LineSegment, Transform} from '../server/store/math';
 import {
@@ -113,6 +114,7 @@ import {
   distance,
   boundsContain,
   getBoundsVertices,
+  expandBounds,
   clamp,
 } from '../server/store/math';
 import {
@@ -666,9 +668,73 @@ function getMousePosition(
   return position;
 }
 
-class RectSelectTool extends Tool {
+class HoverTool extends Tool {
+  _lastClientX = -1;
+  _lastClientY = -1;
   _rect: ?LineSegment;
 
+  get _rectColor(): string {
+    return SELECT_COLOR;
+  }
+
+  componentDidUpdate(prevProps: ToolProps, prevState: Object) {
+    super.componentDidUpdate(prevProps, prevState);
+    if (this._rect) {
+      this._updateRectHover(this._rect);
+    } else {
+      this._updatePointHover(this._lastClientX, this._lastClientY);
+    }
+  }
+
+  _renderHelpers = (renderer: Renderer) => {
+    this._rect && renderRectangle(renderer, this._rect, this._rectColor);
+  };
+
+  _onMouseDown = (event: MouseEvent) => {
+    const renderer = this.props.renderer;
+    if (this.active && event.button === 0 && renderer) {
+      if (this.props.hover.size === 0) {
+        const position = getMousePosition(renderer, this.state.gridSnap, event);
+        this._rect = {start: position, end: position};
+        this._updateRectHover(this._rect);
+        renderer.canvas.style.cursor = 'crosshair';
+      } else {
+        this._processHovered(event.ctrlKey);
+      }
+    }
+  };
+
+  _onMouseUp = (event: MouseEvent) => {
+    const renderer = this.props.renderer;
+    if (this._rect && renderer) {
+      this._rect = null;
+      renderer.requestFrameRender();
+      this._processHovered(event.ctrlKey);
+      renderer.canvas.style.cursor = 'inherit';
+    }
+  };
+
+  _processHovered(additive: boolean) {
+    throw new Error('Not implemented.');
+  }
+
+  _onMouseMove = (event: MouseEvent) => {
+    this._lastClientX = event.clientX;
+    this._lastClientY = event.clientY;
+
+    const renderer = this.props.renderer;
+    if (renderer && this._rect) {
+      const position = getMousePosition(renderer, this.state.gridSnap, event);
+      this._rect = Object.assign({}, this._rect, {end: position});
+      this._updateRectHover(this._rect);
+      renderer.requestFrameRender();
+    } else {
+      this._updatePointHover(this._lastClientX, this._lastClientY);
+    }
+  };
+}
+
+class RectSelectTool extends HoverTool {
   constructor(...args: any[]) {
     super(
       'rectSelect',
@@ -682,57 +748,14 @@ class RectSelectTool extends Tool {
     );
   }
 
-  componentDidUpdate(prevProps: ToolProps, prevState: Object) {
-    super.componentDidUpdate(prevProps, prevState);
-    this._updateRectHover(this._rect);
-  }
-
-  _onActivate(renderer: Renderer) {
-    super._onActivate(renderer);
-    renderer.canvas.style.cursor = 'crosshair';
-  }
-
-  _onDeactivate(renderer: Renderer) {
-    super._onDeactivate(renderer);
-    renderer.canvas.style.cursor = 'inherit';
-  }
-
-  _renderHelpers = (renderer: Renderer) => {
-    this._rect && renderRectangle(renderer, this._rect, '#00bc8c');
-  };
-
-  _onMouseDown = (event: MouseEvent) => {
-    const renderer = this.props.renderer;
-    if (this.active && event.button === 0 && renderer) {
-      const position = getMousePosition(renderer, this.state.gridSnap, event);
-      this._rect = {start: position, end: position};
-      this._updateRectHover(this._rect);
+  _processHovered(additive: boolean) {
+    const map: {[string]: boolean} = {};
+    for (const id of this.props.hover) {
+      map[id] = additive ? !this.props.selection.has(id) : true;
     }
-  };
-
-  _onMouseUp = (event: MouseEvent) => {
-    if (this._rect && this.props.renderer) {
-      this._rect = null;
-      this.props.renderer.requestFrameRender();
-      const map: {[string]: boolean} = {};
-      for (const id of this.props.hover) {
-        map[id] = event.ctrlKey ? !this.props.selection.has(id) : true;
-      }
-      store.dispatch(StoreActions.select.create(map, event.ctrlKey));
-      store.dispatch(StoreActions.setHover.create(new Set()));
-    }
-  };
-
-  _onMouseMove = (event: MouseEvent) => {
-    const renderer = this.props.renderer;
-    if (!(renderer && this._rect)) {
-      return;
-    }
-    const position = getMousePosition(renderer, this.state.gridSnap, event);
-    this._rect = Object.assign({}, this._rect, {end: position});
-    this._updateRectHover(this._rect);
-    renderer.requestFrameRender();
-  };
+    store.dispatch(StoreActions.select.create(map, additive));
+    store.dispatch(StoreActions.setHover.create(new Set()));
+  }
 }
 
 class HandleTool extends Tool {
@@ -1083,7 +1106,7 @@ class ScaleTool extends HandleTool {
   }
 }
 
-class ContiguousSelectTool extends Tool {
+class ContiguousSelectTool extends HoverTool {
   constructor(...args: any[]) {
     super(
       'contiguousSelect',
@@ -1111,12 +1134,50 @@ class ContiguousSelectTool extends Tool {
       ...args,
     );
   }
+
+  _processHovered(additive: boolean) {
+    const resource = this.props.resource;
+    if (!(resource instanceof Scene)) {
+      return;
+    }
+    const radius = getValue(this.state.radius, 1.0);
+    const map: {[string]: boolean} = {};
+    const addEntity = (entity: Entity) => {
+      map[entity.id] = additive ? !this.props.selection.has(entity.id) : true;
+      const collisionGeometry = getCollisionGeometry(entity);
+      if (!collisionGeometry) {
+        return;
+      }
+      resource.applyToEntities(
+        this.props.page,
+        expandBounds(resource.getWorldBounds(entity.id), radius),
+        entity => {
+          if (map[entity.id] !== undefined) {
+            return;
+          }
+          const otherCollisionGeometry = getCollisionGeometry(entity);
+          if (
+            otherCollisionGeometry &&
+            otherCollisionGeometry.intersects(collisionGeometry)
+          ) {
+            addEntity(entity);
+          }
+        },
+      );
+    };
+    for (const id of this.props.hover) {
+      const entity = resource.getEntity(id);
+      entity && addEntity(entity);
+    }
+    store.dispatch(StoreActions.select.create(map, additive));
+    store.dispatch(StoreActions.setHover.create(new Set()));
+  }
 }
 
-class EraseTool extends Tool {
-  _lastClientX = -1;
-  _lastClientY = -1;
-  _rect: ?LineSegment;
+class EraseTool extends HoverTool {
+  get _rectColor(): string {
+    return ERASE_COLOR;
+  }
 
   constructor(...args: any[]) {
     super(
@@ -1131,44 +1192,7 @@ class EraseTool extends Tool {
     );
   }
 
-  componentDidUpdate(prevProps: ToolProps, prevState: Object) {
-    super.componentDidUpdate(prevProps, prevState);
-    if (this._rect) {
-      this._updateRectHover(this._rect);
-    } else {
-      this._updatePointHover(this._lastClientX, this._lastClientY);
-    }
-  }
-
-  _renderHelpers = (renderer: Renderer) => {
-    this._rect && renderRectangle(renderer, this._rect, '#e74c3c');
-  };
-
-  _onMouseDown = (event: MouseEvent) => {
-    const renderer = this.props.renderer;
-    if (this.active && event.button === 0 && renderer) {
-      if (this.props.hover.size === 0) {
-        const position = getMousePosition(renderer, this.state.gridSnap, event);
-        this._rect = {start: position, end: position};
-        this._updateRectHover(this._rect);
-        renderer.canvas.style.cursor = 'crosshair';
-      } else {
-        this._deleteHovered();
-      }
-    }
-  };
-
-  _onMouseUp = (event: MouseEvent) => {
-    const renderer = this.props.renderer;
-    if (this._rect && renderer) {
-      this._rect = null;
-      renderer.requestFrameRender();
-      this._deleteHovered();
-      renderer.canvas.style.cursor = 'inherit';
-    }
-  };
-
-  _deleteHovered() {
+  _processHovered(additive: boolean) {
     if (this.props.hover.size === 0) {
       return;
     }
@@ -1179,21 +1203,6 @@ class EraseTool extends Tool {
     store.dispatch(SceneActions.editEntities.create(map));
     store.dispatch(StoreActions.setHover.create(new Set()));
   }
-
-  _onMouseMove = (event: MouseEvent) => {
-    this._lastClientX = event.clientX;
-    this._lastClientY = event.clientY;
-
-    const renderer = this.props.renderer;
-    if (renderer && this._rect) {
-      const position = getMousePosition(renderer, this.state.gridSnap, event);
-      this._rect = Object.assign({}, this._rect, {end: position});
-      this._updateRectHover(this._rect);
-      renderer.requestFrameRender();
-    } else {
-      this._updatePointHover(this._lastClientX, this._lastClientY);
-    }
-  };
 }
 
 class DrawTool extends Tool {

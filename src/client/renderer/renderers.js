@@ -214,6 +214,12 @@ export const TRANSLUCENT_SHAPE_FRAGMENT_SHADER = `
   }
 `;
 
+/** The color used to indicate general hovering/selection. */
+export const SELECT_COLOR = '#00bc8c';
+
+/** The color used to indicate erasing. */
+export const ERASE_COLOR = '#e74c3c';
+
 function renderBackdrop(
   renderer: Renderer,
   transform: Transform,
@@ -232,7 +238,7 @@ function renderBackdrop(
   program.setUniformFloat('pixelsToWorldUnits', renderer.pixelsToWorldUnits);
   program.setUniformColor(
     'color',
-    hoverState === 'erase' ? '#e74c3c' : '#00bc8c',
+    hoverState === 'erase' ? ERASE_COLOR : SELECT_COLOR,
   );
   program.setUniformFloat('alpha', selected ? 1.0 : 0.25);
   renderer.setEnabled(renderer.gl.BLEND, true);
