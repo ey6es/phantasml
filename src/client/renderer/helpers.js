@@ -558,6 +558,64 @@ const LINE_HELPER_VERTEX_SHADER = `
   }
 `;
 
+/**
+ * Renders a polygon helper (used for drawing tools).
+ *
+ * @param renderer the renderer to use.
+ * @param transform the transform to use.
+ * @param thickness the path thickness to use.
+ * @param pathColor the color to use for paths.
+ * @param fillColor the color to use to fill.
+ * @param geometry the geometry of the polygon.
+ */
+export function renderPolygonHelper(
+  renderer: Renderer,
+  transform: Transform,
+  thickness: number,
+  pathColor: string,
+  fillColor: string,
+  geometry: Geometry,
+) {
+  const program = renderer.getProgram(
+    renderPolygonHelper,
+    renderer.getVertexShader(renderPolygonHelper, POLYGON_HELPER_VERTEX_SHADER),
+    renderer.getFragmentShader(renderPolygonHelper, SHAPE_FRAGMENT_SHADER),
+  );
+  program.setUniformViewProjectionMatrix('viewProjectionMatrix');
+  program.setUniformMatrix('modelMatrix', transform, getTransformMatrix);
+  program.setUniformMatrix('vectorMatrix', getTransformVectorMatrix(transform));
+  program.setUniformFloat('pixelsToWorldUnits', renderer.pixelsToWorldUnits);
+  program.setUniformFloat('thickness', thickness);
+  program.setUniformColor('pathColor', pathColor);
+  program.setUniformColor('fillColor', fillColor);
+  renderer.setEnabled(renderer.gl.BLEND, true);
+  geometry.draw(program);
+}
+
+const POLYGON_HELPER_VERTEX_SHADER = `
+  uniform mat3 modelMatrix;
+  uniform mat2 vectorMatrix;
+  uniform mat3 viewProjectionMatrix;
+  uniform float pixelsToWorldUnits;
+  uniform float thickness;
+  attribute vec2 vertex;
+  attribute vec2 vector;
+  attribute float joint;
+  varying vec2 interpolatedVector;
+  varying float interpolatedJoint;
+  varying float stepSize;
+  void main(void) {
+    interpolatedVector = vector;
+    interpolatedJoint = joint;
+    stepSize = pixelsToWorldUnits / thickness;
+    vec3 point =
+      modelMatrix * vec3(vertex, 1.0) +
+      vec3(vectorMatrix * vector, 0.0) * thickness;
+    vec3 position = viewProjectionMatrix * point;
+    gl_Position = vec4(position.xy, 0.0, 1.0);
+  }
+`;
+
 const RectangleHelperGeometry = new Geometry(
   ...createRectangleShapeList(false).createGeometry(),
 );

@@ -44,6 +44,7 @@ import type {PropertyData} from './component';
 import {PropertyEditorGroup} from './component';
 import {createEntity} from './entity';
 import type {Renderer} from './renderer/util';
+import {Geometry} from './renderer/util';
 import type {HoverType} from './renderer/helpers';
 import {
   renderRectangle,
@@ -53,6 +54,7 @@ import {
   renderScaleHandle,
   renderPointHelper,
   renderLineHelper,
+  renderPolygonHelper,
   renderRectangleHelper,
   renderArcHelper,
   renderCurveHelper,
@@ -106,6 +108,7 @@ import {
   DEFAULT_THICKNESS,
   getCollisionGeometry,
 } from '../server/store/geometry';
+import {ShapeList, Shape, Path} from '../server/store/shape';
 import {getValue, setsEqual} from '../server/store/util';
 
 library.add(faPlay);
@@ -1346,24 +1349,11 @@ class LineTool extends DrawTool {
   }
 }
 
-class LineGroupTool extends DrawTool {
+class VertexTool extends DrawTool {
   _vertices: Vector2[] = [];
 
-  constructor(...args: any[]) {
-    super(
-      'lineGroup',
-      'project-diagram',
-      <FormattedMessage id="tool.line_group" defaultMessage="Line Group" />,
-      'G',
-      {
-        gridSnap: {type: 'boolean', label: <GridSnapLabel />},
-        featureSnap: {type: 'boolean', label: <FeatureSnapLabel />},
-        ...ThicknessProperty,
-        ...PathColorProperty,
-        ...LoopProperty,
-      },
-      ...args,
-    );
+  get _loop(): boolean {
+    return true;
   }
 
   _onMouseDown = (event: MouseEvent) => {
@@ -1377,23 +1367,7 @@ class LineGroupTool extends DrawTool {
         for (const vertex of this._vertices) {
           minusEquals(vertex, translation);
         }
-        createEntity(
-          GeometryComponents.lineGroup.label,
-          this.props.locale,
-          {
-            lineGroup: {
-              thickness: this.state.thickness,
-              vertices: this._vertices,
-              loop: this.state.loop,
-              order: 1,
-            },
-            shapeRenderer: {
-              pathColor: this.state.pathColor,
-              order: 2,
-            },
-          },
-          {translation},
-        );
+        this._createEntity({translation});
         this._vertices = [];
       } else {
         this._vertices.push(equals(this._translation));
@@ -1404,6 +1378,10 @@ class LineGroupTool extends DrawTool {
       this.props.renderer && this.props.renderer.requestFrameRender();
     }
   };
+
+  _createEntity(transform: Transform) {
+    throw new Error('Not implemented.');
+  }
 
   _onContextMenu = (event: MouseEvent) => {
     event.preventDefault();
@@ -1431,8 +1409,12 @@ class LineGroupTool extends DrawTool {
           PathColorProperty.pathColor.defaultValue,
         ),
       );
-      return;
+    } else {
+      this._drawVertices(renderer);
     }
+  }
+
+  _drawVertices(renderer: Renderer) {
     for (let ii = 0; ii < this._vertices.length; ii++) {
       this._drawLine(
         renderer,
@@ -1440,8 +1422,7 @@ class LineGroupTool extends DrawTool {
         this._vertices[ii + 1] || this._translation,
       );
     }
-    const loop = getValue(this.state.loop, LoopProperty.loop.defaultValue);
-    if (loop && this._vertices.length > 1) {
+    if (this._loop && this._vertices.length > 1) {
       this._drawLine(renderer, this._translation, this._vertices[0]);
     }
   }
@@ -1461,7 +1442,52 @@ class LineGroupTool extends DrawTool {
   }
 }
 
-class PolygonTool extends Tool {
+class LineGroupTool extends VertexTool {
+  get _loop(): boolean {
+    return getValue(this.state.loop, LoopProperty.loop.defaultValue);
+  }
+
+  constructor(...args: any[]) {
+    super(
+      'lineGroup',
+      'project-diagram',
+      <FormattedMessage id="tool.line_group" defaultMessage="Line Group" />,
+      'G',
+      {
+        gridSnap: {type: 'boolean', label: <GridSnapLabel />},
+        featureSnap: {type: 'boolean', label: <FeatureSnapLabel />},
+        ...ThicknessProperty,
+        ...PathColorProperty,
+        ...LoopProperty,
+      },
+      ...args,
+    );
+  }
+
+  _createEntity(transform: Transform) {
+    createEntity(
+      GeometryComponents.lineGroup.label,
+      this.props.locale,
+      {
+        lineGroup: {
+          thickness: this.state.thickness,
+          vertices: this._vertices,
+          loop: this.state.loop,
+          order: 1,
+        },
+        shapeRenderer: {
+          pathColor: this.state.pathColor,
+          order: 2,
+        },
+      },
+      transform,
+    );
+  }
+}
+
+class PolygonTool extends VertexTool {
+  _geometry: ?Geometry;
+
   constructor(...args: any[]) {
     super(
       'polygon',
@@ -1480,7 +1506,66 @@ class PolygonTool extends Tool {
     );
   }
 
-  _renderDrawHelper(renderer: Renderer, translation: Vector2) {}
+  componentWillUnmount() {
+    super.componentWillUnmount();
+    this._clearGeometry();
+  }
+
+  _drawVertices(renderer: Renderer) {
+    const fill = getValue(this.state.fill, FillProperty.fill.defaultValue);
+    if (!fill || this._vertices.length === 1) {
+      super._drawVertices(renderer);
+      return;
+    }
+    this._clearGeometry();
+    const path = new Path(true);
+    path.moveTo(this._vertices[0]);
+    for (let ii = 1; ii < this._vertices.length; ii++) {
+      path.lineTo(this._vertices[ii]);
+    }
+    path.lineTo(equals(this._translation));
+    path.lineTo(this._vertices[0]);
+    const geometry = (this._geometry = new Geometry(
+      ...new ShapeList([new Shape(path)]).createGeometry(),
+    ));
+    renderPolygonHelper(
+      renderer,
+      null,
+      getValue(this.state.thickness, DEFAULT_THICKNESS),
+      getValue(this.state.pathColor, PathColorProperty.pathColor.defaultValue),
+      getValue(this.state.fillColor, FillColorProperty.fillColor.defaultValue),
+      geometry,
+    );
+  }
+
+  _createEntity(transform: Transform) {
+    createEntity(
+      GeometryComponents.polygon.label,
+      this.props.locale,
+      {
+        polygon: {
+          thickness: this.state.thickness,
+          vertices: this._vertices,
+          fill: this.state.fill,
+          order: 1,
+        },
+        shapeRenderer: {
+          pathColor: this.state.pathColor,
+          fillColor: this.state.fillColor,
+          order: 2,
+        },
+      },
+      transform,
+    );
+    this._clearGeometry();
+  }
+
+  _clearGeometry() {
+    if (this._geometry) {
+      this._geometry.dispose();
+      this._geometry = null;
+    }
+  }
 }
 
 class RectangleTool extends DrawTool {
