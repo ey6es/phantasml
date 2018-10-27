@@ -260,34 +260,12 @@ export const StoreActions = {
   paste: {
     create: (asChildren: boolean = false) => ({type: 'paste', asChildren}),
     reduce: (state: StoreState, action: StoreAction) => {
-      const resource = state.resource;
-      if (!(resource instanceof Scene)) {
-        return state;
-      }
-      const parentId =
-        state.selection.size > 0 && action.asChildren
-          ? (state.selection.values().next().value: any)
-          : state.page;
-      const parentNode = resource.getEntityHierarchyNode(parentId);
-      if (!parentNode) {
-        return state;
-      }
-      let map = {};
-      const ids: Map<string, string> = new Map();
-      for (const [id, json] of state.clipboard) {
-        const newId = createUuid();
-        ids.set(id, newId);
-        map[newId] = json;
-      }
-      map = updateRefs(map, ids, parentId);
-      let lastOrder = parentNode.highestChildOrder;
-      for (const id in map) {
-        const entity = map[id];
-        if (entity.parent && entity.parent.ref === parentId) {
-          entity.order = ++lastOrder;
-        }
-      }
-      return reducer(state, SceneActions.editEntities.create(map));
+      const pasteAction = createPasteAction(
+        state.clipboard,
+        state,
+        action.asChildren,
+      );
+      return pasteAction ? reducer(state, pasteAction) : state;
     },
   },
   delete: {
@@ -505,6 +483,50 @@ export const StoreActions = {
     },
   },
 };
+
+/**
+ * Creates an action to paste a set of entities.
+ *
+ * @param entities the map from entity id to entity state.
+ * @param state the store state.
+ * @param [asChildren=false] whether to paste the entities as children of the
+ * (first) currently selected entity.
+ * @return the paste action, if successful.
+ */
+export function createPasteAction(
+  entities: Map<string, Object>,
+  state: StoreState,
+  asChildren: boolean = false,
+): ?StoreAction {
+  const resource = state.resource;
+  if (!(resource instanceof Scene)) {
+    return;
+  }
+  const parentId =
+    state.selection.size > 0 && asChildren
+      ? (state.selection.values().next().value: any)
+      : state.page;
+  const parentNode = resource.getEntityHierarchyNode(parentId);
+  if (!parentNode) {
+    return;
+  }
+  let map = {};
+  const ids: Map<string, string> = new Map();
+  for (const [id, json] of entities) {
+    const newId = createUuid();
+    ids.set(id, newId);
+    map[newId] = json;
+  }
+  map = updateRefs(map, ids, parentId);
+  let lastOrder = parentNode.highestChildOrder;
+  for (const id in map) {
+    const entity = map[id];
+    if (entity.parent && entity.parent.ref === parentId) {
+      entity.order = ++lastOrder;
+    }
+  }
+  return SceneActions.editEntities.create(map);
+}
 
 function updateRefs(
   map: Object,

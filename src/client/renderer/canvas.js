@@ -19,7 +19,11 @@ import {vec2} from '../../server/store/math';
 
 const cameraBounds = {min: vec2(), max: vec2()};
 
-type EntityZOrder = {entity: Entity, zOrder: number};
+/**
+ * Pairs an entity with its depth order.
+ */
+export type EntityZOrder = {entity: Entity, zOrder: number};
+
 const entityZOrders: EntityZOrder[] = [];
 
 const collectZOrdersOp = (entity: Entity) => {
@@ -28,7 +32,13 @@ const collectZOrdersOp = (entity: Entity) => {
   );
 };
 
-function getEntityZOrder(entity: Entity): EntityZOrder {
+/**
+ * Creates the z order pairing for an entity.
+ *
+ * @param entity the entity of interest.
+ * @return the z order pairing.
+ */
+export function getEntityZOrder(entity: Entity): EntityZOrder {
   let zOrder = 0;
   for (const key in entity.state) {
     const renderer = ComponentRenderers[key];
@@ -40,11 +50,25 @@ function getEntityZOrder(entity: Entity): EntityZOrder {
   return {entity, zOrder};
 }
 
-function compareEntityZOrders(a: EntityZOrder, b: EntityZOrder): number {
+/**
+ * Compare function for entity z order pairs.
+ *
+ * @param a the first z order to compare.
+ * @param b the second z order to compare.
+ * @return a negative, zero, or positive number if less, equal, or greater,
+ * respectively.
+ */
+export function compareEntityZOrders(a: EntityZOrder, b: EntityZOrder): number {
   return a.zOrder - b.zOrder;
 }
 
-function getEntityRenderer(
+/**
+ * Creates the renderer for an entity.
+ *
+ * @param entity the entity whose renderer is desired.
+ * @return the render function.
+ */
+export function getEntityRenderer(
   entity: Entity,
 ): (Renderer, boolean, HoverState) => void {
   let renderFn: ?(Renderer, boolean, HoverState) => void;

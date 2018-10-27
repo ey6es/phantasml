@@ -16,9 +16,11 @@ import {
   getTransformMatrix,
   getTransformVectorMatrix,
   getTransformMaxScaleMagnitude,
+  composeTransforms,
 } from '../../server/store/math';
 
-export type HoverState = boolean | 'erase';
+/** Type of hover states that alter rendering behavior. */
+export type HoverState = boolean | 'erase' | Transform;
 
 type RendererData = {
   getZOrder: Object => number,
@@ -96,6 +98,16 @@ function renderShape(
   selected: boolean,
   hoverState: HoverState,
 ) {
+  if (typeof hoverState === 'object') {
+    renderTranslucentShape(
+      renderer,
+      composeTransforms(hoverState, transform),
+      pathColor,
+      fillColor,
+      geometry,
+    );
+    return;
+  }
   if (selected || hoverState) {
     renderBackdrop(renderer, transform, geometry, selected, hoverState);
   }
@@ -110,31 +122,6 @@ function renderShape(
   program.setUniformFloat('pixelsToWorldUnits', renderer.pixelsToWorldUnits);
   program.setUniformColor('pathColor', pathColor);
   program.setUniformColor('fillColor', fillColor);
-  renderer.setEnabled(renderer.gl.BLEND, true);
-  geometry.draw(program);
-}
-
-function renderBackdrop(
-  renderer: Renderer,
-  transform: Transform,
-  geometry: Geometry,
-  selected: boolean,
-  hoverState: HoverState,
-) {
-  const program = renderer.getProgram(
-    renderBackdrop,
-    renderer.getVertexShader(renderBackdrop, BACKDROP_VERTEX_SHADER),
-    renderer.getFragmentShader(renderBackdrop, BACKDROP_FRAGMENT_SHADER),
-  );
-  program.setUniformViewProjectionMatrix('viewProjectionMatrix');
-  program.setUniformMatrix('modelMatrix', transform, getTransformMatrix);
-  program.setUniformMatrix('vectorMatrix', getTransformVectorMatrix(transform));
-  program.setUniformFloat('pixelsToWorldUnits', renderer.pixelsToWorldUnits);
-  program.setUniformColor(
-    'color',
-    hoverState === 'erase' ? '#e74c3c' : '#00bc8c',
-  );
-  program.setUniformFloat('alpha', selected ? 1.0 : 0.25);
   renderer.setEnabled(renderer.gl.BLEND, true);
   geometry.draw(program);
 }
@@ -183,6 +170,74 @@ export const SHAPE_FRAGMENT_SHADER = `
     gl_FragColor = vec4(mix(fillColor, pathColor, filled), alpha);
   }
 `;
+
+function renderTranslucentShape(
+  renderer: Renderer,
+  transform: Transform,
+  pathColor: string,
+  fillColor: string,
+  geometry: Geometry,
+) {
+  const program = renderer.getProgram(
+    renderTranslucentShape,
+    renderer.getVertexShader(renderTranslucentShape, SHAPE_VERTEX_SHADER),
+    renderer.getFragmentShader(
+      renderTranslucentShape,
+      TRANSLUCENT_SHAPE_FRAGMENT_SHADER,
+    ),
+  );
+  program.setUniformViewProjectionMatrix('viewProjectionMatrix');
+  program.setUniformMatrix('modelMatrix', transform, getTransformMatrix);
+  program.setUniformMatrix('vectorMatrix', getTransformVectorMatrix(transform));
+  program.setUniformFloat('pixelsToWorldUnits', renderer.pixelsToWorldUnits);
+  program.setUniformColor('pathColor', pathColor);
+  program.setUniformColor('fillColor', fillColor);
+  renderer.setEnabled(renderer.gl.BLEND, true);
+  geometry.draw(program);
+}
+
+export const TRANSLUCENT_SHAPE_FRAGMENT_SHADER = `
+  precision mediump float;
+  uniform vec3 pathColor;
+  uniform vec3 fillColor;
+  varying vec2 interpolatedVector;
+  varying float interpolatedJoint;
+  varying float stepSize;
+  void main(void) {
+    float dist = length(interpolatedVector);
+    float filled = 1.0 - step(dist, 0.0);
+    float inside = 1.0 - smoothstep(1.0 - stepSize, 1.0, dist);
+    // joints are drawn twice, so adjust alpha accordingly
+    float joint = smoothstep(0.0, stepSize, interpolatedJoint);
+    float alpha = mix(2.0 * inside - inside * inside, inside, joint);
+    gl_FragColor = vec4(mix(fillColor, pathColor, filled), alpha * 0.25);
+  }
+`;
+
+function renderBackdrop(
+  renderer: Renderer,
+  transform: Transform,
+  geometry: Geometry,
+  selected: boolean,
+  hoverState: HoverState,
+) {
+  const program = renderer.getProgram(
+    renderBackdrop,
+    renderer.getVertexShader(renderBackdrop, BACKDROP_VERTEX_SHADER),
+    renderer.getFragmentShader(renderBackdrop, BACKDROP_FRAGMENT_SHADER),
+  );
+  program.setUniformViewProjectionMatrix('viewProjectionMatrix');
+  program.setUniformMatrix('modelMatrix', transform, getTransformMatrix);
+  program.setUniformMatrix('vectorMatrix', getTransformVectorMatrix(transform));
+  program.setUniformFloat('pixelsToWorldUnits', renderer.pixelsToWorldUnits);
+  program.setUniformColor(
+    'color',
+    hoverState === 'erase' ? '#e74c3c' : '#00bc8c',
+  );
+  program.setUniformFloat('alpha', selected ? 1.0 : 0.25);
+  renderer.setEnabled(renderer.gl.BLEND, true);
+  geometry.draw(program);
+}
 
 const BACKDROP_VERTEX_SHADER = `
   uniform mat3 modelMatrix;

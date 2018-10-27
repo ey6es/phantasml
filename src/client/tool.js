@@ -39,10 +39,21 @@ import {faProjectDiagram} from '@fortawesome/free-solid-svg-icons/faProjectDiagr
 import {faVectorSquare} from '@fortawesome/free-solid-svg-icons/faVectorSquare';
 import {faStamp} from '@fortawesome/free-solid-svg-icons/faStamp';
 import type {ToolType} from './store';
-import {StoreActions, store, centerPageOnSelection} from './store';
+import {
+  StoreActions,
+  store,
+  centerPageOnSelection,
+  createPasteAction,
+} from './store';
 import type {PropertyData} from './component';
 import {PropertyEditorGroup} from './component';
 import {createEntity} from './entity';
+import type {EntityZOrder} from './renderer/canvas';
+import {
+  getEntityZOrder,
+  compareEntityZOrders,
+  getEntityRenderer,
+} from './renderer/canvas';
 import type {Renderer} from './renderer/util';
 import {Geometry} from './renderer/util';
 import type {HoverType} from './renderer/helpers';
@@ -2004,7 +2015,9 @@ class CurveTool extends DrawTool {
   }
 }
 
-class StampTool extends Tool {
+class StampTool extends DrawTool {
+  _transform: Transform;
+
   constructor(...args: any[]) {
     super(
       'stamp',
@@ -2017,5 +2030,73 @@ class StampTool extends Tool {
       },
       ...args,
     );
+  }
+
+  _onMouseDown = (event: MouseEvent) => {
+    const resource = this.props.resource;
+    if (
+      !(
+        this.active &&
+        this.props.selection.size > 0 &&
+        resource instanceof Scene
+      )
+    ) {
+      return;
+    }
+    const entities: Map<string, Object> = new Map();
+    for (const id of this.props.selection) {
+      const entity = resource.getEntity(id);
+      if (!entity) {
+        continue;
+      }
+      const transform = Object.assign(
+        {},
+        entity.state.transform,
+        simplifyTransform(
+          composeTransforms(
+            this._transform,
+            entity.getLastCachedValue('worldTransform'),
+          ),
+        ),
+      );
+      entities.set(id, Object.assign({}, entity.state, {transform}));
+    }
+    const action = createPasteAction(entities, store.getState());
+    action && store.dispatch(action);
+  };
+
+  _renderDrawHelper(renderer: Renderer, translation: Vector2) {
+    const resource = this.props.resource;
+    if (!(this.props.selection.size > 0 && resource instanceof Scene)) {
+      return;
+    }
+    const entityZOrders: EntityZOrder[] = [];
+    const totalTranslation = vec2();
+    for (const id of this.props.selection) {
+      const entity = resource.getEntity(id);
+      if (!entity) {
+        continue;
+      }
+      entityZOrders.push(
+        entity.getCachedValue('entityZOrder', getEntityZOrder, entity),
+      );
+      const transform: Transform = entity.getLastCachedValue('worldTransform');
+      plusEquals(totalTranslation, getTransformTranslation(transform));
+    }
+    this._transform = {
+      translation: minus(
+        translation,
+        timesEquals(totalTranslation, 1.0 / this.props.selection.size),
+      ),
+    };
+    entityZOrders.sort(compareEntityZOrders);
+    for (const entityZOrder of entityZOrders) {
+      const entity = entityZOrder.entity;
+      entity.getCachedValue('entityRenderer', getEntityRenderer, entity)(
+        renderer,
+        false,
+        this._transform,
+      );
+    }
   }
 }
