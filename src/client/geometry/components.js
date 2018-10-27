@@ -62,6 +62,17 @@ const VerticesProperty = {
 };
 
 /**
+ * The shared loop property.
+ */
+export const LoopProperty = {
+  loop: {
+    type: 'boolean',
+    label: <FormattedMessage id="line_group.loop" defaultMessage="Loop:" />,
+    defaultValue: DEFAULT_LINE_GROUP_LOOP,
+  },
+};
+
+/**
  * The shared fill property.
  */
 export const FillProperty = {
@@ -106,11 +117,7 @@ export const GeometryComponents: {[string]: ComponentData} = {
     properties: {
       ...ThicknessProperty,
       ...VerticesProperty,
-      loop: {
-        type: 'boolean',
-        label: <FormattedMessage id="line_group.loop" defaultMessage="Loop:" />,
-        defaultValue: DEFAULT_LINE_GROUP_LOOP,
-      },
+      ...LoopProperty,
     },
     category: 'geometry',
   },

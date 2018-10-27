@@ -61,6 +61,7 @@ import {PathColorProperty, FillColorProperty} from './renderer/components';
 import {
   ThicknessProperty,
   FillProperty,
+  LoopProperty,
   GeometryComponents,
 } from './geometry/components';
 import {Shortcut} from './util/ui';
@@ -596,10 +597,6 @@ class SelectPanTool extends Tool {
         this._panning = true;
       }
     }
-  };
-
-  _onDoubleClick = (event: MouseEvent) => {
-    this.props.renderer && centerPageOnSelection(this.props.renderer);
   };
 
   _onMouseUp = (event: MouseEvent) => {
@@ -1350,9 +1347,6 @@ class LineTool extends DrawTool {
 }
 
 class LineGroupTool extends DrawTool {
-  _start: ?Vector2;
-  _id: ?string;
-  _reference = vec2();
   _vertices: Vector2[] = [];
 
   constructor(...args: any[]) {
@@ -1366,33 +1360,47 @@ class LineGroupTool extends DrawTool {
         featureSnap: {type: 'boolean', label: <FeatureSnapLabel />},
         ...ThicknessProperty,
         ...PathColorProperty,
+        ...LoopProperty,
       },
       ...args,
     );
   }
 
   _onMouseDown = (event: MouseEvent) => {
-    const id = this._id;
-    const start = this._start;
-    if (id && start) {
-      if (event.button === 2 || distance(start, this._translation) === 0.0) {
-        this._id = null;
-        this._start = null;
-      } else {
-        this._vertices = this._vertices.slice();
-        this._vertices.push(minus(this._translation, this._reference));
-        store.dispatch(
-          SceneActions.editEntities.create({
-            [id]: {
-              lineGroup: {vertices: this._vertices},
+    const lastIndex = this._vertices.length - 1;
+    if (lastIndex >= 0) {
+      if (
+        event.button === 2 ||
+        distance(this._vertices[lastIndex], this._translation) === 0.0
+      ) {
+        const translation = equals(this._vertices[0]);
+        for (const vertex of this._vertices) {
+          minusEquals(vertex, translation);
+        }
+        createEntity(
+          GeometryComponents.lineGroup.label,
+          this.props.locale,
+          {
+            lineGroup: {
+              thickness: this.state.thickness,
+              vertices: this._vertices,
+              loop: this.state.loop,
+              order: 1,
             },
-          }),
+            shapeRenderer: {
+              pathColor: this.state.pathColor,
+              order: 2,
+            },
+          },
+          {translation},
         );
-        this._start = equals(this._translation);
+        this._vertices = [];
+      } else {
+        this._vertices.push(equals(this._translation));
       }
       this.props.renderer && this.props.renderer.requestFrameRender();
     } else if (this.active) {
-      this._start = equals(this._translation);
+      this._vertices.push(equals(this._translation));
       this.props.renderer && this.props.renderer.requestFrameRender();
     }
   };
@@ -1402,42 +1410,21 @@ class LineGroupTool extends DrawTool {
   };
 
   _onMouseUp = (event: MouseEvent) => {
-    const start = this._start;
-    if (!start || this._id) {
+    const lastIndex = this._vertices.length - 1;
+    if (lastIndex !== 0) {
       return;
     }
-    equals(start, this._reference);
-    this._vertices = [vec2()];
-    const firstPoint = minus(this._translation, start);
-    if (length(firstPoint) > 0) {
-      this._vertices.push(firstPoint);
+    if (distance(this._translation, this._vertices[lastIndex]) > 0) {
+      this._vertices.push(equals(this._translation));
+      this.props.renderer && this.props.renderer.requestFrameRender();
     }
-    this._id = createEntity(
-      GeometryComponents.lineGroup.label,
-      this.props.locale,
-      {
-        lineGroup: {
-          thickness: this.state.thickness,
-          vertices: this._vertices,
-          order: 1,
-        },
-        shapeRenderer: {
-          pathColor: this.state.pathColor,
-          order: 2,
-        },
-      },
-      {translation: start},
-    );
-    this._start = equals(this._translation);
-    this.props.renderer && this.props.renderer.requestFrameRender();
   };
 
   _renderDrawHelper(renderer: Renderer, translation: Vector2) {
-    const start = this._start;
-    if (!start) {
+    if (this._vertices.length === 0) {
       renderPointHelper(
         renderer,
-        this._getTransform(),
+        {translation: equals(this._translation)},
         getValue(this.state.thickness, DEFAULT_THICKNESS),
         getValue(
           this.state.pathColor,
@@ -1446,25 +1433,31 @@ class LineGroupTool extends DrawTool {
       );
       return;
     }
-    renderLineHelper(
-      renderer,
-      this._getTransform(),
-      getValue(this.state.thickness, DEFAULT_THICKNESS),
-      getValue(this.state.pathColor, PathColorProperty.pathColor.defaultValue),
-      distance(start, translation),
-    );
+    for (let ii = 0; ii < this._vertices.length; ii++) {
+      this._drawLine(
+        renderer,
+        this._vertices[ii],
+        this._vertices[ii + 1] || this._translation,
+      );
+    }
+    const loop = getValue(this.state.loop, LoopProperty.loop.defaultValue);
+    if (loop && this._vertices.length > 1) {
+      this._drawLine(renderer, this._translation, this._vertices[0]);
+    }
   }
 
-  _getTransform(): Transform {
-    const start = this._start;
-    if (!start) {
-      return {translation: equals(this._translation)};
-    }
-    const vector = minus(this._translation, start);
-    return {
-      translation: timesEquals(plus(start, this._translation), 0.5),
-      rotation: Math.atan2(vector.y, vector.x),
-    };
+  _drawLine(renderer: Renderer, start: Vector2, end: Vector2) {
+    const vector = minus(end, start);
+    renderLineHelper(
+      renderer,
+      {
+        translation: timesEquals(plus(start, end), 0.5),
+        rotation: Math.atan2(vector.y, vector.x),
+      },
+      getValue(this.state.thickness, DEFAULT_THICKNESS),
+      getValue(this.state.pathColor, PathColorProperty.pathColor.defaultValue),
+      distance(start, end),
+    );
   }
 }
 
