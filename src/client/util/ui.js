@@ -809,7 +809,7 @@ export class ButtonMenu extends React.Component<
       <MenuBarContext.Provider value={this}>
         <MenuContext.Provider value={this}>
           <ContainedDropdown
-            className="text-center"
+            className="text-center pb-2"
             isOpen={this.state.active}
             toggle={this._toggle}>
             <div>
