@@ -652,29 +652,28 @@ const RECTANGLE_HELPER_VERTEX_SHADER = `
 `;
 
 const ArcHelperGeometry = new Geometry(
-  ...createArcShapeList(false, false).createGeometry(64.0),
+  ...createArcShapeList(false).createGeometry(64.0),
 );
 
 const FilledArcHelperGeometry = new Geometry(
-  ...createArcShapeList(true, false).createGeometry(64.0),
+  ...createArcShapeList(true).createGeometry(64.0),
 );
+
+function createArcShapeList(fill: boolean): ShapeList {
+  return new ShapeList()
+    .move(1.0, 0, 90, {t: 0.0})
+    .penDown(fill)
+    .arc(Math.PI, 1.0, {t: 1.0});
+}
 
 const OpenFilledArcHelperGeometry = new Geometry(
-  ...createArcShapeList(true, true).createGeometry(64.0),
+  ...new ShapeList()
+    .penDown(true)
+    .move(1, 0, 90, {t: 0.0})
+    .arc(Math.PI, 1.0, {t: 1.0})
+    .move(0, 0, 0, {t: 1.0})
+    .createGeometry(64.0),
 );
-
-function createArcShapeList(fill: boolean, open: boolean): ShapeList {
-  const shapeList = new ShapeList()
-    .move(1.0, 0, 90, {t: 0.0})
-    .pushState()
-    .penDown(fill)
-    .arc(Math.PI, 1.0, {t: 0.5})
-    .arc(Math.PI, 1.0, {t: 1.0});
-  if (open) {
-    shapeList.move(0, 0).popState();
-  }
-  return shapeList;
-}
 
 /**
  * Renders an arc helper (used for drawing tools).
@@ -744,15 +743,23 @@ const ARC_HELPER_VERTEX_SHADER = `
   varying vec2 interpolatedVector;
   varying float interpolatedJoint;
   varying float stepSize;
+  const float PI = 3.141592654;
   void main(void) {
     interpolatedVector = vector;
     interpolatedJoint = joint;
     stepSize = pixelsToWorldUnits / thickness;
     float angle = mix(startAngle, endAngle, t);
+    float baseAngle = t * PI;
+    float cr = cos(angle - baseAngle);
+    float sr = sin(angle - baseAngle);
+    vec2 rotatedVector = vec2(
+      vector.x * cr - vector.y * sr,
+      vector.x * sr + vector.y * cr
+    );
     vec2 scaledVertex = vec2(cos(angle), sin(angle)) * radius * length(vertex);
     vec3 point =
       modelMatrix * vec3(scaledVertex, 1.0) +
-      vec3(vectorMatrix * vector, 0.0) * thickness;
+      vec3(vectorMatrix * rotatedVector, 0.0) * thickness;
     vec3 position = viewProjectionMatrix * point;
     gl_Position = vec4(position.xy, 0.0, 1.0);
   }
