@@ -89,6 +89,7 @@ import {
   getTransformTranslation,
   getTransformRotation,
   getTransformScale,
+  getTransformMatrix,
   getTransformInverseMatrix,
   vec2,
   equals,
@@ -108,6 +109,7 @@ import {
   cross,
   length,
   transformPoint,
+  transformPointEquals,
   transformPoints,
   min,
   max,
@@ -115,6 +117,7 @@ import {
   boundsContain,
   getBoundsVertices,
   expandBounds,
+  expandBoundsEquals,
   clamp,
 } from '../server/store/math';
 import {
@@ -549,6 +552,64 @@ class Tool extends React.Component<ToolProps, Object> {
       store.dispatch(StoreActions.setHover.create(hover));
     }
   }
+
+  _getMousePosition(
+    renderer: Renderer,
+    clientX: number,
+    clientY: number,
+  ): Vector2 {
+    const position = renderer.getEventPosition(clientX, clientY);
+    const snapped = equals(position);
+    if (this.state.gridSnap) {
+      roundEquals(snapped);
+    }
+    if (!this.state.featureSnap) {
+      return snapped;
+    }
+    const resource = this.props.resource;
+    if (!(resource instanceof Scene)) {
+      return snapped;
+    }
+    const nearestPosition = vec2();
+    let nearestDistance = Infinity;
+    resource.applyToEntities(
+      this.props.page,
+      expandBoundsEquals({min: equals(position), max: equals(position)}, 1.0),
+      entity => {
+        const collisionGeometry = getCollisionGeometry(entity);
+        if (!collisionGeometry) {
+          return;
+        }
+        const worldTransform = entity.getLastCachedValue('worldTransform');
+        const localPosition = transformPoint(
+          position,
+          getTransformInverseMatrix(worldTransform),
+        );
+        const featurePosition = collisionGeometry.getNearestFeaturePosition(
+          localPosition,
+          0.5,
+        );
+        if (featurePosition) {
+          transformPointEquals(
+            featurePosition,
+            getTransformMatrix(worldTransform),
+          );
+          const dist = distance(featurePosition, position);
+          if (dist < nearestDistance) {
+            equals(featurePosition, nearestPosition);
+            nearestDistance = dist;
+          }
+        }
+      },
+    );
+    if (
+      nearestDistance < Infinity &&
+      (!this.state.gridSnap || nearestDistance < distance(position, snapped))
+    ) {
+      return nearestPosition;
+    }
+    return snapped;
+  }
 }
 
 function GridSnapLabel() {
@@ -694,7 +755,11 @@ class HoverTool extends Tool {
     const renderer = this.props.renderer;
     if (this.active && event.button === 0 && renderer) {
       if (this.props.hover.size === 0) {
-        const position = getMousePosition(renderer, this.state.gridSnap, event);
+        const position = this._getMousePosition(
+          renderer,
+          event.clientX,
+          event.clientY,
+        );
         this._rect = {start: position, end: position};
         this._updateRectHover(this._rect);
         renderer.canvas.style.cursor = 'crosshair';
@@ -724,7 +789,11 @@ class HoverTool extends Tool {
 
     const renderer = this.props.renderer;
     if (renderer && this._rect) {
-      const position = getMousePosition(renderer, this.state.gridSnap, event);
+      const position = this._getMousePosition(
+        renderer,
+        event.clientX,
+        event.clientY,
+      );
       this._rect = Object.assign({}, this._rect, {end: position});
       this._updateRectHover(this._rect);
       renderer.requestFrameRender();
@@ -1236,12 +1305,11 @@ class DrawTool extends Tool {
     if (!this.active) {
       return;
     }
-    renderer.getEventPosition(
+    this._translation = this._getMousePosition(
+      renderer,
       this._lastClientX,
       this._lastClientY,
-      this._translation,
     );
-    this.state.gridSnap && roundEquals(this._translation);
     this._renderDrawHelper(renderer, this._translation);
   };
 

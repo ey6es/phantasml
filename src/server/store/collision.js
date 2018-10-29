@@ -16,6 +16,7 @@ import {
   plusEquals,
   timesEquals,
   orthonormalizeEquals,
+  distance,
   squareDistance,
   length,
   dot,
@@ -73,6 +74,73 @@ export class CollisionGeometry {
     this._vertexSize = currentOffset;
     this._paths = paths;
     this._polygons = polygons;
+  }
+
+  /**
+   * Finds the position of the feature (vertex, edge) nearest to the position
+   * provided.
+   *
+   * @param position the position to compare against.
+   * @param radius the radius to use in the comparison.
+   * @return the position of the nearest feature, if any.
+   */
+  getNearestFeaturePosition(position: Vector2, radius: number): ?Vector2 {
+    let closestPoint = vec2();
+    let closestDistance = radius;
+    for (const path of this._paths) {
+      const finalIndex = path.lastIndex - 1;
+      if (path.firstIndex === finalIndex) {
+        const vertexThickness = this._getVertexThickness(finalIndex, vertex);
+        const dist = distance(vertex, position) - vertexThickness;
+        if (dist < closestDistance) {
+          equals(vertex, closestPoint);
+          closestDistance = dist;
+        }
+        continue;
+      }
+      const endIndex = path.loop ? path.lastIndex : finalIndex;
+      for (let fromIndex = path.firstIndex; fromIndex < endIndex; fromIndex++) {
+        const toIndex =
+          fromIndex === finalIndex ? path.firstIndex : fromIndex + 1;
+        const fromThickness = this._getVertexThickness(fromIndex, from);
+        const toThickness = this._getVertexThickness(toIndex, to);
+        const vertexThickness = getNearestPointOnSegment(
+          from,
+          to,
+          fromThickness,
+          toThickness,
+          position,
+          vertex,
+        );
+        const dist = distance(vertex, position) - vertexThickness;
+        if (dist < closestDistance) {
+          equals(vertex, closestPoint);
+          closestDistance = dist;
+        }
+      }
+    }
+    for (const polygon of this._polygons) {
+      for (let ii = 0; ii < polygon.indices.length; ii++) {
+        const fromIndex = polygon.indices[ii];
+        const toIndex = polygon.indices[(ii + 1) % polygon.indices.length];
+        const fromThickness = this._getVertexThickness(fromIndex, from);
+        const toThickness = this._getVertexThickness(toIndex, to);
+        const vertexThickness = getNearestPointOnSegment(
+          from,
+          to,
+          fromThickness,
+          toThickness,
+          position,
+          vertex,
+        );
+        const dist = distance(vertex, position) - vertexThickness;
+        if (dist < closestDistance) {
+          equals(vertex, closestPoint);
+          closestDistance = dist;
+        }
+      }
+    }
+    return closestDistance < radius ? closestPoint : null;
   }
 
   /**
@@ -949,4 +1017,29 @@ function getSidePointPenetration(
     }
   }
   return true;
+}
+
+function getNearestPointOnSegment(
+  from: Vector2,
+  to: Vector2,
+  fromThickness: number,
+  toThickness: number,
+  position: Vector2,
+  result: Vector2,
+): number {
+  minus(position, from, v1);
+  minus(to, from, v2);
+  const squareLength = squareDistance(from, to);
+  const dp = dot(v1, v2);
+  if (dp <= 0.0) {
+    equals(from, result);
+    return fromThickness;
+  } else if (dp >= squareLength) {
+    equals(to, result);
+    return toThickness;
+  } else {
+    const t = dp / squareLength;
+    plusEquals(timesEquals(minus(to, from, result), t), from);
+    return mix(fromThickness, toThickness, t);
+  }
 }
