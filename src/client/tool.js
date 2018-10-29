@@ -540,7 +540,7 @@ class Tool extends React.Component<ToolProps, Object> {
       );
       if (
         collisionGeometry &&
-        collisionGeometry.intersectsConvexPolygon(localVertices)
+        collisionGeometry.intersectsPolygon(localVertices)
       ) {
         hover.add(entity.id);
       }
@@ -1140,34 +1140,48 @@ class ContiguousSelectTool extends HoverTool {
     if (!(resource instanceof Scene)) {
       return;
     }
-    const radius = getValue(this.state.radius, 1.0);
-    const map: {[string]: boolean} = {};
-    const addEntity = (entity: Entity) => {
-      map[entity.id] = additive ? !this.props.selection.has(entity.id) : true;
-      const collisionGeometry = getCollisionGeometry(entity);
-      if (!collisionGeometry) {
-        return;
-      }
-      resource.applyToEntities(
-        this.props.page,
-        expandBounds(resource.getWorldBounds(entity.id), radius),
-        entity => {
-          if (map[entity.id] !== undefined) {
-            return;
-          }
-          const otherCollisionGeometry = getCollisionGeometry(entity);
-          if (
-            otherCollisionGeometry &&
-            otherCollisionGeometry.intersects(collisionGeometry)
-          ) {
-            addEntity(entity);
-          }
-        },
-      );
-    };
+    const remainingEntities: Set<Entity> = new Set();
     for (const id of this.props.hover) {
       const entity = resource.getEntity(id);
-      entity && addEntity(entity);
+      entity && remainingEntities.add(entity);
+    }
+    const radius = getValue(this.state.radius, 1.0);
+    const map: {[string]: boolean} = {};
+    while (remainingEntities.size > 0) {
+      for (const entity of remainingEntities) {
+        map[entity.id] = additive ? !this.props.selection.has(entity.id) : true;
+        remainingEntities.delete(entity);
+        const collisionGeometry = getCollisionGeometry(entity);
+        if (!collisionGeometry) {
+          continue;
+        }
+        const inverseWorldTransform = invertTransform(
+          entity.getLastCachedValue('worldTransform'),
+        );
+        resource.applyToEntities(
+          this.props.page,
+          expandBounds(resource.getWorldBounds(entity.id), radius),
+          entity => {
+            if (map[entity.id] !== undefined) {
+              return;
+            }
+            const otherCollisionGeometry = getCollisionGeometry(entity);
+            if (
+              otherCollisionGeometry &&
+              otherCollisionGeometry.intersects(
+                collisionGeometry,
+                composeTransforms(
+                  inverseWorldTransform,
+                  entity.getLastCachedValue('worldTransform'),
+                ),
+                radius,
+              )
+            ) {
+              remainingEntities.add(entity);
+            }
+          },
+        );
+      }
     }
     store.dispatch(StoreActions.select.create(map, additive));
     store.dispatch(StoreActions.setHover.create(new Set()));
