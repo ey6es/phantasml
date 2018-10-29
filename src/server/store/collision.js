@@ -171,11 +171,25 @@ export class CollisionGeometry {
     }
   }
 
+  /**
+   * Checks for intersection of this geometry with a point.
+   *
+   * @param vertex the vertex to check.
+   * @param [vertexThickness=0] the thickness associated with the vertex.
+   * @return whether or not the point intersects.
+   */
   intersectsPoint(vertex: Vector2, vertexThickness: number = 0.0): boolean {
     this.getPointPenetration(vertex, vertexThickness, penetration);
     return length(penetration) > 0.0;
   }
 
+  /**
+   * Finds the penetration of a point into the geometry.
+   *
+   * @param vertex the vertex to check.
+   * @param vertexThickness the thickness associated with the vertex.
+   * @param result the vector to hold the result.
+   */
   getPointPenetration(
     vertex: Vector2,
     vertexThickness: number,
@@ -247,11 +261,20 @@ export class CollisionGeometry {
     }
   }
 
+  /**
+   * Checks whether a line segment intersects the geometry.
+   *
+   * @param start the start of the segment.
+   * @param end the end of the segment.
+   * @param [startThickness=0] the thickness associated with the start.
+   * @param [endThickness=0] the thickness associated with the end.
+   * @return whether or not the segment intersects.
+   */
   intersectsSegment(
     start: Vector2,
     end: Vector2,
-    startThickness: number,
-    endThickness: number,
+    startThickness: number = 0.0,
+    endThickness: number = 0.0,
   ): boolean {
     this.getSegmentPenetration(
       start,
@@ -263,6 +286,15 @@ export class CollisionGeometry {
     return length(penetration) > 0.0;
   }
 
+  /**
+   * Finds the penetration of a segment into the geometry.
+   *
+   * @param start the start of the segment.
+   * @param end the end of the segment.
+   * @param startThickness the thickness associated with the start.
+   * @param endThickness the thickness associated with the end.
+   * @param result a vector to hold the result.
+   */
   getSegmentPenetration(
     start: Vector2,
     end: Vector2,
@@ -342,11 +374,25 @@ export class CollisionGeometry {
     }
   }
 
+  /**
+   * Checks the geometry for intersection with a polygon.
+   *
+   * @param points the points of the polygon in CCW winding order.
+   * @param [thicknesses=[]] the thicknesses associated with each point, if any.
+   * @return whether or not the polygon intersects.
+   */
   intersectsPolygon(points: Vector2[], thicknesses: number[] = []): boolean {
     this.getPolygonPenetration(points, thicknesses, penetration);
     return length(penetration) > 0.0;
   }
 
+  /**
+   * Finds the penetration of a polygon into the geometry.
+   *
+   * @param points the points of the polygon in CCW winding order.
+   * @param thicknesses the thicknesses associated with each point, if any.
+   * @param result a vector to hold the result.
+   */
   getPolygonPenetration(
     points: Vector2[],
     thicknesses: number[],
