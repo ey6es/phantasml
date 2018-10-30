@@ -628,7 +628,8 @@ class SelectPanTool extends Tool {
   _lastClientX = -1;
   _lastClientY = -1;
   _panning = false;
-  _controlPoints: Map<string, ControlPoint> = new Map();
+  _controlPoints: Map<string, ControlPoint[]> = new Map();
+  _draggingIndices: Map<string, number> = new Map();
 
   constructor(...args: any[]) {
     super(
@@ -650,21 +651,45 @@ class SelectPanTool extends Tool {
   }
 
   _renderHelpers = (renderer: Renderer) => {
-    for (const controlPoint of this._controlPoints.values()) {
-      renderPointHelper(
-        renderer,
-        {translation: controlPoint.position},
-        controlPoint.thickness,
-        '#000000',
-        false,
-      );
-      renderPointHelper(
-        renderer,
-        {translation: controlPoint.position},
-        controlPoint.thickness - renderer.pixelsToWorldUnits * 3,
-        '#ffffff',
-        false,
-      );
+    const eventPosition = renderer.getEventPosition(
+      this._lastClientX,
+      this._lastClientY,
+    );
+    for (const controlPoints of this._controlPoints.values()) {
+      for (const controlPoint of controlPoints) {
+        const hovered =
+          distance(controlPoint.position, eventPosition) <=
+          controlPoint.thickness;
+        let outlineColor = '#ffffff';
+        let centerColor = '#222222';
+        let outlineThickness = controlPoint.thickness;
+        let outlineIncrement = renderer.pixelsToWorldUnits * 3;
+        let centerThickness = controlPoint.thickness - outlineIncrement;
+        if (hovered) {
+          if (this._draggingIndices.size > 0) {
+            outlineColor = '#222222';
+            centerColor = '#ffffff';
+            outlineThickness += outlineIncrement;
+            centerThickness += outlineIncrement;
+          }
+          outlineThickness += outlineIncrement;
+          centerThickness += outlineIncrement;
+        }
+        renderPointHelper(
+          renderer,
+          {translation: controlPoint.position},
+          outlineThickness,
+          outlineColor,
+          false,
+        );
+        renderPointHelper(
+          renderer,
+          {translation: controlPoint.position},
+          centerThickness,
+          centerColor,
+          false,
+        );
+      }
     }
     const activeTool = this.props.tempTool || this.props.activeTool;
     if (
@@ -679,23 +704,51 @@ class SelectPanTool extends Tool {
   };
 
   _onMouseDown = (event: MouseEvent) => {
-    if (this.active && event.button === 0) {
-      if (this.props.hover.size > 0) {
-        const map = {};
-        for (const id of this.props.hover) {
-          map[id] = event.ctrlKey ? !this.props.selection.has(id) : true;
+    if (!(this.active && event.button === 0)) {
+      return;
+    }
+    const renderer = this.props.renderer;
+    if (!renderer) {
+      return;
+    }
+    const eventPosition = renderer.getEventPosition(
+      this._lastClientX,
+      this._lastClientY,
+    );
+    for (const [id, controlPoints] of this._controlPoints) {
+      for (let ii = 0; ii < controlPoints.length; ii++) {
+        const controlPoint = controlPoints[ii];
+        if (
+          distance(controlPoint.position, eventPosition) <=
+          controlPoint.thickness
+        ) {
+          this._draggingIndices.set(id, ii);
         }
-        store.dispatch(StoreActions.select.create(map, event.ctrlKey));
-      } else {
-        if (this.props.selection.size > 0) {
-          store.dispatch(StoreActions.select.create({}));
-        }
-        this._panning = true;
       }
+    }
+    if (this._draggingIndices.size > 0) {
+      renderer.requestFrameRender();
+      return;
+    }
+    if (this.props.hover.size > 0) {
+      const map = {};
+      for (const id of this.props.hover) {
+        map[id] = event.ctrlKey ? !this.props.selection.has(id) : true;
+      }
+      store.dispatch(StoreActions.select.create(map, event.ctrlKey));
+    } else {
+      if (this.props.selection.size > 0) {
+        store.dispatch(StoreActions.select.create({}));
+      }
+      this._panning = true;
     }
   };
 
   _onMouseUp = (event: MouseEvent) => {
+    if (this._draggingIndices.size > 0) {
+      this._draggingIndices.clear();
+      this.props.renderer && this.props.renderer.requestFrameRender();
+    }
     if (this._panning) {
       (document.body: any).style.cursor = null;
       this._panning = false;
@@ -706,6 +759,37 @@ class SelectPanTool extends Tool {
     this._lastClientX = event.clientX;
     this._lastClientY = event.clientY;
 
+    if (this._draggingIndices.size > 0) {
+      const renderer = this.props.renderer;
+      const resource = this.props.resource;
+      if (!(renderer && resource instanceof Scene)) {
+        return;
+      }
+      const eventPosition = renderer.getEventPosition(
+        event.clientX,
+        event.clientY,
+      );
+      const map = {};
+      for (const [id, index] of this._draggingIndices) {
+        const entity = resource.getEntity(id);
+        if (!entity) {
+          continue;
+        }
+        for (const key in entity.state) {
+          const geometry = ComponentGeometry[key];
+          if (!geometry) {
+            continue;
+          }
+          const worldTransform = entity.getLastCachedValue('worldTransform');
+          map[id] = geometry.createControlPointEdit(
+            entity,
+            index,
+            eventPosition,
+          );
+        }
+      }
+      store.dispatch(SceneActions.editEntities.create(map));
+    }
     if (this._panning) {
       const renderer = this.props.renderer;
       if (!renderer) {
@@ -738,6 +822,7 @@ class SelectPanTool extends Tool {
   };
 
   _updatePointHover(clientX: number, clientY: number) {
+    this._controlPoints.clear();
     if (!this.active) {
       return;
     }
@@ -748,38 +833,35 @@ class SelectPanTool extends Tool {
       return;
     }
     const eventPosition = renderer.getEventPosition(clientX, clientY);
-    this._controlPoints.clear();
-    for (const id of this.props.hover) {
+    for (const id of this.props.selection) {
       const entity: Entity = (resource.getEntity(id): any);
       if (!entity) {
         continue;
       }
-      const worldTransform = entity.getLastCachedValue('worldTransform');
       for (const key in entity.state) {
         const geometry = ComponentGeometry[key];
         if (!geometry) {
           continue;
         }
-        const controlPoint = geometry.getNearestControlPoint(
+        const worldTransform = entity.getLastCachedValue('worldTransform');
+        const controlPoints = geometry.getControlPoints(
           entity.state[key],
           transformPoint(
             eventPosition,
             getTransformInverseMatrix(worldTransform),
           ),
         );
-        transformPointEquals(
-          controlPoint.position,
-          getTransformMatrix(worldTransform),
-        );
-        if (
-          distance(eventPosition, controlPoint.position) <=
-          controlPoint.thickness
-        ) {
-          this._controlPoints.set(entity.id, controlPoint);
+        for (const controlPoint of controlPoints) {
+          transformPointEquals(
+            controlPoint.position,
+            getTransformMatrix(worldTransform),
+          );
         }
+        this._controlPoints.set(id, controlPoints);
         break;
       }
     }
+    renderer.requestFrameRender();
   }
 }
 

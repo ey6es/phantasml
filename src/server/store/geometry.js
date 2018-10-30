@@ -7,13 +7,18 @@
 
 import type {Entity} from './resource';
 import type {Vector2, Transform, Bounds} from './math';
-import {vec2, getTransformMaxScaleMagnitude, addToBoundsEquals} from './math';
+import {
+  vec2,
+  equals,
+  rotateEquals,
+  getTransformMaxScaleMagnitude,
+  addToBoundsEquals,
+} from './math';
 import {getValue} from './util';
 import {Path, Shape, ShapeList} from './shape';
 import type {CollisionGeometry} from './collision';
 
 export type ControlPoint = {
-  index: number,
   position: Vector2,
   thickness: number,
 };
@@ -21,8 +26,8 @@ export type ControlPoint = {
 type GeometryData = {
   addToBounds: (Bounds, Object) => number,
   createShapeList: Object => ShapeList,
-  getNearestControlPoint: (Object, Vector2) => ControlPoint,
-  moveControlPoint: (Entity, number, Vector2) => Object,
+  getControlPoints: (Object, Vector2) => ControlPoint[],
+  createControlPointEdit: (Entity, number, Vector2) => Object,
 };
 
 export const DEFAULT_THICKNESS = 0.2;
@@ -102,12 +107,12 @@ export const ComponentGeometry: {[string]: GeometryData} = {
       const thickness = getValue(data.thickness, DEFAULT_THICKNESS);
       return new ShapeList().penDown(false, {thickness});
     },
-    getNearestControlPoint: (data, position) => {
+    getControlPoints: (data, position) => {
       const thickness = getValue(data.thickness, DEFAULT_THICKNESS);
-      return {index: 0, position: vec2(), thickness};
+      return [{position: vec2(), thickness}];
     },
-    moveControlPoint: (entity, index, position) => {
-      return {};
+    createControlPointEdit: (entity, index, position) => {
+      return {transform: {translation: equals(position)}};
     },
   },
   line: {
@@ -126,11 +131,15 @@ export const ComponentGeometry: {[string]: GeometryData} = {
         .penDown(false, {thickness})
         .advance(length);
     },
-    getNearestControlPoint: (data, position) => {
+    getControlPoints: (data, position) => {
       const thickness = getValue(data.thickness, DEFAULT_THICKNESS);
-      return {index: 0, position: vec2(), thickness};
+      const halfLength = getValue(data.length, DEFAULT_LINE_LENGTH) * 0.5;
+      return [
+        {position: vec2(-halfLength, 0.0), thickness},
+        {position: vec2(halfLength, 0.0), thickness},
+      ];
     },
-    moveControlPoint: (entity, index, position) => {
+    createControlPointEdit: (entity, index, position) => {
       return {};
     },
   },
@@ -159,11 +168,12 @@ export const ComponentGeometry: {[string]: GeometryData} = {
       loop && path.lineTo(vertices[0], 0, attributes);
       return new ShapeList([], [path]);
     },
-    getNearestControlPoint: (data, position) => {
+    getControlPoints: (data, position) => {
       const thickness = getValue(data.thickness, DEFAULT_THICKNESS);
-      return {index: 0, position: vec2(), thickness};
+      const vertices = getValue(data.vertices, DEFAULT_VERTICES);
+      return vertices.map(vertex => ({position: equals(vertex), thickness}));
     },
-    moveControlPoint: (entity, index, position) => {
+    createControlPointEdit: (entity, index, position) => {
       return {};
     },
   },
@@ -194,11 +204,12 @@ export const ComponentGeometry: {[string]: GeometryData} = {
         ? new ShapeList([new Shape(path)])
         : new ShapeList([], [path]);
     },
-    getNearestControlPoint: (data, position) => {
+    getControlPoints: (data, position) => {
       const thickness = getValue(data.thickness, DEFAULT_THICKNESS);
-      return {index: 0, position: vec2(), thickness};
+      const vertices = getValue(data.vertices, DEFAULT_VERTICES);
+      return vertices.map(vertex => ({position: equals(vertex), thickness}));
     },
-    moveControlPoint: (entity, index, position) => {
+    createControlPointEdit: (entity, index, position) => {
       return {};
     },
   },
@@ -227,11 +238,18 @@ export const ComponentGeometry: {[string]: GeometryData} = {
         .pivot(90)
         .advance(height);
     },
-    getNearestControlPoint: (data, position) => {
+    getControlPoints: (data, position) => {
       const thickness = getValue(data.thickness, DEFAULT_THICKNESS);
-      return {index: 0, position: vec2(), thickness};
+      const halfWidth = getValue(data.width, DEFAULT_RECTANGLE_WIDTH) * 0.5;
+      const halfHeight = getValue(data.height, DEFAULT_RECTANGLE_HEIGHT) * 0.5;
+      return [
+        {position: vec2(-halfWidth, -halfHeight), thickness},
+        {position: vec2(halfWidth, -halfHeight), thickness},
+        {position: vec2(halfWidth, halfHeight), thickness},
+        {position: vec2(-halfWidth, halfHeight), thickness},
+      ];
     },
-    moveControlPoint: (entity, index, position) => {
+    createControlPointEdit: (entity, index, position) => {
       return {};
     },
   },
@@ -265,11 +283,18 @@ export const ComponentGeometry: {[string]: GeometryData} = {
       }
       return shapeList;
     },
-    getNearestControlPoint: (data, position) => {
+    getControlPoints: (data, position) => {
       const thickness = getValue(data.thickness, DEFAULT_THICKNESS);
-      return {index: 0, position: vec2(), thickness};
+      const radius = getValue(data.radius, DEFAULT_ARC_RADIUS);
+      const angle = getValue(data.angle, DEFAULT_ARC_ANGLE);
+      const controlPoints = [
+        {position: vec2(), thickness},
+        {position: vec2(radius, 0.0), thickness},
+        {position: rotateEquals(vec2(radius, 0.0), angle), thickness},
+      ];
+      return controlPoints;
     },
-    moveControlPoint: (entity, index, position) => {
+    createControlPointEdit: (entity, index, position) => {
       return {};
     },
   },
@@ -296,11 +321,19 @@ export const ComponentGeometry: {[string]: GeometryData} = {
         .curveTo(vec2(halfSpan, 0), c1, c2, 0, attributes);
       return new ShapeList([], [path]);
     },
-    getNearestControlPoint: (data, position) => {
+    getControlPoints: (data, position) => {
       const thickness = getValue(data.thickness, DEFAULT_THICKNESS);
-      return {index: 0, position: vec2(), thickness};
+      const halfSpan = getValue(data.span, DEFAULT_CURVE_SPAN) * 0.5;
+      const c1 = getValue(data.c1, DEFAULT_CURVE_C1);
+      const c2 = getValue(data.c2, DEFAULT_CURVE_C2);
+      return [
+        {position: vec2(-halfSpan, 0.0), thickness},
+        {position: equals(c1), thickness},
+        {position: equals(c2), thickness},
+        {position: vec2(halfSpan, 0.0), thickness},
+      ];
     },
-    moveControlPoint: (entity, index, position) => {
+    createControlPointEdit: (entity, index, position) => {
       return {};
     },
   },
