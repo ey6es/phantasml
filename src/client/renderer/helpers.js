@@ -423,12 +423,14 @@ const PointHelperGeometry = new Geometry(
  * @param transform the transform to apply to the point.
  * @param thickness the path thickness to use.
  * @param pathColor the color to use for paths.
+ * @param [translucent=true] whether to draw the point as translucent.
  */
 export function renderPointHelper(
   renderer: Renderer,
   transform: Transform,
   thickness: number,
   pathColor: string,
+  translucent: boolean = true,
 ) {
   const program = renderer.getProgram(
     renderPointHelper,
@@ -441,7 +443,7 @@ export function renderPointHelper(
   program.setUniformFloat('pixelsToWorldUnits', renderer.pixelsToWorldUnits);
   program.setUniformFloat('thickness', thickness);
   program.setUniformColor('pathColor', pathColor);
-  program.setUniformFloat('alphaScale', 0.25);
+  program.setUniformFloat('alphaScale', translucent ? 0.25 : 1.0);
   renderer.setEnabled(renderer.gl.BLEND, true);
   PointHelperGeometry.draw(program);
 }

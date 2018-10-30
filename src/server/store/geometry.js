@@ -6,15 +6,23 @@
  */
 
 import type {Entity} from './resource';
-import type {Transform, Bounds} from './math';
+import type {Vector2, Transform, Bounds} from './math';
 import {vec2, getTransformMaxScaleMagnitude, addToBoundsEquals} from './math';
 import {getValue} from './util';
 import {Path, Shape, ShapeList} from './shape';
 import type {CollisionGeometry} from './collision';
 
+export type ControlPoint = {
+  index: number,
+  position: Vector2,
+  thickness: number,
+};
+
 type GeometryData = {
   addToBounds: (Bounds, Object) => number,
   createShapeList: Object => ShapeList,
+  getNearestControlPoint: (Object, Vector2) => ControlPoint,
+  moveControlPoint: (Entity, number, Vector2) => Object,
 };
 
 export const DEFAULT_THICKNESS = 0.2;
@@ -94,6 +102,13 @@ export const ComponentGeometry: {[string]: GeometryData} = {
       const thickness = getValue(data.thickness, DEFAULT_THICKNESS);
       return new ShapeList().penDown(false, {thickness});
     },
+    getNearestControlPoint: (data, position) => {
+      const thickness = getValue(data.thickness, DEFAULT_THICKNESS);
+      return {index: 0, position: vec2(), thickness};
+    },
+    moveControlPoint: (entity, index, position) => {
+      return {};
+    },
   },
   line: {
     addToBounds: (bounds, data) => {
@@ -110,6 +125,13 @@ export const ComponentGeometry: {[string]: GeometryData} = {
         .move(length * -0.5, 0)
         .penDown(false, {thickness})
         .advance(length);
+    },
+    getNearestControlPoint: (data, position) => {
+      const thickness = getValue(data.thickness, DEFAULT_THICKNESS);
+      return {index: 0, position: vec2(), thickness};
+    },
+    moveControlPoint: (entity, index, position) => {
+      return {};
     },
   },
   lineGroup: {
@@ -136,6 +158,13 @@ export const ComponentGeometry: {[string]: GeometryData} = {
       }
       loop && path.lineTo(vertices[0], 0, attributes);
       return new ShapeList([], [path]);
+    },
+    getNearestControlPoint: (data, position) => {
+      const thickness = getValue(data.thickness, DEFAULT_THICKNESS);
+      return {index: 0, position: vec2(), thickness};
+    },
+    moveControlPoint: (entity, index, position) => {
+      return {};
     },
   },
   polygon: {
@@ -165,6 +194,13 @@ export const ComponentGeometry: {[string]: GeometryData} = {
         ? new ShapeList([new Shape(path)])
         : new ShapeList([], [path]);
     },
+    getNearestControlPoint: (data, position) => {
+      const thickness = getValue(data.thickness, DEFAULT_THICKNESS);
+      return {index: 0, position: vec2(), thickness};
+    },
+    moveControlPoint: (entity, index, position) => {
+      return {};
+    },
   },
   rectangle: {
     addToBounds: (bounds, data) => {
@@ -190,6 +226,13 @@ export const ComponentGeometry: {[string]: GeometryData} = {
         .advance(width)
         .pivot(90)
         .advance(height);
+    },
+    getNearestControlPoint: (data, position) => {
+      const thickness = getValue(data.thickness, DEFAULT_THICKNESS);
+      return {index: 0, position: vec2(), thickness};
+    },
+    moveControlPoint: (entity, index, position) => {
+      return {};
     },
   },
   arc: {
@@ -222,6 +265,13 @@ export const ComponentGeometry: {[string]: GeometryData} = {
       }
       return shapeList;
     },
+    getNearestControlPoint: (data, position) => {
+      const thickness = getValue(data.thickness, DEFAULT_THICKNESS);
+      return {index: 0, position: vec2(), thickness};
+    },
+    moveControlPoint: (entity, index, position) => {
+      return {};
+    },
   },
   curve: {
     addToBounds: (bounds, data) => {
@@ -245,6 +295,13 @@ export const ComponentGeometry: {[string]: GeometryData} = {
         .moveTo(vec2(-halfSpan, 0), 0, attributes)
         .curveTo(vec2(halfSpan, 0), c1, c2, 0, attributes);
       return new ShapeList([], [path]);
+    },
+    getNearestControlPoint: (data, position) => {
+      const thickness = getValue(data.thickness, DEFAULT_THICKNESS);
+      return {index: 0, position: vec2(), thickness};
+    },
+    moveControlPoint: (entity, index, position) => {
+      return {};
     },
   },
 };

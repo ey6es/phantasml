@@ -120,9 +120,11 @@ import {
   expandBoundsEquals,
   clamp,
 } from '../server/store/math';
+import type {ControlPoint} from '../server/store/geometry';
 import {
   DEFAULT_THICKNESS,
   getCollisionGeometry,
+  ComponentGeometry,
 } from '../server/store/geometry';
 import {ShapeList, Shape, Path} from '../server/store/shape';
 import {getValue, setsEqual} from '../server/store/util';
@@ -626,6 +628,7 @@ class SelectPanTool extends Tool {
   _lastClientX = -1;
   _lastClientY = -1;
   _panning = false;
+  _controlPoints: Map<string, ControlPoint> = new Map();
 
   constructor(...args: any[]) {
     super(
@@ -647,6 +650,22 @@ class SelectPanTool extends Tool {
   }
 
   _renderHelpers = (renderer: Renderer) => {
+    for (const controlPoint of this._controlPoints.values()) {
+      renderPointHelper(
+        renderer,
+        {translation: controlPoint.position},
+        controlPoint.thickness,
+        '#000000',
+        false,
+      );
+      renderPointHelper(
+        renderer,
+        {translation: controlPoint.position},
+        controlPoint.thickness - renderer.pixelsToWorldUnits * 3,
+        '#ffffff',
+        false,
+      );
+    }
     const activeTool = this.props.tempTool || this.props.activeTool;
     if (
       activeTool === 'translate' ||
@@ -717,6 +736,51 @@ class SelectPanTool extends Tool {
       ),
     );
   };
+
+  _updatePointHover(clientX: number, clientY: number) {
+    if (!this.active) {
+      return;
+    }
+    super._updatePointHover(clientX, clientY);
+    const resource = this.props.resource;
+    const renderer = this.props.renderer;
+    if (!(renderer && resource instanceof Scene)) {
+      return;
+    }
+    const eventPosition = renderer.getEventPosition(clientX, clientY);
+    this._controlPoints.clear();
+    for (const id of this.props.hover) {
+      const entity: Entity = (resource.getEntity(id): any);
+      if (!entity) {
+        continue;
+      }
+      const worldTransform = entity.getLastCachedValue('worldTransform');
+      for (const key in entity.state) {
+        const geometry = ComponentGeometry[key];
+        if (!geometry) {
+          continue;
+        }
+        const controlPoint = geometry.getNearestControlPoint(
+          entity.state[key],
+          transformPoint(
+            eventPosition,
+            getTransformInverseMatrix(worldTransform),
+          ),
+        );
+        transformPointEquals(
+          controlPoint.position,
+          getTransformMatrix(worldTransform),
+        );
+        if (
+          distance(eventPosition, controlPoint.position) <=
+          controlPoint.thickness
+        ) {
+          this._controlPoints.set(entity.id, controlPoint);
+        }
+        break;
+      }
+    }
+  }
 }
 
 function getMousePosition(
