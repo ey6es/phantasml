@@ -334,11 +334,71 @@ export const ComponentGeometry: {[string]: GeometryData} = {
       ];
     },
     createControlPointEdit: (entity, index, position) => {
-      const worldTransform = entity.getLastCachedValue('worldTransform');
       const data = entity.state.rectangle;
-      const halfWidth = getValue(data.width, DEFAULT_RECTANGLE_WIDTH) * 0.5;
-      const halfHeight = getValue(data.height, DEFAULT_RECTANGLE_HEIGHT) * 0.5;
-      return {};
+      let width = getValue(data.width, DEFAULT_RECTANGLE_WIDTH);
+      const halfWidth = width * 0.5;
+      let height = getValue(data.height, DEFAULT_RECTANGLE_HEIGHT);
+      const halfHeight = height * 0.5;
+      const vertices = [
+        vec2(-halfWidth, -halfHeight),
+        vec2(halfWidth, -halfHeight),
+        vec2(halfWidth, halfHeight),
+        vec2(-halfWidth, halfHeight),
+        vec2(0.0, -halfHeight),
+        vec2(halfWidth, 0.0),
+        vec2(0.0, halfHeight),
+        vec2(-halfWidth, 0.0),
+      ];
+      const worldTransform = entity.getLastCachedValue('worldTransform');
+      const worldMatrix = getTransformMatrix(worldTransform);
+      vertices.forEach(vertex => transformPointEquals(vertex, worldMatrix));
+      const center = vec2();
+      const oldWidth = width;
+      const oldHeight = height;
+      if (index < 4) {
+        // corner
+        const previous = vertices[(index + 3) % 4];
+        const next = vertices[(index + 1) % 4];
+        if ((index & 1) === 0) {
+          // 0/2
+          width = distance(position, next);
+          height = distance(position, previous);
+        } else {
+          // 1/3
+          width = distance(position, previous);
+          height = distance(position, next);
+        }
+        const opposite = vertices[(index + 2) % 4];
+        const vector = timesEquals(minus(vertices[index], opposite), 0.5);
+        vector.x *= width / oldWidth;
+        vector.y *= height / oldHeight;
+        plus(opposite, vector, center);
+      } else {
+        // side
+        const opposite = vertices[4 + ((index - 2) % 4)];
+        const vector = timesEquals(minus(vertices[index], opposite), 0.5);
+        if ((index & 1) === 0) {
+          // top/bottom
+          height = distance(position, opposite);
+          vector.y *= height / oldHeight;
+        } else {
+          // left/right
+          width = distance(position, opposite);
+          vector.x *= width / oldWidth;
+        }
+        plus(opposite, vector, center);
+      }
+      return {
+        transform: simplifyTransform(
+          composeTransforms(
+            entity.state.transform,
+            composeTransforms(invertTransform(worldTransform), {
+              translation: center,
+            }),
+          ),
+        ),
+        rectangle: {width, height},
+      };
     },
   },
   arc: {
