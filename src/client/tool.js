@@ -655,25 +655,25 @@ class SelectPanTool extends Tool {
       this._lastClientX,
       this._lastClientY,
     );
-    for (const controlPoints of this._controlPoints.values()) {
-      for (const controlPoint of controlPoints) {
+    for (const [id, controlPoints] of this._controlPoints) {
+      for (let ii = 0; ii < controlPoints.length; ii++) {
+        const controlPoint = controlPoints[ii];
         const hovered =
+          this._draggingIndices.get(id) === ii ||
           distance(controlPoint.position, eventPosition) <=
-          controlPoint.thickness;
+            controlPoint.thickness;
         let outlineColor = '#ffffff';
         let centerColor = '#222222';
-        let outlineThickness = controlPoint.thickness;
-        let outlineIncrement = renderer.pixelsToWorldUnits * 3;
-        let centerThickness = controlPoint.thickness - outlineIncrement;
+        const thicknessIncrement = renderer.pixelsToWorldUnits * 3;
+        let centerThickness = thicknessIncrement;
+        let outlineThickness = centerThickness + thicknessIncrement;
         if (hovered) {
           if (this._draggingIndices.size > 0) {
             outlineColor = '#222222';
             centerColor = '#ffffff';
-            outlineThickness += outlineIncrement;
-            centerThickness += outlineIncrement;
           }
-          outlineThickness += outlineIncrement;
-          centerThickness += outlineIncrement;
+          outlineThickness += thicknessIncrement;
+          centerThickness += thicknessIncrement;
         }
         renderPointHelper(
           renderer,
@@ -765,7 +765,8 @@ class SelectPanTool extends Tool {
       if (!(renderer && resource instanceof Scene)) {
         return;
       }
-      const eventPosition = renderer.getEventPosition(
+      const eventPosition = this._getMousePosition(
+        renderer,
         event.clientX,
         event.clientY,
       );
@@ -832,7 +833,6 @@ class SelectPanTool extends Tool {
     if (!(renderer && resource instanceof Scene)) {
       return;
     }
-    const eventPosition = renderer.getEventPosition(clientX, clientY);
     for (const id of this.props.selection) {
       const entity: Entity = (resource.getEntity(id): any);
       if (!entity) {
@@ -844,13 +844,7 @@ class SelectPanTool extends Tool {
           continue;
         }
         const worldTransform = entity.getLastCachedValue('worldTransform');
-        const controlPoints = geometry.getControlPoints(
-          entity.state[key],
-          transformPoint(
-            eventPosition,
-            getTransformInverseMatrix(worldTransform),
-          ),
-        );
+        const controlPoints = geometry.getControlPoints(entity.state[key]);
         for (const controlPoint of controlPoints) {
           transformPointEquals(
             controlPoint.position,

@@ -11,7 +11,23 @@ import {
   vec2,
   equals,
   rotateEquals,
+  plus,
+  plusEquals,
+  minus,
+  minusEquals,
+  times,
+  timesEquals,
+  distance,
+  length,
   getTransformMaxScaleMagnitude,
+  simplifyTransform,
+  composeTransforms,
+  invertTransform,
+  getTransformMatrix,
+  getTransformInverseMatrix,
+  getTransformTranslation,
+  transformPoint,
+  transformPointEquals,
   addToBoundsEquals,
 } from './math';
 import {getValue} from './util';
@@ -26,7 +42,7 @@ export type ControlPoint = {
 type GeometryData = {
   addToBounds: (Bounds, Object) => number,
   createShapeList: Object => ShapeList,
-  getControlPoints: (Object, Vector2) => ControlPoint[],
+  getControlPoints: Object => ControlPoint[],
   createControlPointEdit: (Entity, number, Vector2) => Object,
 };
 
@@ -107,12 +123,22 @@ export const ComponentGeometry: {[string]: GeometryData} = {
       const thickness = getValue(data.thickness, DEFAULT_THICKNESS);
       return new ShapeList().penDown(false, {thickness});
     },
-    getControlPoints: (data, position) => {
+    getControlPoints: data => {
       const thickness = getValue(data.thickness, DEFAULT_THICKNESS);
       return [{position: vec2(), thickness}];
     },
     createControlPointEdit: (entity, index, position) => {
-      return {transform: {translation: equals(position)}};
+      const worldTransform = entity.getLastCachedValue('worldTransform');
+      return {
+        transform: simplifyTransform(
+          composeTransforms(
+            entity.state.transform,
+            composeTransforms(invertTransform(worldTransform), {
+              translation: equals(position),
+            }),
+          ),
+        ),
+      };
     },
   },
   line: {
@@ -131,7 +157,7 @@ export const ComponentGeometry: {[string]: GeometryData} = {
         .penDown(false, {thickness})
         .advance(length);
     },
-    getControlPoints: (data, position) => {
+    getControlPoints: data => {
       const thickness = getValue(data.thickness, DEFAULT_THICKNESS);
       const halfLength = getValue(data.length, DEFAULT_LINE_LENGTH) * 0.5;
       return [
@@ -140,7 +166,25 @@ export const ComponentGeometry: {[string]: GeometryData} = {
       ];
     },
     createControlPointEdit: (entity, index, position) => {
-      return {};
+      const data = entity.state.line;
+      const halfLength = getValue(data.length, DEFAULT_LINE_LENGTH) * 0.5;
+      const worldTransform = entity.getLastCachedValue('worldTransform');
+      const worldMatrix = getTransformMatrix(worldTransform);
+      const start = transformPoint(vec2(-halfLength, 0.0), worldMatrix);
+      const end = transformPoint(vec2(halfLength, 0.0), worldMatrix);
+      equals(position, [start, end][index]);
+      return {
+        transform: simplifyTransform(
+          composeTransforms(
+            entity.state.transform,
+            composeTransforms(invertTransform(worldTransform), {
+              translation: timesEquals(plus(start, end), 0.5),
+              rotation: Math.atan2(end.y - start.y, end.x - start.x),
+            }),
+          ),
+        ),
+        line: {length: distance(start, end)},
+      };
     },
   },
   lineGroup: {
@@ -168,13 +212,31 @@ export const ComponentGeometry: {[string]: GeometryData} = {
       loop && path.lineTo(vertices[0], 0, attributes);
       return new ShapeList([], [path]);
     },
-    getControlPoints: (data, position) => {
+    getControlPoints: data => {
       const thickness = getValue(data.thickness, DEFAULT_THICKNESS);
       const vertices = getValue(data.vertices, DEFAULT_VERTICES);
       return vertices.map(vertex => ({position: equals(vertex), thickness}));
     },
     createControlPointEdit: (entity, index, position) => {
-      return {};
+      const worldTransform = entity.getLastCachedValue('worldTransform');
+      const data = entity.state.lineGroup;
+      const oldVertices = getValue(data.vertices, DEFAULT_VERTICES);
+      const worldMatrix = getTransformMatrix(worldTransform);
+      const vertices = oldVertices.map(vertex =>
+        transformPoint(vertex, worldMatrix),
+      );
+      equals(position, vertices[index]);
+      const translation = equals(vertices[0]);
+      vertices.forEach(vertex => minusEquals(vertex, translation));
+      return {
+        transform: simplifyTransform(
+          composeTransforms(
+            entity.state.transform,
+            composeTransforms(invertTransform(worldTransform), {translation}),
+          ),
+        ),
+        lineGroup: {vertices},
+      };
     },
   },
   polygon: {
@@ -204,13 +266,31 @@ export const ComponentGeometry: {[string]: GeometryData} = {
         ? new ShapeList([new Shape(path)])
         : new ShapeList([], [path]);
     },
-    getControlPoints: (data, position) => {
+    getControlPoints: data => {
       const thickness = getValue(data.thickness, DEFAULT_THICKNESS);
       const vertices = getValue(data.vertices, DEFAULT_VERTICES);
       return vertices.map(vertex => ({position: equals(vertex), thickness}));
     },
     createControlPointEdit: (entity, index, position) => {
-      return {};
+      const worldTransform = entity.getLastCachedValue('worldTransform');
+      const data = entity.state.polygon;
+      const oldVertices = getValue(data.vertices, DEFAULT_VERTICES);
+      const worldMatrix = getTransformMatrix(worldTransform);
+      const vertices = oldVertices.map(vertex =>
+        transformPoint(vertex, worldMatrix),
+      );
+      equals(position, vertices[index]);
+      const translation = equals(vertices[0]);
+      vertices.forEach(vertex => minusEquals(vertex, translation));
+      return {
+        transform: simplifyTransform(
+          composeTransforms(
+            entity.state.transform,
+            composeTransforms(invertTransform(worldTransform), {translation}),
+          ),
+        ),
+        polygon: {vertices},
+      };
     },
   },
   rectangle: {
@@ -238,7 +318,7 @@ export const ComponentGeometry: {[string]: GeometryData} = {
         .pivot(90)
         .advance(height);
     },
-    getControlPoints: (data, position) => {
+    getControlPoints: data => {
       const thickness = getValue(data.thickness, DEFAULT_THICKNESS);
       const halfWidth = getValue(data.width, DEFAULT_RECTANGLE_WIDTH) * 0.5;
       const halfHeight = getValue(data.height, DEFAULT_RECTANGLE_HEIGHT) * 0.5;
@@ -247,9 +327,17 @@ export const ComponentGeometry: {[string]: GeometryData} = {
         {position: vec2(halfWidth, -halfHeight), thickness},
         {position: vec2(halfWidth, halfHeight), thickness},
         {position: vec2(-halfWidth, halfHeight), thickness},
+        {position: vec2(0.0, -halfHeight), thickness},
+        {position: vec2(halfWidth, 0.0), thickness},
+        {position: vec2(0.0, halfHeight), thickness},
+        {position: vec2(-halfWidth, 0.0), thickness},
       ];
     },
     createControlPointEdit: (entity, index, position) => {
+      const worldTransform = entity.getLastCachedValue('worldTransform');
+      const data = entity.state.rectangle;
+      const halfWidth = getValue(data.width, DEFAULT_RECTANGLE_WIDTH) * 0.5;
+      const halfHeight = getValue(data.height, DEFAULT_RECTANGLE_HEIGHT) * 0.5;
       return {};
     },
   },
@@ -283,19 +371,51 @@ export const ComponentGeometry: {[string]: GeometryData} = {
       }
       return shapeList;
     },
-    getControlPoints: (data, position) => {
+    getControlPoints: data => {
       const thickness = getValue(data.thickness, DEFAULT_THICKNESS);
       const radius = getValue(data.radius, DEFAULT_ARC_RADIUS);
       const angle = getValue(data.angle, DEFAULT_ARC_ANGLE);
-      const controlPoints = [
-        {position: vec2(), thickness},
+      return [
         {position: vec2(radius, 0.0), thickness},
         {position: rotateEquals(vec2(radius, 0.0), angle), thickness},
+        {position: rotateEquals(vec2(radius, 0.0), angle * 0.5), thickness},
       ];
-      return controlPoints;
     },
     createControlPointEdit: (entity, index, position) => {
-      return {};
+      const data = entity.state.arc;
+      const radius = getValue(data.radius, DEFAULT_ARC_RADIUS);
+      const angle = getValue(data.angle, DEFAULT_ARC_ANGLE);
+      const oldWorldTransform = entity.getLastCachedValue('worldTransform');
+      const center = getTransformTranslation(oldWorldTransform);
+      if (index === 2) {
+        return {arc: {radius: distance(center, position)}};
+      }
+      const start = vec2(radius, 0.0);
+      const end = rotateEquals(vec2(radius, 0.0), angle);
+      const vertices = [start, end];
+      const oldWorldMatrix = getTransformMatrix(oldWorldTransform);
+      vertices.forEach(vertex => transformPointEquals(vertex, oldWorldMatrix));
+      equals(position, vertices[index]);
+      const rotation = Math.atan2(start.y - center.y, start.x - center.x);
+      const rotatedEnd = rotateEquals(minus(end, center), -rotation);
+      let newAngle = Math.atan2(rotatedEnd.y, rotatedEnd.x);
+      if (angle > 0 && newAngle < 0) {
+        newAngle += Math.PI * 2;
+      } else if (angle < 0 && newAngle > 0) {
+        newAngle -= Math.PI * 2;
+      }
+      return {
+        transform: simplifyTransform(
+          composeTransforms(
+            entity.state.transform,
+            composeTransforms(invertTransform(oldWorldTransform), {
+              translation: center,
+              rotation,
+            }),
+          ),
+        ),
+        arc: {angle: newAngle},
+      };
     },
   },
   curve: {
@@ -321,7 +441,7 @@ export const ComponentGeometry: {[string]: GeometryData} = {
         .curveTo(vec2(halfSpan, 0), c1, c2, 0, attributes);
       return new ShapeList([], [path]);
     },
-    getControlPoints: (data, position) => {
+    getControlPoints: data => {
       const thickness = getValue(data.thickness, DEFAULT_THICKNESS);
       const halfSpan = getValue(data.span, DEFAULT_CURVE_SPAN) * 0.5;
       const c1 = getValue(data.c1, DEFAULT_CURVE_C1);
@@ -334,7 +454,38 @@ export const ComponentGeometry: {[string]: GeometryData} = {
       ];
     },
     createControlPointEdit: (entity, index, position) => {
-      return {};
+      const data = entity.state.curve;
+      const halfSpan = getValue(data.span, DEFAULT_CURVE_SPAN) * 0.5;
+      const c1 = getValue(data.c1, DEFAULT_CURVE_C1);
+      const c2 = getValue(data.c2, DEFAULT_CURVE_C2);
+      const oldWorldTransform = entity.getLastCachedValue('worldTransform');
+      const start = vec2(-halfSpan, 0.0);
+      const end = vec2(halfSpan, 0.0);
+      const vertices = [start, equals(c1), equals(c2), end];
+      const oldWorldMatrix = getTransformMatrix(oldWorldTransform);
+      vertices.forEach(vertex => transformPointEquals(vertex, oldWorldMatrix));
+      equals(position, vertices[index]);
+      const newWorldTransform = {
+        translation: timesEquals(plus(start, end), 0.5),
+        rotation: Math.atan2(end.y - start.y, end.x - start.x),
+      };
+      const inverseWorldMatrix = getTransformInverseMatrix(newWorldTransform);
+      return {
+        transform: simplifyTransform(
+          composeTransforms(
+            entity.state.transform,
+            composeTransforms(
+              invertTransform(oldWorldTransform),
+              newWorldTransform,
+            ),
+          ),
+        ),
+        curve: {
+          span: distance(start, end),
+          c1: transformPointEquals(vertices[1], inverseWorldMatrix),
+          c2: transformPointEquals(vertices[2], inverseWorldMatrix),
+        },
+      };
     },
   },
 };
