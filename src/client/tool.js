@@ -560,6 +560,7 @@ class Tool extends React.Component<ToolProps, Object> {
     renderer: Renderer,
     clientX: number,
     clientY: number,
+    matchFeatureEntity: ?(Entity) => boolean,
   ): Vector2 {
     const position = renderer.getEventPosition(clientX, clientY);
     const snapped = equals(position);
@@ -580,7 +581,10 @@ class Tool extends React.Component<ToolProps, Object> {
       expandBoundsEquals({min: equals(position), max: equals(position)}, 1.0),
       entity => {
         const collisionGeometry = getCollisionGeometry(entity);
-        if (!collisionGeometry) {
+        if (
+          !collisionGeometry ||
+          (matchFeatureEntity && !matchFeatureEntity(entity))
+        ) {
           return;
         }
         const worldTransform = entity.getLastCachedValue('worldTransform');
@@ -770,6 +774,7 @@ class SelectPanTool extends Tool {
         renderer,
         event.clientX,
         event.clientY,
+        entity => !this._draggingIndices.has(entity.id),
       );
       const map = {};
       for (const [id, index] of this._draggingIndices) {
