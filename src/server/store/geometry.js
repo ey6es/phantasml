@@ -204,7 +204,7 @@ export const ComponentGeometry: {[string]: GeometryData} = {
       if (vertices.length === 0) {
         return new ShapeList();
       }
-      const path = new Path(loop);
+      const path = new Path(loop && vertices.length > 2);
       const attributes = {thickness};
       path.moveTo(vertices[0], 0, attributes);
       for (let ii = 1; ii < vertices.length; ii++) {
@@ -256,14 +256,14 @@ export const ComponentGeometry: {[string]: GeometryData} = {
       if (vertices.length === 0) {
         return new ShapeList();
       }
-      const path = new Path(true);
+      const path = new Path(vertices.length > 2);
       const attributes = {thickness};
       path.moveTo(vertices[0], 0, attributes);
       for (let ii = 1; ii < vertices.length; ii++) {
         path.lineTo(vertices[ii], 0, attributes);
       }
       path.lineTo(vertices[0], 0, attributes);
-      return fill
+      return fill && vertices.length > 2
         ? new ShapeList([new Shape(path)])
         : new ShapeList([], [path]);
     },

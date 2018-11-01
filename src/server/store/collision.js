@@ -11,6 +11,7 @@ import {
   vec2,
   equals,
   negative,
+  negativeEquals,
   minus,
   minusEquals,
   plusEquals,
@@ -570,6 +571,16 @@ function getSegmentPointPenetration(
   vertexThickness: number,
   result: Vector2,
 ) {
+  if (distance(start, end) === 0.0) {
+    getPointPointPenetration(
+      start,
+      Math.max(startThickness, endThickness),
+      vertex,
+      vertexThickness,
+      result,
+    );
+    return;
+  }
   vec2(0.0, 0.0, result);
   {
     const rightSide = getSidePointPenetration(
@@ -614,6 +625,18 @@ function getSegmentSegmentPenetration(
   toThickness: number,
   result: Vector2,
 ) {
+  if (distance(from, to) === 0.0) {
+    getSegmentPointPenetration(
+      start,
+      end,
+      startThickness,
+      endThickness,
+      from,
+      Math.max(fromThickness, toThickness),
+      result,
+    );
+    return;
+  }
   vec2(0.0, 0.0, result);
   let resultLength = Infinity;
 
@@ -718,6 +741,28 @@ function getPolygonPointPenetration(
   vertexThickness: number,
   result: Vector2,
 ) {
+  if (points.length === 1) {
+    getPointPointPenetration(
+      points[0],
+      thicknesses[0] || 0.0,
+      vertex,
+      vertexThickness,
+      result,
+    );
+    return;
+  }
+  if (points.length === 2) {
+    getSegmentPointPenetration(
+      points[0],
+      points[1],
+      thicknesses[0] || 0.0,
+      thicknesses[1] || 0.0,
+      vertex,
+      vertexThickness,
+      result,
+    );
+    return;
+  }
   vec2(0.0, 0.0, result);
   let resultLength = Infinity;
   for (let ii = 0; ii < points.length; ii++) {
@@ -754,6 +799,33 @@ function getPolygonSegmentPenetration(
   toThickness: number,
   result: Vector2,
 ) {
+  if (points.length === 1) {
+    getSegmentPointPenetration(
+      from,
+      to,
+      fromThickness,
+      toThickness,
+      points[0],
+      thicknesses[0] || 0.0,
+      result,
+    );
+    negativeEquals(result);
+    return;
+  }
+  if (points.length === 2) {
+    getSegmentSegmentPenetration(
+      points[0],
+      points[1],
+      thicknesses[0] || 0.0,
+      thicknesses[1] || 0.0,
+      from,
+      to,
+      fromThickness,
+      toThickness,
+      result,
+    );
+    return;
+  }
   vec2(0.0, 0.0, result);
   let resultLength = Infinity;
   for (let ii = 0; ii < points.length; ii++) {
@@ -831,6 +903,28 @@ function getPolygonPolygonPenetration(
   secondThicknesses: number[],
   result: Vector2,
 ) {
+  if (secondPoints.length === 1) {
+    getPolygonPointPenetration(
+      firstPoints,
+      firstThicknesses,
+      secondPoints[0],
+      secondThicknesses[0] || 0.0,
+      result,
+    );
+    return;
+  }
+  if (secondPoints.length === 2) {
+    getPolygonSegmentPenetration(
+      firstPoints,
+      firstThicknesses,
+      secondPoints[0],
+      secondPoints[1],
+      secondThicknesses[0] || 0.0,
+      secondThicknesses[1] || 0.0,
+      result,
+    );
+    return;
+  }
   vec2(0.0, 0.0, result);
   let resultLength = Infinity;
   for (let ii = 0; ii < firstPoints.length; ii++) {
