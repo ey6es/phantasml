@@ -26,6 +26,7 @@ import {
   getTransformMatrix,
   getTransformInverseMatrix,
   getTransformTranslation,
+  getTransformRotation,
   transformPoint,
   transformPointEquals,
   addToBoundsEquals,
@@ -350,6 +351,7 @@ export const ComponentGeometry: {[string]: GeometryData} = {
         vec2(-halfWidth, 0.0),
       ];
       const worldTransform = entity.getLastCachedValue('worldTransform');
+      const rotation = getTransformRotation(worldTransform);
       const worldMatrix = getTransformMatrix(worldTransform);
       vertices.forEach(vertex => transformPointEquals(vertex, worldMatrix));
       const center = vec2();
@@ -369,14 +371,20 @@ export const ComponentGeometry: {[string]: GeometryData} = {
           height = distance(position, next);
         }
         const opposite = vertices[(index + 2) % 4];
-        const vector = timesEquals(minus(vertices[index], opposite), 0.5);
+        const vector = rotateEquals(
+          timesEquals(minus(vertices[index], opposite), 0.5),
+          -rotation,
+        );
         vector.x *= width / oldWidth;
         vector.y *= height / oldHeight;
-        plus(opposite, vector, center);
+        plus(opposite, rotateEquals(vector, rotation), center);
       } else {
         // side
         const opposite = vertices[4 + ((index - 2) % 4)];
-        const vector = timesEquals(minus(vertices[index], opposite), 0.5);
+        const vector = rotateEquals(
+          timesEquals(minus(vertices[index], opposite), 0.5),
+          -rotation,
+        );
         if ((index & 1) === 0) {
           // top/bottom
           height = distance(position, opposite);
@@ -386,7 +394,7 @@ export const ComponentGeometry: {[string]: GeometryData} = {
           width = distance(position, opposite);
           vector.x *= width / oldWidth;
         }
-        plus(opposite, vector, center);
+        plus(opposite, rotateEquals(vector, rotation), center);
       }
       return {
         transform: simplifyTransform(
@@ -394,6 +402,7 @@ export const ComponentGeometry: {[string]: GeometryData} = {
             entity.state.transform,
             composeTransforms(invertTransform(worldTransform), {
               translation: center,
+              rotation,
             }),
           ),
         ),
