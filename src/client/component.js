@@ -397,6 +397,7 @@ function ComponentPanel(props: {
       </CardHeader>
       <CardBody className="p-2">
         <PropertyEditorGroup
+          type="component"
           properties={component.properties}
           values={props.value}
           setValue={(key, value) =>
@@ -433,6 +434,7 @@ function ComponentPanel(props: {
  */
 export function PropertyEditorGroup(props: {
   properties: {[string]: PropertyData},
+  type: string,
   labelSize?: number,
   padding?: boolean,
   rightAlign?: boolean,
@@ -454,7 +456,7 @@ export function PropertyEditorGroup(props: {
           {property.label}
         </Label>
         <PropertyEditor
-          id={key}
+          id={props.type + '_' + key}
           property={property}
           sm={12 - labelSize}
           classSuffix={props.padding === false ? ' pl-0' : ''}
@@ -662,6 +664,7 @@ const PropertyEditors = {
         {array.map((value, index) => (
           <Row key={index} className="mb-1">
             <PropertyEditor
+              id={props.id + '_' + index}
               property={elementProperty}
               sm={12}
               classSuffix={props.classSuffix}

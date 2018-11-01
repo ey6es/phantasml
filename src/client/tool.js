@@ -401,6 +401,7 @@ class Tool extends React.Component<ToolProps, Object> {
     return (
       <Container className="mt-1">
         <PropertyEditorGroup
+          type="options"
           properties={this._options}
           labelSize={6}
           padding={false}
