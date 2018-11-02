@@ -78,6 +78,7 @@ import {
   LoopProperty,
   GeometryComponents,
 } from './geometry/components';
+import {KinematicProperty} from './physics/components';
 import {Shortcut} from './util/ui';
 import type {Resource, Entity} from '../server/store/resource';
 import {Scene, SceneActions} from '../server/store/scene';
@@ -640,7 +641,10 @@ class SelectPanTool extends Tool {
     super(
       'selectPan',
       'mouse-pointer',
-      <FormattedMessage id="tool.select_pan" defaultMessage="Select/Pan" />,
+      <FormattedMessage
+        id="tool.select_pan"
+        defaultMessage="Select/Grab/Pan"
+      />,
       'Q',
       {
         gridSnap: {type: 'boolean', label: <GridSnapLabel />},
@@ -1476,6 +1480,7 @@ class PointTool extends DrawTool {
         featureSnap: {type: 'boolean', label: <FeatureSnapLabel />},
         ...ThicknessProperty,
         ...PathColorProperty,
+        ...KinematicProperty,
       },
       ...args,
     );
@@ -1494,6 +1499,10 @@ class PointTool extends DrawTool {
           shapeRenderer: {
             pathColor: this.state.pathColor,
             order: 2,
+          },
+          rigidBody: {
+            kinematic: this.state.kinematic,
+            order: 3,
           },
         },
         {translation: equals(this._translation)},
@@ -1524,6 +1533,7 @@ class LineTool extends DrawTool {
         featureSnap: {type: 'boolean', label: <FeatureSnapLabel />},
         ...ThicknessProperty,
         ...PathColorProperty,
+        ...KinematicProperty,
       },
       ...args,
     );
@@ -1553,6 +1563,10 @@ class LineTool extends DrawTool {
         shapeRenderer: {
           pathColor: this.state.pathColor,
           order: 2,
+        },
+        rigidBody: {
+          kinematic: this.state.kinematic,
+          order: 3,
         },
       },
       this._getTransform(),
@@ -1707,6 +1721,7 @@ class LineGroupTool extends VertexTool {
         ...ThicknessProperty,
         ...PathColorProperty,
         ...LoopProperty,
+        ...KinematicProperty,
       },
       ...args,
     );
@@ -1726,6 +1741,10 @@ class LineGroupTool extends VertexTool {
         shapeRenderer: {
           pathColor: this.state.pathColor,
           order: 2,
+        },
+        rigidBody: {
+          kinematic: this.state.kinematic,
+          order: 3,
         },
       },
       transform,
@@ -1749,6 +1768,7 @@ class PolygonTool extends VertexTool {
         ...PathColorProperty,
         ...FillColorProperty,
         ...FillProperty,
+        ...KinematicProperty,
       },
       ...args,
     );
@@ -1802,6 +1822,10 @@ class PolygonTool extends VertexTool {
           fillColor: this.state.fillColor,
           order: 2,
         },
+        rigidBody: {
+          kinematic: this.state.kinematic,
+          order: 3,
+        },
       },
       transform,
     );
@@ -1832,6 +1856,7 @@ class RectangleTool extends DrawTool {
         ...PathColorProperty,
         ...FillColorProperty,
         ...FillProperty,
+        ...KinematicProperty,
       },
       ...args,
     );
@@ -1864,6 +1889,10 @@ class RectangleTool extends DrawTool {
           pathColor: this.state.pathColor,
           fillColor: this.state.fillColor,
           order: 2,
+        },
+        rigidBody: {
+          kinematic: this.state.kinematic,
+          order: 3,
         },
       },
       this._getTransform(),
@@ -1927,6 +1956,7 @@ class ArcTool extends DrawTool {
         ...PathColorProperty,
         ...FillColorProperty,
         ...FillProperty,
+        ...KinematicProperty,
       },
       ...args,
     );
@@ -1964,6 +1994,10 @@ class ArcTool extends DrawTool {
             pathColor: this.state.pathColor,
             fillColor: this.state.fillColor,
             order: 2,
+          },
+          rigidBody: {
+            kinematic: this.state.kinematic,
+            order: 3,
           },
         },
         this._getTransform(),
@@ -2083,6 +2117,7 @@ class CurveTool extends DrawTool {
         featureSnap: {type: 'boolean', label: <FeatureSnapLabel />},
         ...ThicknessProperty,
         ...PathColorProperty,
+        ...KinematicProperty,
       },
       ...args,
     );
@@ -2116,6 +2151,10 @@ class CurveTool extends DrawTool {
           shapeRenderer: {
             pathColor: this.state.pathColor,
             order: 2,
+          },
+          rigidBody: {
+            kinematic: this.state.kinematic,
+            order: 3,
           },
         },
         transform,

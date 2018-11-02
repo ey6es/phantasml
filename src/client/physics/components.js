@@ -20,6 +20,19 @@ export const PhysicsCategory: {[string]: CategoryData} = {
 };
 
 /**
+ * Shared property for kinematic flag.
+ */
+export const KinematicProperty = {
+  kinematic: {
+    type: 'boolean',
+    label: (
+      <FormattedMessage id="rigid_body.kinematic" defaultMessage="Kinematic:" />
+    ),
+    defaultValue: true,
+  },
+};
+
+/**
  * Physics component metadata mapped by component name.
  */
 export const PhysicsComponents: {[string]: ComponentData} = {
@@ -36,6 +49,46 @@ export const PhysicsComponents: {[string]: ComponentData} = {
     },
     page: true,
     entity: false,
+    category: 'physics',
+  },
+  rigidBody: {
+    label: (
+      <FormattedMessage id="rigid_body.title" defaultMessage="Rigid Body" />
+    ),
+    properties: {
+      ...KinematicProperty,
+      linearVelocity: {
+        type: 'vector',
+        label: (
+          <FormattedMessage
+            id="rigid_body.linear_velocity"
+            defaultMessage="Linear Vel:"
+          />
+        ),
+      },
+      angularVelocity: {
+        type: 'angle',
+        label: (
+          <FormattedMessage
+            id="rigid_body.angular_velocity"
+            defaultMessage="Angular Vel:"
+          />
+        ),
+        min: -Infinity,
+        max: Infinity,
+      },
+      density: {
+        type: 'number',
+        label: (
+          <FormattedMessage id="rigid_body.density" defaultMessage="Density:" />
+        ),
+        min: 0.0,
+        step: 0.01,
+        wheelStep: 0.1,
+        precision: 2,
+        defaultValue: 1.0,
+      },
+    },
     category: 'physics',
   },
 };
