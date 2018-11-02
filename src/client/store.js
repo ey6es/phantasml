@@ -55,6 +55,10 @@ export type ToolType =
   | 'curve'
   | 'stamp';
 
+type PlayState = 'stopped' | 'playing' | 'paused';
+
+type Snapshot = {frame: number, resource: Resource};
+
 type StoreState = {
   resource: ?Resource,
   savedEditNumber: number,
@@ -74,6 +78,11 @@ type StoreState = {
   draggingSelection: boolean,
   draggingComponent: ?string,
   clipboard: Map<string, Object>,
+  playState: PlayState,
+  snapshots: Snapshot[],
+  frame: number,
+  snapshotIndex: number,
+  frameIntervalId: ?IntervalID,
 };
 
 const initialState = {
@@ -95,6 +104,11 @@ const initialState = {
   draggingSelection: false,
   draggingComponent: null,
   clipboard: new Map(),
+  playState: 'stopped',
+  snapshots: [],
+  frame: 0,
+  snapshotIndex: 0,
+  frameIntervalId: null,
 };
 
 function reducer(state: StoreState, action: StoreAction): StoreState {
@@ -140,6 +154,9 @@ function reducer(state: StoreState, action: StoreAction): StoreState {
   }
   return state;
 }
+
+const FRAME_RATE = 60;
+const FRAME_DELAY = 1000 / FRAME_RATE;
 
 /**
  * The map containing all the store actions.
@@ -447,6 +464,95 @@ export const StoreActions = {
       return Object.assign({}, state, {tempTool: action.tool});
     },
   },
+  play: {
+    create: () => ({type: 'play'}),
+    reduce: (state: StoreState, action: StoreAction) => {
+      const resource = state.resource;
+      if (!resource) {
+        return state;
+      }
+      return Object.assign({}, state, {
+        playState: 'playing',
+        snapshots: [{frame: 0, resource}],
+        frameIntervalId: setInterval(dispatchFrame, FRAME_DELAY),
+      });
+    },
+  },
+  pause: {
+    create: () => ({type: 'pause'}),
+    reduce: (state: StoreState, action: StoreAction) => {
+      state.frameIntervalId && clearInterval(state.frameIntervalId);
+      return Object.assign({}, state, {
+        playState: 'paused',
+        frameIntervalId: null,
+      });
+    },
+  },
+  resume: {
+    create: () => ({type: 'resume'}),
+    reduce: (state: StoreState, action: StoreAction) => {
+      return Object.assign({}, state, {
+        playState: 'playing',
+        frameIntervalId: setInterval(dispatchFrame, FRAME_DELAY),
+      });
+    },
+  },
+  stop: {
+    create: () => ({type: 'stop'}),
+    reduce: (state: StoreState, action: StoreAction) => {
+      state.frameIntervalId && clearInterval(state.frameIntervalId);
+      return Object.assign({}, state, {
+        resource: state.snapshots[0].resource,
+        playState: 'stopped',
+        snapshots: [],
+        frame: 0,
+        snapshotIndex: 0,
+        frameIntervalId: null,
+      });
+    },
+  },
+  back: {
+    create: () => ({type: 'back'}),
+    reduce: (state: StoreState, action: StoreAction) => {
+      let newSnapshotIndex = state.snapshotIndex;
+      const REWIND_FRAMES = 60;
+      if (
+        newSnapshotIndex > 0 &&
+        state.frame < state.snapshots[newSnapshotIndex].frame + REWIND_FRAMES
+      ) {
+        newSnapshotIndex--;
+      }
+      const snapshot = state.snapshots[newSnapshotIndex];
+      return Object.assign({}, state, {
+        resource: snapshot.resource,
+        frame: snapshot.frame,
+        snapshotIndex: newSnapshotIndex,
+      });
+    },
+  },
+  forward: {
+    create: () => ({type: 'forward'}),
+    reduce: (state: StoreState, action: StoreAction) => {
+      const newSnapshotIndex = state.snapshotIndex + 1;
+      const snapshot = state.snapshots[newSnapshotIndex];
+      if (!snapshot) {
+        return state;
+      }
+      return Object.assign({}, state, {
+        resource: snapshot.resource,
+        frame: snapshot.frame,
+        snapshotIndex: newSnapshotIndex,
+      });
+    },
+  },
+  frame: {
+    create: () => ({type: 'frame'}),
+    reduce: (state: StoreState, action: StoreAction) => {
+      return Object.assign({}, state, {
+        frame: state.frame + 1,
+      });
+    },
+  },
   setResource: {
     create: ResourceActions.setResource.create,
     reduce: (state: StoreState, action: ResourceAction) => {
@@ -483,6 +589,10 @@ export const StoreActions = {
     },
   },
 };
+
+function dispatchFrame() {
+  store.dispatch(StoreActions.frame.create());
+}
 
 /**
  * Creates an action to paste a set of entities.

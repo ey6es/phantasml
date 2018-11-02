@@ -79,7 +79,7 @@ import {
   GeometryComponents,
 } from './geometry/components';
 import {KinematicProperty} from './physics/components';
-import {Shortcut} from './util/ui';
+import {Shortcut, ShortcutHandler} from './util/ui';
 import type {Resource, Entity} from '../server/store/resource';
 import {Scene, SceneActions} from '../server/store/scene';
 import type {Vector2, LineSegment, Transform} from '../server/store/math';
@@ -177,11 +177,41 @@ class ToolsetImpl extends React.Component<
           tabs
           className="pt-2 bg-black play-controls justify-content-center">
           <ButtonGroup>
-            <PlayControl icon="play" />
-            <PlayControl icon="pause" disabled />
-            <PlayControl icon="stop" disabled />
-            <PlayControl icon="fast-backward" disabled />
-            <PlayControl icon="fast-forward" disabled />
+            <PlayControl
+              icon="play"
+              name={<FormattedMessage id="play" defaultMessage="Play" />}
+              charOrCode="Y"
+              disabled={false}
+              onClick={() => store.dispatch(StoreActions.play.create())}
+            />
+            <PlayControl
+              icon="pause"
+              name={<FormattedMessage id="pause" defaultMessage="Pause" />}
+              charOrCode="U"
+              disabled={false}
+              onClick={() => store.dispatch(StoreActions.pause.create())}
+            />
+            <PlayControl
+              icon="stop"
+              name={<FormattedMessage id="stop" defaultMessage="Stop" />}
+              charOrCode="I"
+              disabled={false}
+              onClick={() => store.dispatch(StoreActions.stop.create())}
+            />
+            <PlayControl
+              icon="fast-backward"
+              name={<FormattedMessage id="back" defaultMessage="Back" />}
+              charOrCode="O"
+              disabled={false}
+              onClick={() => store.dispatch(StoreActions.back.create())}
+            />
+            <PlayControl
+              icon="fast-forward"
+              name={<FormattedMessage id="forward" defaultMessage="Forward" />}
+              charOrCode="P"
+              disabled={false}
+              onClick={() => store.dispatch(StoreActions.forward.create())}
+            />
           </ButtonGroup>
         </Nav>
         <div className="border-bottom border-secondary pt-3">
@@ -229,11 +259,54 @@ export const Toolset = ReactRedux.connect(state => ({
   tempTool: state.tempTool,
 }))(ToolsetImpl);
 
-function PlayControl(props: {icon: string, disabled?: boolean}) {
-  return (
-    <Button color="link" disabled={props.disabled}>
+function PlayControl(props: {
+  icon: string,
+  name: React.Element<any>,
+  charOrCode: string | number,
+  disabled: boolean,
+  onClick: () => void,
+}) {
+  const shortcut = new Shortcut(props.charOrCode);
+  return [
+    <Button
+      key="button"
+      id={props.icon}
+      color="link"
+      disabled={props.disabled}
+      onClick={props.onClick}>
       <FontAwesomeIcon icon={props.icon} />
-    </Button>
+    </Button>,
+    <ShortcutTooltip
+      key="tooltip"
+      target={props.icon}
+      name={props.name}
+      shortcut={shortcut}
+    />,
+    <ShortcutHandler
+      key="shortcut"
+      shortcut={shortcut}
+      disabled={props.disabled}
+      onPress={props.onClick}
+    />,
+  ];
+}
+
+function ShortcutTooltip(props: {
+  target: string,
+  name: React.Element<any>,
+  shortcut: Shortcut,
+}) {
+  return (
+    <UncontrolledTooltip delay={{show: 750, hide: 0}} target={props.target}>
+      <FormattedMessage
+        id="tool.tip"
+        defaultMessage="{name} ({shortcut})"
+        values={{
+          name: props.name,
+          shortcut: props.shortcut.render(),
+        }}
+      />
+    </UncontrolledTooltip>
   );
 }
 
@@ -302,19 +375,12 @@ class Tool extends React.Component<ToolProps, Object> {
         onClick={this._activate}>
         <FontAwesomeIcon icon={this._icon} />
       </Button>,
-      <UncontrolledTooltip
+      <ShortcutTooltip
         key="tooltip"
-        delay={{show: 750, hide: 0}}
-        target={this._type}>
-        <FormattedMessage
-          id="tool.tip"
-          defaultMessage="{name} ({shortcut})"
-          values={{
-            name: this._name,
-            shortcut: this._tempActivateShortcut.render(),
-          }}
-        />
-      </UncontrolledTooltip>,
+        target={this._type}
+        name={this._name}
+        shortcut={this._tempActivateShortcut}
+      />,
     ];
   }
 
@@ -1796,6 +1862,7 @@ class PolygonTool extends VertexTool {
     const geometry = (this._geometry = new Geometry(
       ...new ShapeList([new Shape(path)]).createGeometry(),
     ));
+    geometry.ref();
     renderPolygonHelper(
       renderer,
       null,
@@ -1834,7 +1901,7 @@ class PolygonTool extends VertexTool {
 
   _clearGeometry() {
     if (this._geometry) {
-      this._geometry.dispose();
+      this._geometry.deref();
       this._geometry = null;
     }
   }

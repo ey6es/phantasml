@@ -5,6 +5,7 @@
  * @flow
  */
 
+import {RefCounted} from '../../server/store/resource';
 import {vec2} from '../../server/store/math';
 import type {Vector2, Bounds} from '../../server/store/math';
 
@@ -252,7 +253,7 @@ type ElementArrayBufferDataSource = Uint16Array | Uint32Array;
  * @param array the array of vertex data.
  * @param elementArray the array of indices.
  */
-export class Geometry {
+export class Geometry extends RefCounted {
   _array: BufferDataSource;
   _elementArray: ElementArrayBufferDataSource;
   _attributeSizes: {[string]: number};
@@ -264,6 +265,7 @@ export class Geometry {
     elementArray: ElementArrayBufferDataSource,
     attributeSizes: {[string]: number},
   ) {
+    super();
     this._array = array;
     this._elementArray = elementArray;
     this._attributeSizes = attributeSizes;
@@ -315,10 +317,7 @@ export class Geometry {
     );
   }
 
-  /**
-   * Releases the resources associated with this geometry.
-   */
-  dispose() {
+  _dispose() {
     for (const renderer of this._renderers) {
       renderer.clearArrayBuffer(this);
       renderer.clearElementArrayBuffer(this);
