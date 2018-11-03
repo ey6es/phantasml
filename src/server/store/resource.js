@@ -156,10 +156,55 @@ export class Resource extends RefCounted {
 export type EntityReference = {ref: string};
 
 /**
+ * Wraps a cached value that may be transferred to a new version of an entity.
+ *
+ * @param value the value to wrap.
+ * @param canTransfer the function that determines whether the value is
+ * transferable (and whether we have enough information to determine that).
+ */
+export class TransferableValue<T> extends RefCounted {
+  value: T;
+  canTransfer: Entity => ?boolean;
+
+  constructor(value: T, canTransfer: Entity => ?boolean) {
+    super();
+    this.value = value;
+    if (value instanceof RefCounted) {
+      value.ref();
+    }
+    this.canTransfer = canTransfer;
+  }
+
+  _dispose() {
+    if (this.value instanceof RefCounted) {
+      this.value.deref();
+    }
+    delete this.value;
+  }
+}
+
+class ConditionallyTransferableValue extends RefCounted {
+  value: TransferableValue<mixed>;
+
+  constructor(value: TransferableValue<mixed>) {
+    super();
+    this.value = value;
+    this.value.ref();
+  }
+
+  _dispose() {
+    this.value && this.value.deref();
+    delete this.value;
+  }
+}
+
+/**
  * Base class for all entities.
  *
  * @param id the entity's unique identifier.
- * @param json the entity's JSON state.
+ * @param state the entity's state.
+ * @param [previousEntity] the previous entity from which to transfer cached
+ * values, if any.
  */
 export class Entity extends RefCounted {
   id: string;
@@ -168,10 +213,41 @@ export class Entity extends RefCounted {
 
   _cachedValues: ?Map<mixed, mixed>;
 
-  constructor(id: string, state: Object = {}) {
+  constructor(id: string, state: Object = {}, previousEntity?: Entity) {
     super();
     this.id = id;
     this.state = state;
+    if (previousEntity && previousEntity._cachedValues) {
+      // transfer any transferable values
+      for (const [key, value] of previousEntity._cachedValues) {
+        if (value instanceof TransferableValue) {
+          const canTransfer = value.canTransfer(this);
+          if (canTransfer !== false) {
+            if (!this._cachedValues) {
+              this._cachedValues = new Map();
+            }
+            if (canTransfer === true) {
+              this._cachedValues.set(key, value);
+              value.ref();
+            } else {
+              // canTransfer == null
+              const condValue = new ConditionallyTransferableValue(value);
+              this._cachedValues.set(key, condValue);
+              condValue.ref();
+            }
+          }
+        } else if (
+          value instanceof ConditionallyTransferableValue &&
+          value.value.canTransfer(this) !== false
+        ) {
+          if (!this._cachedValues) {
+            this._cachedValues = new Map();
+          }
+          this._cachedValues.set(key, value);
+          value.ref();
+        }
+      }
+    }
   }
 
   /**
@@ -208,7 +284,17 @@ export class Entity extends RefCounted {
    * @return the cached value, if present.
    */
   getLastCachedValue<K, V>(key: K): ?V {
-    return this._cachedValues && (this._cachedValues.get(key): any);
+    if (!this._cachedValues) {
+      return;
+    }
+    const value = this._cachedValues.get(key);
+    if (value instanceof TransferableValue) {
+      return (value.value: any);
+    }
+    if (value instanceof ConditionallyTransferableValue) {
+      return;
+    }
+    return (value: any);
   }
 
   /**
@@ -219,19 +305,45 @@ export class Entity extends RefCounted {
    * arguments will be passed to this function.
    * @return the cached value.
    */
-  getCachedValue<K, A, V>(key: K, fn: (...A[]) => V, ...args: A[]): V {
+  getCachedValue<K, V>(
+    key: K,
+    fn: (...any[]) => V | TransferableValue<V>,
+    ...args: any[]
+  ): V {
     let cachedValues = this._cachedValues;
     if (cachedValues) {
       const value = cachedValues.get(key);
       if (value !== undefined) {
-        return (value: any);
+        if (value instanceof TransferableValue) {
+          return (value.value: any);
+        }
+        if (value instanceof ConditionallyTransferableValue) {
+          const transferableValue = value.value;
+          const canTransfer = transferableValue.canTransfer(this);
+          if (canTransfer === true) {
+            // promote to fully transferable
+            cachedValues.set(key, transferableValue);
+            transferableValue.ref();
+            value.deref();
+            return (transferableValue.value: any);
+          } else {
+            // fall through to normal handling
+            value.deref();
+          }
+        } else {
+          return (value: any);
+        }
       }
     } else {
       cachedValues = this._cachedValues = new Map();
     }
     const value = fn(...args);
-    cachedValues.set(key, value);
-    return value;
+    // don't store undefined, else we can't tell whether a value is stored
+    cachedValues.set(key, value === undefined ? null : value);
+    if (value instanceof RefCounted) {
+      value.ref();
+    }
+    return value instanceof TransferableValue ? value.value : value;
   }
 
   /**
@@ -250,8 +362,10 @@ export class Entity extends RefCounted {
   _dispose() {
     const cachedValues = this._cachedValues;
     if (cachedValues) {
-      for (const value: any of cachedValues.values()) {
-        value && value.dispose && value.dispose();
+      for (const value of cachedValues.values()) {
+        if (value instanceof RefCounted) {
+          value.deref();
+        }
       }
       this._cachedValues = null;
     }

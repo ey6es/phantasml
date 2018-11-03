@@ -105,6 +105,7 @@ class IdTreeLeafNode extends IdTreeNode {
     const newEntity = new Entity(
       id,
       mergeState ? mergeEntityEdits(oldEntity.state, state) : state,
+      oldEntity,
     );
     newEntities.set(id, newEntity);
     return [new IdTreeLeafNode(newEntities), oldEntity, newEntity];

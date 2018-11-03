@@ -9,6 +9,7 @@ import {RendererComponents} from './components';
 import type {Renderer} from './util';
 import {Geometry} from './util';
 import type {Entity} from '../../server/store/resource';
+import {TransferableValue} from '../../server/store/resource';
 import type {ShapeList} from '../../server/store/shape';
 import {getShapeList} from '../../server/store/geometry';
 import type {Transform} from '../../server/store/math';
@@ -42,9 +43,12 @@ export const ComponentRenderers: {[string]: RendererData} = {
         return () => {};
       }
       if (!shapeList.requiresTessellation()) {
-        const geometry = entity.getCachedValue('geometry', () => {
-          return new Geometry(...shapeList.createGeometry());
-        });
+        const geometry: Geometry = (entity.getCachedValue(
+          'geometry',
+          createGeometry,
+          shapeList,
+          0,
+        ): any);
         return (renderer, selected, hoverState) => {
           const transform: Transform = entity.getLastCachedValue(
             'worldTransform',
@@ -60,9 +64,6 @@ export const ComponentRenderers: {[string]: RendererData} = {
           );
         };
       }
-      const getGeometry = (exponent: number) => {
-        return new Geometry(...shapeList.createGeometry(2 ** exponent));
-      };
       return (renderer, selected, hoverState) => {
         const transform: Transform = entity.getLastCachedValue(
           'worldTransform',
@@ -74,7 +75,12 @@ export const ComponentRenderers: {[string]: RendererData} = {
           tessellation === 0.0
             ? 0.0
             : Math.round(Math.log(tessellation) / Math.LN2);
-        const geometry = entity.getCachedValue(exponent, getGeometry, exponent);
+        const geometry: Geometry = (entity.getCachedValue(
+          exponent,
+          createGeometry,
+          shapeList,
+          exponent,
+        ): any);
         renderShape(
           renderer,
           transform,
@@ -88,6 +94,18 @@ export const ComponentRenderers: {[string]: RendererData} = {
     },
   },
 };
+
+function createGeometry(
+  shapeList: ShapeList,
+  exponent: number,
+): TransferableValue<Geometry> {
+  return new TransferableValue(
+    new Geometry(...shapeList.createGeometry(2 ** exponent)),
+    newEntity => {
+      return newEntity.getLastCachedValue('shapeList') === shapeList;
+    },
+  );
+}
 
 function renderShape(
   renderer: Renderer,

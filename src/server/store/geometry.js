@@ -6,6 +6,7 @@
  */
 
 import type {Entity} from './resource';
+import {TransferableValue} from './resource';
 import type {Vector2, Transform, Bounds} from './math';
 import {
   vec2,
@@ -67,14 +68,16 @@ export const DEFAULT_CURVE_C2 = vec2(0.833, -2);
  * @return the collision geometry, if any.
  */
 export function getCollisionGeometry(entity: Entity): ?CollisionGeometry {
-  return entity.getCachedValue(
+  return (entity.getCachedValue(
     'collisionGeometry',
     createCollisionGeometry,
     entity,
-  );
+  ): any);
 }
 
-function createCollisionGeometry(entity: Entity): ?CollisionGeometry {
+function createCollisionGeometry(
+  entity: Entity,
+): ?TransferableValue<CollisionGeometry> {
   const shapeList = getShapeList(entity);
   if (!shapeList) {
     return null;
@@ -82,7 +85,25 @@ function createCollisionGeometry(entity: Entity): ?CollisionGeometry {
   const transform: Transform = entity.getLastCachedValue('worldTransform');
   const magnitude = getTransformMaxScaleMagnitude(transform);
   const tessellation = magnitude * 4.0;
-  return shapeList.createCollisionGeometry(tessellation);
+  return new TransferableValue(
+    shapeList.createCollisionGeometry(tessellation),
+    newEntity => {
+      // if we don't have the same shape list, we can't transfer
+      if (newEntity.getLastCachedValue('shapeList') !== shapeList) {
+        return false;
+      }
+      // if we don't need tessellation, we can use it
+      if (!shapeList.requiresTessellation()) {
+        return true;
+      }
+      // otherwise, it depends on the transform
+      const newTransform = newEntity.getLastCachedValue('worldTransform');
+      if (newTransform === undefined) {
+        return;
+      }
+      return getTransformMaxScaleMagnitude(newTransform) === magnitude;
+    },
+  );
 }
 
 /**
@@ -92,22 +113,41 @@ function createCollisionGeometry(entity: Entity): ?CollisionGeometry {
  * @return the shape list, if any.
  */
 export function getShapeList(entity: Entity): ?ShapeList {
-  return entity.getCachedValue('shapeList', createShapeList, entity);
+  return (entity.getCachedValue('shapeList', createShapeList, entity): any);
 }
 
-function createShapeList(entity: Entity): ?ShapeList {
+function createShapeList(entity: Entity): ?TransferableValue<ShapeList> {
   let currentShapeList: ?ShapeList;
+  const components: GeometryData[] = [];
   for (const key in entity.state) {
     const data = ComponentGeometry[key];
     if (data) {
+      const component = entity.state[key];
+      components.push(component);
       if (currentShapeList) {
-        currentShapeList.add(data.createShapeList(entity.state[key]));
+        currentShapeList.add(data.createShapeList(component));
       } else {
-        currentShapeList = data.createShapeList(entity.state[key]);
+        currentShapeList = data.createShapeList(component);
       }
     }
   }
-  return currentShapeList;
+  if (!currentShapeList) {
+    return null;
+  }
+  return new TransferableValue(currentShapeList, newEntity => {
+    // we can transfer if we have the same geometry components
+    // (by reference) in the same order
+    let index = 0;
+    for (const key in newEntity.state) {
+      if (
+        ComponentGeometry[key] &&
+        newEntity.state[key] !== components[index++]
+      ) {
+        return false;
+      }
+    }
+    return index === components.length;
+  });
 }
 
 /**
