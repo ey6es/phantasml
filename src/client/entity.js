@@ -150,64 +150,41 @@ export function EntityName(props: {entity: Entity}) {
 /**
  * The tree view of the entities on the page.
  */
-export const EntityTree = ReactRedux.connect(state => ({
-  resource: state.resource,
-  page: state.page,
-  expanded: state.expanded,
-  selection: state.selection,
-  dragging: state.draggingSelection,
-}))(
-  (props: {
-    resource: ?Resource,
-    page: string,
-    expanded: Set<string>,
-    selection: Set<string>,
-    dragging: boolean,
-    renderer: ?Renderer,
-  }) => {
-    const resource = props.resource;
-    if (!(resource instanceof Scene)) {
-      return null; // shouldn't happen
-    }
-    // locate the page entity in the hierarchy
-    const root = resource.entityHierarchy.getChild(props.page);
-    if (!root) {
-      return null; // shouldn't happen
-    }
-    return (
-      <div
-        className="entity-tree"
-        onMouseDown={event => {
-          if (props.selection.size > 0) {
-            // deselect
-            store.dispatch(StoreActions.select.create({}));
-          }
-        }}
-        onDrop={event => {
-          event.stopPropagation();
-          if (isDroppable(props.page, null, root.highestChildOrder)) {
-            drop(props.page, null, root.highestChildOrder);
-          }
-        }}>
-        <EntityTreeChildren
-          root={root}
-          node={root}
-          expanded={props.expanded}
-          selection={props.selection}
-          dragging={props.dragging}
-          renderer={props.renderer}
-        />
-      </div>
-    );
-  },
-);
+export const EntityTree = ReactRedux.connect(state => {
+  let root: ?EntityHierarchyNode;
+  const resource = state.resource;
+  if (resource instanceof Scene) {
+    root = resource.entityHierarchy.getChild(state.page);
+  }
+  return {root};
+})((props: {root: ?EntityHierarchyNode, renderer: ?Renderer}) => {
+  const root = props.root;
+  if (!root) {
+    return null;
+  }
+  return (
+    <div
+      className="entity-tree"
+      onMouseDown={event => {
+        if (store.getState().selection.size > 0) {
+          // deselect
+          store.dispatch(StoreActions.select.create({}));
+        }
+      }}
+      onDrop={event => {
+        event.stopPropagation();
+        const page = store.getState().page;
+        if (isDroppable(page, null, root.highestChildOrder)) {
+          drop(page, null, root.highestChildOrder);
+        }
+      }}>
+      <EntityTreeChildren node={root} renderer={props.renderer} />
+    </div>
+  );
+});
 
 function EntityTreeChildren(props: {
-  root: EntityHierarchyNode,
   node: EntityHierarchyNode,
-  expanded: Set<string>,
-  selection: Set<string>,
-  dragging: boolean,
   renderer: ?Renderer,
 }) {
   const children = props.node.children;
@@ -219,11 +196,7 @@ function EntityTreeChildren(props: {
       {children.map((child, index) => (
         <EntityTreeNode
           key={child.id}
-          root={props.root}
           node={child}
-          expanded={props.expanded}
-          selection={props.selection}
-          dragging={props.dragging}
           renderer={props.renderer}
           previousOrder={index === 0 ? null : children[index - 1].order}
           nextOrder={
@@ -235,138 +208,152 @@ function EntityTreeChildren(props: {
   );
 }
 
-function EntityTreeNode(props: {
-  root: EntityHierarchyNode,
-  node: EntityHierarchyNode,
-  expanded: Set<string>,
-  selection: Set<string>,
-  dragging: boolean,
-  renderer: ?Renderer,
-  previousOrder: ?number,
-  nextOrder: ?number,
-}) {
-  const resource = store.getState().resource;
-  const entity = resource && resource.getEntity(props.node.id);
-  if (!entity) {
-    return null; // shouldn't happen
-  }
-  const parent = entity.getParent();
-  if (!parent) {
-    return null; // also shouldn't happen
-  }
-  const selected = props.selection.has(entity.id);
-  const baseClass = `pl-1 position-relative${selected ? ' bg-dark' : ''}`;
-  const expanded = props.expanded.has(entity.id);
-  return (
-    <div className="d-flex">
-      <div className="entity-expand-container">
-        {props.node.children.length > 0 ? (
-          <div
-            className={expanded ? 'entity-contract' : 'entity-expand'}
-            onMouseDown={event => event.stopPropagation()}
-            onClick={event =>
-              store.dispatch(
-                StoreActions.setExpanded.create({
-                  [entity.id]: !expanded,
-                }),
-              )
-            }
-          />
-        ) : null}
-      </div>
-      <div className="flex-grow-1">
-        <div
-          className={baseClass}
-          onMouseDown={event => {
-            event.stopPropagation();
-            if (event.shiftKey && props.selection.size > 0) {
-              const map = {};
-              let adding = false;
-              let complete = false;
-              props.root.applyToEntityIds(otherId => {
-                if (complete) {
-                  return false;
-                }
-                if (props.selection.has(otherId) || otherId === entity.id) {
-                  map[otherId] = true;
-                  if (adding) {
-                    complete = true;
-                    return false;
-                  } else {
-                    adding = true;
-                  }
-                } else if (adding) {
-                  map[otherId] = true;
-                }
-              });
-              store.dispatch(StoreActions.select.create(map));
-            } else if (event.ctrlKey) {
-              store.dispatch(
-                StoreActions.select.create({[entity.id]: !selected}, true),
-              );
-            } else if (!props.selection.has(entity.id)) {
-              store.dispatch(StoreActions.select.create({[entity.id]: true}));
-            }
-          }}
-          onDoubleClick={event => {
-            props.renderer && centerPageOnSelection(props.renderer);
-          }}
-          draggable
-          onDragStart={event => {
-            event.dataTransfer.setData('text', entity.id);
-            store.dispatch(StoreActions.setDraggingSelection.create(true));
-          }}
-          onDragEnd={event => {
-            store.dispatch(StoreActions.setDraggingSelection.create(false));
-          }}
-          onDragEnter={event => {
-            event.stopPropagation();
-            if (isDroppable(entity.id, null, props.node.highestChildOrder)) {
-              event.target.className = baseClass + ' entity-drag-hover';
-            }
-          }}
-          onDragLeave={event => {
-            event.stopPropagation();
-            event.target.className = baseClass;
-          }}
-          onDrop={event => {
-            event.stopPropagation();
-            event.target.className = baseClass;
-            if (isDroppable(entity.id, null, props.node.highestChildOrder)) {
-              drop(entity.id, null, props.node.highestChildOrder);
-            }
-          }}>
-          {props.dragging ? (
-            <ReorderTarget
-              parentId={parent.ref}
-              beforeOrder={entity.getOrder()}
-              afterOrder={props.previousOrder}
-            />
-          ) : null}
-          <EntityName entity={entity} />
-          {props.dragging && props.nextOrder == null ? (
-            <ReorderTarget
-              parentId={parent.ref}
-              after={true}
-              afterOrder={entity.getOrder()}
-              beforeOrder={null}
+const EntityTreeNode = ReactRedux.connect((state, ownProps) => ({
+  expanded: state.expanded.has(ownProps.node.id),
+  selected: state.selection.has(ownProps.node.id),
+  dragging: state.draggingSelection,
+}))(
+  (props: {
+    node: EntityHierarchyNode,
+    renderer: ?Renderer,
+    previousOrder: ?number,
+    nextOrder: ?number,
+    expanded: boolean,
+    selected: boolean,
+    dragging: boolean,
+  }) => {
+    const resource = store.getState().resource;
+    if (!(resource instanceof Scene)) {
+      return null;
+    }
+    const entity = resource.getEntity(props.node.id);
+    if (!entity) {
+      return null;
+    }
+    const parent = entity.getParent();
+    if (!parent) {
+      return null;
+    }
+    const baseClass = `pl-1 position-relative${
+      props.selected ? ' bg-dark' : ''
+    }`;
+    return (
+      <div className="d-flex">
+        <div className="entity-expand-container">
+          {props.node.children.length > 0 ? (
+            <div
+              className={props.expanded ? 'entity-contract' : 'entity-expand'}
+              onMouseDown={event => event.stopPropagation()}
+              onClick={event =>
+                store.dispatch(
+                  StoreActions.setExpanded.create({
+                    [entity.id]: !props.expanded,
+                  }),
+                )
+              }
             />
           ) : null}
         </div>
-        {expanded ? (
-          <EntityTreeChildren
-            root={props.root}
-            node={props.node}
-            expanded={props.expanded}
-            selection={props.selection}
-            dragging={props.dragging}
-            renderer={props.renderer}
-          />
-        ) : null}
+        <div className="flex-grow-1">
+          <div
+            className={baseClass}
+            onMouseDown={event => {
+              event.stopPropagation();
+              const state = store.getState();
+              const selection = state.selection;
+              if (event.shiftKey && selection.size > 0) {
+                const resource = state.resource;
+                if (!(resource instanceof Scene)) {
+                  return;
+                }
+                const root = resource.getEntityHierarchyNode(state.page);
+                if (!root) {
+                  return;
+                }
+                const map = {};
+                let adding = false;
+                let complete = false;
+                root.applyToEntityIds(otherId => {
+                  if (complete) {
+                    return false;
+                  }
+                  if (selection.has(otherId) || otherId === entity.id) {
+                    map[otherId] = true;
+                    if (adding) {
+                      complete = true;
+                      return false;
+                    } else {
+                      adding = true;
+                    }
+                  } else if (adding) {
+                    map[otherId] = true;
+                  }
+                });
+                store.dispatch(StoreActions.select.create(map));
+              } else if (event.ctrlKey) {
+                store.dispatch(
+                  StoreActions.select.create(
+                    {[entity.id]: !props.selected},
+                    true,
+                  ),
+                );
+              } else if (!selection.has(entity.id)) {
+                store.dispatch(StoreActions.select.create({[entity.id]: true}));
+              }
+            }}
+            onDoubleClick={event => {
+              props.renderer && centerPageOnSelection(props.renderer);
+            }}
+            draggable
+            onDragStart={event => {
+              event.dataTransfer.setData('text', entity.id);
+              store.dispatch(StoreActions.setDraggingSelection.create(true));
+            }}
+            onDragEnd={event => {
+              store.dispatch(StoreActions.setDraggingSelection.create(false));
+            }}
+            onDragEnter={event => {
+              event.stopPropagation();
+              if (isDroppable(entity.id, null, props.node.highestChildOrder)) {
+                event.target.className = baseClass + ' entity-drag-hover';
+              }
+            }}
+            onDragLeave={event => {
+              event.stopPropagation();
+              event.target.className = baseClass;
+            }}
+            onDrop={event => {
+              event.stopPropagation();
+              event.target.className = baseClass;
+              if (isDroppable(entity.id, null, props.node.highestChildOrder)) {
+                drop(entity.id, null, props.node.highestChildOrder);
+              }
+            }}>
+            {props.dragging ? (
+              <ReorderTarget
+                parentId={parent.ref}
+                beforeOrder={props.node.order}
+                afterOrder={props.previousOrder}
+              />
+            ) : null}
+            <EntityName entity={entity} />
+            {props.dragging && props.nextOrder == null ? (
+              <ReorderTarget
+                parentId={parent.ref}
+                after={true}
+                afterOrder={props.node.order}
+                beforeOrder={null}
+              />
+            ) : null}
+          </div>
+          {props.expanded ? (
+            <EntityTreeChildren node={props.node} renderer={props.renderer} />
+          ) : null}
+        </div>
       </div>
-    </div>
-  );
-}
+    );
+  },
+);
 
 function ReorderTarget(props: {
   parentId: string,
