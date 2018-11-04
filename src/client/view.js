@@ -23,6 +23,7 @@ import {
 import {RenderCanvas} from './renderer/canvas';
 import type {Renderer} from './renderer/util';
 import type {Resource} from '../server/store/resource';
+import type {EntityHierarchyNode} from '../server/store/scene';
 import {Scene, SceneActions} from '../server/store/scene';
 
 /**
@@ -136,25 +137,26 @@ export class SceneView extends React.Component<
 }
 
 const PageTabs = ReactRedux.connect(state => ({
-  resource: state.resource,
+  root: state.resource instanceof Scene ? state.resource.entityHierarchy : null,
   selectedPage: state.page,
   draggingPage: state.draggingPage,
 }))(
   (props: {
     locale: string,
-    resource: ?Resource,
+    root: ?EntityHierarchyNode,
     selectedPage: string,
     draggingPage: ?string,
   }) => {
-    const resource = props.resource;
-    if (!(resource instanceof Scene)) {
+    const root = props.root;
+    const resource = store.getState().resource;
+    if (!(root && resource instanceof Scene)) {
       return null;
     }
-    let previousOrder = resource.entityHierarchy.lowestChildOrder - 2;
-    const highestOrder = resource.entityHierarchy.highestChildOrder;
+    let previousOrder = root.lowestChildOrder - 2;
+    const highestOrder = root.highestChildOrder;
     return (
       <Nav tabs className="pt-2 bg-black">
-        {resource.entityHierarchy.children.map(node => {
+        {root.children.map(node => {
           const entity = node.id && resource.getEntity(node.id);
           if (!entity) {
             return null; // shouldn't happen
@@ -217,7 +219,7 @@ const PageTabs = ReactRedux.connect(state => ({
               store.dispatch(
                 SceneActions.editEntities.create({
                   [createUuid()]: {
-                    name: resource.entityHierarchy.getUniqueName(
+                    name: root.getUniqueName(
                       renderText(
                         <FormattedMessage
                           id="new.page.name"
@@ -227,7 +229,7 @@ const PageTabs = ReactRedux.connect(state => ({
                       ),
                       resource.getInitialPageCount() + 1,
                     ),
-                    order: resource.entityHierarchy.highestChildOrder + 1,
+                    order: root.highestChildOrder + 1,
                   },
                 }),
               )
@@ -238,14 +240,10 @@ const PageTabs = ReactRedux.connect(state => ({
         <ShortcutHandler
           shortcut={new Shortcut(33)} // page up
           onPress={() => {
-            const index = resource.entityHierarchy.getChildIndex(
-              props.selectedPage,
-            );
+            const index = root.getChildIndex(props.selectedPage);
             if (index > 0) {
               store.dispatch(
-                StoreActions.setPage.create(
-                  resource.entityHierarchy.children[index - 1].id || '',
-                ),
+                StoreActions.setPage.create(root.children[index - 1].id || ''),
               );
             }
           }}
@@ -253,14 +251,10 @@ const PageTabs = ReactRedux.connect(state => ({
         <ShortcutHandler
           shortcut={new Shortcut(34)} // page down
           onPress={() => {
-            const index = resource.entityHierarchy.getChildIndex(
-              props.selectedPage,
-            );
-            if (index < resource.entityHierarchy.children.length - 1) {
+            const index = root.getChildIndex(props.selectedPage);
+            if (index < root.children.length - 1) {
               store.dispatch(
-                StoreActions.setPage.create(
-                  resource.entityHierarchy.children[index + 1].id || '',
-                ),
+                StoreActions.setPage.create(root.children[index + 1].id || ''),
               );
             }
           }}
@@ -268,14 +262,10 @@ const PageTabs = ReactRedux.connect(state => ({
         <ShortcutHandler
           shortcut={new Shortcut(36)} // home
           onPress={() => {
-            const index = resource.entityHierarchy.getChildIndex(
-              props.selectedPage,
-            );
+            const index = root.getChildIndex(props.selectedPage);
             if (index > 0) {
               store.dispatch(
-                StoreActions.setPage.create(
-                  resource.entityHierarchy.children[0].id || '',
-                ),
+                StoreActions.setPage.create(root.children[0].id || ''),
               );
             }
           }}
@@ -283,15 +273,11 @@ const PageTabs = ReactRedux.connect(state => ({
         <ShortcutHandler
           shortcut={new Shortcut(35)} // end
           onPress={() => {
-            const index = resource.entityHierarchy.getChildIndex(
-              props.selectedPage,
-            );
-            const lastIndex = resource.entityHierarchy.children.length - 1;
+            const index = root.getChildIndex(props.selectedPage);
+            const lastIndex = root.children.length - 1;
             if (index < lastIndex) {
               store.dispatch(
-                StoreActions.setPage.create(
-                  resource.entityHierarchy.children[lastIndex].id || '',
-                ),
+                StoreActions.setPage.create(root.children[lastIndex].id || ''),
               );
             }
           }}
