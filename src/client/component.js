@@ -131,73 +131,38 @@ function CategorySubmenus() {
  */
 export const ComponentEditor = ReactRedux.connect(state => ({
   editorTab: state.editorTab,
-  resource: state.resource,
-  entityIds: state.editorTab === 'entity' ? state.selection : state.page,
-  draggingComponent: state.draggingComponent,
-}))(
-  (props: {
-    locale: string,
-    editorTab: EditorTab,
-    resource: ?Resource,
-    entityIds: string | Set<string>,
-    draggingComponent: ?string,
-  }) => {
-    const resource = props.resource;
-    if (!(resource instanceof Scene)) {
-      return null; // shouldn't happen
-    }
-    const entities: Entity[] = [];
-    if (typeof props.entityIds === 'string') {
-      const entity = resource.getEntity(props.entityIds);
-      entity && entities.push(entity);
-    } else {
-      for (const entityId of props.entityIds) {
-        const entity = resource.getEntity(entityId);
-        entity && entities.push(entity);
-      }
-    }
-    const page = props.editorTab === 'page';
-    return (
-      <div className="component-editor">
-        <Nav tabs className="pt-2 bg-black">
-          <NavItem>
-            <NavLink
-              active={!page}
-              onClick={() =>
-                store.dispatch(StoreActions.setEditorTab.create('entity'))
-              }>
-              <FormattedMessage id="editor.entity" defaultMessage="Entities" />
-            </NavLink>
-          </NavItem>
-          <NavItem>
-            <NavLink
-              active={page}
-              onClick={() =>
-                store.dispatch(StoreActions.setEditorTab.create('page'))
-              }>
-              <FormattedMessage id="editor.page" defaultMessage="Page" />
-            </NavLink>
-          </NavItem>
-        </Nav>
-        <EntityEditor
-          locale={props.locale}
-          resource={resource}
-          entities={entities}
-          page={page}
-          draggingComponent={props.draggingComponent}
-        />
-      </div>
-    );
-  },
-);
+}))((props: {locale: string, editorTab: EditorTab}) => {
+  const page = props.editorTab === 'page';
+  return (
+    <div className="component-editor">
+      <Nav tabs className="pt-2 bg-black">
+        <NavItem>
+          <NavLink
+            active={!page}
+            onClick={() =>
+              store.dispatch(StoreActions.setEditorTab.create('entity'))
+            }>
+            <FormattedMessage id="editor.entity" defaultMessage="Entities" />
+          </NavLink>
+        </NavItem>
+        <NavItem>
+          <NavLink
+            active={page}
+            onClick={() =>
+              store.dispatch(StoreActions.setEditorTab.create('page'))
+            }>
+            <FormattedMessage id="editor.page" defaultMessage="Page" />
+          </NavLink>
+        </NavItem>
+      </Nav>
+      <EntityEditor locale={props.locale} page={page} />
+    </div>
+  );
+});
 
-function EntityEditor(props: {
-  locale: string,
-  resource: Scene,
-  entities: Entity[],
-  page: boolean,
-  draggingComponent: ?string,
-}) {
+const EntityEditor = ReactRedux.connect(state => ({
+  entities: state.editorEntities,
+}))((props: {locale: string, page: boolean, entities: Entity[]}) => {
   // get intersection state
   let original: ?Object;
   let intersection: ?Object;
@@ -242,7 +207,6 @@ function EntityEditor(props: {
       <Form>
         <NameEditor
           locale={props.locale}
-          resource={props.resource}
           entities={props.entities}
           editEntities={editEntities}
         />
@@ -256,7 +220,6 @@ function EntityEditor(props: {
               id={key}
               value={value}
               editEntities={editEntities}
-              draggingComponent={props.draggingComponent}
               components={components}
               preOrder={preOrder}
               postOrder={
@@ -281,7 +244,7 @@ function EntityEditor(props: {
       ) : null}
     </div>
   );
-}
+});
 
 function intersectState(
   original: Object,
@@ -318,17 +281,17 @@ function intersectState(
 
 function NameEditor(props: {
   locale: string,
-  resource: Scene,
   entities: Entity[],
   editEntities: Object => void,
 }) {
-  if (props.entities.length === 0) {
+  const resource = store.getState().resource;
+  if (!(resource instanceof Scene && props.entities.length > 0)) {
     return null;
   }
   let name: ?string;
   let editable = true;
   for (const entity of props.entities) {
-    editable = editable && !props.resource.isInitialEntity(entity.id);
+    editable = editable && !resource.isInitialEntity(entity.id);
     if (name === undefined) {
       name = entity.getName();
     } else if (name !== entity.getName()) {
@@ -353,70 +316,74 @@ function NameEditor(props: {
   );
 }
 
-function ComponentPanel(props: {
-  id: string,
-  value: any,
-  editEntities: Object => void,
-  draggingComponent: ?string,
-  components: [string, any][],
-  preOrder: number,
-  postOrder: ?number,
-}) {
-  const component = Components[props.id];
-  if (!component) {
-    return null;
-  }
-  return (
-    <Card className="mb-3">
-      {props.draggingComponent ? (
-        <ReorderTarget
-          draggingComponent={props.draggingComponent}
-          components={props.components}
-          order={props.preOrder}
-          editEntities={props.editEntities}
-        />
-      ) : null}
-      <CardHeader
-        className="p-2 unselectable"
-        draggable
-        onDragStart={event => {
-          event.dataTransfer.setData('text', props.id);
-          store.dispatch(StoreActions.setDraggingComponent.create(props.id));
-        }}
-        onDragEnd={event => {
-          store.dispatch(StoreActions.setDraggingComponent.create(null));
-        }}>
-        {component.label}
-        {component.removable !== false ? (
-          <Button
-            className="close float-right"
-            onClick={() => props.editEntities({[props.id]: null})}>
-            &times;
-          </Button>
+const ComponentPanel = ReactRedux.connect(state => ({
+  draggingComponent: state.draggingComponent,
+}))(
+  (props: {
+    id: string,
+    value: any,
+    editEntities: Object => void,
+    draggingComponent: ?string,
+    components: [string, any][],
+    preOrder: number,
+    postOrder: ?number,
+  }) => {
+    const component = Components[props.id];
+    if (!component) {
+      return null;
+    }
+    return (
+      <Card className="mb-3">
+        {props.draggingComponent ? (
+          <ReorderTarget
+            draggingComponent={props.draggingComponent}
+            components={props.components}
+            order={props.preOrder}
+            editEntities={props.editEntities}
+          />
         ) : null}
-      </CardHeader>
-      <CardBody className="p-2">
-        <PropertyEditorGroup
-          type="component"
-          properties={component.properties}
-          values={props.value}
-          setValue={(key, value) =>
-            props.editEntities({[props.id]: {[key]: value}})
-          }
-        />
-      </CardBody>
-      {props.draggingComponent && props.postOrder != null ? (
-        <ReorderTarget
-          draggingComponent={props.draggingComponent}
-          components={props.components}
-          after={true}
-          order={props.postOrder}
-          editEntities={props.editEntities}
-        />
-      ) : null}
-    </Card>
-  );
-}
+        <CardHeader
+          className="p-2 unselectable"
+          draggable
+          onDragStart={event => {
+            event.dataTransfer.setData('text', props.id);
+            store.dispatch(StoreActions.setDraggingComponent.create(props.id));
+          }}
+          onDragEnd={event => {
+            store.dispatch(StoreActions.setDraggingComponent.create(null));
+          }}>
+          {component.label}
+          {component.removable !== false ? (
+            <Button
+              className="close float-right"
+              onClick={() => props.editEntities({[props.id]: null})}>
+              &times;
+            </Button>
+          ) : null}
+        </CardHeader>
+        <CardBody className="p-2">
+          <PropertyEditorGroup
+            type="component"
+            properties={component.properties}
+            values={props.value}
+            setValue={(key, value) =>
+              props.editEntities({[props.id]: {[key]: value}})
+            }
+          />
+        </CardBody>
+        {props.draggingComponent && props.postOrder != null ? (
+          <ReorderTarget
+            draggingComponent={props.draggingComponent}
+            components={props.components}
+            after={true}
+            order={props.postOrder}
+            editEntities={props.editEntities}
+          />
+        ) : null}
+      </Card>
+    );
+  },
+);
 
 /**
  * Component for editing the properties of an object.

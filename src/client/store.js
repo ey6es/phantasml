@@ -67,6 +67,7 @@ type StoreState = {
   undoStack: ResourceAction[],
   redoStack: ResourceAction[],
   editorTab: EditorTab,
+  editorEntities: Entity[],
   page: string,
   pageStates: Map<string, PageState>,
   draggingPage: ?string,
@@ -93,6 +94,7 @@ const initialState = {
   undoStack: [],
   redoStack: [],
   editorTab: 'entity',
+  editorEntities: [],
   page: '',
   pageStates: new Map(),
   draggingPage: null,
@@ -117,6 +119,7 @@ function reducer(state: StoreState, action: StoreAction): StoreState {
     state = initialState;
   }
   // remember page/expansion/selection before action
+  const oldState = state;
   const oldPage = state.page;
   const oldExpanded = state.expanded;
   const oldSelection = state.selection;
@@ -151,6 +154,10 @@ function reducer(state: StoreState, action: StoreAction): StoreState {
       resource && resource.ref();
     }
     state = Object.assign({}, state, {resource, undoStack, redoStack});
+  }
+  // update derived state
+  if (state !== oldState) {
+    state.editorEntities = reduceEditorEntities(state);
   }
   return state;
 }
@@ -752,6 +759,37 @@ function reduceSelection(
     }
   }
   return selection;
+}
+
+function reduceEditorEntities(state: StoreState): Entity[] {
+  const resource = state.resource;
+  const pageTab = state.editorTab === 'page';
+  const oldEntities = state.editorEntities;
+  if (!(resource instanceof Scene && (pageTab || state.selection.size > 0))) {
+    return oldEntities.length === 0 ? oldEntities : [];
+  }
+  if (pageTab) {
+    const entity = resource.getEntity(state.page);
+    if (!entity) {
+      return oldEntities.length === 0 ? oldEntities : [];
+    }
+    return oldEntities.length === 1 && oldEntities[0] === entity
+      ? oldEntities
+      : [entity];
+  }
+  const newEntities: Entity[] = [];
+  let index = 0;
+  let matches = true;
+  for (const id of state.selection) {
+    const entity = resource.getEntity(id);
+    if (entity) {
+      newEntities.push(entity);
+      if (oldEntities[index++] !== entity) {
+        matches = false;
+      }
+    }
+  }
+  return matches && index === oldEntities.length ? oldEntities : newEntities;
 }
 
 function getParent(state: ?Object, entity: ?Entity): ?EntityReference {
