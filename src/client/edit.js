@@ -153,33 +153,37 @@ const DeleteItem = ReactRedux.connect(state => ({
   </MenuItem>
 ));
 
-const SelectAllItem = ReactRedux.connect(state => ({
-  resource: state.resource,
-  page: state.page,
-}))((props: {resource: ?Resource, page: string}) => {
-  let pageNode: ?EntityHierarchyNode;
-  const resource = props.resource;
+const SelectAllItem = ReactRedux.connect(state => {
+  let disabled = true;
+  const resource = state.resource;
   if (resource instanceof Scene) {
-    pageNode = resource.entityHierarchy.getChild(props.page);
+    const pageNode = resource.entityHierarchy.getChild(state.page);
+    disabled = !(pageNode && pageNode.children.length > 0);
   }
-  return (
-    <MenuItem
-      shortcut={new Shortcut('A', Shortcut.CTRL | Shortcut.FIELD_DISABLE)}
-      disabled={!(pageNode && pageNode.children.length > 0)}
-      onClick={() => {
-        const map = {};
-        pageNode &&
+  return {disabled};
+})((props: {disabled: boolean}) => (
+  <MenuItem
+    shortcut={new Shortcut('A', Shortcut.CTRL | Shortcut.FIELD_DISABLE)}
+    disabled={props.disabled}
+    onClick={() => {
+      const state = store.getState();
+      const resource = state.resource;
+      if (resource instanceof Scene) {
+        const pageNode = resource.entityHierarchy.getChild(state.page);
+        if (pageNode) {
+          const map = {};
           pageNode.applyToEntityIds(id => {
-            if (id !== props.page) {
+            if (id !== state.page) {
               map[id] = true;
             }
           });
-        store.dispatch(StoreActions.select.create(map));
-      }}>
-      <FormattedMessage id="edit.select_all" defaultMessage="Select All" />
-    </MenuItem>
-  );
-});
+          store.dispatch(StoreActions.select.create(map));
+        }
+      }
+    }}>
+    <FormattedMessage id="edit.select_all" defaultMessage="Select All" />
+  </MenuItem>
+));
 
 const AUTO_SAVE_MINUTES_OPTIONS = [0, 1, 5, 15];
 
