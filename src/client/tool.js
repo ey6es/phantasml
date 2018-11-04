@@ -151,67 +151,32 @@ library.add(faProjectDiagram);
 library.add(faVectorSquare);
 library.add(faStamp);
 
-class ToolsetImpl extends React.Component<
-  {
-    locale: string,
-    resource: ?Resource,
-    selection: Set<string>,
-    hover: Set<string>,
-    page: string,
-    tool: ToolType,
-    tempTool: ?ToolType,
-    renderer: ?Renderer,
-  },
+/**
+ * The set of tools available.
+ */
+export class Toolset extends React.Component<
+  {locale: string, renderer: ?Renderer},
   {options: ?React.Element<any>},
 > {
   state = {options: null};
 
   render() {
-    const {tool, ...otherProps} = this.props;
-    const toolProps: ToolProps = (otherProps: any);
-    toolProps.activeTool = tool;
-    toolProps.setOptions = this._setOptions;
+    const toolProps = {
+      locale: this.props.locale,
+      renderer: this.props.renderer,
+      setOptions: this._setOptions,
+    };
     return (
       <div>
         <Nav
           tabs
           className="pt-2 bg-black play-controls justify-content-center">
           <ButtonGroup>
-            <PlayControl
-              icon="play"
-              name={<FormattedMessage id="play" defaultMessage="Play" />}
-              charOrCode="Y"
-              disabled={false}
-              onClick={() => store.dispatch(StoreActions.play.create())}
-            />
-            <PlayControl
-              icon="pause"
-              name={<FormattedMessage id="pause" defaultMessage="Pause" />}
-              charOrCode="U"
-              disabled={false}
-              onClick={() => store.dispatch(StoreActions.pause.create())}
-            />
-            <PlayControl
-              icon="stop"
-              name={<FormattedMessage id="stop" defaultMessage="Stop" />}
-              charOrCode="I"
-              disabled={false}
-              onClick={() => store.dispatch(StoreActions.stop.create())}
-            />
-            <PlayControl
-              icon="fast-backward"
-              name={<FormattedMessage id="back" defaultMessage="Back" />}
-              charOrCode="O"
-              disabled={false}
-              onClick={() => store.dispatch(StoreActions.back.create())}
-            />
-            <PlayControl
-              icon="fast-forward"
-              name={<FormattedMessage id="forward" defaultMessage="Forward" />}
-              charOrCode="P"
-              disabled={false}
-              onClick={() => store.dispatch(StoreActions.forward.create())}
-            />
+            <PlayButton />
+            <PauseButton />
+            <StopButton />
+            <BackButton />
+            <ForwardButton />
           </ButtonGroup>
         </Nav>
         <div className="border-bottom border-secondary pt-3">
@@ -247,17 +212,65 @@ class ToolsetImpl extends React.Component<
   _setOptions = (options: ?React.Element<any>) => this.setState({options});
 }
 
-/**
- * The set of tools available.
- */
-export const Toolset = ReactRedux.connect(state => ({
-  resource: state.resource,
-  selection: state.selection,
-  hover: state.hover,
-  page: state.page,
-  tool: state.tool,
-  tempTool: state.tempTool,
-}))(ToolsetImpl);
+const PlayButton = ReactRedux.connect(state => ({
+  disabled: state.playState !== 'stopped',
+}))(props => (
+  <PlayControl
+    icon="play"
+    name={<FormattedMessage id="play" defaultMessage="Play" />}
+    charOrCode="Y"
+    disabled={props.disabled}
+    onClick={() => store.dispatch(StoreActions.play.create())}
+  />
+));
+
+const PauseButton = ReactRedux.connect(state => ({
+  disabled: state.playState === 'stopped',
+}))(props => (
+  <PlayControl
+    icon="pause"
+    name={<FormattedMessage id="pause" defaultMessage="Pause" />}
+    charOrCode="U"
+    disabled={props.disabled}
+    onClick={() => store.dispatch(StoreActions.pause.create())}
+  />
+));
+
+const StopButton = ReactRedux.connect(state => ({
+  disabled: state.playState === 'stopped',
+}))(props => (
+  <PlayControl
+    icon="stop"
+    name={<FormattedMessage id="stop" defaultMessage="Stop" />}
+    charOrCode="I"
+    disabled={props.disabled}
+    onClick={() => store.dispatch(StoreActions.stop.create())}
+  />
+));
+
+const BackButton = ReactRedux.connect(state => ({
+  disabled: state.playState === 'stopped',
+}))(props => (
+  <PlayControl
+    icon="fast-backward"
+    name={<FormattedMessage id="back" defaultMessage="Back" />}
+    charOrCode="O"
+    disabled={props.disabled}
+    onClick={() => store.dispatch(StoreActions.back.create())}
+  />
+));
+
+const ForwardButton = ReactRedux.connect(state => ({
+  disabled: state.snapshotIndex >= state.snapshots.length - 1,
+}))(props => (
+  <PlayControl
+    icon="fast-forward"
+    name={<FormattedMessage id="forward" defaultMessage="Forward" />}
+    charOrCode="P"
+    disabled={props.disabled}
+    onClick={() => store.dispatch(StoreActions.forward.create())}
+  />
+));
 
 function PlayControl(props: {
   icon: string,
@@ -312,17 +325,26 @@ function ShortcutTooltip(props: {
 
 type ToolProps = {
   locale: string,
+  renderer: ?Renderer,
+  setOptions: (?React.Element<any>) => void,
   activeTool: ToolType,
   tempTool: ?ToolType,
-  resource: ?Resource,
   selection: Set<string>,
   hover: Set<string>,
   page: string,
-  renderer: ?Renderer,
-  setOptions: (?React.Element<any>) => void,
 };
 
-class Tool extends React.Component<ToolProps, Object> {
+function connectTool(toolImpl: Function) {
+  return ReactRedux.connect(state => ({
+    activeTool: state.tool,
+    tempTool: state.tempTool,
+    selection: state.selection,
+    hover: state.hover,
+    page: state.page,
+  }))(toolImpl);
+}
+
+class ToolImpl extends React.Component<ToolProps, Object> {
   state = {};
 
   _type: ToolType;
@@ -485,7 +507,7 @@ class Tool extends React.Component<ToolProps, Object> {
   };
 
   _getSelectionTransform(renderer: Renderer, withScale?: boolean): Transform {
-    const resource = this.props.resource;
+    const resource = store.getState().resource;
     const selectionSize = this.props.selection.size;
     if (!(resource instanceof Scene && selectionSize > 0)) {
       return null;
@@ -556,7 +578,7 @@ class Tool extends React.Component<ToolProps, Object> {
       return;
     }
     const renderer = this.props.renderer;
-    const resource = this.props.resource;
+    const resource = store.getState().resource;
     if (!(renderer && resource instanceof Scene)) {
       return;
     }
@@ -590,7 +612,7 @@ class Tool extends React.Component<ToolProps, Object> {
   }
 
   _updateRectHover(rect: ?LineSegment) {
-    const resource = this.props.resource;
+    const resource = store.getState().resource;
     if (!(rect && resource instanceof Scene)) {
       return;
     }
@@ -637,7 +659,7 @@ class Tool extends React.Component<ToolProps, Object> {
     if (!this.state.featureSnap) {
       return snapped;
     }
-    const resource = this.props.resource;
+    const resource = store.getState().resource;
     if (!(resource instanceof Scene)) {
       return snapped;
     }
@@ -696,7 +718,7 @@ function FeatureSnapLabel() {
   );
 }
 
-class SelectPanTool extends Tool {
+class SelectPanToolImpl extends ToolImpl {
   _lastClientX = -1;
   _lastClientY = -1;
   _panning = false;
@@ -836,7 +858,7 @@ class SelectPanTool extends Tool {
 
     if (this._draggingIndices.size > 0) {
       const renderer = this.props.renderer;
-      const resource = this.props.resource;
+      const resource = store.getState().resource;
       if (!(renderer && resource instanceof Scene)) {
         return;
       }
@@ -904,7 +926,7 @@ class SelectPanTool extends Tool {
       return;
     }
     super._updatePointHover(clientX, clientY);
-    const resource = this.props.resource;
+    const resource = store.getState().resource;
     const renderer = this.props.renderer;
     if (!(renderer && resource instanceof Scene)) {
       return;
@@ -934,6 +956,7 @@ class SelectPanTool extends Tool {
     renderer.requestFrameRender();
   }
 }
+const SelectPanTool = connectTool(SelectPanToolImpl);
 
 function getMousePosition(
   renderer: Renderer,
@@ -945,7 +968,7 @@ function getMousePosition(
   return position;
 }
 
-class HoverTool extends Tool {
+class HoverToolImpl extends ToolImpl {
   _lastClientX = -1;
   _lastClientY = -1;
   _rect: ?LineSegment;
@@ -1019,7 +1042,7 @@ class HoverTool extends Tool {
   };
 }
 
-class RectSelectTool extends HoverTool {
+class RectSelectToolImpl extends HoverToolImpl {
   constructor(...args: any[]) {
     super(
       'rectSelect',
@@ -1042,8 +1065,9 @@ class RectSelectTool extends HoverTool {
     store.dispatch(StoreActions.setHover.create(new Set()));
   }
 }
+const RectSelectTool = connectTool(RectSelectToolImpl);
 
-class HandleTool extends Tool {
+class HandleToolImpl extends ToolImpl {
   _relativePosition = vec2();
   _position: ?Vector2;
   _rotation = 0.0;
@@ -1093,7 +1117,7 @@ class HandleTool extends Tool {
     rotateEquals(vector, -this._rotation);
 
     if (this._pressed) {
-      const resource = this.props.resource;
+      const resource = store.getState().resource;
       if (!(resource instanceof Scene)) {
         return;
       }
@@ -1187,7 +1211,7 @@ function LocalAxesLabel() {
   return <FormattedMessage id="tool.local_axes" defaultMessage="Local Axes:" />;
 }
 
-class TranslateTool extends HandleTool {
+class TranslateToolImpl extends HandleToolImpl {
   constructor(...args: any[]) {
     super(
       'translate',
@@ -1234,8 +1258,9 @@ class TranslateTool extends HandleTool {
     return length(translation) < 0.001 ? null : {translation};
   }
 }
+const TranslateTool = connectTool(TranslateToolImpl);
 
-class RotateTool extends HandleTool {
+class RotateToolImpl extends HandleToolImpl {
   get _local(): boolean {
     return true;
   }
@@ -1299,6 +1324,7 @@ class RotateTool extends HandleTool {
     return {translation, rotation};
   }
 }
+const RotateTool = connectTool(RotateToolImpl);
 
 function roundScale(scale: number): number {
   return Math.abs(scale) < 1.0
@@ -1306,7 +1332,7 @@ function roundScale(scale: number): number {
     : Math.round(scale);
 }
 
-class ScaleTool extends HandleTool {
+class ScaleToolImpl extends HandleToolImpl {
   get _local(): boolean {
     return this.state.local !== false;
   }
@@ -1390,8 +1416,9 @@ class ScaleTool extends HandleTool {
     );
   }
 }
+const ScaleTool = connectTool(ScaleToolImpl);
 
-class ContiguousSelectTool extends HoverTool {
+class ContiguousSelectToolImpl extends HoverToolImpl {
   constructor(...args: any[]) {
     super(
       'contiguousSelect',
@@ -1421,7 +1448,7 @@ class ContiguousSelectTool extends HoverTool {
   }
 
   _processHovered(additive: boolean) {
-    const resource = this.props.resource;
+    const resource = store.getState().resource;
     if (!(resource instanceof Scene)) {
       return;
     }
@@ -1472,8 +1499,9 @@ class ContiguousSelectTool extends HoverTool {
     store.dispatch(StoreActions.setHover.create(new Set()));
   }
 }
+const ContiguousSelectTool = connectTool(ContiguousSelectToolImpl);
 
-class EraseTool extends HoverTool {
+class EraseToolImpl extends HoverToolImpl {
   get _rectColor(): string {
     return ERASE_COLOR;
   }
@@ -1503,8 +1531,9 @@ class EraseTool extends HoverTool {
     store.dispatch(StoreActions.setHover.create(new Set()));
   }
 }
+const EraseTool = connectTool(EraseToolImpl);
 
-class DrawTool extends Tool {
+class DrawToolImpl extends ToolImpl {
   _lastClientX = -1;
   _lastClientY = -1;
   _translation = vec2();
@@ -1534,7 +1563,7 @@ class DrawTool extends Tool {
   }
 }
 
-class PointTool extends DrawTool {
+class PointToolImpl extends DrawToolImpl {
   constructor(...args: any[]) {
     super(
       'point',
@@ -1584,8 +1613,9 @@ class PointTool extends DrawTool {
     );
   }
 }
+const PointTool = connectTool(PointToolImpl);
 
-class LineTool extends DrawTool {
+class LineToolImpl extends DrawToolImpl {
   _start: ?Vector2;
 
   constructor(...args: any[]) {
@@ -1676,8 +1706,9 @@ class LineTool extends DrawTool {
     };
   }
 }
+const LineTool = connectTool(LineToolImpl);
 
-class VertexTool extends DrawTool {
+class VertexToolImpl extends DrawToolImpl {
   _vertices: Vector2[] = [];
 
   get _loop(): boolean {
@@ -1770,7 +1801,7 @@ class VertexTool extends DrawTool {
   }
 }
 
-class LineGroupTool extends VertexTool {
+class LineGroupToolImpl extends VertexToolImpl {
   get _loop(): boolean {
     return getValue(this.state.loop, LoopProperty.loop.defaultValue);
   }
@@ -1817,8 +1848,9 @@ class LineGroupTool extends VertexTool {
     );
   }
 }
+const LineGroupTool = connectTool(LineGroupToolImpl);
 
-class PolygonTool extends VertexTool {
+class PolygonToolImpl extends VertexToolImpl {
   _geometry: ?Geometry;
 
   constructor(...args: any[]) {
@@ -1906,8 +1938,9 @@ class PolygonTool extends VertexTool {
     }
   }
 }
+const PolygonTool = connectTool(PolygonToolImpl);
 
-class RectangleTool extends DrawTool {
+class RectangleToolImpl extends DrawToolImpl {
   _start: ?Vector2;
 
   constructor(...args: any[]) {
@@ -2005,8 +2038,9 @@ class RectangleTool extends DrawTool {
     };
   }
 }
+const RectangleTool = connectTool(RectangleToolImpl);
 
-class ArcTool extends DrawTool {
+class ArcToolImpl extends DrawToolImpl {
   _center: ?Vector2;
   _startVector: ?Vector2;
 
@@ -2167,8 +2201,9 @@ class ArcTool extends DrawTool {
     };
   }
 }
+const ArcTool = connectTool(ArcToolImpl);
 
-class CurveTool extends DrawTool {
+class CurveToolImpl extends DrawToolImpl {
   _start: ?Vector2;
   _end: ?Vector2;
   _controlCenter: ?Vector2;
@@ -2357,8 +2392,9 @@ class CurveTool extends DrawTool {
     };
   }
 }
+const CurveTool = connectTool(CurveToolImpl);
 
-class StampTool extends DrawTool {
+class StampToolImpl extends DrawToolImpl {
   _transform: Transform;
 
   constructor(...args: any[]) {
@@ -2376,7 +2412,7 @@ class StampTool extends DrawTool {
   }
 
   _onMouseDown = (event: MouseEvent) => {
-    const resource = this.props.resource;
+    const resource = store.getState().resource;
     if (
       !(
         this.active &&
@@ -2409,7 +2445,7 @@ class StampTool extends DrawTool {
   };
 
   _renderDrawHelper(renderer: Renderer, translation: Vector2) {
-    const resource = this.props.resource;
+    const resource = store.getState().resource;
     if (!(this.props.selection.size > 0 && resource instanceof Scene)) {
       return;
     }
@@ -2443,3 +2479,4 @@ class StampTool extends DrawTool {
     }
   }
 }
+const StampTool = connectTool(StampToolImpl);
