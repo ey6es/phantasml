@@ -169,9 +169,9 @@ const SelectAllItem = ReactRedux.connect(state => ({
       onClick={() => {
         const map = {};
         pageNode &&
-          pageNode.applyToEntities(entity => {
-            if (entity.id !== props.page) {
-              map[entity.id] = true;
+          pageNode.applyToEntityIds(id => {
+            if (id !== props.page) {
+              map[id] = true;
             }
           });
         store.dispatch(StoreActions.select.create(map));

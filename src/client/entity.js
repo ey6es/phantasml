@@ -245,7 +245,8 @@ function EntityTreeNode(props: {
   previousOrder: ?number,
   nextOrder: ?number,
 }) {
-  const entity = props.node.entity;
+  const resource = store.getState().resource;
+  const entity = resource && resource.getEntity(props.node.id);
   if (!entity) {
     return null; // shouldn't happen
   }
@@ -281,19 +282,21 @@ function EntityTreeNode(props: {
             if (event.shiftKey && props.selection.size > 0) {
               const map = {};
               let adding = false;
-              props.root.applyToEntities(otherEntity => {
-                if (
-                  props.selection.has(otherEntity.id) ||
-                  otherEntity.id === entity.id
-                ) {
-                  map[otherEntity.id] = true;
+              let complete = false;
+              props.root.applyToEntityIds(otherId => {
+                if (complete) {
+                  return false;
+                }
+                if (props.selection.has(otherId) || otherId === entity.id) {
+                  map[otherId] = true;
                   if (adding) {
+                    complete = true;
                     return false;
                   } else {
                     adding = true;
                   }
                 } else if (adding) {
-                  map[otherEntity.id] = true;
+                  map[otherId] = true;
                 }
               });
               store.dispatch(StoreActions.select.create(map));

@@ -245,9 +245,10 @@ export const StoreActions = {
       for (const id of state.selection) {
         const node = resource.getEntityHierarchyNode(id);
         node &&
-          node.applyToEntities(entity => {
-            clipboard.set(entity.id, entity.state);
-            map[entity.id] = null;
+          node.applyToEntityIds(id => {
+            const entity = resource.getEntity(id);
+            entity && clipboard.set(id, entity.state);
+            map[id] = null;
           });
       }
       return reducer(
@@ -267,8 +268,9 @@ export const StoreActions = {
       for (const id of state.selection) {
         const node = resource.getEntityHierarchyNode(id);
         node &&
-          node.applyToEntities(entity => {
-            clipboard.set(entity.id, entity.state);
+          node.applyToEntityIds(id => {
+            const entity = resource.getEntity(id);
+            entity && clipboard.set(id, entity.state);
           });
       }
       return Object.assign({}, state, {clipboard});
@@ -388,8 +390,7 @@ export const StoreActions = {
         if (resource.getEntity(state.page)) {
           return state; // continue to use the current page
         }
-        const firstPage = resource.entityHierarchy.children[0].entity;
-        page = firstPage ? firstPage.id : '';
+        page = resource.entityHierarchy.children[0].id || '';
       }
       const selection: Set<string> = new Set();
       return Object.assign({}, state, {page, selection});

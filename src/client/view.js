@@ -155,7 +155,7 @@ const PageTabs = ReactRedux.connect(state => ({
     return (
       <Nav tabs className="pt-2 bg-black">
         {resource.entityHierarchy.children.map(node => {
-          const entity = node.entity;
+          const entity = node.id && resource.getEntity(node.id);
           if (!entity) {
             return null; // shouldn't happen
           }

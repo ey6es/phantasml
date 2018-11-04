@@ -38,8 +38,7 @@ class IdTreeNode extends RefCounted {
   }
   editEntity(
     id: string,
-    state: Object,
-    mergeState: boolean = true,
+    state: ?Object,
     depth: number = 0,
   ): [IdTreeNode, ?Entity, Entity] {
     throw new Error('Not implemented.');
@@ -92,19 +91,18 @@ class IdTreeLeafNode extends IdTreeNode {
   }
   editEntity(
     id: string,
-    state: Object,
-    mergeState: boolean = true,
+    state: ?Object,
     depth: number = 0,
   ): [IdTreeNode, ?Entity, Entity] {
     const oldEntity = this._entities.get(id);
     if (!oldEntity) {
-      const newEntity = new Entity(id, state);
+      const newEntity = new Entity(id, state || {});
       return [this.addEntity(newEntity, depth), null, newEntity];
     }
     const newEntities = new Map(this._entities);
     const newEntity = new Entity(
       id,
-      mergeState ? mergeEntityEdits(oldEntity.state, state) : state,
+      state ? mergeEntityEdits(oldEntity.state, state) : oldEntity.state,
       oldEntity,
     );
     newEntities.set(id, newEntity);
@@ -165,8 +163,7 @@ class IdTreeInternalNode extends IdTreeNode {
   }
   editEntity(
     id: string,
-    state: Object,
-    mergeState: boolean = true,
+    state: ?Object,
     depth: number = 0,
   ): [IdTreeNode, ?Entity, Entity] {
     let even = this._even;
@@ -174,19 +171,9 @@ class IdTreeInternalNode extends IdTreeNode {
     let oldEntity: ?Entity;
     let newEntity: Entity;
     if (isIdEven(id, depth)) {
-      [even, oldEntity, newEntity] = even.editEntity(
-        id,
-        state,
-        mergeState,
-        depth + 1,
-      );
+      [even, oldEntity, newEntity] = even.editEntity(id, state, depth + 1);
     } else {
-      [odd, oldEntity, newEntity] = odd.editEntity(
-        id,
-        state,
-        mergeState,
-        depth + 1,
-      );
+      [odd, oldEntity, newEntity] = odd.editEntity(id, state, depth + 1);
     }
     return [new IdTreeInternalNode(even, odd), oldEntity, newEntity];
   }
@@ -238,27 +225,24 @@ function isIdEven(id: string, depth: number): boolean {
  * Represents part of the entity parentage hierarchy.
  */
 export class EntityHierarchyNode {
-  _entity: ?Entity;
+  _id: ?string;
+  _name: ?string;
+  _order: number;
   _children: EntityHierarchyNode[];
-
-  /** Returns a reference to the entity, if any. */
-  get entity(): ?Entity {
-    return this._entity;
-  }
 
   /** Returns the entity's id, if there's an entity. */
   get id(): ?string {
-    return this._entity && this._entity.id;
+    return this._id;
   }
 
   /** Returns the entity's name, if there's an entity. */
   get name(): ?string {
-    return this._entity && this._entity.getName();
+    return this._name;
   }
 
   /** Returns the entity's order, or zero if none. */
   get order(): number {
-    return this._entity ? this._entity.getOrder() : 0;
+    return this._order;
   }
 
   /** Returns a reference to the child array. */
@@ -278,8 +262,15 @@ export class EntityHierarchyNode {
     return lastChild ? lastChild.order : 0;
   }
 
-  constructor(entity: ?Entity = null, children: EntityHierarchyNode[] = []) {
-    this._entity = entity;
+  constructor(
+    id: ?string = null,
+    name: ?string = null,
+    order: number = 0,
+    children: EntityHierarchyNode[] = [],
+  ) {
+    this._id = id;
+    this._name = name;
+    this._order = order;
     this._children = children;
   }
 
@@ -307,14 +298,18 @@ export class EntityHierarchyNode {
     const entityOrder = entity.getOrder();
     for (let child of this._children) {
       if (!foundEntity) {
-        if (child._entity === entity) {
+        if (child.id === entity.id) {
           foundEntity = true;
           if (nextDepth < lineage.length) {
             child = child.addEntity(lineage, nextDepth);
           }
         } else if (entityOrder < child.order) {
           foundEntity = true;
-          let newChild = new EntityHierarchyNode(entity);
+          let newChild = new EntityHierarchyNode(
+            entity.id,
+            entity.getName(),
+            entityOrder,
+          );
           if (nextDepth < lineage.length) {
             newChild = newChild.addEntity(lineage, nextDepth);
           }
@@ -324,13 +319,22 @@ export class EntityHierarchyNode {
       newChildren.push(child);
     }
     if (!foundEntity) {
-      let newChild = new EntityHierarchyNode(entity);
+      let newChild = new EntityHierarchyNode(
+        entity.id,
+        entity.getName(),
+        entityOrder,
+      );
       if (nextDepth < lineage.length) {
         newChild = newChild.addEntity(lineage, nextDepth);
       }
       newChildren.push(newChild);
     }
-    return new EntityHierarchyNode(this._entity, newChildren);
+    return new EntityHierarchyNode(
+      this._id,
+      this._name,
+      this._order,
+      newChildren,
+    );
   }
 
   removeEntity(lineage: Entity[], depth: number = 0): EntityHierarchyNode {
@@ -340,7 +344,7 @@ export class EntityHierarchyNode {
     const entity = lineage[depth];
     const newChildren: EntityHierarchyNode[] = [];
     for (const child of this._children) {
-      if (child._entity === entity) {
+      if (child.id === entity.id) {
         const nextDepth = depth + 1;
         if (nextDepth < lineage.length) {
           newChildren.push(child.removeEntity(lineage, nextDepth));
@@ -349,7 +353,12 @@ export class EntityHierarchyNode {
         newChildren.push(child);
       }
     }
-    return new EntityHierarchyNode(this._entity, newChildren);
+    return new EntityHierarchyNode(
+      this._id,
+      this._name,
+      this._order,
+      newChildren,
+    );
   }
 
   /**
@@ -424,23 +433,19 @@ export class EntityHierarchyNode {
   }
 
   /**
-   * Applies an operation to the entities in the hierarchy in depth-first
+   * Applies an operation to the entity ids in the hierarchy in depth-first
    * order.
    *
    * @param op the operation to apply, which should return true/undefined to
-   * continue traversing or false to stop.
-   * @return true to continue applying, false to stop.
+   * traverse the children or false not to.
    */
-  applyToEntities(op: Entity => ?boolean): boolean {
-    if (this._entity && op(this._entity) === false) {
-      return false;
+  applyToEntityIds(op: string => ?boolean) {
+    if (this._id != null && op(this._id) === false) {
+      return;
     }
     for (const child of this._children) {
-      if (!child.applyToEntities(op)) {
-        return false;
-      }
+      child.applyToEntityIds(op);
     }
-    return true;
   }
 }
 
@@ -1047,8 +1052,11 @@ export class Scene extends Resource {
           this._idTree.getEntityLineage(entity),
         );
         node &&
-          node.applyToEntities(entity => {
-            reversed[entity.id] = entity.state;
+          node.applyToEntityIds(id => {
+            const entity = this.getEntity(id);
+            if (entity) {
+              reversed[id] = entity.state;
+            }
           });
       } else if (entity) {
         reversed[id] = reverseEdit(entity.state, state);
@@ -1068,61 +1076,111 @@ export class Scene extends Resource {
   applyEdit(map: Object): Scene {
     // first apply to the id tree, remembering added and removed entities
     let newIdTree = this._idTree;
-    const removedEntities: Entity[] = [];
-    const addedEntities: Entity[] = [];
+    const removeFromHierarchy: Set<Entity> = new Set();
+    const removeFromQuadtree: Set<Entity> = new Set();
+    const addToHierarchy: Set<Entity> = new Set();
+    const addToQuadtree: Set<Entity> = new Set();
     for (const id in map) {
       const state = map[id];
       let oldEntity: ?Entity;
       if (state === null) {
         // remove entity and all descendants
-        const node = this._entityHierarchy.getNode(
-          this._idTree.getEntityLineage(this._idTree.getEntity(id)),
-        );
-        node &&
-          node.applyToEntities(entity => {
-            [newIdTree, oldEntity] = newIdTree.removeEntity(entity.id);
-            oldEntity && removedEntities.push(oldEntity);
-          });
-      } else {
-        let newEntity: Entity;
-        [newIdTree, oldEntity, newEntity] = newIdTree.editEntity(id, state);
-        addedEntities.push(newEntity);
+        oldEntity = this._idTree.getEntity(id);
         if (oldEntity) {
-          removedEntities.push(oldEntity);
-          // if the parent changed, we need to readd descendants
-          // (unless they are being removed/edited)
+          removeFromHierarchy.add(oldEntity);
           const node = this._entityHierarchy.getNode(
             this._idTree.getEntityLineage(oldEntity),
           );
           node &&
-            node.applyToEntities(entity => {
-              if (map[entity.id] === undefined) {
-                [newIdTree, oldEntity, newEntity] = newIdTree.editEntity(
-                  entity.id,
-                  entity.state,
-                  false,
-                );
-                addedEntities.push(newEntity);
-                oldEntity && removedEntities.push(oldEntity);
-              }
+            node.applyToEntityIds(id => {
+              [newIdTree, oldEntity] = newIdTree.removeEntity(id);
+              oldEntity && removeFromQuadtree.add(oldEntity);
             });
+        }
+      } else {
+        let newEntity: Entity;
+        [newIdTree, oldEntity, newEntity] = newIdTree.editEntity(id, state);
+        if (oldEntity) {
+          let hierarchyChanged = false;
+          let transformChanged = false;
+          const lineage = this._idTree.getEntityLineage(oldEntity);
+          for (const entity of lineage) {
+            const state = map[entity.id];
+            if (!state) {
+              continue;
+            }
+            if (
+              state.name !== undefined ||
+              state.order !== undefined ||
+              state.parent !== undefined
+            ) {
+              hierarchyChanged = true;
+            }
+            if (state.transform !== undefined) {
+              transformChanged = true;
+            }
+          }
+
+          // always remove/reinsert into quadtree
+          removeFromQuadtree.add(oldEntity);
+          addToQuadtree.add(newEntity);
+
+          // hierarchy only if hierarchy properties changed
+          if (hierarchyChanged) {
+            removeFromHierarchy.add(oldEntity);
+            addToHierarchy.add(newEntity);
+          }
+
+          // if hierarchy or transform changed, visit descendants
+          if (hierarchyChanged || transformChanged) {
+            const node = this._entityHierarchy.getNode(
+              this._idTree.getEntityLineage(oldEntity),
+            );
+            node &&
+              node.applyToEntityIds(otherId => {
+                if (id === otherId) {
+                  return;
+                }
+                if (map[otherId] !== undefined) {
+                  return false;
+                }
+                [newIdTree, oldEntity, newEntity] = newIdTree.editEntity(
+                  otherId,
+                  null,
+                );
+                addToQuadtree.add(newEntity);
+                hierarchyChanged && addToHierarchy.add(newEntity);
+                if (oldEntity) {
+                  removeFromQuadtree.add(oldEntity);
+                }
+              });
+          }
+        } else {
+          addToHierarchy.add(newEntity);
+          addToQuadtree.add(newEntity);
         }
       }
     }
 
-    // process hierarchy removals with old id tree
+    // process removals with old id tree
     let newEntityHierarchy = this._entityHierarchy;
-    let newQuadtrees = this._quadtrees;
-    for (const entity of removedEntities) {
+    for (const entity of removeFromHierarchy) {
       const lineage = this._idTree.getEntityLineage(entity);
       newEntityHierarchy = newEntityHierarchy.removeEntity(lineage);
+    }
+    let newQuadtrees = this._quadtrees;
+    for (const entity of removeFromQuadtree) {
+      const lineage = this._idTree.getEntityLineage(entity);
       newQuadtrees = removeFromQuadtrees(newQuadtrees, lineage);
     }
 
     // then the additions with the new one
-    for (const entity of addedEntities) {
+    for (const entity of addToHierarchy) {
       const lineage = newIdTree.getEntityLineage(entity);
       newEntityHierarchy = newEntityHierarchy.addEntity(lineage);
+    }
+    for (const entity of addToQuadtree) {
+      const lineage = newIdTree.getEntityLineage(entity);
       newQuadtrees = addToQuadtrees(newQuadtrees, lineage);
     }
     return new this.constructor(newIdTree, newEntityHierarchy, newQuadtrees);
