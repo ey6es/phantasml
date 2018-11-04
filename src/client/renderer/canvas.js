@@ -6,13 +6,12 @@
  */
 
 import * as React from 'react';
-import * as ReactRedux from 'react-redux';
 import {renderBackground} from './background';
 import {Renderer} from './util';
 import type {HoverState} from './renderers';
 import {ComponentRenderers} from './renderers';
-import {DEFAULT_PAGE_SIZE} from '../store';
 import type {PageState, ToolType} from '../store';
+import {DEFAULT_PAGE_SIZE, store} from '../store';
 import type {Resource, Entity} from '../../server/store/resource';
 import {Scene} from '../../server/store/scene';
 import {vec2} from '../../server/store/math';
@@ -93,20 +92,15 @@ export function getEntityRenderer(
   return renderFn || (() => {});
 }
 
-class RenderCanvasImpl extends React.Component<
-  {
-    resource: ?Resource,
-    page: string,
-    pageState: ?PageState,
-    selection: Set<string>,
-    hover: Set<string>,
-    tool: ToolType,
-    tempTool: ?ToolType,
-    setRenderer: (?Renderer) => void,
-  },
+/**
+ * Renders the scene.
+ */
+export class RenderCanvas extends React.Component<
+  {setRenderer: (?Renderer) => void},
   {},
 > {
   _renderer: ?Renderer;
+  _unsubscribeFromStore: ?() => void;
 
   render() {
     return <canvas ref={this._setCanvas} className="render-canvas" />;
@@ -114,14 +108,42 @@ class RenderCanvasImpl extends React.Component<
 
   componentDidMount() {
     window.addEventListener('resize', this._renderFrame);
+
+    const state = store.getState();
+    let lastResource = state.resource;
+    let lastPage = state.page;
+    let lastPageState = state.pageStates.get(state.page);
+    let lastSelection = state.selection;
+    let lastHover = state.hover;
+    let lastTool = state.tool;
+    let lastTempTool = state.tempTool;
+    this._unsubscribeFromStore = store.subscribe(() => {
+      const state = store.getState();
+      const pageState = state.pageStates.get(state.page);
+      if (
+        state.resource !== lastResource ||
+        state.page !== lastPage ||
+        pageState !== lastPageState ||
+        state.selection !== lastSelection ||
+        state.hover !== lastHover ||
+        state.tool !== lastTool ||
+        state.tempTool !== lastTempTool
+      ) {
+        lastResource = state.resource;
+        lastPage = state.page;
+        lastPageState = pageState;
+        lastSelection = state.selection;
+        lastHover = state.hover;
+        lastTool = state.tool;
+        lastTempTool = state.tempTool;
+        this._renderer && this._renderer.requestFrameRender();
+      }
+    });
   }
 
   componentWillUnmount() {
     window.removeEventListener('resize', this._renderFrame);
-  }
-
-  componentDidUpdate() {
-    this._renderFrame();
+    this._unsubscribeFromStore && this._unsubscribeFromStore();
   }
 
   _setCanvas = (canvas: ?HTMLCanvasElement) => {
@@ -133,6 +155,7 @@ class RenderCanvasImpl extends React.Component<
       const renderer = (this._renderer = new Renderer(canvas));
       renderer.addRenderCallback(this._renderScene);
       this.props.setRenderer(renderer);
+      renderer.renderFrame();
     }
   };
 
@@ -150,12 +173,13 @@ class RenderCanvasImpl extends React.Component<
       renderer.canvas.height = height;
     }
     renderer.setViewport(0, 0, width, height);
-    const resource = this.props.resource;
+    const state = store.getState();
+    const resource = state.resource;
     if (!(resource instanceof Scene)) {
       return;
     }
     // set camera properties from page state
-    const pageState = this.props.pageState || {};
+    const pageState = state.pageStates.get(state.page) || {};
     renderer.setCamera(
       pageState.x || 0,
       pageState.y || 0,
@@ -164,25 +188,25 @@ class RenderCanvasImpl extends React.Component<
     );
 
     // render background
-    const pageEntity = resource.getEntity(this.props.page);
+    const pageEntity = resource.getEntity(state.page);
     pageEntity && renderBackground(renderer, pageEntity.state.background);
 
     // traverse scene to find renderable entities in frame (and z orders)
     renderer.getCameraBounds(cameraBounds);
-    resource.applyToEntities(this.props.page, cameraBounds, collectZOrdersOp);
+    resource.applyToEntities(state.page, cameraBounds, collectZOrdersOp);
 
     // sort by increasing z-order
     entityZOrders.sort(compareEntityZOrders);
 
     // render in sorted order
     const hoverState =
-      (this.props.tempTool || this.props.tool) === 'erase' ? 'erase' : true;
+      (state.tempTool || state.tool) === 'erase' ? 'erase' : true;
     for (const entityZOrder of entityZOrders) {
       const entity = entityZOrder.entity;
       entity.getCachedValue('entityRenderer', getEntityRenderer, entity)(
         renderer,
-        this.props.selection.has(entity.id),
-        this.props.hover.has(entity.id) ? hoverState : false,
+        state.selection.has(entity.id),
+        state.hover.has(entity.id) ? hoverState : false,
       );
     }
 
@@ -190,16 +214,3 @@ class RenderCanvasImpl extends React.Component<
     entityZOrders.splice(0, entityZOrders.length);
   };
 }
-
-/**
- * Renders the scene.
- */
-export const RenderCanvas = ReactRedux.connect(state => ({
-  resource: state.resource,
-  page: state.page,
-  pageState: state.pageStates.get(state.page),
-  selection: state.selection,
-  hover: state.hover,
-  tool: state.tool,
-  tempTool: state.tempTool,
-}))(RenderCanvasImpl);

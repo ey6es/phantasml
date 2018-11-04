@@ -492,6 +492,9 @@ export class Renderer {
    * (as with tool helpers).
    */
   requestFrameRender() {
+    if (this._frameDirty) {
+      return;
+    }
     this._frameDirty = true;
     requestAnimationFrame(() => {
       this._frameDirty && this.renderFrame();
