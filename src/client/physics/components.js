@@ -20,15 +20,14 @@ export const PhysicsCategory: {[string]: CategoryData} = {
 };
 
 /**
- * Shared property for kinematic flag.
+ * Shared property for dynamic flag.
  */
-export const KinematicProperty = {
-  kinematic: {
+export const DynamicProperty = {
+  dynamic: {
     type: 'boolean',
     label: (
-      <FormattedMessage id="rigid_body.kinematic" defaultMessage="Kinematic:" />
+      <FormattedMessage id="rigid_body.dynamic" defaultMessage="Dynamic:" />
     ),
-    defaultValue: true,
   },
 };
 
@@ -56,7 +55,7 @@ export const PhysicsComponents: {[string]: ComponentData} = {
       <FormattedMessage id="rigid_body.title" defaultMessage="Rigid Body" />
     ),
     properties: {
-      ...KinematicProperty,
+      ...DynamicProperty,
       linearVelocity: {
         type: 'vector',
         label: (

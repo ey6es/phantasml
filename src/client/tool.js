@@ -78,7 +78,7 @@ import {
   LoopProperty,
   GeometryComponents,
 } from './geometry/components';
-import {KinematicProperty} from './physics/components';
+import {DynamicProperty} from './physics/components';
 import {Shortcut, ShortcutHandler} from './util/ui';
 import type {Resource, Entity} from '../server/store/resource';
 import {Scene, SceneActions} from '../server/store/scene';
@@ -1575,7 +1575,7 @@ class PointToolImpl extends DrawToolImpl {
         featureSnap: {type: 'boolean', label: <FeatureSnapLabel />},
         ...ThicknessProperty,
         ...PathColorProperty,
-        ...KinematicProperty,
+        ...DynamicProperty,
       },
       ...args,
     );
@@ -1596,7 +1596,7 @@ class PointToolImpl extends DrawToolImpl {
             order: 2,
           },
           rigidBody: {
-            kinematic: this.state.kinematic,
+            dynamic: this.state.dynamic,
             order: 3,
           },
         },
@@ -1629,7 +1629,7 @@ class LineToolImpl extends DrawToolImpl {
         featureSnap: {type: 'boolean', label: <FeatureSnapLabel />},
         ...ThicknessProperty,
         ...PathColorProperty,
-        ...KinematicProperty,
+        ...DynamicProperty,
       },
       ...args,
     );
@@ -1661,7 +1661,7 @@ class LineToolImpl extends DrawToolImpl {
           order: 2,
         },
         rigidBody: {
-          kinematic: this.state.kinematic,
+          dynamic: this.state.dynamic,
           order: 3,
         },
       },
@@ -1818,7 +1818,7 @@ class LineGroupToolImpl extends VertexToolImpl {
         ...ThicknessProperty,
         ...PathColorProperty,
         ...LoopProperty,
-        ...KinematicProperty,
+        ...DynamicProperty,
       },
       ...args,
     );
@@ -1840,7 +1840,7 @@ class LineGroupToolImpl extends VertexToolImpl {
           order: 2,
         },
         rigidBody: {
-          kinematic: this.state.kinematic,
+          dynamic: this.state.dynamic,
           order: 3,
         },
       },
@@ -1866,7 +1866,7 @@ class PolygonToolImpl extends VertexToolImpl {
         ...PathColorProperty,
         ...FillColorProperty,
         ...FillProperty,
-        ...KinematicProperty,
+        ...DynamicProperty,
       },
       ...args,
     );
@@ -1922,7 +1922,7 @@ class PolygonToolImpl extends VertexToolImpl {
           order: 2,
         },
         rigidBody: {
-          kinematic: this.state.kinematic,
+          dynamic: this.state.dynamic,
           order: 3,
         },
       },
@@ -1956,7 +1956,7 @@ class RectangleToolImpl extends DrawToolImpl {
         ...PathColorProperty,
         ...FillColorProperty,
         ...FillProperty,
-        ...KinematicProperty,
+        ...DynamicProperty,
       },
       ...args,
     );
@@ -1991,7 +1991,7 @@ class RectangleToolImpl extends DrawToolImpl {
           order: 2,
         },
         rigidBody: {
-          kinematic: this.state.kinematic,
+          dynamic: this.state.dynamic,
           order: 3,
         },
       },
@@ -2057,7 +2057,7 @@ class ArcToolImpl extends DrawToolImpl {
         ...PathColorProperty,
         ...FillColorProperty,
         ...FillProperty,
-        ...KinematicProperty,
+        ...DynamicProperty,
       },
       ...args,
     );
@@ -2097,7 +2097,7 @@ class ArcToolImpl extends DrawToolImpl {
             order: 2,
           },
           rigidBody: {
-            kinematic: this.state.kinematic,
+            dynamic: this.state.dynamic,
             order: 3,
           },
         },
@@ -2219,7 +2219,7 @@ class CurveToolImpl extends DrawToolImpl {
         featureSnap: {type: 'boolean', label: <FeatureSnapLabel />},
         ...ThicknessProperty,
         ...PathColorProperty,
-        ...KinematicProperty,
+        ...DynamicProperty,
       },
       ...args,
     );
@@ -2255,7 +2255,7 @@ class CurveToolImpl extends DrawToolImpl {
             order: 2,
           },
           rigidBody: {
-            kinematic: this.state.kinematic,
+            dynamic: this.state.dynamic,
             order: 3,
           },
         },

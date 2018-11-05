@@ -577,6 +577,8 @@ const PropertyEditors = {
           )}
           setValue={value => props.setValue(radians(value))}
           precision={2}
+          step={0.01}
+          wheelStep={1}
           min={degrees(getValue(props.property.min, -Math.PI))}
           max={degrees(getValue(props.property.max, Math.PI))}
           circular={true}
