@@ -226,13 +226,27 @@ const PlayButton = ReactRedux.connect(state => ({
 
 const PauseButton = ReactRedux.connect(state => ({
   disabled: state.playState === 'stopped',
+  resume: state.playState === 'paused',
 }))(props => (
   <PlayControl
     icon="pause"
-    name={<FormattedMessage id="pause" defaultMessage="Pause" />}
+    name={
+      props.resume ? (
+        <FormattedMessage id="resume" defaultMessage="Resume" />
+      ) : (
+        <FormattedMessage id="pause" defaultMessage="Pause" />
+      )
+    }
     charOrCode="U"
     disabled={props.disabled}
-    onClick={() => store.dispatch(StoreActions.pause.create())}
+    indicator={props.resume}
+    onClick={() => {
+      if (props.resume) {
+        store.dispatch(StoreActions.resume.create());
+      } else {
+        store.dispatch(StoreActions.pause.create());
+      }
+    }}
   />
 ));
 
@@ -277,17 +291,20 @@ function PlayControl(props: {
   name: React.Element<any>,
   charOrCode: string | number,
   disabled: boolean,
+  indicator?: boolean,
   onClick: () => void,
 }) {
   const shortcut = new Shortcut(props.charOrCode);
   return [
     <Button
       key="button"
+      className="position-relative"
       id={props.icon}
       color="link"
       disabled={props.disabled}
       onClick={props.onClick}>
       <FontAwesomeIcon icon={props.icon} />
+      {props.indicator ? <div className="play-indicator" /> : null}
     </Button>,
     <ShortcutTooltip
       key="tooltip"
