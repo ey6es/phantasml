@@ -14,6 +14,7 @@ import {
   times,
   plusEquals,
   length,
+  normalizeAngle,
 } from '../../server/store/math';
 
 type PhysicsData = {
@@ -48,8 +49,9 @@ export const ComponentPhysics: {[string]: PhysicsData} = {
               times(linearVelocity, duration),
               getTransformTranslation(transform),
             ),
-            rotation:
+            rotation: normalizeAngle(
               getTransformRotation(transform) + duration * angularVelocity,
+            ),
           },
         };
         return true;

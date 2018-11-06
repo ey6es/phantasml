@@ -1044,6 +1044,23 @@ export function roundToPrecision(value: number, precision: number): number {
   return Math.round(value * multiplier) / multiplier;
 }
 
+const TWO_PI = Math.PI * 2.0;
+
+/**
+ * Normalizes an angle to (-pi, pi].
+ *
+ * @param angle the angle to normalize.
+ * @return the normalized angle.
+ */
+export function normalizeAngle(angle: number): number {
+  if (angle <= -Math.PI) {
+    return ((angle + Math.PI) % TWO_PI) + Math.PI;
+  } else if (angle > Math.PI) {
+    return ((angle + Math.PI) % TWO_PI) - Math.PI;
+  }
+  return angle;
+}
+
 /** Axis-aligned bounds type. */
 export type Bounds = {min: Vector2, max: Vector2};
 
