@@ -9,6 +9,7 @@ import * as Redux from 'redux';
 import uuid from 'uuid/v1';
 import {getFromApi, putToApi} from './util/api';
 import type {Renderer} from './renderer/util';
+import {ComponentPhysics} from './physics/physics';
 import type {ResourceType} from '../server/api';
 import type {
   Resource,
@@ -84,6 +85,7 @@ type StoreState = {
   frame: number,
   snapshotIndex: number,
   frameIntervalId: ?IntervalID,
+  activeEntityIds: Set<string>,
 };
 
 const initialState = {
@@ -111,6 +113,7 @@ const initialState = {
   frame: 0,
   snapshotIndex: 0,
   frameIntervalId: null,
+  activeEntityIds: new Set(),
 };
 
 function reducer(state: StoreState, action: StoreAction): StoreState {
@@ -164,6 +167,7 @@ function reducer(state: StoreState, action: StoreAction): StoreState {
 
 const FRAME_RATE = 60;
 const FRAME_DELAY = 1000 / FRAME_RATE;
+const STEP_DURATION = 1.0 / FRAME_RATE;
 
 /**
  * The map containing all the store actions.
@@ -476,13 +480,23 @@ export const StoreActions = {
     create: () => ({type: 'play'}),
     reduce: (state: StoreState, action: StoreAction) => {
       const resource = state.resource;
-      if (!resource) {
+      if (!(resource instanceof Scene)) {
         return state;
       }
+      const activeEntityIds: Set<string> = new Set();
+      resource.idTree.applyToEntities(entity => {
+        for (const key in entity.state) {
+          const physics = ComponentPhysics[key];
+          if (physics && physics.isActive(entity.state[key])) {
+            activeEntityIds.add(entity.id);
+          }
+        }
+      });
       return Object.assign({}, state, {
         playState: 'playing',
         snapshots: [{frame: 0, resource}],
         frameIntervalId: setInterval(dispatchFrame, FRAME_DELAY),
+        activeEntityIds,
       });
     },
   },
@@ -516,6 +530,7 @@ export const StoreActions = {
         frame: 0,
         snapshotIndex: 0,
         frameIntervalId: null,
+        activeEntityIds: (new Set(): Set<string>),
       });
     },
   },
@@ -556,8 +571,34 @@ export const StoreActions = {
   frame: {
     create: () => ({type: 'frame'}),
     reduce: (state: StoreState, action: StoreAction) => {
+      let resource = state.resource;
+      if (!(resource instanceof Scene)) {
+        return state;
+      }
+      let activeEntityIds: Set<string> = state.activeEntityIds;
+      const map = {};
+      entityLoop: for (const id of activeEntityIds) {
+        const entity = resource.getEntity(id);
+        if (entity) {
+          for (const key in entity.state) {
+            const physics = ComponentPhysics[key];
+            if (
+              physics &&
+              physics.advance(resource, entity, STEP_DURATION, map)
+            ) {
+              continue entityLoop;
+            }
+          }
+        }
+        if (activeEntityIds === state.activeEntityIds) {
+          activeEntityIds = new Set(activeEntityIds);
+        }
+        activeEntityIds.delete(id);
+      }
       return Object.assign({}, state, {
+        resource: resource.applyEdit(map),
         frame: state.frame + 1,
+        activeEntityIds,
       });
     },
   },

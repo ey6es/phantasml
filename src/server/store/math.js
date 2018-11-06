@@ -237,7 +237,8 @@ export function getTransformInverseMatrix(transform: Transform): number[] {
   return transform._inverseMatrix;
 }
 
-const ZERO_VECTOR = {x: 0.0, y: 0.0};
+/** Reusable zero vector. */
+export const ZERO_VECTOR = {x: 0.0, y: 0.0};
 
 /**
  * Retrieves the translation corresponding to the given transform.

@@ -14,6 +14,7 @@ import {
   negativeEquals,
   minus,
   minusEquals,
+  plus,
   plusEquals,
   timesEquals,
   orthonormalizeEquals,
@@ -58,6 +59,111 @@ export class CollisionGeometry {
   _vertexSize: number;
   _paths: CollisionPath[];
   _polygons: CollisionPolygon[];
+  _centerOfMass: ?Vector2;
+  _momentOfInertia: ?number;
+
+  /** Retrieves the geometry's center of mass, computing it if necessary. */
+  get centerOfMass(): Vector2 {
+    if (this._centerOfMass) {
+      return this._centerOfMass;
+    }
+    const centerOfMass = vec2();
+    let totalArea = 0.0;
+    for (const path of this._paths) {
+      const finalIndex = path.lastIndex - 1;
+      if (path.firstIndex === finalIndex) {
+        const vertexThickness = this._getVertexThickness(finalIndex, vertex);
+        const area = vertexThickness * vertexThickness * Math.PI;
+        plusEquals(centerOfMass, timesEquals(vertex, area));
+        totalArea += area;
+        continue;
+      }
+      const endIndex = path.loop ? path.lastIndex : finalIndex;
+      for (let fromIndex = path.firstIndex; fromIndex < endIndex; fromIndex++) {
+        const toIndex =
+          fromIndex === finalIndex ? path.firstIndex : fromIndex + 1;
+        const fromThickness = this._getVertexThickness(fromIndex, from);
+        const toThickness = this._getVertexThickness(toIndex, to);
+      }
+    }
+    for (const polygon of this._polygons) {
+      this._getVertexThickness(polygon.indices[0], point);
+      for (let ii = 2; ii < polygon.indices.length; ii++) {
+        const fromIndex =
+          polygon.indices[
+            (ii + polygon.indices.length - 1) % polygon.indices.length
+          ];
+        const toIndex = polygon.indices[ii];
+        this._getVertexThickness(fromIndex, from);
+        this._getVertexThickness(toIndex, to);
+        // https://en.wikipedia.org/wiki/Centroid#Of_a_triangle
+        timesEquals(plusEquals(plus(from, to, vertex), point), 1.0 / 3.0);
+        // https://en.wikipedia.org/wiki/Triangle#Computing_the_area_of_a_triangle
+        const area =
+          0.5 *
+          Math.abs(cross(minusEquals(from, point), minusEquals(to, point)));
+        plusEquals(centerOfMass, timesEquals(vertex, area));
+        totalArea += area;
+      }
+
+      for (let ii = 0; ii < polygon.indices.length; ii++) {
+        const fromIndex = polygon.indices[ii];
+        const toIndex = polygon.indices[(ii + 1) % polygon.indices.length];
+        const fromThickness = this._getVertexThickness(fromIndex, from);
+        const toThickness = this._getVertexThickness(toIndex, to);
+      }
+    }
+    if (totalArea > 0.0) {
+      timesEquals(centerOfMass, 1.0 / totalArea);
+    }
+    this._centerOfMass = centerOfMass;
+    return centerOfMass;
+  }
+
+  /** Retrieves the geometry's moment of inertia about its center of mass. */
+  get momentOfInertia(): number {
+    if (this._momentOfInertia != null) {
+      return this._momentOfInertia;
+    }
+    let momentOfInertia = 0.0;
+    const centerOfMass = this.centerOfMass;
+    for (const path of this._paths) {
+      const finalIndex = path.lastIndex - 1;
+      if (path.firstIndex === finalIndex) {
+        const vertexThickness = this._getVertexThickness(finalIndex, vertex);
+
+        continue;
+      }
+      const endIndex = path.loop ? path.lastIndex : finalIndex;
+      for (let fromIndex = path.firstIndex; fromIndex < endIndex; fromIndex++) {
+        const toIndex =
+          fromIndex === finalIndex ? path.firstIndex : fromIndex + 1;
+        const fromThickness = this._getVertexThickness(fromIndex, from);
+        const toThickness = this._getVertexThickness(toIndex, to);
+      }
+    }
+    for (const polygon of this._polygons) {
+      this._getVertexThickness(polygon.indices[0], point);
+      for (let ii = 2; ii < polygon.indices.length; ii++) {
+        const fromIndex =
+          polygon.indices[
+            (ii + polygon.indices.length - 1) % polygon.indices.length
+          ];
+        const toIndex = polygon.indices[ii];
+        this._getVertexThickness(fromIndex, from);
+        this._getVertexThickness(toIndex, to);
+      }
+
+      for (let ii = 0; ii < polygon.indices.length; ii++) {
+        const fromIndex = polygon.indices[ii];
+        const toIndex = polygon.indices[(ii + 1) % polygon.indices.length];
+        const fromThickness = this._getVertexThickness(fromIndex, from);
+        const toThickness = this._getVertexThickness(toIndex, to);
+      }
+    }
+    this._momentOfInertia = momentOfInertia;
+    return momentOfInertia;
+  }
 
   constructor(
     arrayBuffer: Float32Array,

@@ -32,7 +32,7 @@ const LEAF_COLLAPSE_SIZE = 8;
 /**
  * Maps ids to entities in a tree structure, limiting the changed object size.
  */
-class IdTreeNode extends RefCounted {
+export class IdTreeNode extends RefCounted {
   getEntity(id: string, depth: number = 0): ?Entity {
     throw new Error('Not implemented.');
   }
@@ -842,6 +842,11 @@ export class Scene extends Resource {
   _idTree: IdTreeNode;
   _entityHierarchy: EntityHierarchyNode;
   _quadtrees: Map<string, QuadtreeNode>;
+
+  /** Returns a reference to the id tree root node. */
+  get idTree(): IdTreeNode {
+    return this._idTree;
+  }
 
   /** Returns a reference to the entity hierarchy root node. */
   get entityHierarchy(): EntityHierarchyNode {
