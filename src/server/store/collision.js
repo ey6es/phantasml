@@ -16,6 +16,7 @@ import {
   minusEquals,
   plus,
   plusEquals,
+  times,
   timesEquals,
   orthonormalizeEquals,
   distance,
@@ -33,7 +34,11 @@ export type CollisionPath = {
   loop: boolean,
 };
 
-export type CollisionPolygon = {indices: number[]};
+export type CollisionPolygon = {
+  indices: number[],
+  firstIndex: number,
+  finalIndex: number,
+};
 
 const penetration = vec2();
 const otherPenetration = vec2();
@@ -44,6 +49,7 @@ const featurePenetration = vec2();
 const point = vec2();
 const begin = vec2();
 const finish = vec2();
+const vector = vec2();
 
 /**
  * Geometry representation for collision detection/response.
@@ -582,6 +588,25 @@ export class CollisionGeometry {
   _computeAreaAndCenterOfMass() {
     const centerOfMass = vec2();
     let totalArea = 0.0;
+    const addQuad = () => {
+      const cp0 = cross(from, begin);
+      const cp1 = cross(begin, finish);
+      const cp2 = cross(finish, to);
+      const cp3 = cross(to, from);
+      centerOfMass.x +=
+        ((from.x + begin.x) * cp0 +
+          (begin.x + finish.x) * cp1 +
+          (finish.x + to.x) * cp2 +
+          (to.x + from.x) * cp3) /
+        6.0;
+      centerOfMass.y +=
+        ((from.y + begin.y) * cp0 +
+          (begin.y + finish.y) * cp1 +
+          (finish.y + to.y) * cp2 +
+          (to.y + from.y) * cp3) /
+        6.0;
+      totalArea += 0.5 * (cp0 + cp1 + cp2 + cp3);
+    };
     for (const path of this._paths) {
       const finalIndex = path.lastIndex - 1;
       if (path.firstIndex === finalIndex) {
@@ -597,6 +622,14 @@ export class CollisionGeometry {
           fromIndex === finalIndex ? path.firstIndex : fromIndex + 1;
         const fromThickness = this._getVertexThickness(fromIndex, from);
         const toThickness = this._getVertexThickness(toIndex, to);
+        orthonormalizeEquals(minus(to, from, vector));
+        times(vector, fromThickness, v1);
+        times(vector, toThickness, v2);
+        minus(from, v1, begin);
+        minus(to, v2, finish);
+        plusEquals(from, v1);
+        plusEquals(to, v2);
+        addQuad();
       }
     }
     for (const polygon of this._polygons) {
@@ -606,23 +639,27 @@ export class CollisionGeometry {
       for (let ii = 0; ii < polygon.indices.length; ii++) {
         const fromIndex = polygon.indices[ii];
         const toIndex = polygon.indices[(ii + 1) % polygon.indices.length];
-        this._getVertexThickness(fromIndex, from);
-        this._getVertexThickness(toIndex, to);
+        const fromThickness = this._getVertexThickness(fromIndex, from);
+        const toThickness = this._getVertexThickness(toIndex, to);
         const cp = cross(from, to);
         area += cp;
         vertex.x += (from.x + to.x) * cp;
         vertex.y += (from.y + to.y) * cp;
+
+        // compute, add the extended side if outside edge
+        const adjacentIndex =
+          fromIndex === polygon.finalIndex ? polygon.firstIndex : fromIndex + 1;
+        if (toIndex !== adjacentIndex) {
+          continue;
+        }
+        orthonormalizeEquals(minus(to, from, vector));
+        plusEquals(times(vector, -fromThickness, begin), from);
+        plusEquals(times(vector, -toThickness, finish), to);
+        addQuad();
       }
       area *= 0.5;
       plusEquals(centerOfMass, timesEquals(vertex, 1.0 / 6.0));
       totalArea += area;
-
-      for (let ii = 0; ii < polygon.indices.length; ii++) {
-        const fromIndex = polygon.indices[ii];
-        const toIndex = polygon.indices[(ii + 1) % polygon.indices.length];
-        const fromThickness = this._getVertexThickness(fromIndex, from);
-        const toThickness = this._getVertexThickness(toIndex, to);
-      }
     }
     if (totalArea > 0.0) {
       timesEquals(centerOfMass, 1.0 / totalArea);
@@ -634,6 +671,18 @@ export class CollisionGeometry {
   _computeMomentOfInertia() {
     let momentOfInertia = 0.0;
     const centerOfMass = this.centerOfMass;
+    const addQuad = () => {
+      const dp0 = dot(from, from);
+      const dp1 = dot(begin, begin);
+      const dp2 = dot(finish, finish);
+      const dp3 = dot(to, to);
+      momentOfInertia +=
+        (cross(from, begin) * (dp0 + dot(from, begin) + dp1) +
+          cross(begin, finish) * (dp1 + dot(begin, finish) + dp2) +
+          cross(finish, to) * (dp2 + dot(finish, to) + dp3) +
+          cross(to, from) * (dp3 + dot(to, from) + dp0)) /
+        12.0;
+    };
     for (const path of this._paths) {
       const finalIndex = path.lastIndex - 1;
       if (path.firstIndex === finalIndex) {
@@ -650,26 +699,43 @@ export class CollisionGeometry {
           fromIndex === finalIndex ? path.firstIndex : fromIndex + 1;
         const fromThickness = this._getVertexThickness(fromIndex, from);
         const toThickness = this._getVertexThickness(toIndex, to);
+        minusEquals(from, centerOfMass);
+        minusEquals(to, centerOfMass);
+        orthonormalizeEquals(minus(to, from, vector));
+        times(vector, fromThickness, v1);
+        times(vector, toThickness, v2);
+        minus(from, v1, begin);
+        minus(to, v2, finish);
+        plusEquals(from, v1);
+        plusEquals(to, v2);
+        addQuad();
       }
     }
     for (const polygon of this._polygons) {
-      this._getVertexThickness(polygon.indices[0], point);
-      for (let ii = 2; ii < polygon.indices.length; ii++) {
-        const fromIndex =
-          polygon.indices[
-            (ii + polygon.indices.length - 1) % polygon.indices.length
-          ];
-        const toIndex = polygon.indices[ii];
-        this._getVertexThickness(fromIndex, from);
-        this._getVertexThickness(toIndex, to);
-      }
-
+      let dividend = 0.0;
       for (let ii = 0; ii < polygon.indices.length; ii++) {
         const fromIndex = polygon.indices[ii];
         const toIndex = polygon.indices[(ii + 1) % polygon.indices.length];
         const fromThickness = this._getVertexThickness(fromIndex, from);
         const toThickness = this._getVertexThickness(toIndex, to);
+        minusEquals(from, centerOfMass);
+        minusEquals(to, centerOfMass);
+
+        const cp = cross(from, to);
+        dividend += cp * (dot(from, from) + dot(from, to) + dot(to, to));
+
+        // compute, add the extended side if outside edge
+        const adjacentIndex =
+          fromIndex === polygon.finalIndex ? polygon.firstIndex : fromIndex + 1;
+        if (toIndex !== adjacentIndex) {
+          continue;
+        }
+        orthonormalizeEquals(minus(to, from, vector));
+        plusEquals(times(vector, -fromThickness, begin), from);
+        plusEquals(times(vector, -toThickness, finish), to);
+        addQuad();
       }
+      momentOfInertia += dividend / 12.0;
     }
     this._momentOfInertia = momentOfInertia;
   }

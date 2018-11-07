@@ -1164,12 +1164,12 @@ export class Shape {
     );
     const path = paths[0];
     const firstIndex = path.firstIndex;
-    const lastIndex = path.lastIndex;
+    const finalIndex = path.lastIndex - 1;
     const vertexOffset = attributeOffsets.vertex;
 
     // create the linked array of vertex objects
     const vertices: Vertex[] = [];
-    for (let index = firstIndex; index < lastIndex; index++) {
+    for (let index = firstIndex; index <= finalIndex; index++) {
       const arrayIndex = index * vertexSize + vertexOffset;
       vertices.push(
         ({
@@ -1189,7 +1189,7 @@ export class Shape {
       for (const vertex of polygon) {
         indices.push(vertex.index);
       }
-      polygons.push({indices});
+      polygons.push({indices, firstIndex, finalIndex});
     }
     return arrayIndex;
   }
