@@ -28,6 +28,7 @@ import {
   ResourceName,
 } from './resource';
 import {EditDropdown} from './edit';
+import {SelectionDropdown} from './selection';
 import {ViewDropdown} from './view';
 import {EntityDropdown} from './entity';
 import {ComponentDropdown} from './component';
@@ -121,6 +122,7 @@ export class Interface extends React.Component<
             ) : null}
             {this.state.resource
               ? [
+                  <SelectionDropdown key="selection" />,
                   <ViewDropdown key="view" />,
                   <EntityDropdown key="entity" locale={this.props.locale} />,
                   <ComponentDropdown key="component" />,
