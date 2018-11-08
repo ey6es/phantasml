@@ -38,11 +38,13 @@ import {
   MenuItem,
   ButtonMenu,
   NumberField,
+  MaskField,
   ColorField,
   renderText,
 } from './util/ui';
 import {GeometryCategory, GeometryComponents} from './geometry/components';
 import {RendererCategory, RendererComponents} from './renderer/components';
+import {CollisionCategory, CollisionComponents} from './collision/components';
 import {PhysicsCategory, PhysicsComponents} from './physics/components';
 import type {Resource, Entity} from '../server/store/resource';
 import {Scene, SceneActions} from '../server/store/scene';
@@ -536,6 +538,28 @@ const PropertyEditors = {
       </div>
     );
   },
+  mask: (props: {
+    id: string,
+    property: PropertyData,
+    sm: number,
+    classSuffix: string,
+    rightAlign: ?boolean,
+    value: ?number,
+    setValue: number => void,
+  }) => {
+    return (
+      <div className={`col-sm-${props.sm}${props.classSuffix}`}>
+        <MaskField
+          id={props.id}
+          initialValue={getValue(
+            props.value,
+            props.property.defaultValue || DefaultValues.mask,
+          )}
+          setValue={value => props.setValue(value)}
+        />
+      </div>
+    );
+  },
   color: (props: {
     id: string,
     property: PropertyData,
@@ -682,6 +706,7 @@ const PropertyEditors = {
 const DefaultValues = {
   boolean: false,
   number: 0,
+  mask: 0,
   color: '#000000',
   angle: 0,
   vector: vec2(),
@@ -761,6 +786,7 @@ const Components: {[string]: ComponentData} = {
   },
   ...GeometryComponents,
   ...RendererComponents,
+  ...CollisionComponents,
   ...PhysicsComponents,
 };
 
@@ -771,5 +797,6 @@ export type CategoryData = {
 const Categories: {[string]: CategoryData} = {
   ...GeometryCategory,
   ...RendererCategory,
+  ...CollisionCategory,
   ...PhysicsCategory,
 };

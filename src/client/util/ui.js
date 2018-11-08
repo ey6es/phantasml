@@ -26,9 +26,16 @@ import {
   DropdownMenu,
   DropdownItem,
   Input,
+  InputGroup,
+  InputGroupAddon,
 } from 'reactstrap';
+import {library} from '@fortawesome/fontawesome-svg-core';
+import {FontAwesomeIcon} from '@fortawesome/react-fontawesome';
+import {faEllipsisV} from '@fortawesome/free-solid-svg-icons/faEllipsisV';
 import {roundToPrecision} from '../../server/store/math';
 import {store} from '../store';
+
+library.add(faEllipsisV);
 
 /**
  * Base for dialogs that make requests to the server.
@@ -1016,6 +1023,65 @@ export class NumberField extends React.Component<
   }
 }
 
+type MaskFieldProps = {
+  initialValue?: ?number,
+  setValue: number => void,
+  [string]: any,
+};
+
+/**
+ * A field for editing a bit mask.
+ *
+ * @param initialValue the initial value of the field.
+ * @param setValue the function to set the new value.
+ */
+export class MaskField extends React.Component<
+  MaskFieldProps,
+  {value: string},
+> {
+  state = {value: toPaddedBinaryString(this._getInitialValue())};
+
+  render() {
+    const {initialValue, setValue, ...props} = this.props;
+    return (
+      <Input
+        value={this.state.value}
+        onChange={event => this._setValue(event.target.value)}
+        {...props}
+      />
+    );
+  }
+
+  componentDidUpdate(prevProps: NumberFieldProps) {
+    if (prevProps.initialValue === this.props.initialValue) {
+      return;
+    }
+    const currentValue = parseInt(this.state.value, 2);
+    const newValue = this._getInitialValue();
+    if (currentValue !== newValue) {
+      this.setState({value: toPaddedBinaryString(newValue)});
+    }
+  }
+
+  _getInitialValue(): number {
+    return this.props.initialValue || 0;
+  }
+
+  _setValue(value: string) {
+    if (!/^[01]*$/.test(value) || value.length > 32) {
+      return;
+    }
+    this.setState({value});
+    const numberValue = parseInt(value, 2);
+    isNaN(numberValue) || this.props.setValue(numberValue);
+  }
+}
+
+function toPaddedBinaryString(value: number) {
+  const base = value.toString(2);
+  return '0'.repeat(Math.max(8 - base.length, 0)) + base;
+}
+
 type ColorFieldProps = {
   initialValue?: ?string,
   setValue: string => void,
@@ -1035,20 +1101,37 @@ export class ColorField extends React.Component<
 > {
   state = {value: this._getInitialValue()};
 
+  _input: ?HTMLInputElement;
+  _picker: ?HTMLInputElement;
+
   render() {
     const {initialValue, setValue, defaultValue, ...props} = this.props;
     return (
       <div className="d-flex">
+        <InputGroup>
+          <Input
+            innerRef={input => {
+              this._input = input;
+              this._updateInput();
+            }}
+            className="flex-grow-1 color-input"
+            type="text"
+            size="8"
+            value={this.state.value}
+            onChange={event => this._setValue(event.target.value)}
+            {...props}
+          />
+          <InputGroupAddon addonType="append">
+            <Button
+              className="pl-1 pr-1"
+              onClick={() => this._picker && this._picker.click()}>
+              <FontAwesomeIcon icon="ellipsis-v" />
+            </Button>
+          </InputGroupAddon>
+        </InputGroup>
         <Input
-          className="flex-grow-1 color-input"
-          type="text"
-          size="8"
-          value={this.state.value}
-          onChange={event => this._setValue(event.target.value)}
-          {...props}
-        />
-        <Input
-          className="color-picker"
+          innerRef={picker => (this._picker = picker)}
+          className="d-none"
           type="color"
           value={this.state.value}
           onChange={event => this._setValue(event.target.value)}
@@ -1078,6 +1161,20 @@ export class ColorField extends React.Component<
     this.setState({value});
     if (value.length === 7) {
       this.props.setValue(value);
+    }
+    this._updateInput();
+  }
+
+  _updateInput() {
+    const input = this._input;
+    if (input && this.state.value.length === 7) {
+      input.style.backgroundColor = this.state.value;
+      const green = parseInt(this.state.value.substring(3, 5), 16);
+      if (green > 128) {
+        input.style.color = '#000';
+      } else {
+        input.style.color = '#fff';
+      }
     }
   }
 }

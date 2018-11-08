@@ -38,7 +38,8 @@ function ShapeMenu(props: {
             props.createEntity(data.label, {
               [name]: {order: 1},
               shapeRenderer: {order: 2},
-              rigidBody: {order: 3},
+              shapeCollider: {order: 3},
+              rigidBody: {order: 4},
             })
           }>
           {data.label}
