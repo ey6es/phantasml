@@ -597,4 +597,32 @@ export const ComponentGeometry: {[string]: GeometryData} = {
       };
     },
   },
+  shape: {
+    addToBounds: (bounds, data) => {
+      return 0.0;
+    },
+    createShapeList: data => {
+      return new ShapeList();
+    },
+    getControlPoints: data => {
+      return [];
+    },
+    createControlPointEdit: (entity, index, position) => {
+      return {};
+    },
+  },
+  shapeList: {
+    addToBounds: (bounds, data) => {
+      return 0.0;
+    },
+    createShapeList: data => {
+      return new ShapeList();
+    },
+    getControlPoints: data => {
+      return [];
+    },
+    createControlPointEdit: (entity, index, position) => {
+      return {};
+    },
+  },
 };

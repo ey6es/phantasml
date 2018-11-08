@@ -99,13 +99,11 @@ function CategorySubmenus() {
       return null;
     }
     return (
-      <Submenu
-        key={name}
-        label={(data: any).label}
-        disabled={entities.length === 0}>
+      <Submenu key={name} label={(data: any).label}>
         {array.map(([name, data]) => (
           <MenuItem
             key={name}
+            disabled={entities.length === 0}
             onClick={() => {
               const map = {};
               for (const entity of entities) {

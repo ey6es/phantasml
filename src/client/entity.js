@@ -31,20 +31,23 @@ function ShapeMenu(props: {
   return (
     <Submenu
       label={<FormattedMessage id="entity.shape" defaultMessage="Shape" />}>
-      {entries.map(([name, data]) => (
-        <MenuItem
-          key={name}
-          onClick={() =>
-            props.createEntity(data.label, {
-              [name]: {order: 1},
-              shapeRenderer: {order: 2},
-              shapeCollider: {order: 3},
-              rigidBody: {order: 4},
-            })
-          }>
-          {data.label}
-        </MenuItem>
-      ))}
+      {entries.map(
+        ([name, data]) =>
+          data.category ? (
+            <MenuItem
+              key={name}
+              onClick={() =>
+                props.createEntity(data.label, {
+                  [name]: {order: 1},
+                  shapeRenderer: {order: 2},
+                  shapeCollider: {order: 3},
+                  rigidBody: {order: 4},
+                })
+              }>
+              {data.label}
+            </MenuItem>
+          ) : null,
+      )}
     </Submenu>
   );
 }
