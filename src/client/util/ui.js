@@ -1123,7 +1123,7 @@ export class ColorField extends React.Component<
           />
           <InputGroupAddon addonType="append">
             <Button
-              className="pl-1 pr-1"
+              className="pl-1 pr-1 color-picker-button"
               onClick={() => this._picker && this._picker.click()}>
               <FontAwesomeIcon icon="ellipsis-v" />
             </Button>
