@@ -769,13 +769,24 @@ class SelectPanToolImpl extends ToolImpl {
       this._lastClientX,
       this._lastClientY,
     );
+    const resource = store.getState().resource;
+    if (!resource) {
+      return;
+    }
     for (const [id, controlPoints] of this._controlPoints) {
+      const entity = resource.getEntity(id);
+      if (!entity) {
+        continue;
+      }
+      const matrix = getTransformMatrix(
+        entity.getLastCachedValue('worldTransform'),
+      );
       for (let ii = 0; ii < controlPoints.length; ii++) {
         const controlPoint = controlPoints[ii];
+        const position = transformPoint(controlPoint.position, matrix);
         const hovered =
           this._draggingIndices.get(id) === ii ||
-          distance(controlPoint.position, eventPosition) <=
-            controlPoint.thickness;
+          distance(position, eventPosition) <= controlPoint.thickness;
         let outlineColor = '#ffffff';
         let centerColor = '#222222';
         const thicknessIncrement = renderer.pixelsToWorldUnits * 3;
@@ -791,14 +802,14 @@ class SelectPanToolImpl extends ToolImpl {
         }
         renderPointHelper(
           renderer,
-          {translation: controlPoint.position},
+          {translation: position},
           outlineThickness,
           outlineColor,
           false,
         );
         renderPointHelper(
           renderer,
-          {translation: controlPoint.position},
+          {translation: position},
           centerThickness,
           centerColor,
           false,
@@ -822,7 +833,8 @@ class SelectPanToolImpl extends ToolImpl {
       return;
     }
     const renderer = this.props.renderer;
-    if (!renderer) {
+    const resource = store.getState().resource;
+    if (!(renderer && resource)) {
       return;
     }
     const eventPosition = renderer.getEventPosition(
@@ -830,12 +842,17 @@ class SelectPanToolImpl extends ToolImpl {
       this._lastClientY,
     );
     for (const [id, controlPoints] of this._controlPoints) {
+      const entity = resource.getEntity(id);
+      if (!entity) {
+        continue;
+      }
+      const matrix = getTransformMatrix(
+        entity.getLastCachedValue('worldTransform'),
+      );
       for (let ii = 0; ii < controlPoints.length; ii++) {
         const controlPoint = controlPoints[ii];
-        if (
-          distance(controlPoint.position, eventPosition) <=
-          controlPoint.thickness
-        ) {
+        const position = transformPoint(controlPoint.position, matrix);
+        if (distance(position, eventPosition) <= controlPoint.thickness) {
           this._draggingIndices.set(id, ii);
         }
       }
@@ -896,7 +913,6 @@ class SelectPanToolImpl extends ToolImpl {
           if (!geometry) {
             continue;
           }
-          const worldTransform = entity.getLastCachedValue('worldTransform');
           map[id] = geometry.createControlPointEdit(
             entity,
             index,
@@ -955,19 +971,13 @@ class SelectPanToolImpl extends ToolImpl {
       }
       for (const key in entity.state) {
         const geometry = ComponentGeometry[key];
-        if (!geometry) {
-          continue;
-        }
-        const worldTransform = entity.getLastCachedValue('worldTransform');
-        const controlPoints = geometry.getControlPoints(entity.state[key]);
-        for (const controlPoint of controlPoints) {
-          transformPointEquals(
-            controlPoint.position,
-            getTransformMatrix(worldTransform),
+        if (geometry) {
+          this._controlPoints.set(
+            id,
+            geometry.getControlPoints(entity.state[key]),
           );
+          break;
         }
-        this._controlPoints.set(id, controlPoints);
-        break;
       }
     }
     renderer.requestFrameRender();

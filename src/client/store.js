@@ -80,6 +80,7 @@ type StoreState = {
   draggingSelection: boolean,
   draggingComponent: ?string,
   clipboard: Map<string, Object>,
+  prePlayState: ?StoreState,
   playState: PlayState,
   snapshots: Snapshot[],
   frame: number,
@@ -108,6 +109,7 @@ const initialState = {
   draggingSelection: false,
   draggingComponent: null,
   clipboard: new Map(),
+  prePlayState: null,
   playState: 'stopped',
   snapshots: [],
   frame: 0,
@@ -132,8 +134,16 @@ function reducer(state: StoreState, action: StoreAction): StoreState {
   if (handler) {
     const newState = handler.reduce(state, action);
     if (state.resource !== newState.resource) {
-      state.resource && state.resource.deref();
       newState.resource && newState.resource.ref();
+      state.resource && state.resource.deref();
+    }
+    if (state.prePlayState !== newState.prePlayState) {
+      newState.prePlayState &&
+        newState.prePlayState.resource &&
+        newState.prePlayState.resource.ref();
+      state.prePlayState &&
+        state.prePlayState.resource &&
+        state.prePlayState.resource.deref();
     }
     state = newState;
   }
@@ -153,8 +163,8 @@ function reducer(state: StoreState, action: StoreAction): StoreState {
       }
     }
     if (resource !== state.resource) {
-      state.resource && state.resource.deref();
       resource && resource.ref();
+      state.resource && state.resource.deref();
     }
     state = Object.assign({}, state, {resource, undoStack, redoStack});
   }
@@ -493,6 +503,8 @@ export const StoreActions = {
         }
       });
       return Object.assign({}, state, {
+        selection: (new Set(): Set<string>),
+        prePlayState: state,
         playState: 'playing',
         snapshots: [{frame: 0, resource}],
         frameIntervalId: setInterval(dispatchFrame, FRAME_DELAY),
@@ -523,15 +535,7 @@ export const StoreActions = {
     create: () => ({type: 'stop'}),
     reduce: (state: StoreState, action: StoreAction) => {
       state.frameIntervalId && clearInterval(state.frameIntervalId);
-      return Object.assign({}, state, {
-        resource: state.snapshots[0].resource,
-        playState: 'stopped',
-        snapshots: [],
-        frame: 0,
-        snapshotIndex: 0,
-        frameIntervalId: null,
-        activeEntityIds: (new Set(): Set<string>),
-      });
+      return state.prePlayState;
     },
   },
   back: {
@@ -572,7 +576,7 @@ export const StoreActions = {
     create: () => ({type: 'frame'}),
     reduce: (state: StoreState, action: StoreAction) => {
       let resource = state.resource;
-      if (!(resource instanceof Scene)) {
+      if (!(resource instanceof Scene) || state.playState !== 'playing') {
         return state;
       }
       let activeEntityIds: Set<string> = state.activeEntityIds;
