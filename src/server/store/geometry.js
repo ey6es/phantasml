@@ -20,6 +20,7 @@ import {
   timesEquals,
   distance,
   length,
+  dot,
   getTransformMaxScaleMagnitude,
   simplifyTransform,
   composeTransforms,
@@ -45,7 +46,7 @@ type GeometryData = {
   addToBounds: (Bounds, Object) => number,
   createShapeList: Object => ShapeList,
   getControlPoints: Object => ControlPoint[],
-  createControlPointEdit: (Entity, number, Vector2) => Object,
+  createControlPointEdit: (Entity, [number, Vector2][], boolean) => Object,
 };
 
 export const DEFAULT_THICKNESS = 0.2;
@@ -168,15 +169,17 @@ export const ComponentGeometry: {[string]: GeometryData} = {
       const thickness = getValue(data.thickness, DEFAULT_THICKNESS);
       return [{position: vec2(), thickness}];
     },
-    createControlPointEdit: (entity, index, position) => {
+    createControlPointEdit: (entity, indexPositions, mirrored) => {
       const worldTransform = entity.getLastCachedValue('worldTransform');
+      const translation = equals(getTransformTranslation(worldTransform));
+      for (const [index, position] of indexPositions) {
+        index === 0 && equals(position, translation);
+      }
       return {
         transform: simplifyTransform(
           composeTransforms(
             entity.state.transform,
-            composeTransforms(invertTransform(worldTransform), {
-              translation: equals(position),
-            }),
+            composeTransforms(invertTransform(worldTransform), {translation}),
           ),
         ),
       };
@@ -206,14 +209,17 @@ export const ComponentGeometry: {[string]: GeometryData} = {
         {position: vec2(halfLength, 0.0), thickness},
       ];
     },
-    createControlPointEdit: (entity, index, position) => {
+    createControlPointEdit: (entity, indexPositions, mirrored) => {
       const data = entity.state.line;
       const halfLength = getValue(data.length, DEFAULT_LINE_LENGTH) * 0.5;
       const worldTransform = entity.getLastCachedValue('worldTransform');
       const worldMatrix = getTransformMatrix(worldTransform);
       const start = transformPoint(vec2(-halfLength, 0.0), worldMatrix);
       const end = transformPoint(vec2(halfLength, 0.0), worldMatrix);
-      equals(position, [start, end][index]);
+      const vertices = [start, end];
+      for (const [index, position] of indexPositions) {
+        equals(position, vertices[index]);
+      }
       return {
         transform: simplifyTransform(
           composeTransforms(
@@ -258,7 +264,7 @@ export const ComponentGeometry: {[string]: GeometryData} = {
       const vertices = getValue(data.vertices, DEFAULT_VERTICES);
       return vertices.map(vertex => ({position: equals(vertex), thickness}));
     },
-    createControlPointEdit: (entity, index, position) => {
+    createControlPointEdit: (entity, indexPositions, mirrored) => {
       const worldTransform = entity.getLastCachedValue('worldTransform');
       const data = entity.state.lineGroup;
       const oldVertices = getValue(data.vertices, DEFAULT_VERTICES);
@@ -266,7 +272,9 @@ export const ComponentGeometry: {[string]: GeometryData} = {
       const vertices = oldVertices.map(vertex =>
         transformPoint(vertex, worldMatrix),
       );
-      equals(position, vertices[index]);
+      for (const [index, position] of indexPositions) {
+        equals(position, vertices[index]);
+      }
       const translation = equals(vertices[0]);
       vertices.forEach(vertex => minusEquals(vertex, translation));
       return {
@@ -312,7 +320,7 @@ export const ComponentGeometry: {[string]: GeometryData} = {
       const vertices = getValue(data.vertices, DEFAULT_VERTICES);
       return vertices.map(vertex => ({position: equals(vertex), thickness}));
     },
-    createControlPointEdit: (entity, index, position) => {
+    createControlPointEdit: (entity, indexPositions, mirrored) => {
       const worldTransform = entity.getLastCachedValue('worldTransform');
       const data = entity.state.polygon;
       const oldVertices = getValue(data.vertices, DEFAULT_VERTICES);
@@ -320,7 +328,19 @@ export const ComponentGeometry: {[string]: GeometryData} = {
       const vertices = oldVertices.map(vertex =>
         transformPoint(vertex, worldMatrix),
       );
-      equals(position, vertices[index]);
+      for (const [index, position] of indexPositions) {
+        equals(position, vertices[index]);
+      }
+      if (mirrored) {
+        const middle = Math.floor((vertices.length - 1) / 2);
+        for (let ii = 0; ii < middle; ii++) {
+          const index = ii + 1;
+          const opposite = vertices.length - index;
+          const tmp = vertices[index];
+          vertices[index] = vertices[opposite];
+          vertices[opposite] = tmp;
+        }
+      }
       const translation = equals(vertices[0]);
       vertices.forEach(vertex => minusEquals(vertex, translation));
       return {
@@ -374,11 +394,11 @@ export const ComponentGeometry: {[string]: GeometryData} = {
         {position: vec2(-halfWidth, 0.0), thickness},
       ];
     },
-    createControlPointEdit: (entity, index, position) => {
+    createControlPointEdit: (entity, indexPositions, mirrored) => {
       const data = entity.state.rectangle;
-      let width = getValue(data.width, DEFAULT_RECTANGLE_WIDTH);
+      const width = getValue(data.width, DEFAULT_RECTANGLE_WIDTH);
       const halfWidth = width * 0.5;
-      let height = getValue(data.height, DEFAULT_RECTANGLE_HEIGHT);
+      const height = getValue(data.height, DEFAULT_RECTANGLE_HEIGHT);
       const halfHeight = height * 0.5;
       const vertices = [
         vec2(-halfWidth, -halfHeight),
@@ -391,62 +411,74 @@ export const ComponentGeometry: {[string]: GeometryData} = {
         vec2(-halfWidth, 0.0),
       ];
       const worldTransform = entity.getLastCachedValue('worldTransform');
-      const rotation = getTransformRotation(worldTransform);
       const worldMatrix = getTransformMatrix(worldTransform);
+      const worldRotation = getTransformRotation(worldTransform);
       vertices.forEach(vertex => transformPointEquals(vertex, worldMatrix));
-      const center = vec2();
-      const oldWidth = width;
-      const oldHeight = height;
-      if (index < 4) {
-        // corner
-        const previous = vertices[(index + 3) % 4];
-        const next = vertices[(index + 1) % 4];
-        if ((index & 1) === 0) {
-          // 0/2
-          width = distance(position, next);
-          height = distance(position, previous);
-        } else {
-          // 1/3
-          width = distance(position, previous);
-          height = distance(position, next);
+      if (indexPositions.length === 8) {
+        for (const [index, position] of indexPositions) {
+          equals(position, vertices[index]);
         }
-        const opposite = vertices[(index + 2) % 4];
-        const vector = rotateEquals(
-          timesEquals(minus(vertices[index], opposite), 0.5),
-          -rotation,
-        );
-        vector.x *= width / oldWidth;
-        vector.y *= height / oldHeight;
-        plus(opposite, rotateEquals(vector, rotation), center);
+        if (mirrored) {
+          const tmp = vertices[1];
+          vertices[1] = vertices[3];
+          vertices[3] = tmp;
+        }
       } else {
-        // side
-        const opposite = vertices[4 + ((index - 2) % 4)];
-        const vector = rotateEquals(
-          timesEquals(minus(vertices[index], opposite), 0.5),
-          -rotation,
-        );
-        if ((index & 1) === 0) {
-          // top/bottom
-          height = distance(position, opposite);
-          vector.y *= height / oldHeight;
-        } else {
-          // left/right
-          width = distance(position, opposite);
-          vector.x *= width / oldWidth;
+        const axisX = rotateEquals(vec2(1.0, 0.0), worldRotation);
+        const axisY = rotateEquals(vec2(0.0, 1.0), worldRotation);
+        for (const [index, position] of indexPositions) {
+          const offset = minus(position, vertices[index]);
+          const offsetX = times(axisX, dot(offset, axisX));
+          const offsetY = times(axisY, dot(offset, axisY));
+          equals(position, vertices[index]);
+          switch (index) {
+            case 0:
+              plusEquals(vertices[1], offsetY);
+              break;
+            case 1:
+              plusEquals(vertices[0], offsetY);
+              plusEquals(vertices[2], offsetX);
+              break;
+            case 2:
+              plusEquals(vertices[1], offsetX);
+              break;
+            case 3:
+              plusEquals(vertices[0], offsetX);
+              plusEquals(vertices[2], offsetY);
+              break;
+            case 4:
+              plusEquals(vertices[0], offsetY);
+              plusEquals(vertices[1], offsetY);
+              break;
+            case 5:
+              plusEquals(vertices[1], offsetX);
+              plusEquals(vertices[2], offsetX);
+              break;
+            case 6:
+              plusEquals(vertices[2], offsetY);
+              break;
+            case 7:
+              plusEquals(vertices[0], offsetX);
+              break;
+          }
         }
-        plus(opposite, rotateEquals(vector, rotation), center);
       }
+      const newCenter = timesEquals(plus(vertices[0], vertices[2]), 0.5);
+      const direction = minus(vertices[1], vertices[0]);
+      const newRotation = Math.atan2(direction.y, direction.x);
+      const newWidth = distance(vertices[0], vertices[1]);
+      const newHeight = distance(vertices[1], vertices[2]);
       return {
         transform: simplifyTransform(
           composeTransforms(
             entity.state.transform,
             composeTransforms(invertTransform(worldTransform), {
-              translation: center,
-              rotation,
+              translation: newCenter,
+              rotation: newRotation,
             }),
           ),
         ),
-        rectangle: {width, height},
+        rectangle: {width: newWidth, height: newHeight},
       };
     },
   },
@@ -485,26 +517,38 @@ export const ComponentGeometry: {[string]: GeometryData} = {
       const radius = getValue(data.radius, DEFAULT_ARC_RADIUS);
       const angle = getValue(data.angle, DEFAULT_ARC_ANGLE);
       return [
+        {position: vec2(), thickness},
         {position: vec2(radius, 0.0), thickness},
-        {position: rotateEquals(vec2(radius, 0.0), angle), thickness},
         {position: rotateEquals(vec2(radius, 0.0), angle * 0.5), thickness},
+        {position: rotateEquals(vec2(radius, 0.0), angle), thickness},
       ];
     },
-    createControlPointEdit: (entity, index, position) => {
+    createControlPointEdit: (entity, indexPositions, mirrored) => {
       const data = entity.state.arc;
       const radius = getValue(data.radius, DEFAULT_ARC_RADIUS);
       const angle = getValue(data.angle, DEFAULT_ARC_ANGLE);
-      const oldWorldTransform = entity.getLastCachedValue('worldTransform');
-      const center = getTransformTranslation(oldWorldTransform);
-      if (index === 2) {
-        return {arc: {radius: distance(center, position)}};
-      }
+      const center = vec2();
       const start = vec2(radius, 0.0);
+      const middle = rotateEquals(vec2(radius, 0.0), angle * 0.5);
       const end = rotateEquals(vec2(radius, 0.0), angle);
-      const vertices = [start, end];
+      const vertices = [center, start, middle, end];
+      const oldWorldTransform = entity.getLastCachedValue('worldTransform');
       const oldWorldMatrix = getTransformMatrix(oldWorldTransform);
       vertices.forEach(vertex => transformPointEquals(vertex, oldWorldMatrix));
-      equals(position, vertices[index]);
+      for (const [index, position] of indexPositions) {
+        if (index === 0) {
+          const offset = minus(position, center);
+          vertices.forEach(vertex => plusEquals(vertex, offset));
+        } else {
+          equals(position, vertices[index]);
+        }
+      }
+      if (mirrored) {
+        const tmp = equals(start);
+        equals(end, start);
+        equals(tmp, end);
+      }
+      const newRadius = distance(center, middle);
       const rotation = Math.atan2(start.y - center.y, start.x - center.x);
       const rotatedEnd = rotateEquals(minus(end, center), -rotation);
       let newAngle = Math.atan2(rotatedEnd.y, rotatedEnd.x);
@@ -523,7 +567,7 @@ export const ComponentGeometry: {[string]: GeometryData} = {
             }),
           ),
         ),
-        arc: {angle: newAngle},
+        arc: {radius: newRadius, angle: newAngle},
       };
     },
   },
@@ -562,7 +606,7 @@ export const ComponentGeometry: {[string]: GeometryData} = {
         {position: vec2(halfSpan, 0.0), thickness},
       ];
     },
-    createControlPointEdit: (entity, index, position) => {
+    createControlPointEdit: (entity, indexPositions, mirrored) => {
       const data = entity.state.curve;
       const halfSpan = getValue(data.span, DEFAULT_CURVE_SPAN) * 0.5;
       const c1 = getValue(data.c1, DEFAULT_CURVE_C1);
@@ -573,7 +617,9 @@ export const ComponentGeometry: {[string]: GeometryData} = {
       const vertices = [start, equals(c1), equals(c2), end];
       const oldWorldMatrix = getTransformMatrix(oldWorldTransform);
       vertices.forEach(vertex => transformPointEquals(vertex, oldWorldMatrix));
-      equals(position, vertices[index]);
+      for (const [index, position] of indexPositions) {
+        equals(position, vertices[index]);
+      }
       const newWorldTransform = {
         translation: timesEquals(plus(start, end), 0.5),
         rotation: Math.atan2(end.y - start.y, end.x - start.x),
@@ -607,7 +653,7 @@ export const ComponentGeometry: {[string]: GeometryData} = {
     getControlPoints: data => {
       return [];
     },
-    createControlPointEdit: (entity, index, position) => {
+    createControlPointEdit: (entity, indexPositions, mirrored) => {
       return {};
     },
   },
@@ -621,7 +667,7 @@ export const ComponentGeometry: {[string]: GeometryData} = {
     getControlPoints: data => {
       return [];
     },
-    createControlPointEdit: (entity, index, position) => {
+    createControlPointEdit: (entity, indexPositions, mirrored) => {
       return {};
     },
   },

@@ -525,14 +525,14 @@ class ToolImpl extends React.Component<ToolProps, Object> {
 
   _getSelectionTransform(renderer: Renderer, withScale?: boolean): Transform {
     const resource = store.getState().resource;
-    const selectionSize = this.props.selection.size;
-    if (!(resource instanceof Scene && selectionSize > 0)) {
+    if (!(resource instanceof Scene && this.props.selection.size > 0)) {
       return null;
     }
     const translation = vec2();
     let rotation: ?number;
     const pixelsToWorldUnits = renderer.pixelsToWorldUnits;
     let scale = vec2(pixelsToWorldUnits, pixelsToWorldUnits);
+    let translationCount = 0;
     for (const id of this.props.selection) {
       // if we have children and their parents, we only want the parents
       if (resource.isAncestorInSet(id, this.props.selection)) {
@@ -540,12 +540,13 @@ class ToolImpl extends React.Component<ToolProps, Object> {
       }
       const transform = resource.getWorldTransform(id);
       plusEquals(translation, getTransformTranslation(transform));
+      translationCount++;
       if (rotation == null) {
         rotation = getTransformRotation(transform);
         withScale && equals(getTransformScale(transform), scale);
       }
     }
-    timesEquals(translation, 1.0 / selectionSize);
+    timesEquals(translation, 1.0 / translationCount);
     return {translation, rotation, scale};
   }
 
@@ -915,8 +916,8 @@ class SelectPanToolImpl extends ToolImpl {
           }
           map[id] = geometry.createControlPointEdit(
             entity,
-            index,
-            eventPosition,
+            [[index, eventPosition]],
+            false,
           );
         }
       }

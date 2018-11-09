@@ -265,7 +265,9 @@ function intersectState(
       typeof intersectionValue === 'object' &&
       typeof stateValue === 'object' &&
       intersectionValue !== null &&
-      stateValue !== null
+      stateValue !== null &&
+      !Array.isArray(intersectionValue) &&
+      !Array.isArray(stateValue)
     ) {
       newIntersection[key] = intersectState(
         original[key],
