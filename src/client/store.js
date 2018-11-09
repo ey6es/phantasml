@@ -202,6 +202,7 @@ export const StoreActions = {
         redoStack,
         page: undoAction.page,
         selection: undoAction.selection,
+        expanded: undoAction.expanded,
       }): StoreState);
     },
   },
@@ -229,6 +230,7 @@ export const StoreActions = {
         page: reducePage(state, redoAction),
         expanded: reduceExpanded(state, redoAction),
         selection: reduceSelection(state, redoAction),
+        activeEntityIds: reduceActiveEntityIds(state, action),
       }): StoreState);
     },
   },
@@ -638,6 +640,7 @@ export const StoreActions = {
         page: reducePage(state, action),
         expanded: reduceExpanded(state, action),
         selection: reduceSelection(state, action),
+        activeEntityIds: reduceActiveEntityIds(state, action),
       });
     },
   },
@@ -784,6 +787,33 @@ function reduceExpanded(
     }
   }
   return expanded;
+}
+
+function reduceActiveEntityIds(
+  state: StoreState,
+  action: ResourceAction,
+): Set<string> {
+  const resource = state.resource;
+  if (
+    !(
+      resource instanceof Scene &&
+      action.type === 'editEntities' &&
+      state.playState !== 'stopped'
+    )
+  ) {
+    return state.activeEntityIds;
+  }
+  const activeEntityIds = new Set(state.activeEntityIds);
+  for (const id in action.map) {
+    const state = action.map[id];
+    if (state === null) {
+      activeEntityIds.delete(id);
+    } else {
+      // just add it for now; it'll be removed immediately if inactive
+      activeEntityIds.add(id);
+    }
+  }
+  return activeEntityIds;
 }
 
 function reduceSelection(

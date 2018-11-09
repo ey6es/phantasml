@@ -948,7 +948,7 @@ class SelectPanToolImpl extends ToolImpl {
     }
     store.dispatch(
       StoreActions.setPageSize.create(
-        renderer.camera.size * Math.pow(1.01, event.deltaY),
+        renderer.camera.size * Math.pow(1.01, event.deltaY > 0 ? 3 : -3),
       ),
     );
   };
