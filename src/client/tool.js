@@ -1916,12 +1916,20 @@ class PolygonToolImpl extends VertexToolImpl {
     }
     this._clearGeometry();
     const path = new Path(true);
-    path.moveTo(this._vertices[0]);
-    for (let ii = 1; ii < this._vertices.length; ii++) {
-      path.lineTo(this._vertices[ii]);
+    if (this._shouldReverse()) {
+      path.moveTo(equals(this._translation));
+      for (let ii = this._vertices.length - 1; ii >= 0; ii--) {
+        path.lineTo(this._vertices[ii]);
+      }
+      path.lineTo(equals(this._translation));
+    } else {
+      path.moveTo(this._vertices[0]);
+      for (let ii = 1; ii < this._vertices.length; ii++) {
+        path.lineTo(this._vertices[ii]);
+      }
+      path.lineTo(equals(this._translation));
+      path.lineTo(this._vertices[0]);
     }
-    path.lineTo(equals(this._translation));
-    path.lineTo(this._vertices[0]);
     const geometry = (this._geometry = new Geometry(
       ...new ShapeList([new Shape(path)]).createGeometry(),
     ));
@@ -1937,6 +1945,9 @@ class PolygonToolImpl extends VertexToolImpl {
   }
 
   _createEntity(transform: Transform) {
+    if (this._shouldReverse()) {
+      this._vertices.reverse();
+    }
     createEntity(
       GeometryComponents.polygon.label,
       this.props.locale,
@@ -1961,6 +1972,18 @@ class PolygonToolImpl extends VertexToolImpl {
       transform,
     );
     this._clearGeometry();
+  }
+
+  _shouldReverse(): boolean {
+    // https://en.wikipedia.org/wiki/Centroid#Of_a_polygon
+    let signedArea = 0.0;
+    for (let ii = 0; ii < this._vertices.length; ii++) {
+      signedArea += cross(
+        this._vertices[ii],
+        this._vertices[(ii + 1) % this._vertices.length],
+      );
+    }
+    return signedArea < 0.0;
   }
 
   _clearGeometry() {
