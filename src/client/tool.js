@@ -120,6 +120,9 @@ import {
   expandBounds,
   expandBoundsEquals,
   clamp,
+  getMean,
+  getCentroid,
+  getSignedArea,
 } from '../server/store/math';
 import type {ControlPoint} from '../server/store/geometry';
 import {
@@ -1745,6 +1748,10 @@ class VertexToolImpl extends DrawToolImpl {
     return true;
   }
 
+  get _centroid(): Vector2 {
+    return getMean(this._vertices);
+  }
+
   _onMouseDown = (event: MouseEvent) => {
     const lastIndex = this._vertices.length - 1;
     if (lastIndex >= 0) {
@@ -1752,7 +1759,7 @@ class VertexToolImpl extends DrawToolImpl {
         event.button === 2 ||
         distance(this._vertices[lastIndex], this._translation) === 0.0
       ) {
-        const translation = equals(this._vertices[0]);
+        const translation = this._centroid;
         for (const vertex of this._vertices) {
           minusEquals(vertex, translation);
         }
@@ -1884,6 +1891,10 @@ const LineGroupTool = connectTool(LineGroupToolImpl);
 class PolygonToolImpl extends VertexToolImpl {
   _geometry: ?Geometry;
 
+  get _centroid(): Vector2 {
+    return getCentroid(this._vertices);
+  }
+
   constructor(...args: any[]) {
     super(
       'polygon',
@@ -1975,15 +1986,7 @@ class PolygonToolImpl extends VertexToolImpl {
   }
 
   _shouldReverse(): boolean {
-    // https://en.wikipedia.org/wiki/Centroid#Of_a_polygon
-    let signedArea = 0.0;
-    for (let ii = 0; ii < this._vertices.length; ii++) {
-      signedArea += cross(
-        this._vertices[ii],
-        this._vertices[(ii + 1) % this._vertices.length],
-      );
-    }
-    return signedArea < 0.0;
+    return getSignedArea(this._vertices) < 0.0;
   }
 
   _clearGeometry() {

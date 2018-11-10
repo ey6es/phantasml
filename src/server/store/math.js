@@ -1293,3 +1293,67 @@ export function getBoundsVertices(
   result[3] = vec2(bounds.min.x, bounds.max.y, result[3]);
   return result;
 }
+
+/**
+ * Computes and returns the mean of an array of vectors.
+ *
+ * @param vertices the vertices to average.
+ * @param [result] an optional vector to hold the result (otherwise, a new
+ * vector will be created).
+ * @return the mean vector.
+ */
+export function getMean(vertices: Vector2[], result?: Vector2): Vector2 {
+  if (result) {
+    vec2(0.0, 0.0, result);
+  } else {
+    result = vec2();
+  }
+  for (let ii = 0; ii < vertices.length; ii++) {
+    plusEquals(result, vertices[ii]);
+  }
+  return timesEquals(result, 1.0 / vertices.length);
+}
+
+/**
+ * Computes and returns the centroid of a polygon.
+ *
+ * @param vertices the polygon vertices.
+ * @param [result] an optional vector to hold the result (otherwise, a new
+ * vector will be created).
+ * @return the polygon's centroid.
+ */
+export function getCentroid(vertices: Vector2[], result?: Vector2): Vector2 {
+  // https://en.wikipedia.org/wiki/Centroid#Of_a_polygon
+  if (result) {
+    vec2(0.0, 0.0, result);
+  } else {
+    result = vec2();
+  }
+  let total = 0.0;
+  for (let ii = 0; ii < vertices.length; ii++) {
+    const from = vertices[ii];
+    const to = vertices[(ii + 1) % vertices.length];
+    const cp = cross(from, to);
+    total += cp;
+    result.x += cp * (from.x + to.x);
+    result.y += cp * (from.y + to.y);
+  }
+  timesEquals(result, 1.0 / (3.0 * total));
+  return result;
+}
+
+/**
+ * Computes and returns the signed area of a polygon.
+ *
+ * @param vertices the polygon vertices.
+ * @return the polygon's signed area.
+ */
+export function getSignedArea(vertices: Vector2[]): number {
+  let total = 0.0;
+  for (let ii = 0; ii < vertices.length; ii++) {
+    const from = vertices[ii];
+    const to = vertices[(ii + 1) % vertices.length];
+    total += cross(from, to);
+  }
+  return 0.5 * total;
+}

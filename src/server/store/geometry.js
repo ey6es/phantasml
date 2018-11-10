@@ -32,6 +32,8 @@ import {
   transformPoint,
   transformPointEquals,
   addToBoundsEquals,
+  getMean,
+  getCentroid,
 } from './math';
 import {getValue} from './util';
 import {Path, Shape, ShapeList} from './shape';
@@ -275,7 +277,7 @@ export const ComponentGeometry: {[string]: GeometryData} = {
       for (const [index, position] of indexPositions) {
         equals(position, vertices[index]);
       }
-      const translation = equals(vertices[0]);
+      const translation = getMean(vertices);
       vertices.forEach(vertex => minusEquals(vertex, translation));
       return {
         transform: simplifyTransform(
@@ -341,7 +343,7 @@ export const ComponentGeometry: {[string]: GeometryData} = {
           vertices[opposite] = tmp;
         }
       }
-      const translation = equals(vertices[0]);
+      const translation = getCentroid(vertices);
       vertices.forEach(vertex => minusEquals(vertex, translation));
       return {
         transform: simplifyTransform(
