@@ -122,7 +122,10 @@ export class Interface extends React.Component<
             ) : null}
             {this.state.resource
               ? [
-                  <SelectionDropdown key="selection" />,
+                  <SelectionDropdown
+                    key="selection"
+                    locale={this.props.locale}
+                  />,
                   <ViewDropdown key="view" />,
                   <EntityDropdown key="entity" locale={this.props.locale} />,
                   <ComponentDropdown key="component" />,

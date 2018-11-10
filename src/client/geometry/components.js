@@ -212,7 +212,9 @@ export const GeometryComponents: {[string]: ComponentData} = {
   },
   shape: {
     label: <FormattedMessage id="shape.title" defaultMessage="Shape" />,
-    properties: {},
+    properties: {
+      ...FillProperty,
+    },
   },
   shapeList: {
     label: (
