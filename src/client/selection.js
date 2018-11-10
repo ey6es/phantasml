@@ -18,7 +18,9 @@ import {
   composeTransforms,
   getTransformMatrix,
   vec2,
+  equals,
   plusEquals,
+  minus,
   timesEquals,
   negative,
   distance,
@@ -237,22 +239,31 @@ function convertToShape(locale: string) {
   }
   const firstElement = elements[0];
   let signedArea = 0.0;
+  const centroid = vec2();
   let currentElement: ShapeElementIndex = [firstElement, 0];
   let index = 0;
   for (let ii = 0; ii < elements.length; ii++) {
     const [element, index] = currentElement;
     const otherIndex = 1 - index;
-    signedArea += cross(
-      element.endpoints[index],
-      element.endpoints[otherIndex],
-    );
+    const from = element.endpoints[index];
+    const to = element.endpoints[otherIndex];
+    const cp = cross(from, to);
+    signedArea += cp;
+    centroid.x += cp * (from.x + to.x);
+    centroid.y += cp * (from.y + to.y);
+
+    // "weld" endpoints together to their midpoints
     currentElement = element.closestElements[otherIndex];
+    const [nextElement, nextIndex] = currentElement;
+    const nextFrom = nextElement.endpoints[nextIndex];
+    equals(timesEquals(plusEquals(to, nextFrom), 0.5), nextFrom);
   }
+  timesEquals(centroid, 1.0 / (3.0 * signedArea));
   const reversed = signedArea < 0.0;
   currentElement = [firstElement, reversed ? 1 : 0];
   let exterior = '';
   let lastPosition = vec2();
-  for (let ii = 0; ii <= elements.length; ii++) {
+  for (let ii = 0; ii < elements.length; ii++) {
     const [element, index] = currentElement;
     const otherIndex = 1 - index;
     let firstPoint = element.controlPoints[element.type === 'arc' ? 1 : 0];
@@ -263,70 +274,82 @@ function convertToShape(locale: string) {
       lastPoint = tmp;
     }
     if (exterior.length === 0) {
-      exterior = 'M ' + controlPointToString(firstPoint);
-    } else if (distance(firstPoint.position, lastPosition) > 0.0001) {
-      exterior += ' L ' + controlPointToString(firstPoint);
-    }
-    if (ii === elements.length) {
-      break;
+      exterior = 'M ' + controlPointToString(firstPoint, centroid);
     }
     lastPosition = lastPoint.position;
     switch (element.type) {
       case 'line':
-        exterior += ' L ' + controlPointToString(lastPoint);
+        exterior += ' L ' + controlPointToString(lastPoint, centroid);
         break;
 
       case 'lineGroup':
         if (index === 0) {
           for (let ii = 1; ii < element.controlPoints.length; ii++) {
-            exterior += ' L ' + controlPointToString(element.controlPoints[ii]);
+            exterior +=
+              ' L ' + controlPointToString(element.controlPoints[ii], centroid);
           }
         } else {
           for (let ii = element.controlPoints.length - 2; ii >= 0; ii--) {
-            exterior += ' L ' + controlPointToString(element.controlPoints[ii]);
+            exterior +=
+              ' L ' + controlPointToString(element.controlPoints[ii], centroid);
           }
         }
         break;
 
       case 'arc':
+        exterior += ' A ' + controlPointToString(lastPoint, centroid);
+        const cp = cross(
+          minus(element.controlPoints[2].position, firstPoint.position),
+          minus(lastPosition, firstPoint.position),
+        );
+        const radius =
+          (cp < 0.0 ? -0.5 : 0.5) *
+          (distance(element.controlPoints[0].position, lastPosition) +
+            distance(element.controlPoints[0].position, firstPoint.position));
+        exterior += ' ' + roundToPrecision(radius, 6);
         break;
 
       case 'curve':
+        exterior += ' C ' + controlPointToString(lastPoint, centroid);
         if (index === 0) {
           exterior +=
-            ' C ' +
-            controlPointToString(element.controlPoints[1]) +
             ' ' +
-            controlPointToString(element.controlPoints[2]) +
+            positionToString(element.controlPoints[1].position, centroid) +
             ' ' +
-            controlPointToString(element.controlPoints[3]);
+            positionToString(element.controlPoints[2].position, centroid);
         } else {
           exterior +=
-            ' C ' +
-            controlPointToString(element.controlPoints[2]) +
             ' ' +
-            controlPointToString(element.controlPoints[1]) +
+            positionToString(element.controlPoints[2].position, centroid) +
             ' ' +
-            controlPointToString(element.controlPoints[0]);
+            positionToString(element.controlPoints[1].position, centroid);
         }
         break;
     }
     currentElement = element.closestElements[otherIndex];
   }
-  console.log(exterior);
   entityState.shape.exterior = exterior;
   createEntity(GeometryComponents.shape.label, locale, entityState, {
-    translation: vec2(),
+    translation: centroid,
   });
 }
 
-function controlPointToString(controlPoint: ControlPoint): string {
+function controlPointToString(
+  controlPoint: ControlPoint,
+  offset: Vector2,
+): string {
   return (
-    roundToPrecision(controlPoint.position.x, 6) +
-    ' ' +
-    roundToPrecision(controlPoint.position.y, 6) +
+    positionToString(controlPoint.position, offset) +
     ' ' +
     roundToPrecision(controlPoint.thickness, 6)
+  );
+}
+
+function positionToString(position: Vector2, offset: Vector2): string {
+  return (
+    roundToPrecision(position.x - offset.x, 6) +
+    ' ' +
+    roundToPrecision(position.y - offset.y, 6)
   );
 }
 

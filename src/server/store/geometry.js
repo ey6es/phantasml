@@ -21,6 +21,7 @@ import {
   distance,
   length,
   dot,
+  orthonormalizeEquals,
   getTransformMaxScaleMagnitude,
   simplifyTransform,
   composeTransforms,
@@ -647,13 +648,96 @@ export const ComponentGeometry: {[string]: GeometryData} = {
   },
   shape: {
     addToBounds: (bounds, data) => {
-      return 0.0;
+      const exterior = data.exterior || '';
+      let maxThickness = 0.0;
+      const lastPosition = vec2();
+      const addCommand = (position: Vector2, thickness: number) => {
+        addToBoundsEquals(bounds, position.x, position.y);
+        maxThickness = Math.max(maxThickness, thickness);
+        equals(position, lastPosition);
+      };
+      parsePath(exterior, {
+        moveTo: addCommand,
+        lineTo: addCommand,
+        arcTo: (position, thickness, radius) => {
+          timesEquals(plusEquals(lastPosition, position), 0.5);
+          addToBoundsEquals(
+            bounds,
+            lastPosition.x - radius,
+            lastPosition.y - radius,
+          );
+          addToBoundsEquals(
+            bounds,
+            lastPosition.x + radius,
+            lastPosition.y + radius,
+          );
+          addCommand(position, thickness);
+        },
+        curveTo: (position, thickness, c1, c2) => {
+          addToBoundsEquals(bounds, c1.x, c1.y);
+          addToBoundsEquals(bounds, c2.x, c2.y);
+          addCommand(position, thickness);
+        },
+      });
+      return maxThickness;
     },
     createShapeList: data => {
-      return new ShapeList();
+      const exterior = data.exterior || '';
+      const fill = getValue(data.fill, DEFAULT_FILL);
+      const path = new Path(true);
+      parsePath(exterior, {
+        moveTo: (position, thickness) => {
+          path.moveTo(equals(position), 0, {thickness});
+        },
+        lineTo: (position, thickness) => {
+          path.lineTo(equals(position), 0, {thickness});
+        },
+        arcTo: (position, thickness, radius) => {
+          path.arcTo(equals(position), radius, 0, {thickness});
+        },
+        curveTo: (position, thickness, c1, c2) => {
+          path.curveTo(equals(position), equals(c1), equals(c2), 0, {
+            thickness,
+          });
+        },
+      });
+      if (fill) {
+        return new ShapeList([new Shape(path)]);
+      } else {
+        return new ShapeList([], [path]);
+      }
     },
     getControlPoints: data => {
-      return [];
+      const exterior = data.exterior || '';
+      const controlPoints: ControlPoint[] = [];
+      const lastPosition = vec2();
+      const vector = vec2();
+      parsePath(exterior, {
+        moveTo: (position, thickness) => {
+          equals(position, lastPosition);
+        },
+        lineTo: (position, thickness) => {
+          controlPoints.push({position: equals(position), thickness});
+          equals(position, lastPosition);
+        },
+        arcTo: (position, thickness, radius) => {
+          orthonormalizeEquals(minus(position, lastPosition, vector));
+          plusEquals(
+            timesEquals(plusEquals(lastPosition, position), 0.5),
+            timesEquals(vector, -radius),
+          );
+          controlPoints.push({position: equals(lastPosition), thickness});
+          controlPoints.push({position: equals(position), thickness});
+          equals(position, lastPosition);
+        },
+        curveTo: (position, thickness, c1, c2) => {
+          controlPoints.push({position: equals(c1), thickness});
+          controlPoints.push({position: equals(c2), thickness});
+          controlPoints.push({position: equals(position), thickness});
+          equals(position, lastPosition);
+        },
+      });
+      return controlPoints;
     },
     createControlPointEdit: (entity, indexPositions, mirrored) => {
       return {};
@@ -674,3 +758,78 @@ export const ComponentGeometry: {[string]: GeometryData} = {
     },
   },
 };
+
+interface PathVisitor {
+  moveTo(position: Vector2, thickness: number): void;
+  lineTo(position: Vector2, thickness: number): void;
+  arcTo(position: Vector2, thickness: number, radius: number): void;
+  curveTo(position: Vector2, thickness: number, c1: Vector2, c2: Vector2): void;
+}
+
+const vertex = vec2();
+const start = vec2();
+const end = vec2();
+
+function parsePath(path: string, visitor: PathVisitor) {
+  for (let ii = 0; ii < path.length; ) {
+    const command = path.charAt(ii);
+    ii += 2;
+
+    let nextSpaceIndex = getNextSpaceIndex(path, ii);
+    vertex.x = parseFloat(path.substring(ii, nextSpaceIndex));
+    ii = nextSpaceIndex + 1;
+
+    nextSpaceIndex = getNextSpaceIndex(path, ii);
+    vertex.y = parseFloat(path.substring(ii, nextSpaceIndex));
+    ii = nextSpaceIndex + 1;
+
+    nextSpaceIndex = getNextSpaceIndex(path, ii);
+    const thickness = parseFloat(path.substring(ii, nextSpaceIndex));
+    ii = nextSpaceIndex + 1;
+
+    switch (command) {
+      case 'M':
+        visitor.moveTo(vertex, thickness);
+        break;
+
+      case 'L':
+        visitor.lineTo(vertex, thickness);
+        break;
+
+      case 'A':
+        nextSpaceIndex = getNextSpaceIndex(path, ii);
+        const radius = parseFloat(path.substring(ii, nextSpaceIndex));
+        ii = nextSpaceIndex + 1;
+        visitor.arcTo(vertex, thickness, radius);
+        break;
+
+      case 'C':
+        nextSpaceIndex = getNextSpaceIndex(path, ii);
+        start.x = parseFloat(path.substring(ii, nextSpaceIndex));
+        ii = nextSpaceIndex + 1;
+
+        nextSpaceIndex = getNextSpaceIndex(path, ii);
+        start.y = parseFloat(path.substring(ii, nextSpaceIndex));
+        ii = nextSpaceIndex + 1;
+
+        nextSpaceIndex = getNextSpaceIndex(path, ii);
+        end.x = parseFloat(path.substring(ii, nextSpaceIndex));
+        ii = nextSpaceIndex + 1;
+
+        nextSpaceIndex = getNextSpaceIndex(path, ii);
+        end.y = parseFloat(path.substring(ii, nextSpaceIndex));
+        ii = nextSpaceIndex + 1;
+
+        visitor.curveTo(vertex, thickness, start, end);
+        break;
+
+      default:
+        throw new Error('Unrecognized path command: ' + command);
+    }
+  }
+}
+
+function getNextSpaceIndex(path: string, index: number): number {
+  const nextIndex = path.indexOf(' ', index);
+  return nextIndex === -1 ? path.length : nextIndex;
+}
