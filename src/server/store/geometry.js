@@ -35,6 +35,8 @@ import {
   addToBoundsEquals,
   getMean,
   getCentroid,
+  clamp,
+  roundToPrecision,
 } from './math';
 import {getValue} from './util';
 import {Path, Shape, ShapeList} from './shape';
@@ -651,6 +653,7 @@ export const ComponentGeometry: {[string]: GeometryData} = {
       const exterior = data.exterior || '';
       let maxThickness = 0.0;
       const lastPosition = vec2();
+      const vector = vec2();
       const addCommand = (position: Vector2, thickness: number) => {
         addToBoundsEquals(bounds, position.x, position.y);
         maxThickness = Math.max(maxThickness, thickness);
@@ -660,7 +663,14 @@ export const ComponentGeometry: {[string]: GeometryData} = {
         moveTo: addCommand,
         lineTo: addCommand,
         arcTo: (position, thickness, radius) => {
-          timesEquals(plusEquals(lastPosition, position), 0.5);
+          minus(position, lastPosition, vector);
+          const height = length(vector) / 2.0;
+          const angle = 2.0 * Math.asin(clamp(height / radius, -1.0, 1.0));
+          const distanceToCenter = radius * Math.cos(angle * 0.5);
+          plusEquals(
+            timesEquals(plusEquals(lastPosition, position), 0.5),
+            timesEquals(orthonormalizeEquals(vector), distanceToCenter),
+          );
           addToBoundsEquals(
             bounds,
             lastPosition.x - radius,
@@ -721,10 +731,13 @@ export const ComponentGeometry: {[string]: GeometryData} = {
           equals(position, lastPosition);
         },
         arcTo: (position, thickness, radius) => {
-          orthonormalizeEquals(minus(position, lastPosition, vector));
+          minus(position, lastPosition, vector);
+          const height = length(vector) / 2.0;
+          const angle = 2.0 * Math.asin(clamp(height / radius, -1.0, 1.0));
+          const distanceToMiddle = radius * (Math.cos(angle * 0.5) - 1.0);
           plusEquals(
             timesEquals(plusEquals(lastPosition, position), 0.5),
-            timesEquals(vector, -radius),
+            timesEquals(orthonormalizeEquals(vector), distanceToMiddle),
           );
           controlPoints.push({position: equals(lastPosition), thickness});
           controlPoints.push({position: equals(position), thickness});
@@ -740,7 +753,100 @@ export const ComponentGeometry: {[string]: GeometryData} = {
       return controlPoints;
     },
     createControlPointEdit: (entity, indexPositions, mirrored) => {
-      return {};
+      const exterior = entity.state.shape.exterior || '';
+      const lastPosition = vec2();
+      const vector = vec2();
+      const vertices: Vector2[] = [];
+      parsePath(exterior, {
+        moveTo: (position, thickness) => {
+          equals(position, lastPosition);
+        },
+        lineTo: (position, thickness) => {
+          vertices.push(equals(position));
+          equals(position, lastPosition);
+        },
+        arcTo: (position, thickness, radius) => {
+          minus(position, lastPosition, vector);
+          const height = length(vector) / 2.0;
+          const angle = 2.0 * Math.asin(clamp(height / radius, -1.0, 1.0));
+          const distanceToMiddle = radius * (Math.cos(angle * 0.5) - 1.0);
+          plusEquals(
+            timesEquals(plusEquals(lastPosition, position), 0.5),
+            timesEquals(orthonormalizeEquals(vector), distanceToMiddle),
+          );
+          vertices.push(equals(lastPosition));
+          vertices.push(equals(position));
+          equals(position, lastPosition);
+        },
+        curveTo: (position, thickness, c1, c2) => {
+          vertices.push(equals(c1));
+          vertices.push(equals(c2));
+          vertices.push(equals(position));
+          equals(position, lastPosition);
+        },
+      });
+      const worldTransform = entity.getLastCachedValue('worldTransform');
+      const worldMatrix = getTransformMatrix(worldTransform);
+      vertices.forEach(vertex => transformPointEquals(vertex, worldMatrix));
+      for (const [index, position] of indexPositions) {
+        equals(position, vertices[index]);
+      }
+      const translation = getCentroid(vertices);
+      let newExterior = '';
+      const positionToString = (position: Vector2) => {
+        return (
+          roundToPrecision(position.x - translation.x, 6) +
+          ' ' +
+          roundToPrecision(position.y - translation.y, 6)
+        );
+      };
+      const pointToString = (position: Vector2, thickness: number) => {
+        return (
+          positionToString(position) + ' ' + roundToPrecision(thickness, 6)
+        );
+      };
+      let index = vertices.length - 1;
+      parsePath(exterior, {
+        moveTo: (position, thickness) => {
+          newExterior += 'M ' + pointToString(vertices[index], thickness);
+          index = (index + 1) % vertices.length;
+        },
+        lineTo: (position, thickness) => {
+          newExterior += ' L ' + pointToString(vertices[index++], thickness);
+        },
+        arcTo: (position, thickness, radius) => {
+          const start =
+            vertices[(index + vertices.length - 1) % vertices.length];
+          const mid = vertices[index++];
+          const end = vertices[index++];
+          const height = 0.5 * distance(start, end);
+          orthonormalizeEquals(minus(end, start, vector));
+          newExterior +=
+            ' A ' +
+            pointToString(end, thickness) +
+            ' ' +
+            roundToPrecision(radius, 6);
+        },
+        curveTo: (position, thickness, c1, c2) => {
+          newExterior +=
+            ' C ' +
+            pointToString(vertices[index + 2], thickness) +
+            ' ' +
+            positionToString(vertices[index]) +
+            ' ' +
+            positionToString(vertices[index + 1]);
+          index += 3;
+        },
+      });
+      return {
+        transform: simplifyTransform(
+          composeTransforms(
+            entity.state.transform,
+            composeTransforms(invertTransform(worldTransform), {translation}),
+          ),
+        ),
+        shape: {exterior: newExterior},
+      };
     },
   },
   shapeList: {

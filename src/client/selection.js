@@ -297,16 +297,24 @@ function convertToShape(locale: string) {
         break;
 
       case 'arc':
-        exterior += ' A ' + controlPointToString(lastPoint, centroid);
+        const center = element.controlPoints[0].position;
+        const midpoint = element.controlPoints[2];
         const cp = cross(
-          minus(element.controlPoints[2].position, firstPoint.position),
+          minus(midpoint.position, firstPoint.position),
           minus(lastPosition, firstPoint.position),
         );
         const radius =
           (cp < 0.0 ? -0.5 : 0.5) *
-          (distance(element.controlPoints[0].position, lastPosition) +
-            distance(element.controlPoints[0].position, firstPoint.position));
-        exterior += ' ' + roundToPrecision(radius, 6);
+          (distance(center, lastPosition) +
+            distance(center, firstPoint.position));
+        const roundedRadius = ' ' + roundToPrecision(radius, 6);
+        if (Math.abs(radius) > Math.PI) {
+          // break large angles into two parts
+          exterior += ' A ' + controlPointToString(midpoint, centroid);
+          exterior += roundedRadius;
+        }
+        exterior += ' A ' + controlPointToString(lastPoint, centroid);
+        exterior += roundedRadius;
         break;
 
       case 'curve':
