@@ -25,6 +25,8 @@ import {
   negative,
   distance,
   cross,
+  dot,
+  normalizeEquals,
   transformPointEquals,
   roundToPrecision,
 } from '../server/store/math';
@@ -308,7 +310,12 @@ function convertToShape(locale: string) {
           (distance(center, lastPosition) +
             distance(center, firstPoint.position));
         const roundedRadius = ' ' + roundToPrecision(radius, 6);
-        if (Math.abs(radius) > Math.PI) {
+        const dp = dot(
+          normalizeEquals(minus(firstPoint.position, center)),
+          normalizeEquals(minus(midpoint.position, center)),
+        );
+        const angle = 2.0 * Math.acos(dp);
+        if (angle > Math.PI) {
           // break large angles into two parts
           exterior += ' A ' + controlPointToString(midpoint, centroid);
           exterior += roundedRadius;

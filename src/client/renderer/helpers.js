@@ -771,8 +771,8 @@ export function renderArcHelper(
   let startAngle = 0.0;
   let endAngle = angle;
   if (angle < 0) {
-    startAngle = 2 * Math.PI + angle;
-    endAngle = -angle;
+    startAngle = 2.0 * Math.PI + angle;
+    endAngle = 2.0 * Math.PI;
   }
   program.setUniformFloat('startAngle', startAngle);
   program.setUniformFloat('endAngle', endAngle);
@@ -780,7 +780,9 @@ export function renderArcHelper(
   program.setUniformColor('fillColor', fillColor);
   renderer.setEnabled(renderer.gl.BLEND, true);
   (fill
-    ? endAngle < 2 * Math.PI
+    ? (angle < 0
+      ? startAngle > 0
+      : endAngle < 2 * Math.PI)
       ? OpenFilledArcHelperGeometry
       : FilledArcHelperGeometry
     : ArcHelperGeometry

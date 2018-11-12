@@ -756,6 +756,7 @@ export const ComponentGeometry: {[string]: GeometryData} = {
       const exterior = entity.state.shape.exterior || '';
       const lastPosition = vec2();
       const vector = vec2();
+      const midpoint = vec2();
       const vertices: Vector2[] = [];
       parsePath(exterior, {
         moveTo: (position, thickness) => {
@@ -821,6 +822,11 @@ export const ComponentGeometry: {[string]: GeometryData} = {
           const end = vertices[index++];
           const height = 0.5 * distance(start, end);
           orthonormalizeEquals(minus(end, start, vector));
+          minusEquals(timesEquals(plus(start, end, midpoint), 0.5), mid);
+          const dist = clamp(dot(vector, midpoint), -height, height);
+          if (dist !== 0.0) {
+            radius = (height * height + dist * dist) / (2.0 * dist);
+          }
           newExterior +=
             ' A ' +
             pointToString(end, thickness) +

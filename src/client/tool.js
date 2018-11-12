@@ -2102,6 +2102,7 @@ const RectangleTool = connectTool(RectangleToolImpl);
 class ArcToolImpl extends DrawToolImpl {
   _center: ?Vector2;
   _startVector: ?Vector2;
+  _reversed: ?boolean;
 
   constructor(...args: any[]) {
     super(
@@ -2135,10 +2136,13 @@ class ArcToolImpl extends DrawToolImpl {
           1.0,
         ),
       );
-      const angle =
+      let angle =
         cross(startVector, currentVector) > 0
           ? baseAngle
           : 2 * Math.PI - baseAngle;
+      if (this._reversed) {
+        angle -= 2.0 * Math.PI;
+      }
       createEntity(
         GeometryComponents.arc.label,
         this.props.locale,
@@ -2165,6 +2169,7 @@ class ArcToolImpl extends DrawToolImpl {
       );
       this._center = null;
       this._startVector = null;
+      this._reversed = null;
       this.props.renderer && this.props.renderer.requestFrameRender();
     } else if (center) {
       this._startVector = minus(this._translation, center);
@@ -2223,6 +2228,12 @@ class ArcToolImpl extends DrawToolImpl {
     }
     const radius = length(startVector);
     const currentVector = minus(this._translation, center);
+    if (this._reversed == null) {
+      const cp = cross(startVector, currentVector);
+      if (cp !== 0.0) {
+        this._reversed = cp < 0.0;
+      }
+    }
     const baseAngle = Math.acos(
       clamp(
         dot(startVector, currentVector) / (radius * length(currentVector)),
@@ -2230,10 +2241,13 @@ class ArcToolImpl extends DrawToolImpl {
         1.0,
       ),
     );
-    const angle =
+    let angle =
       cross(startVector, currentVector) > 0
         ? baseAngle
         : 2 * Math.PI - baseAngle;
+    if (this._reversed) {
+      angle -= 2.0 * Math.PI;
+    }
     renderArcHelper(
       renderer,
       transform,
