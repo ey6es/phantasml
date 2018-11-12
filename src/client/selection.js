@@ -36,8 +36,13 @@ import {
   clamp,
 } from '../server/store/math';
 import type {ControlPoint} from '../server/store/geometry';
-import {ComponentGeometry, parsePath} from '../server/store/geometry';
+import {
+  DEFAULT_THICKNESS,
+  ComponentGeometry,
+  parsePath,
+} from '../server/store/geometry';
 import {Scene, SceneActions} from '../server/store/scene';
+import {getValue} from '../server/store/util';
 
 /**
  * The selection menu dropdown.
@@ -155,7 +160,7 @@ const ToShapeItem = ReactRedux.connect(state => ({
 
 type ShapeElement = {
   type: string,
-  controlPoints: ControlPoint[],
+  controlPoints: Vector2[],
   endpoints: Vector2[],
   closestElements: ShapeElementIndex[],
 };
@@ -169,13 +174,14 @@ function convertToShape(locale: string) {
     return;
   }
   const entityState = {
-    shape: {exterior: '', fill: true, order: 1},
+    shape: {exterior: '', thickness: DEFAULT_THICKNESS, fill: true, order: 1},
     shapeRenderer: {order: 2},
     shapeCollider: {order: 3},
     rigidBody: {order: 4},
   };
   const elements: ShapeElement[] = [];
   const map = {};
+  let totalThickness = 0.0;
   for (const id of state.selection) {
     const entity = resource.getEntity(id);
     if (!entity) {
@@ -202,20 +208,21 @@ function convertToShape(locale: string) {
         }
         continue;
       }
-      const controlPoints = geometry.getControlPoints(data);
+
       const matrix = getTransformMatrix(resource.getWorldTransform(id));
-      for (const controlPoint of controlPoints) {
-        transformPointEquals(controlPoint.position, matrix);
-      }
+      const controlPoints = geometry
+        .getControlPoints(data)
+        .map(point => transformPointEquals(point.position, matrix));
       elements.push({
         type: key,
         controlPoints,
         endpoints: [
-          controlPoints[key === 'arc' ? 1 : 0].position,
-          controlPoints[controlPoints.length - 1].position,
+          controlPoints[key === 'arc' ? 1 : 0],
+          controlPoints[controlPoints.length - 1],
         ],
         closestElements: [],
       });
+      totalThickness += getValue(data.thickness, DEFAULT_THICKNESS);
       map[id] = null;
       break;
     }
@@ -223,6 +230,7 @@ function convertToShape(locale: string) {
   if (elements.length === 0) {
     return;
   }
+  entityState.shape.thickness = totalThickness / elements.length;
   store.dispatch(SceneActions.editEntities.create(map));
   for (const element of elements) {
     const closestDistances = [Infinity, Infinity];
@@ -281,68 +289,67 @@ function convertToShape(locale: string) {
       lastPoint = tmp;
     }
     if (exterior.length === 0) {
-      exterior = 'M ' + controlPointToString(firstPoint, centroid);
+      exterior = 'M ' + positionToString(firstPoint, centroid);
     }
-    lastPosition = lastPoint.position;
+    lastPosition = lastPoint;
     switch (element.type) {
       case 'line':
-        exterior += ' L ' + controlPointToString(lastPoint, centroid);
+        exterior += ' L ' + positionToString(lastPoint, centroid);
         break;
 
       case 'lineGroup':
         if (index === 0) {
           for (let ii = 1; ii < element.controlPoints.length; ii++) {
             exterior +=
-              ' L ' + controlPointToString(element.controlPoints[ii], centroid);
+              ' L ' + positionToString(element.controlPoints[ii], centroid);
           }
         } else {
           for (let ii = element.controlPoints.length - 2; ii >= 0; ii--) {
             exterior +=
-              ' L ' + controlPointToString(element.controlPoints[ii], centroid);
+              ' L ' + positionToString(element.controlPoints[ii], centroid);
           }
         }
         break;
 
       case 'arc':
-        const center = element.controlPoints[0].position;
+        const center = element.controlPoints[0];
         const midpoint = element.controlPoints[2];
         const cp = cross(
-          minus(midpoint.position, firstPoint.position),
-          minus(lastPosition, firstPoint.position),
+          minus(midpoint, firstPoint),
+          minus(lastPosition, firstPoint),
         );
         const radius =
           (cp < 0.0 ? -0.5 : 0.5) *
-          (distance(center, lastPosition) +
-            distance(center, firstPoint.position));
+          (distance(center, lastPosition) + distance(center, firstPoint));
         const roundedRadius = ' ' + roundToPrecision(radius, 6);
         const dp = dot(
-          normalizeEquals(minus(firstPoint.position, center)),
-          normalizeEquals(minus(midpoint.position, center)),
+          normalizeEquals(minus(firstPoint, center)),
+          normalizeEquals(minus(midpoint, center)),
         );
         const angle = 2.0 * Math.acos(dp);
         if (angle > Math.PI) {
           // break large angles into two parts
-          exterior += ' A ' + controlPointToString(midpoint, centroid);
+          exterior += ' A ' + positionToString(midpoint, centroid);
           exterior += roundedRadius;
         }
-        exterior += ' A ' + controlPointToString(lastPoint, centroid);
+        exterior += ' A ' + positionToString(lastPoint, centroid);
         exterior += roundedRadius;
         break;
 
       case 'curve':
-        exterior += ' C ' + controlPointToString(lastPoint, centroid);
+        exterior += ' C ' + positionToString(lastPoint, centroid);
         if (index === 0) {
           exterior +=
             ' ' +
-            positionToString(element.controlPoints[1].position, centroid) +
+            positionToString(element.controlPoints[1], centroid) +
             ' ' +
-            positionToString(element.controlPoints[2].position, centroid);
+            positionToString(element.controlPoints[2], centroid);
         } else {
           exterior +=
             ' ' +
-            positionToString(element.controlPoints[2].position, centroid) +
+            positionToString(element.controlPoints[2], centroid) +
             ' ' +
-            positionToString(element.controlPoints[1].position, centroid);
+            positionToString(element.controlPoints[1], centroid);
         }
         break;
     }
@@ -352,17 +359,6 @@ function convertToShape(locale: string) {
   createEntity(GeometryComponents.shape.label, locale, entityState, {
     translation: centroid,
   });
-}
-
-function controlPointToString(
-  controlPoint: ControlPoint,
-  offset: Vector2,
-): string {
-  return (
-    positionToString(controlPoint.position, offset) +
-    ' ' +
-    roundToPrecision(controlPoint.thickness, 6)
-  );
 }
 
 function positionToString(position: Vector2, offset: Vector2): string {
@@ -419,6 +415,7 @@ function convertToParts(locale: string) {
       delete baseState.order;
       delete baseState.transform;
       delete baseState.shape;
+      const thickness = getValue(shapeData.thickness, DEFAULT_THICKNESS);
       const controlPoints = ComponentGeometry.shape.getControlPoints(shapeData);
       const worldMatrix = getTransformMatrix(resource.getWorldTransform(id));
       controlPoints.forEach(point =>
@@ -427,8 +424,8 @@ function convertToParts(locale: string) {
       const exterior = shapeData.exterior || '';
       let index = controlPoints.length - 1;
       parsePath(exterior, {
-        moveTo: (position, thickness) => {},
-        lineTo: (position, thickness) => {
+        moveTo: position => {},
+        lineTo: position => {
           const start = controlPoints[index];
           index = (index + 1) % controlPoints.length;
           const end = controlPoints[index];
@@ -446,7 +443,7 @@ function convertToParts(locale: string) {
             Object.assign(
               {
                 line: {
-                  thickness: (start.thickness + end.thickness) * 0.5,
+                  thickness,
                   length: distance(start.position, end.position),
                   order: 1,
                 },
@@ -456,7 +453,7 @@ function convertToParts(locale: string) {
             {translation, rotation},
           );
         },
-        arcTo: (position, thickness, radius) => {
+        arcTo: (position, radius) => {
           const start = controlPoints[index];
           index = (index + 1) % controlPoints.length;
           const mid = controlPoints[index++];
@@ -492,8 +489,7 @@ function convertToParts(locale: string) {
             Object.assign(
               {
                 arc: {
-                  thickness:
-                    (start.thickness + mid.thickness + end.thickness) / 3.0,
+                  thickness,
                   radius,
                   angle,
                   order: 1,
@@ -504,7 +500,7 @@ function convertToParts(locale: string) {
             {translation: center, rotation},
           );
         },
-        curveTo: (position, thickness) => {
+        curveTo: position => {
           const start = controlPoints[index];
           index = (index + 1) % controlPoints.length;
           const c1 = controlPoints[index++];
@@ -524,12 +520,7 @@ function convertToParts(locale: string) {
             Object.assign(
               {
                 curve: {
-                  thickness:
-                    (start.thickness +
-                      c1.thickness +
-                      c2.thickness +
-                      end.thickness) /
-                    4.0,
+                  thickness,
                   span: distance(start.position, end.position),
                   c1: rotateEquals(minus(c1.position, translation), -rotation),
                   c2: rotateEquals(minus(c2.position, translation), -rotation),

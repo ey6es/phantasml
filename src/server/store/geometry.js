@@ -651,18 +651,17 @@ export const ComponentGeometry: {[string]: GeometryData} = {
   shape: {
     addToBounds: (bounds, data) => {
       const exterior = data.exterior || '';
-      let maxThickness = 0.0;
+      const thickness = getValue(data.thickness, DEFAULT_THICKNESS);
       const lastPosition = vec2();
       const vector = vec2();
-      const addCommand = (position: Vector2, thickness: number) => {
+      const addCommand = (position: Vector2) => {
         addToBoundsEquals(bounds, position.x, position.y);
-        maxThickness = Math.max(maxThickness, thickness);
         equals(position, lastPosition);
       };
       parsePath(exterior, {
         moveTo: addCommand,
         lineTo: addCommand,
-        arcTo: (position, thickness, radius) => {
+        arcTo: (position, radius) => {
           minus(position, lastPosition, vector);
           const height = length(vector) / 2.0;
           const angle = 2.0 * Math.asin(clamp(height / radius, -1.0, 1.0));
@@ -681,31 +680,32 @@ export const ComponentGeometry: {[string]: GeometryData} = {
             lastPosition.x + radius,
             lastPosition.y + radius,
           );
-          addCommand(position, thickness);
+          addCommand(position);
         },
-        curveTo: (position, thickness, c1, c2) => {
+        curveTo: (position, c1, c2) => {
           addToBoundsEquals(bounds, c1.x, c1.y);
           addToBoundsEquals(bounds, c2.x, c2.y);
-          addCommand(position, thickness);
+          addCommand(position);
         },
       });
-      return maxThickness;
+      return thickness;
     },
     createShapeList: data => {
       const exterior = data.exterior || '';
+      const thickness = getValue(data.thickness, DEFAULT_THICKNESS);
       const fill = getValue(data.fill, DEFAULT_FILL);
       const path = new Path(true);
       parsePath(exterior, {
-        moveTo: (position, thickness) => {
+        moveTo: position => {
           path.moveTo(equals(position), 0, {thickness});
         },
-        lineTo: (position, thickness) => {
+        lineTo: position => {
           path.lineTo(equals(position), 0, {thickness});
         },
-        arcTo: (position, thickness, radius) => {
+        arcTo: (position, radius) => {
           path.arcTo(equals(position), radius, 0, {thickness});
         },
-        curveTo: (position, thickness, c1, c2) => {
+        curveTo: (position, c1, c2) => {
           path.curveTo(equals(position), equals(c1), equals(c2), 0, {
             thickness,
           });
@@ -719,18 +719,19 @@ export const ComponentGeometry: {[string]: GeometryData} = {
     },
     getControlPoints: data => {
       const exterior = data.exterior || '';
+      const thickness = getValue(data.thickness, DEFAULT_THICKNESS);
       const controlPoints: ControlPoint[] = [];
       const lastPosition = vec2();
       const vector = vec2();
       parsePath(exterior, {
-        moveTo: (position, thickness) => {
+        moveTo: position => {
           equals(position, lastPosition);
         },
-        lineTo: (position, thickness) => {
+        lineTo: position => {
           controlPoints.push({position: equals(position), thickness});
           equals(position, lastPosition);
         },
-        arcTo: (position, thickness, radius) => {
+        arcTo: (position, radius) => {
           minus(position, lastPosition, vector);
           const height = length(vector) / 2.0;
           const angle = 2.0 * Math.asin(clamp(height / radius, -1.0, 1.0));
@@ -743,7 +744,7 @@ export const ComponentGeometry: {[string]: GeometryData} = {
           controlPoints.push({position: equals(position), thickness});
           equals(position, lastPosition);
         },
-        curveTo: (position, thickness, c1, c2) => {
+        curveTo: (position, c1, c2) => {
           controlPoints.push({position: equals(c1), thickness});
           controlPoints.push({position: equals(c2), thickness});
           controlPoints.push({position: equals(position), thickness});
@@ -759,14 +760,14 @@ export const ComponentGeometry: {[string]: GeometryData} = {
       const midpoint = vec2();
       const vertices: Vector2[] = [];
       parsePath(exterior, {
-        moveTo: (position, thickness) => {
+        moveTo: position => {
           equals(position, lastPosition);
         },
-        lineTo: (position, thickness) => {
+        lineTo: position => {
           vertices.push(equals(position));
           equals(position, lastPosition);
         },
-        arcTo: (position, thickness, radius) => {
+        arcTo: (position, radius) => {
           minus(position, lastPosition, vector);
           const height = length(vector) / 2.0;
           const angle = 2.0 * Math.asin(clamp(height / radius, -1.0, 1.0));
@@ -779,7 +780,7 @@ export const ComponentGeometry: {[string]: GeometryData} = {
           vertices.push(equals(position));
           equals(position, lastPosition);
         },
-        curveTo: (position, thickness, c1, c2) => {
+        curveTo: (position, c1, c2) => {
           vertices.push(equals(c1));
           vertices.push(equals(c2));
           vertices.push(equals(position));
@@ -801,21 +802,16 @@ export const ComponentGeometry: {[string]: GeometryData} = {
           roundToPrecision(position.y - translation.y, 6)
         );
       };
-      const pointToString = (position: Vector2, thickness: number) => {
-        return (
-          positionToString(position) + ' ' + roundToPrecision(thickness, 6)
-        );
-      };
       let index = vertices.length - 1;
       parsePath(exterior, {
-        moveTo: (position, thickness) => {
-          newExterior += 'M ' + pointToString(vertices[index], thickness);
+        moveTo: position => {
+          newExterior += 'M ' + positionToString(vertices[index]);
           index = (index + 1) % vertices.length;
         },
-        lineTo: (position, thickness) => {
-          newExterior += ' L ' + pointToString(vertices[index++], thickness);
+        lineTo: position => {
+          newExterior += ' L ' + positionToString(vertices[index++]);
         },
-        arcTo: (position, thickness, radius) => {
+        arcTo: (position, radius) => {
           const start =
             vertices[(index + vertices.length - 1) % vertices.length];
           const mid = vertices[index++];
@@ -828,15 +824,12 @@ export const ComponentGeometry: {[string]: GeometryData} = {
             radius = (height * height + dist * dist) / (2.0 * dist);
           }
           newExterior +=
-            ' A ' +
-            pointToString(end, thickness) +
-            ' ' +
-            roundToPrecision(radius, 6);
+            ' A ' + positionToString(end) + ' ' + roundToPrecision(radius, 6);
         },
-        curveTo: (position, thickness, c1, c2) => {
+        curveTo: (position, c1, c2) => {
           newExterior +=
             ' C ' +
-            pointToString(vertices[index + 2], thickness) +
+            positionToString(vertices[index + 2]) +
             ' ' +
             positionToString(vertices[index]) +
             ' ' +
@@ -872,10 +865,10 @@ export const ComponentGeometry: {[string]: GeometryData} = {
 };
 
 interface PathVisitor {
-  moveTo(position: Vector2, thickness: number): void;
-  lineTo(position: Vector2, thickness: number): void;
-  arcTo(position: Vector2, thickness: number, radius: number): void;
-  curveTo(position: Vector2, thickness: number, c1: Vector2, c2: Vector2): void;
+  moveTo(position: Vector2): void;
+  lineTo(position: Vector2): void;
+  arcTo(position: Vector2, radius: number): void;
+  curveTo(position: Vector2, c1: Vector2, c2: Vector2): void;
 }
 
 const vertex = vec2();
@@ -902,24 +895,20 @@ export function parsePath(path: string, visitor: PathVisitor) {
     vertex.y = parseFloat(path.substring(ii, nextSpaceIndex));
     ii = nextSpaceIndex + 1;
 
-    nextSpaceIndex = getNextSpaceIndex(path, ii);
-    const thickness = parseFloat(path.substring(ii, nextSpaceIndex));
-    ii = nextSpaceIndex + 1;
-
     switch (command) {
       case 'M':
-        visitor.moveTo(vertex, thickness);
+        visitor.moveTo(vertex);
         break;
 
       case 'L':
-        visitor.lineTo(vertex, thickness);
+        visitor.lineTo(vertex);
         break;
 
       case 'A':
         nextSpaceIndex = getNextSpaceIndex(path, ii);
         const radius = parseFloat(path.substring(ii, nextSpaceIndex));
         ii = nextSpaceIndex + 1;
-        visitor.arcTo(vertex, thickness, radius);
+        visitor.arcTo(vertex, radius);
         break;
 
       case 'C':
@@ -939,7 +928,7 @@ export function parsePath(path: string, visitor: PathVisitor) {
         end.y = parseFloat(path.substring(ii, nextSpaceIndex));
         ii = nextSpaceIndex + 1;
 
-        visitor.curveTo(vertex, thickness, start, end);
+        visitor.curveTo(vertex, start, end);
         break;
 
       default:
