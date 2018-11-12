@@ -882,7 +882,14 @@ const vertex = vec2();
 const start = vec2();
 const end = vec2();
 
-function parsePath(path: string, visitor: PathVisitor) {
+/**
+ * Parses the supplied path string and calls the appropriate visitor functions
+ * with the path element parameters.
+ *
+ * @param path the path to parse.
+ * @param visitor the visitor functions to call.
+ */
+export function parsePath(path: string, visitor: PathVisitor) {
   for (let ii = 0; ii < path.length; ) {
     const command = path.charAt(ii);
     ii += 2;

@@ -19,19 +19,24 @@ import {
   getTransformMatrix,
   vec2,
   equals,
+  plus,
   plusEquals,
   minus,
+  minusEquals,
   timesEquals,
   negative,
   distance,
   cross,
   dot,
   normalizeEquals,
+  orthonormalizeEquals,
   transformPointEquals,
+  rotateEquals,
   roundToPrecision,
+  clamp,
 } from '../server/store/math';
 import type {ControlPoint} from '../server/store/geometry';
-import {ComponentGeometry} from '../server/store/geometry';
+import {ComponentGeometry, parsePath} from '../server/store/geometry';
 import {Scene, SceneActions} from '../server/store/scene';
 
 /**
@@ -55,8 +60,8 @@ export class SelectionDropdown extends React.Component<{locale: string}, {}> {
           <FlipVerticalItem />
         </Submenu>
         <ToShapeItem locale={this.props.locale} />
-        <ToShapeListItem />
-        <ToPartsItem />
+        <ToShapeListItem locale={this.props.locale} />
+        <ToPartsItem locale={this.props.locale} />
       </Menu>
     );
   }
@@ -371,7 +376,9 @@ function positionToString(position: Vector2, offset: Vector2): string {
 const ToShapeListItem = ReactRedux.connect(state => ({
   disabled: state.selection.size === 0,
 }))(props => (
-  <MenuItem disabled={props.disabled} onClick={() => {}}>
+  <MenuItem
+    disabled={props.disabled}
+    onClick={() => convertToShapeList(props.locale)}>
     <FormattedMessage
       id="selection.to_shape_list"
       defaultMessage="To Shape List"
@@ -379,10 +386,167 @@ const ToShapeListItem = ReactRedux.connect(state => ({
   </MenuItem>
 ));
 
+function convertToShapeList(locale: string) {}
+
 const ToPartsItem = ReactRedux.connect(state => ({
   disabled: state.selection.size === 0,
 }))(props => (
-  <MenuItem disabled={props.disabled} onClick={() => {}}>
+  <MenuItem
+    disabled={props.disabled}
+    onClick={() => convertToParts(props.locale)}>
     <FormattedMessage id="selection.to_parts" defaultMessage="To Parts" />
   </MenuItem>
 ));
+
+function convertToParts(locale: string) {
+  const state = store.getState();
+  const resource = state.resource;
+  if (!(resource instanceof Scene)) {
+    return;
+  }
+  const map = {};
+  for (const id of state.selection) {
+    const entity = resource.getEntity(id);
+    if (!entity) {
+      continue;
+    }
+    const shapeData = entity.state.shape;
+    if (shapeData) {
+      map[id] = null;
+      const baseState = Object.assign({}, entity.state);
+      delete baseState.parent;
+      delete baseState.name;
+      delete baseState.order;
+      delete baseState.transform;
+      delete baseState.shape;
+      const controlPoints = ComponentGeometry.shape.getControlPoints(shapeData);
+      const worldMatrix = getTransformMatrix(resource.getWorldTransform(id));
+      controlPoints.forEach(point =>
+        transformPointEquals(point.position, worldMatrix),
+      );
+      const exterior = shapeData.exterior || '';
+      let index = controlPoints.length - 1;
+      parsePath(exterior, {
+        moveTo: (position, thickness) => {},
+        lineTo: (position, thickness) => {
+          const start = controlPoints[index];
+          index = (index + 1) % controlPoints.length;
+          const end = controlPoints[index];
+          const translation = timesEquals(
+            plus(start.position, end.position),
+            0.5,
+          );
+          const rotation = Math.atan2(
+            end.position.y - start.position.y,
+            end.position.x - start.position.x,
+          );
+          createEntity(
+            GeometryComponents.line.label,
+            locale,
+            Object.assign(
+              {
+                line: {
+                  thickness: (start.thickness + end.thickness) * 0.5,
+                  length: distance(start.position, end.position),
+                  order: 1,
+                },
+              },
+              baseState,
+            ),
+            {translation, rotation},
+          );
+        },
+        arcTo: (position, thickness, radius) => {
+          const start = controlPoints[index];
+          index = (index + 1) % controlPoints.length;
+          const mid = controlPoints[index++];
+          const end = controlPoints[index];
+
+          const height = 0.5 * distance(start.position, end.position);
+          const vector = orthonormalizeEquals(
+            minus(end.position, start.position),
+          );
+          const midpoint = timesEquals(plus(start.position, end.position), 0.5);
+          minusEquals(midpoint, mid.position);
+          const dist = clamp(dot(vector, midpoint), -height, height);
+          if (dist !== 0.0) {
+            radius = (height * height + dist * dist) / (2.0 * dist);
+          }
+          const center = plus(mid.position, timesEquals(vector, radius));
+          const dp = dot(
+            normalizeEquals(minus(mid.position, center)),
+            normalizeEquals(minus(end.position, center)),
+          );
+          let angle = 2.0 * Math.acos(dp);
+          if (radius < 0.0) {
+            radius = -radius;
+            angle = -angle;
+          }
+          const rotation = Math.atan2(
+            start.position.y - center.y,
+            start.position.x - center.x,
+          );
+          createEntity(
+            GeometryComponents.arc.label,
+            locale,
+            Object.assign(
+              {
+                arc: {
+                  thickness:
+                    (start.thickness + mid.thickness + end.thickness) / 3.0,
+                  radius,
+                  angle,
+                  order: 1,
+                },
+              },
+              baseState,
+            ),
+            {translation: center, rotation},
+          );
+        },
+        curveTo: (position, thickness) => {
+          const start = controlPoints[index];
+          index = (index + 1) % controlPoints.length;
+          const c1 = controlPoints[index++];
+          const c2 = controlPoints[index++];
+          const end = controlPoints[index];
+          const translation = timesEquals(
+            plus(start.position, end.position),
+            0.5,
+          );
+          const rotation = Math.atan2(
+            end.position.y - start.position.y,
+            end.position.x - start.position.x,
+          );
+          createEntity(
+            GeometryComponents.curve.label,
+            locale,
+            Object.assign(
+              {
+                curve: {
+                  thickness:
+                    (start.thickness +
+                      c1.thickness +
+                      c2.thickness +
+                      end.thickness) /
+                    4.0,
+                  span: distance(start.position, end.position),
+                  c1: rotateEquals(minus(c1.position, translation), -rotation),
+                  c2: rotateEquals(minus(c2.position, translation), -rotation),
+                  order: 1,
+                },
+              },
+              baseState,
+            ),
+            {translation, rotation},
+          );
+        },
+      });
+    }
+    const shapeListData = entity.state.shapeList;
+    if (shapeListData) {
+      map[id] = null;
+    }
+  }
+  store.dispatch(SceneActions.editEntities.create(map));
+}
