@@ -5,7 +5,7 @@
  * @flow
  */
 
-import type {Vector2, Plane} from './math';
+import type {Vector2, Transform, Plane} from './math';
 import {
   radians,
   distance,
@@ -22,12 +22,16 @@ import {
   orthonormalizeEquals,
   normalize,
   normalizeEquals,
+  transformPoint,
+  getTransformMatrix,
+  getTransformMaxScaleMagnitude,
   dot,
   cross,
   negativeEquals,
   planeFromPoints,
   signedDistance,
   mix,
+  roundToPrecision,
 } from './math';
 import type {CollisionPath, CollisionPolygon} from './collision';
 import {CollisionGeometry} from './collision';
@@ -65,6 +69,73 @@ export class Path {
 
   constructor(loop: boolean = false) {
     this.loop = loop;
+  }
+
+  /**
+   * Transforms the path in place.
+   *
+   * @param transform the transformation to apply.
+   */
+  transform(transform: Transform) {
+    for (const command of this.commands) {
+      command.transform(transform);
+    }
+  }
+
+  /**
+   * Adds a set of attributes to all points in the path.
+   *
+   * @param attributes the attribute values to add.
+   */
+  addAttributes(attributes: VertexAttributes) {
+    for (const command of this.commands) {
+      command.addAttributes(attributes);
+    }
+  }
+
+  /**
+   * Encodes the path into a string.
+   *
+   * @return the encoded path.
+   */
+  encode(): string {
+    return `P ${this.loop ? '1' : '0'} ` + this.encodeContents();
+  }
+
+  /**
+   * Encodes the contents of the path into a string.
+   *
+   * @param withFillColor if true, include the fill color.
+   * @return the encoded contents.
+   */
+  encodeContents(withFillColor: boolean = false): string {
+    let fillColor = '#808080';
+    let pathColor = '#ffffff';
+    let thickness = 0.2;
+    const firstCommand = this.commands[0];
+    if (firstCommand) {
+      const attributes = firstCommand.attributes;
+      if (attributes) {
+        if (typeof attributes.thickness === 'number') {
+          thickness = attributes.thickness;
+        }
+        if (Array.isArray(attributes.fillColor)) {
+          fillColor = getColorString(attributes.fillColor);
+        }
+        if (Array.isArray(attributes.pathColor)) {
+          pathColor = getColorString(attributes.pathColor);
+        }
+      }
+    }
+    let encoded =
+      (withFillColor ? fillColor + ' ' : '') +
+      pathColor +
+      ' ' +
+      roundToPrecision(thickness, 6);
+    for (const command of this.commands) {
+      encoded += command.encode();
+    }
+    return encoded;
   }
 
   /**
@@ -306,6 +377,15 @@ export class Path {
   }
 }
 
+function getColorString(value: number[]): string {
+  let string = '#';
+  for (let ii = 0; ii < 3; ii++) {
+    const element = Math.round((value[ii] || 0) * 255).toString(16);
+    string += element.length === 2 ? element : '0' + element;
+  }
+  return string;
+}
+
 class PathCommand {
   dest: Vector2;
   zOrder: number;
@@ -315,6 +395,18 @@ class PathCommand {
     this.dest = dest;
     this.zOrder = zOrder;
     this.attributes = attributes;
+  }
+
+  transform(transform: Transform) {
+    this.dest = transformPoint(this.dest, getTransformMatrix(transform));
+  }
+
+  addAttributes(attributes: VertexAttributes) {
+    this.attributes = Object.assign({}, this.attributes, attributes);
+  }
+
+  encode(): string {
+    throw new Error('Not implemented.');
   }
 
   requiresTessellation(): boolean {
@@ -590,6 +682,10 @@ class PathCommand {
 }
 
 class MoveTo extends PathCommand {
+  encode(): string {
+    return ' M ' + encodePoint(this.dest);
+  }
+
   updateCollisionStats(
     stats: CollisionGeometryStats,
     tessellation: number,
@@ -619,7 +715,15 @@ class MoveTo extends PathCommand {
   }
 }
 
+function encodePoint(point: Vector2) {
+  return roundToPrecision(point.x, 6) + ' ' + roundToPrecision(point.y, 6);
+}
+
 class LineTo extends PathCommand {
+  encode(): string {
+    return ' L ' + encodePoint(this.dest);
+  }
+
   updateStats(
     stats: GeometryStats,
     tessellation: number,
@@ -725,6 +829,17 @@ class ArcTo extends PathCommand {
   ) {
     super(dest, zOrder, attributes);
     this.radius = radius;
+  }
+
+  transform(transform: Transform) {
+    super.transform(transform);
+    this.radius *= getTransformMaxScaleMagnitude(transform);
+  }
+
+  encode(): string {
+    return (
+      ' A ' + encodePoint(this.dest) + ' ' + roundToPrecision(this.radius, 6)
+    );
   }
 
   requiresTessellation(): boolean {
@@ -897,6 +1012,24 @@ class CurveTo extends PathCommand {
     super(dest, zOrder, attributes);
     this.c1 = c1;
     this.c2 = c2;
+  }
+
+  transform(transform: Transform) {
+    super.transform(transform);
+    const matrix = getTransformMatrix(transform);
+    this.c1 = transformPoint(this.c1, matrix);
+    this.c2 = transformPoint(this.c2, matrix);
+  }
+
+  encode(): string {
+    return (
+      ' C ' +
+      encodePoint(this.dest) +
+      ' ' +
+      encodePoint(this.c1) +
+      ' ' +
+      encodePoint(this.c2)
+    );
   }
 
   requiresTessellation(): boolean {
@@ -1075,6 +1208,33 @@ export class Shape {
   constructor(exterior: Path) {
     this.exterior = exterior;
     this.exterior.loop = true;
+  }
+
+  /**
+   * Transforms the shape in place.
+   *
+   * @param transform the transform to apply.
+   */
+  transform(transform: Transform) {
+    this.exterior.transform(transform);
+  }
+
+  /**
+   * Adds a set of attributes to all points in the shape.
+   *
+   * @param attributes the attribute values to add.
+   */
+  addAttributes(attributes: VertexAttributes) {
+    this.exterior.addAttributes(attributes);
+  }
+
+  /**
+   * Encodes the shape into a string.
+   *
+   * @return the encoded shape.
+   */
+  encode(): string {
+    return 'S ' + this.exterior.encodeContents(true);
   }
 
   /**
@@ -1324,6 +1484,56 @@ export class ShapeList {
   add(other: ShapeList) {
     this.shapes = this.shapes.concat(other.shapes);
     this.paths = this.paths.concat(other.paths);
+  }
+
+  /**
+   * Transforms the shape list in place.
+   *
+   * @param transform the transformation to apply.
+   */
+  transform(transform: Transform) {
+    for (const shape of this.shapes) {
+      shape.transform(transform);
+    }
+    for (const path of this.paths) {
+      path.transform(transform);
+    }
+  }
+
+  /**
+   * Adds a set of attributes to all points in the list.
+   *
+   * @param attributes the attribute values to add.
+   */
+  addAttributes(attributes: VertexAttributes) {
+    for (const shape of this.shapes) {
+      shape.addAttributes(attributes);
+    }
+    for (const path of this.paths) {
+      path.addAttributes(attributes);
+    }
+  }
+
+  /**
+   * Encodes the shape list into a string.
+   *
+   * @return the encoded shape list.
+   */
+  encode(): string {
+    let encoded = '';
+    for (const shape of this.shapes) {
+      if (encoded.length > 0) {
+        encoded += ' ';
+      }
+      encoded += shape.encode();
+    }
+    for (const path of this.paths) {
+      if (encoded.length > 0) {
+        encoded += ' ';
+      }
+      encoded += path.encode();
+    }
+    return encoded;
   }
 
   /**

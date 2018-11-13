@@ -10,9 +10,11 @@ import * as ReactRedux from 'react-redux';
 import {FormattedMessage} from 'react-intl';
 import {StoreActions, store} from './store';
 import {createEntity} from './entity';
-import {Menu, Submenu, MenuItem} from './util/ui';
+import {Menu, Submenu, MenuItem, Shortcut} from './util/ui';
 import {GeometryComponents} from './geometry/components';
-import type {Vector2} from '../server/store/math';
+import {PathColorProperty, FillColorProperty} from './renderer/components';
+import {getColorArray} from './renderer/util';
+import type {Vector2, Transform} from '../server/store/math';
 import {
   getTransformTranslation,
   composeTransforms,
@@ -35,6 +37,7 @@ import {
   roundToPrecision,
   clamp,
 } from '../server/store/math';
+import {ShapeList} from '../server/store/shape';
 import type {ControlPoint} from '../server/store/geometry';
 import {
   DEFAULT_THICKNESS,
@@ -154,6 +157,7 @@ const ToPathItem = ReactRedux.connect(state => ({
 }))(props => (
   <MenuItem
     disabled={props.disabled}
+    shortcut={new Shortcut('T', Shortcut.CTRL)}
     onClick={() => convertToShapeOrPath(props.locale, false)}>
     <FormattedMessage id="selection.to_path" defaultMessage="To Path" />
   </MenuItem>
@@ -164,6 +168,7 @@ const ToShapeItem = ReactRedux.connect(state => ({
 }))(props => (
   <MenuItem
     disabled={props.disabled}
+    shortcut={new Shortcut('H', Shortcut.CTRL)}
     onClick={() => convertToShapeOrPath(props.locale, true)}>
     <FormattedMessage id="selection.to_shape" defaultMessage="To Shape" />
   </MenuItem>
@@ -474,17 +479,17 @@ const ToShapeListItem = ReactRedux.connect(state => ({
 }))(props => (
   <MenuItem
     disabled={props.disabled}
+    shortcut={new Shortcut('L', Shortcut.CTRL)}
     onClick={() => convertToShapeList(props.locale)}>
-    <FormattedMessage
-      id="selection.to_shape_list"
-      defaultMessage="To Shape List"
-    />
+    <FormattedMessage id="selection.to_shape_list" defaultMessage="To List" />
   </MenuItem>
 ));
 
 type ShapeListElement = {
   type: string,
   data: Object,
+  renderer: Object,
+  transform: Transform,
 };
 
 function convertToShapeList(locale: string) {
@@ -516,11 +521,17 @@ function convertToShapeList(locale: string) {
         }
         continue;
       }
+      const renderer = entity.state.shapeRenderer;
+      if (!renderer) {
+        break;
+      }
       const transform = resource.getWorldTransform(id);
       plusEquals(centroid, getTransformTranslation(transform));
       elements.push({
         type: key,
         data,
+        renderer,
+        transform,
       });
       map[id] = null;
       break;
@@ -531,10 +542,30 @@ function convertToShapeList(locale: string) {
   }
   store.dispatch(SceneActions.editEntities.create(map));
   timesEquals(centroid, 1.0 / elements.length);
+
+  elements.sort((first, second) => {
+    return (first.renderer.zOrder || 0) - (second.renderer.zOrder || 0);
+  });
   let list = '';
+
+  const combinedList = new ShapeList();
+  const offset = {translation: negative(centroid)};
   for (const element of elements) {
+    const geometry = ComponentGeometry[element.type];
+    const shapeList = geometry.createShapeList(element.data);
+    shapeList.transform(composeTransforms(offset, element.transform));
+    shapeList.addAttributes({
+      pathColor: getColorArray(
+        element.renderer.pathColor || PathColorProperty.pathColor.defaultValue,
+      ),
+      fillColor: getColorArray(
+        element.renderer.fillColor || FillColorProperty.fillColor.defaultValue,
+      ),
+    });
+    combinedList.add(shapeList);
   }
-  entityState.shapeList.list = list;
+  entityState.shapeList.list = combinedList.encode();
+  console.log(entityState.shapeList.list);
   createEntity(GeometryComponents.shapeList.label, locale, entityState, {
     translation: centroid,
   });
@@ -545,6 +576,7 @@ const ToPartsItem = ReactRedux.connect(state => ({
 }))(props => (
   <MenuItem
     disabled={props.disabled}
+    shortcut={new Shortcut('P', Shortcut.CTRL)}
     onClick={() => convertToParts(props.locale)}>
     <FormattedMessage id="selection.to_parts" defaultMessage="To Parts" />
   </MenuItem>
