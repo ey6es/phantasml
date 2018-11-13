@@ -648,204 +648,42 @@ export const ComponentGeometry: {[string]: GeometryData} = {
       };
     },
   },
-  shape: {
+  path: {
     addToBounds: (bounds, data) => {
-      const exterior = data.exterior || '';
-      const thickness = getValue(data.thickness, DEFAULT_THICKNESS);
-      const lastPosition = vec2();
-      const vector = vec2();
-      const addCommand = (position: Vector2) => {
-        addToBoundsEquals(bounds, position.x, position.y);
-        equals(position, lastPosition);
-      };
-      parsePath(exterior, {
-        moveTo: addCommand,
-        lineTo: addCommand,
-        arcTo: (position, radius) => {
-          minus(position, lastPosition, vector);
-          const height = length(vector) / 2.0;
-          const angle = 2.0 * Math.asin(clamp(height / radius, -1.0, 1.0));
-          const distanceToCenter = radius * Math.cos(angle * 0.5);
-          plusEquals(
-            timesEquals(plusEquals(lastPosition, position), 0.5),
-            timesEquals(orthonormalizeEquals(vector), distanceToCenter),
-          );
-          addToBoundsEquals(
-            bounds,
-            lastPosition.x - radius,
-            lastPosition.y - radius,
-          );
-          addToBoundsEquals(
-            bounds,
-            lastPosition.x + radius,
-            lastPosition.y + radius,
-          );
-          addCommand(position);
-        },
-        curveTo: (position, c1, c2) => {
-          addToBoundsEquals(bounds, c1.x, c1.y);
-          addToBoundsEquals(bounds, c2.x, c2.y);
-          addCommand(position);
-        },
-      });
-      return thickness;
+      return addShapeOrPathToBounds(bounds, data, false);
     },
     createShapeList: data => {
-      const exterior = data.exterior || '';
-      const thickness = getValue(data.thickness, DEFAULT_THICKNESS);
-      const fill = getValue(data.fill, DEFAULT_FILL);
-      const path = new Path(true);
-      parsePath(exterior, {
-        moveTo: position => {
-          path.moveTo(equals(position), 0, {thickness});
-        },
-        lineTo: position => {
-          path.lineTo(equals(position), 0, {thickness});
-        },
-        arcTo: (position, radius) => {
-          path.arcTo(equals(position), radius, 0, {thickness});
-        },
-        curveTo: (position, c1, c2) => {
-          path.curveTo(equals(position), equals(c1), equals(c2), 0, {
-            thickness,
-          });
-        },
-      });
-      if (fill) {
-        return new ShapeList([new Shape(path)]);
-      } else {
-        return new ShapeList([], [path]);
-      }
+      return createShapeOrPathShapeList(data, false);
     },
     getControlPoints: data => {
-      const exterior = data.exterior || '';
-      const thickness = getValue(data.thickness, DEFAULT_THICKNESS);
-      const controlPoints: ControlPoint[] = [];
-      const lastPosition = vec2();
-      const vector = vec2();
-      parsePath(exterior, {
-        moveTo: position => {
-          equals(position, lastPosition);
-        },
-        lineTo: position => {
-          controlPoints.push({position: equals(position), thickness});
-          equals(position, lastPosition);
-        },
-        arcTo: (position, radius) => {
-          minus(position, lastPosition, vector);
-          const height = length(vector) / 2.0;
-          const angle = 2.0 * Math.asin(clamp(height / radius, -1.0, 1.0));
-          const distanceToMiddle = radius * (Math.cos(angle * 0.5) - 1.0);
-          plusEquals(
-            timesEquals(plusEquals(lastPosition, position), 0.5),
-            timesEquals(orthonormalizeEquals(vector), distanceToMiddle),
-          );
-          controlPoints.push({position: equals(lastPosition), thickness});
-          controlPoints.push({position: equals(position), thickness});
-          equals(position, lastPosition);
-        },
-        curveTo: (position, c1, c2) => {
-          controlPoints.push({position: equals(c1), thickness});
-          controlPoints.push({position: equals(c2), thickness});
-          controlPoints.push({position: equals(position), thickness});
-          equals(position, lastPosition);
-        },
-      });
-      return controlPoints;
+      return getShapeOrPathControlPoints(data, false);
     },
     createControlPointEdit: (entity, indexPositions, mirrored) => {
-      const exterior = entity.state.shape.exterior || '';
-      const lastPosition = vec2();
-      const vector = vec2();
-      const midpoint = vec2();
-      const vertices: Vector2[] = [];
-      parsePath(exterior, {
-        moveTo: position => {
-          equals(position, lastPosition);
-        },
-        lineTo: position => {
-          vertices.push(equals(position));
-          equals(position, lastPosition);
-        },
-        arcTo: (position, radius) => {
-          minus(position, lastPosition, vector);
-          const height = length(vector) / 2.0;
-          const angle = 2.0 * Math.asin(clamp(height / radius, -1.0, 1.0));
-          const distanceToMiddle = radius * (Math.cos(angle * 0.5) - 1.0);
-          plusEquals(
-            timesEquals(plusEquals(lastPosition, position), 0.5),
-            timesEquals(orthonormalizeEquals(vector), distanceToMiddle),
-          );
-          vertices.push(equals(lastPosition));
-          vertices.push(equals(position));
-          equals(position, lastPosition);
-        },
-        curveTo: (position, c1, c2) => {
-          vertices.push(equals(c1));
-          vertices.push(equals(c2));
-          vertices.push(equals(position));
-          equals(position, lastPosition);
-        },
-      });
-      const worldTransform = entity.getLastCachedValue('worldTransform');
-      const worldMatrix = getTransformMatrix(worldTransform);
-      vertices.forEach(vertex => transformPointEquals(vertex, worldMatrix));
-      for (const [index, position] of indexPositions) {
-        equals(position, vertices[index]);
-      }
-      const translation = getCentroid(vertices);
-      let newExterior = '';
-      const positionToString = (position: Vector2) => {
-        return (
-          roundToPrecision(position.x - translation.x, 6) +
-          ' ' +
-          roundToPrecision(position.y - translation.y, 6)
-        );
-      };
-      let index = vertices.length - 1;
-      parsePath(exterior, {
-        moveTo: position => {
-          newExterior += 'M ' + positionToString(vertices[index]);
-          index = (index + 1) % vertices.length;
-        },
-        lineTo: position => {
-          newExterior += ' L ' + positionToString(vertices[index++]);
-        },
-        arcTo: (position, radius) => {
-          const start =
-            vertices[(index + vertices.length - 1) % vertices.length];
-          const mid = vertices[index++];
-          const end = vertices[index++];
-          const height = 0.5 * distance(start, end);
-          orthonormalizeEquals(minus(end, start, vector));
-          minusEquals(timesEquals(plus(start, end, midpoint), 0.5), mid);
-          const dist = clamp(dot(vector, midpoint), -height, height);
-          if (dist !== 0.0) {
-            radius = (height * height + dist * dist) / (2.0 * dist);
-          }
-          newExterior +=
-            ' A ' + positionToString(end) + ' ' + roundToPrecision(radius, 6);
-        },
-        curveTo: (position, c1, c2) => {
-          newExterior +=
-            ' C ' +
-            positionToString(vertices[index + 2]) +
-            ' ' +
-            positionToString(vertices[index]) +
-            ' ' +
-            positionToString(vertices[index + 1]);
-          index += 3;
-        },
-      });
-      return {
-        transform: simplifyTransform(
-          composeTransforms(
-            entity.state.transform,
-            composeTransforms(invertTransform(worldTransform), {translation}),
-          ),
-        ),
-        shape: {exterior: newExterior},
-      };
+      return createShapeOrPathControlPointEdit(
+        entity,
+        indexPositions,
+        mirrored,
+        false,
+      );
+    },
+  },
+  shape: {
+    addToBounds: (bounds, data) => {
+      return addShapeOrPathToBounds(bounds, data, true);
+    },
+    createShapeList: data => {
+      return createShapeOrPathShapeList(data, true);
+    },
+    getControlPoints: data => {
+      return getShapeOrPathControlPoints(data, true);
+    },
+    createControlPointEdit: (entity, indexPositions, mirrored) => {
+      return createShapeOrPathControlPointEdit(
+        entity,
+        indexPositions,
+        mirrored,
+        true,
+      );
     },
   },
   shapeList: {
@@ -863,6 +701,231 @@ export const ComponentGeometry: {[string]: GeometryData} = {
     },
   },
 };
+
+function addShapeOrPathToBounds(
+  bounds: Bounds,
+  data: Object,
+  shape: boolean,
+): number {
+  const path = (shape ? data.exterior : data.path) || '';
+  const thickness = getValue(data.thickness, DEFAULT_THICKNESS);
+  const lastPosition = vec2();
+  const vector = vec2();
+  const addCommand = (position: Vector2) => {
+    addToBoundsEquals(bounds, position.x, position.y);
+    equals(position, lastPosition);
+  };
+  parsePath(path, {
+    moveTo: addCommand,
+    lineTo: addCommand,
+    arcTo: (position, radius) => {
+      minus(position, lastPosition, vector);
+      const height = length(vector) / 2.0;
+      const angle = 2.0 * Math.asin(clamp(height / radius, -1.0, 1.0));
+      const distanceToCenter = radius * Math.cos(angle * 0.5);
+      plusEquals(
+        timesEquals(plusEquals(lastPosition, position), 0.5),
+        timesEquals(orthonormalizeEquals(vector), distanceToCenter),
+      );
+      addToBoundsEquals(
+        bounds,
+        lastPosition.x - radius,
+        lastPosition.y - radius,
+      );
+      addToBoundsEquals(
+        bounds,
+        lastPosition.x + radius,
+        lastPosition.y + radius,
+      );
+      addCommand(position);
+    },
+    curveTo: (position, c1, c2) => {
+      addToBoundsEquals(bounds, c1.x, c1.y);
+      addToBoundsEquals(bounds, c2.x, c2.y);
+      addCommand(position);
+    },
+  });
+  return thickness;
+}
+
+function createShapeOrPathShapeList(data: Object, shape: boolean): ShapeList {
+  const path = (shape ? data.exterior : data.path) || '';
+  const thickness = getValue(data.thickness, DEFAULT_THICKNESS);
+  const fill = shape && getValue(data.fill, DEFAULT_FILL);
+  const pathObject = new Path(shape);
+  parsePath(path, {
+    moveTo: position => {
+      pathObject.moveTo(equals(position), 0, {thickness});
+    },
+    lineTo: position => {
+      pathObject.lineTo(equals(position), 0, {thickness});
+    },
+    arcTo: (position, radius) => {
+      pathObject.arcTo(equals(position), radius, 0, {thickness});
+    },
+    curveTo: (position, c1, c2) => {
+      pathObject.curveTo(equals(position), equals(c1), equals(c2), 0, {
+        thickness,
+      });
+    },
+  });
+  if (fill) {
+    return new ShapeList([new Shape(pathObject)]);
+  } else {
+    return new ShapeList([], [pathObject]);
+  }
+}
+
+function getShapeOrPathControlPoints(
+  data: Object,
+  shape: boolean,
+): ControlPoint[] {
+  const path = (shape ? data.exterior : data.path) || '';
+  const thickness = getValue(data.thickness, DEFAULT_THICKNESS);
+  const controlPoints: ControlPoint[] = [];
+  const lastPosition = vec2();
+  const vector = vec2();
+  parsePath(path, {
+    moveTo: position => {
+      if (!shape) {
+        controlPoints.push({position: equals(position), thickness});
+      }
+      equals(position, lastPosition);
+    },
+    lineTo: position => {
+      controlPoints.push({position: equals(position), thickness});
+      equals(position, lastPosition);
+    },
+    arcTo: (position, radius) => {
+      minus(position, lastPosition, vector);
+      const height = length(vector) / 2.0;
+      const angle = 2.0 * Math.asin(clamp(height / radius, -1.0, 1.0));
+      const distanceToMiddle = radius * (Math.cos(angle * 0.5) - 1.0);
+      plusEquals(
+        timesEquals(plusEquals(lastPosition, position), 0.5),
+        timesEquals(orthonormalizeEquals(vector), distanceToMiddle),
+      );
+      controlPoints.push({position: equals(lastPosition), thickness});
+      controlPoints.push({position: equals(position), thickness});
+      equals(position, lastPosition);
+    },
+    curveTo: (position, c1, c2) => {
+      controlPoints.push({position: equals(c1), thickness});
+      controlPoints.push({position: equals(c2), thickness});
+      controlPoints.push({position: equals(position), thickness});
+      equals(position, lastPosition);
+    },
+  });
+  return controlPoints;
+}
+
+function createShapeOrPathControlPointEdit(
+  entity: Entity,
+  indexPositions: [number, Vector2][],
+  mirrored: boolean,
+  shape: boolean,
+) {
+  const path =
+    (shape ? entity.state.shape.exterior : entity.state.path.path) || '';
+  const lastPosition = vec2();
+  const vector = vec2();
+  const midpoint = vec2();
+  const vertices: Vector2[] = [];
+  parsePath(path, {
+    moveTo: position => {
+      if (!shape) {
+        vertices.push(equals(position));
+      }
+      equals(position, lastPosition);
+    },
+    lineTo: position => {
+      vertices.push(equals(position));
+      equals(position, lastPosition);
+    },
+    arcTo: (position, radius) => {
+      minus(position, lastPosition, vector);
+      const height = length(vector) / 2.0;
+      const angle = 2.0 * Math.asin(clamp(height / radius, -1.0, 1.0));
+      const distanceToMiddle = radius * (Math.cos(angle * 0.5) - 1.0);
+      plusEquals(
+        timesEquals(plusEquals(lastPosition, position), 0.5),
+        timesEquals(orthonormalizeEquals(vector), distanceToMiddle),
+      );
+      vertices.push(equals(lastPosition));
+      vertices.push(equals(position));
+      equals(position, lastPosition);
+    },
+    curveTo: (position, c1, c2) => {
+      vertices.push(equals(c1));
+      vertices.push(equals(c2));
+      vertices.push(equals(position));
+      equals(position, lastPosition);
+    },
+  });
+  const worldTransform = entity.getLastCachedValue('worldTransform');
+  const worldMatrix = getTransformMatrix(worldTransform);
+  vertices.forEach(vertex => transformPointEquals(vertex, worldMatrix));
+  for (const [index, position] of indexPositions) {
+    equals(position, vertices[index]);
+  }
+  const translation = shape ? getCentroid(vertices) : getMean(vertices);
+  let newPath = '';
+  const positionToString = (position: Vector2) => {
+    return (
+      roundToPrecision(position.x - translation.x, 6) +
+      ' ' +
+      roundToPrecision(position.y - translation.y, 6)
+    );
+  };
+  let index = shape ? vertices.length - 1 : 0;
+  parsePath(path, {
+    moveTo: position => {
+      newPath += 'M ' + positionToString(vertices[index]);
+      index = (index + 1) % vertices.length;
+    },
+    lineTo: position => {
+      newPath += ' L ' + positionToString(vertices[index++]);
+    },
+    arcTo: (position, radius) => {
+      const start = vertices[(index + vertices.length - 1) % vertices.length];
+      const mid = vertices[index++];
+      const end = vertices[index++];
+      const height = 0.5 * distance(start, end);
+      orthonormalizeEquals(minus(end, start, vector));
+      minusEquals(timesEquals(plus(start, end, midpoint), 0.5), mid);
+      const dist = clamp(dot(vector, midpoint), -height, height);
+      if (dist !== 0.0) {
+        radius = (height * height + dist * dist) / (2.0 * dist);
+      }
+      newPath +=
+        ' A ' + positionToString(end) + ' ' + roundToPrecision(radius, 6);
+    },
+    curveTo: (position, c1, c2) => {
+      newPath +=
+        ' C ' +
+        positionToString(vertices[index + 2]) +
+        ' ' +
+        positionToString(vertices[index]) +
+        ' ' +
+        positionToString(vertices[index + 1]);
+      index += 3;
+    },
+  });
+  const edit: Object = {
+    transform: simplifyTransform(
+      composeTransforms(
+        entity.state.transform,
+        composeTransforms(invertTransform(worldTransform), {translation}),
+      ),
+    ),
+  };
+  if (shape) {
+    edit.shape = {exterior: newPath};
+  } else {
+    edit.path = {path: newPath};
+  }
+  return edit;
+}
 
 interface PathVisitor {
   moveTo(position: Vector2): void;

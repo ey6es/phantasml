@@ -210,6 +210,12 @@ export const GeometryComponents: {[string]: ComponentData} = {
     },
     category: 'geometry',
   },
+  path: {
+    label: <FormattedMessage id="path.title" defaultMessage="Path" />,
+    properties: {
+      ...ThicknessProperty,
+    },
+  },
   shape: {
     label: <FormattedMessage id="shape.title" defaultMessage="Shape" />,
     properties: {

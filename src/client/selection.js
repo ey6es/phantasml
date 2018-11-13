@@ -8,7 +8,7 @@
 import * as React from 'react';
 import * as ReactRedux from 'react-redux';
 import {FormattedMessage} from 'react-intl';
-import {store, createUuid} from './store';
+import {StoreActions, store} from './store';
 import {createEntity} from './entity';
 import {Menu, Submenu, MenuItem} from './util/ui';
 import {GeometryComponents} from './geometry/components';
@@ -64,6 +64,7 @@ export class SelectionDropdown extends React.Component<{locale: string}, {}> {
           <FlipHorizontalItem />
           <FlipVerticalItem />
         </Submenu>
+        <ToPathItem locale={this.props.locale} />
         <ToShapeItem locale={this.props.locale} />
         <ToShapeListItem locale={this.props.locale} />
         <ToPartsItem locale={this.props.locale} />
@@ -148,38 +149,53 @@ function mirrorSelection(sx: number, sy: number) {
   store.dispatch(SceneActions.editEntities.create(map));
 }
 
+const ToPathItem = ReactRedux.connect(state => ({
+  disabled: state.selection.size === 0,
+}))(props => (
+  <MenuItem
+    disabled={props.disabled}
+    onClick={() => convertToShapeOrPath(props.locale, false)}>
+    <FormattedMessage id="selection.to_path" defaultMessage="To Path" />
+  </MenuItem>
+));
+
 const ToShapeItem = ReactRedux.connect(state => ({
   disabled: state.selection.size === 0,
 }))(props => (
   <MenuItem
     disabled={props.disabled}
-    onClick={() => convertToShape(props.locale)}>
+    onClick={() => convertToShapeOrPath(props.locale, true)}>
     <FormattedMessage id="selection.to_shape" defaultMessage="To Shape" />
   </MenuItem>
 ));
 
-type ShapeElement = {
+type PathElement = {
   type: string,
   controlPoints: Vector2[],
   endpoints: Vector2[],
-  closestElements: ShapeElementIndex[],
+  closestElements: PathElementIndex[],
 };
 
-type ShapeElementIndex = [ShapeElement, number];
+type PathElementIndex = [PathElement, number];
 
-function convertToShape(locale: string) {
+function convertToShapeOrPath(locale: string, shape: boolean) {
   const state = store.getState();
   const resource = state.resource;
   if (!(resource instanceof Scene)) {
     return;
   }
+  const geometryKey = shape ? 'shape' : 'path';
+  const geometryValue: Object = {order: 1};
+  if (shape) {
+    geometryValue.fill = true;
+  }
   const entityState = {
-    shape: {exterior: '', thickness: DEFAULT_THICKNESS, fill: true, order: 1},
+    [geometryKey]: geometryValue,
     shapeRenderer: {order: 2},
     shapeCollider: {order: 3},
     rigidBody: {order: 4},
   };
-  const elements: ShapeElement[] = [];
+  const elements: PathElement[] = [];
   const map = {};
   let totalThickness = 0.0;
   for (const id of state.selection) {
@@ -208,7 +224,6 @@ function convertToShape(locale: string) {
         }
         continue;
       }
-
       const matrix = getTransformMatrix(resource.getWorldTransform(id));
       const controlPoints = geometry
         .getControlPoints(data)
@@ -230,8 +245,10 @@ function convertToShape(locale: string) {
   if (elements.length === 0) {
     return;
   }
-  entityState.shape.thickness = totalThickness / elements.length;
+  geometryValue.thickness = totalThickness / elements.length;
   store.dispatch(SceneActions.editEntities.create(map));
+  let farthestDistance = 0.0;
+  let farthestElement = [elements[0], 0];
   for (const element of elements) {
     const closestDistances = [Infinity, Infinity];
     for (const otherElement of elements) {
@@ -251,32 +268,47 @@ function convertToShape(locale: string) {
         }
       }
     }
+    for (let ii = 0; ii < 2; ii++) {
+      if (closestDistances[ii] > farthestDistance) {
+        farthestDistance = closestDistances[ii];
+        farthestElement = [element, ii];
+      }
+    }
   }
-  const firstElement = elements[0];
   let signedArea = 0.0;
   const centroid = vec2();
-  let currentElement: ShapeElementIndex = [firstElement, 0];
+  let currentElement = farthestElement;
   let index = 0;
   for (let ii = 0; ii < elements.length; ii++) {
     const [element, index] = currentElement;
     const otherIndex = 1 - index;
     const from = element.endpoints[index];
     const to = element.endpoints[otherIndex];
-    const cp = cross(from, to);
-    signedArea += cp;
-    centroid.x += cp * (from.x + to.x);
-    centroid.y += cp * (from.y + to.y);
+    currentElement = element.closestElements[otherIndex];
 
     // "weld" endpoints together to their midpoints
-    currentElement = element.closestElements[otherIndex];
-    const [nextElement, nextIndex] = currentElement;
-    const nextFrom = nextElement.endpoints[nextIndex];
-    equals(timesEquals(plusEquals(to, nextFrom), 0.5), nextFrom);
+    if (shape || ii !== elements.length - 1) {
+      const [nextElement, nextIndex] = currentElement;
+      const nextFrom = nextElement.endpoints[nextIndex];
+      equals(timesEquals(plusEquals(to, nextFrom), 0.5), nextFrom);
+    }
+
+    if (shape) {
+      const cp = cross(from, to);
+      signedArea += cp;
+      centroid.x += cp * (from.x + to.x);
+      centroid.y += cp * (from.y + to.y);
+    } else {
+      ii === 0 && plusEquals(centroid, from);
+      plusEquals(centroid, to);
+    }
   }
-  timesEquals(centroid, 1.0 / (3.0 * signedArea));
-  const reversed = signedArea < 0.0;
-  currentElement = [firstElement, reversed ? 1 : 0];
-  let exterior = '';
+  timesEquals(centroid, 1.0 / (shape ? 3.0 * signedArea : elements.length + 1));
+  const reversed = shape && signedArea < 0.0;
+  currentElement = reversed
+    ? [farthestElement[0], 1 - farthestElement[1]]
+    : farthestElement;
+  let path = '';
   let lastPosition = vec2();
   for (let ii = 0; ii < elements.length; ii++) {
     const [element, index] = currentElement;
@@ -288,24 +320,24 @@ function convertToShape(locale: string) {
       firstPoint = lastPoint;
       lastPoint = tmp;
     }
-    if (exterior.length === 0) {
-      exterior = 'M ' + positionToString(firstPoint, centroid);
+    if (path.length === 0) {
+      path = 'M ' + positionToString(firstPoint, centroid);
     }
     lastPosition = lastPoint;
     switch (element.type) {
       case 'line':
-        exterior += ' L ' + positionToString(lastPoint, centroid);
+        path += ' L ' + positionToString(lastPoint, centroid);
         break;
 
       case 'lineGroup':
         if (index === 0) {
           for (let ii = 1; ii < element.controlPoints.length; ii++) {
-            exterior +=
+            path +=
               ' L ' + positionToString(element.controlPoints[ii], centroid);
           }
         } else {
           for (let ii = element.controlPoints.length - 2; ii >= 0; ii--) {
-            exterior +=
+            path +=
               ' L ' + positionToString(element.controlPoints[ii], centroid);
           }
         }
@@ -329,23 +361,23 @@ function convertToShape(locale: string) {
         const angle = 2.0 * Math.acos(dp);
         if (angle > Math.PI) {
           // break large angles into two parts
-          exterior += ' A ' + positionToString(midpoint, centroid);
-          exterior += roundedRadius;
+          path += ' A ' + positionToString(midpoint, centroid);
+          path += roundedRadius;
         }
-        exterior += ' A ' + positionToString(lastPoint, centroid);
-        exterior += roundedRadius;
+        path += ' A ' + positionToString(lastPoint, centroid);
+        path += roundedRadius;
         break;
 
       case 'curve':
-        exterior += ' C ' + positionToString(lastPoint, centroid);
+        path += ' C ' + positionToString(lastPoint, centroid);
         if (index === 0) {
-          exterior +=
+          path +=
             ' ' +
             positionToString(element.controlPoints[1], centroid) +
             ' ' +
             positionToString(element.controlPoints[2], centroid);
         } else {
-          exterior +=
+          path +=
             ' ' +
             positionToString(element.controlPoints[2], centroid) +
             ' ' +
@@ -355,8 +387,8 @@ function convertToShape(locale: string) {
     }
     currentElement = element.closestElements[otherIndex];
   }
-  entityState.shape.exterior = exterior;
-  createEntity(GeometryComponents.shape.label, locale, entityState, {
+  geometryValue[shape ? 'exterior' : 'path'] = path;
+  createEntity(GeometryComponents[geometryKey].label, locale, entityState, {
     translation: centroid,
   });
 }
@@ -401,13 +433,16 @@ function convertToParts(locale: string) {
     return;
   }
   const map = {};
+  const selection = {};
   for (const id of state.selection) {
     const entity = resource.getEntity(id);
     if (!entity) {
       continue;
     }
     const shapeData = entity.state.shape;
-    if (shapeData) {
+    const pathData = entity.state.path;
+    const shapeOrPathData = shapeData || pathData;
+    if (shapeOrPathData) {
       map[id] = null;
       const baseState = Object.assign({}, entity.state);
       delete baseState.parent;
@@ -415,15 +450,19 @@ function convertToParts(locale: string) {
       delete baseState.order;
       delete baseState.transform;
       delete baseState.shape;
-      const thickness = getValue(shapeData.thickness, DEFAULT_THICKNESS);
-      const controlPoints = ComponentGeometry.shape.getControlPoints(shapeData);
+      delete baseState.path;
+      const thickness = getValue(shapeOrPathData.thickness, DEFAULT_THICKNESS);
+      const controlPoints = shapeData
+        ? ComponentGeometry.shape.getControlPoints(shapeData)
+        : ComponentGeometry.path.getControlPoints(shapeOrPathData);
       const worldMatrix = getTransformMatrix(resource.getWorldTransform(id));
       controlPoints.forEach(point =>
         transformPointEquals(point.position, worldMatrix),
       );
-      const exterior = shapeData.exterior || '';
-      let index = controlPoints.length - 1;
-      parsePath(exterior, {
+      const path =
+        (shapeData ? shapeData.exterior : shapeOrPathData.path) || '';
+      let index = shapeData ? controlPoints.length - 1 : 0;
+      parsePath(path, {
         moveTo: position => {},
         lineTo: position => {
           const start = controlPoints[index];
@@ -437,7 +476,7 @@ function convertToParts(locale: string) {
             end.position.y - start.position.y,
             end.position.x - start.position.x,
           );
-          createEntity(
+          const id = createEntity(
             GeometryComponents.line.label,
             locale,
             Object.assign(
@@ -452,6 +491,7 @@ function convertToParts(locale: string) {
             ),
             {translation, rotation},
           );
+          id && (selection[id] = true);
         },
         arcTo: (position, radius) => {
           const start = controlPoints[index];
@@ -483,7 +523,7 @@ function convertToParts(locale: string) {
             start.position.y - center.y,
             start.position.x - center.x,
           );
-          createEntity(
+          const id = createEntity(
             GeometryComponents.arc.label,
             locale,
             Object.assign(
@@ -499,6 +539,7 @@ function convertToParts(locale: string) {
             ),
             {translation: center, rotation},
           );
+          id && (selection[id] = true);
         },
         curveTo: position => {
           const start = controlPoints[index];
@@ -514,7 +555,7 @@ function convertToParts(locale: string) {
             end.position.y - start.position.y,
             end.position.x - start.position.x,
           );
-          createEntity(
+          const id = createEntity(
             GeometryComponents.curve.label,
             locale,
             Object.assign(
@@ -531,6 +572,7 @@ function convertToParts(locale: string) {
             ),
             {translation, rotation},
           );
+          id && (selection[id] = true);
         },
       });
     }
@@ -540,4 +582,5 @@ function convertToParts(locale: string) {
     }
   }
   store.dispatch(SceneActions.editEntities.create(map));
+  store.dispatch(StoreActions.select.create(selection));
 }
