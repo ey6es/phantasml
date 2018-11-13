@@ -482,7 +482,63 @@ const ToShapeListItem = ReactRedux.connect(state => ({
   </MenuItem>
 ));
 
-function convertToShapeList(locale: string) {}
+type ShapeListElement = {
+  type: string,
+  data: Object,
+};
+
+function convertToShapeList(locale: string) {
+  const state = store.getState();
+  const resource = state.resource;
+  if (!(resource instanceof Scene)) {
+    return;
+  }
+  const entityState = {
+    shapeList: {list: '', order: 1},
+    shapeRenderer: {order: 2},
+    shapeCollider: {order: 3},
+    rigidBody: {order: 4},
+  };
+  const centroid = vec2();
+  const elements: ShapeListElement[] = [];
+  const map = {};
+  for (const id of state.selection) {
+    const entity = resource.getEntity(id);
+    if (!entity) {
+      continue;
+    }
+    for (const key in entity.state) {
+      const data = entity.state[key];
+      const geometry = ComponentGeometry[key];
+      if (!geometry) {
+        if (key === 'shapeCollider' || key === 'rigidBody') {
+          entityState[key] = Object.assign({}, data, entityState[key]);
+        }
+        continue;
+      }
+      const transform = resource.getWorldTransform(id);
+      plusEquals(centroid, getTransformTranslation(transform));
+      elements.push({
+        type: key,
+        data,
+      });
+      map[id] = null;
+      break;
+    }
+  }
+  if (elements.length === 0) {
+    return;
+  }
+  store.dispatch(SceneActions.editEntities.create(map));
+  timesEquals(centroid, 1.0 / elements.length);
+  let list = '';
+  for (const element of elements) {
+  }
+  entityState.shapeList.list = list;
+  createEntity(GeometryComponents.shapeList.label, locale, entityState, {
+    translation: centroid,
+  });
+}
 
 const ToPartsItem = ReactRedux.connect(state => ({
   disabled: state.selection.size === 0,
