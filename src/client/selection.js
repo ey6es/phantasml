@@ -171,6 +171,7 @@ const ToShapeItem = ReactRedux.connect(state => ({
 
 type PathElement = {
   type: string,
+  data: Object,
   controlPoints: Vector2[],
   endpoints: Vector2[],
   closestElements: PathElementIndex[],
@@ -212,7 +213,8 @@ function convertToShapeOrPath(locale: string, shape: boolean) {
           (key === 'line' ||
             (key === 'lineGroup' && data.loop !== true) ||
             key === 'arc' ||
-            key === 'curve')
+            key === 'curve' ||
+            key === 'path')
         )
       ) {
         if (
@@ -230,6 +232,7 @@ function convertToShapeOrPath(locale: string, shape: boolean) {
         .map(point => transformPointEquals(point.position, matrix));
       elements.push({
         type: key,
+        data,
         controlPoints,
         endpoints: [
           controlPoints[key === 'arc' ? 1 : 0],
@@ -383,6 +386,71 @@ function convertToShapeOrPath(locale: string, shape: boolean) {
             ' ' +
             positionToString(element.controlPoints[1], centroid);
         }
+        break;
+
+      case 'path':
+        let jj = 1;
+        let increment = 1;
+        if (index === 1) {
+          jj = element.controlPoints.length - 2;
+          increment = element.controlPoints.length - 1;
+        }
+        const reverseIncrement = element.controlPoints.length - increment;
+        parsePath(
+          element.data.path || '',
+          {
+            moveTo: position => {},
+            lineTo: position => {
+              path +=
+                ' L ' + positionToString(element.controlPoints[jj], centroid);
+              jj = (jj + increment) % element.controlPoints.length;
+            },
+            arcTo: (position, radius) => {
+              const start =
+                element.controlPoints[
+                  (jj + reverseIncrement) % element.controlPoints.length
+                ];
+              const mid = element.controlPoints[jj];
+              jj = (jj + increment) % element.controlPoints.length;
+              const end = element.controlPoints[jj];
+              jj = (jj + increment) % element.controlPoints.length;
+
+              const height = 0.5 * distance(start, end);
+              const vector = orthonormalizeEquals(minus(end, start));
+              const midpoint = minusEquals(
+                timesEquals(plus(start, end), 0.5),
+                mid,
+              );
+              const dist = clamp(dot(vector, midpoint), -height, height);
+              if (dist !== 0.0) {
+                radius = (height * height + dist * dist) / (2.0 * dist);
+              }
+
+              path +=
+                ' A ' +
+                positionToString(end, centroid) +
+                ' ' +
+                roundToPrecision(radius, 6);
+            },
+            curveTo: () => {
+              const c1 = element.controlPoints[jj];
+              jj = (jj + increment) % element.controlPoints.length;
+              const c2 = element.controlPoints[jj];
+              jj = (jj + increment) % element.controlPoints.length;
+              const end = element.controlPoints[jj];
+              jj = (jj + increment) % element.controlPoints.length;
+
+              path +=
+                ' C ' +
+                positionToString(end, centroid) +
+                ' ' +
+                positionToString(c1, centroid) +
+                ' ' +
+                positionToString(c2, centroid);
+            },
+          },
+          index === 1,
+        );
         break;
     }
     currentElement = element.closestElements[otherIndex];

@@ -877,40 +877,56 @@ function createShapeOrPathControlPointEdit(
       roundToPrecision(position.y - translation.y, 6)
     );
   };
+  const reversed = shape && mirrored;
   let index = shape ? vertices.length - 1 : 0;
-  parsePath(path, {
-    moveTo: position => {
-      newPath += 'M ' + positionToString(vertices[index]);
-      index = (index + 1) % vertices.length;
+  let increment = reversed ? vertices.length - 1 : 1;
+  const reverseIncrement = vertices.length - increment;
+  parsePath(
+    path,
+    {
+      moveTo: position => {
+        newPath += 'M ' + positionToString(vertices[index]);
+        index = (index + increment) % vertices.length;
+      },
+      lineTo: position => {
+        newPath += ' L ' + positionToString(vertices[index]);
+        index = (index + increment) % vertices.length;
+      },
+      arcTo: (position, radius) => {
+        const start = vertices[(index + reverseIncrement) % vertices.length];
+        const mid = vertices[index];
+        index = (index + increment) % vertices.length;
+        const end = vertices[index];
+        index = (index + increment) % vertices.length;
+        const height = 0.5 * distance(start, end);
+        orthonormalizeEquals(minus(end, start, vector));
+        minusEquals(timesEquals(plus(start, end, midpoint), 0.5), mid);
+        const dist = clamp(dot(vector, midpoint), -height, height);
+        if (dist !== 0.0) {
+          radius = (height * height + dist * dist) / (2.0 * dist);
+        }
+        newPath +=
+          ' A ' + positionToString(end) + ' ' + roundToPrecision(radius, 6);
+      },
+      curveTo: position => {
+        const c1 = vertices[index];
+        index = (index + increment) % vertices.length;
+        const c2 = vertices[index];
+        index = (index + increment) % vertices.length;
+        const end = vertices[index];
+        index = (index + increment) % vertices.length;
+
+        newPath +=
+          ' C ' +
+          positionToString(end) +
+          ' ' +
+          positionToString(c1) +
+          ' ' +
+          positionToString(c2);
+      },
     },
-    lineTo: position => {
-      newPath += ' L ' + positionToString(vertices[index++]);
-    },
-    arcTo: (position, radius) => {
-      const start = vertices[(index + vertices.length - 1) % vertices.length];
-      const mid = vertices[index++];
-      const end = vertices[index++];
-      const height = 0.5 * distance(start, end);
-      orthonormalizeEquals(minus(end, start, vector));
-      minusEquals(timesEquals(plus(start, end, midpoint), 0.5), mid);
-      const dist = clamp(dot(vector, midpoint), -height, height);
-      if (dist !== 0.0) {
-        radius = (height * height + dist * dist) / (2.0 * dist);
-      }
-      newPath +=
-        ' A ' + positionToString(end) + ' ' + roundToPrecision(radius, 6);
-    },
-    curveTo: (position, c1, c2) => {
-      newPath +=
-        ' C ' +
-        positionToString(vertices[index + 2]) +
-        ' ' +
-        positionToString(vertices[index]) +
-        ' ' +
-        positionToString(vertices[index + 1]);
-      index += 3;
-    },
-  });
+    reversed,
+  );
   const edit: Object = {
     transform: simplifyTransform(
       composeTransforms(
@@ -944,8 +960,58 @@ const end = vec2();
  *
  * @param path the path to parse.
  * @param visitor the visitor functions to call.
+ * @param [reversed=false] if true, visit the path elements in reverse order.
  */
-export function parsePath(path: string, visitor: PathVisitor) {
+export function parsePath(
+  path: string,
+  visitor: PathVisitor,
+  reversed: boolean = false,
+) {
+  if (reversed) {
+    const lastPosition = vec2();
+    const commands: Object[] = [];
+    parsePath(path, {
+      moveTo: position => {
+        equals(position, lastPosition);
+      },
+      lineTo: position => {
+        commands.unshift({type: 'line', position: equals(lastPosition)});
+        equals(position, lastPosition);
+      },
+      arcTo: (position, radius) => {
+        commands.unshift({
+          type: 'arc',
+          position: equals(lastPosition),
+          radius: -radius,
+        });
+        equals(position, lastPosition);
+      },
+      curveTo: (position, c1, c2) => {
+        commands.unshift({
+          type: 'curve',
+          position: equals(lastPosition),
+          c1: equals(c2),
+          c2: equals(c1),
+        });
+        equals(position, lastPosition);
+      },
+    });
+    visitor.moveTo(lastPosition);
+    for (const command of commands) {
+      switch (command.type) {
+        case 'line':
+          visitor.lineTo(command.position);
+          break;
+        case 'arc':
+          visitor.arcTo(command.position, command.radius);
+          break;
+        case 'curve':
+          visitor.curveTo(command.position, command.c1, command.c2);
+          break;
+      }
+    }
+    return;
+  }
   for (let ii = 0; ii < path.length; ) {
     const command = path.charAt(ii);
     ii += 2;
