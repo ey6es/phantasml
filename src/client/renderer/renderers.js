@@ -42,6 +42,9 @@ export const ComponentRenderers: {[string]: RendererData} = {
       if (!shapeList) {
         return () => {};
       }
+      const renderShapeFn = entity.state.shapeList
+        ? renderShapeList
+        : renderShape;
       if (!shapeList.requiresTessellation()) {
         const geometry: Geometry = (entity.getCachedValue(
           'geometry',
@@ -53,7 +56,7 @@ export const ComponentRenderers: {[string]: RendererData} = {
           const transform: Transform = entity.getLastCachedValue(
             'worldTransform',
           );
-          renderShape(
+          renderShapeFn(
             renderer,
             transform,
             pathColor,
@@ -81,7 +84,7 @@ export const ComponentRenderers: {[string]: RendererData} = {
           shapeList,
           exponent,
         ): any);
-        renderShape(
+        renderShapeFn(
           renderer,
           transform,
           pathColor,
@@ -229,6 +232,145 @@ export const TRANSLUCENT_SHAPE_FRAGMENT_SHADER = `
     float joint = smoothstep(0.0, stepSize, interpolatedJoint);
     float alpha = mix(2.0 * inside - inside * inside, inside, joint);
     gl_FragColor = vec4(mix(fillColor, pathColor, filled), alpha * 0.25);
+  }
+`;
+
+function renderShapeList(
+  renderer: Renderer,
+  transform: Transform,
+  pathColor: string,
+  fillColor: string,
+  geometry: Geometry,
+  selected: boolean,
+  hoverState: HoverState,
+) {
+  if (typeof hoverState === 'object') {
+    renderTranslucentShapeList(
+      renderer,
+      composeTransforms(hoverState, transform),
+      pathColor,
+      fillColor,
+      geometry,
+    );
+    return;
+  }
+  if (selected || hoverState) {
+    renderBackdrop(renderer, transform, geometry, selected, hoverState);
+  }
+  const program = renderer.getProgram(
+    renderShapeList,
+    renderer.getVertexShader(renderShapeList, SHAPE_LIST_VERTEX_SHADER),
+    renderer.getFragmentShader(renderShapeList, SHAPE_LIST_FRAGMENT_SHADER),
+  );
+  program.setUniformViewProjectionMatrix('viewProjectionMatrix');
+  program.setUniformMatrix('modelMatrix', transform, getTransformMatrix);
+  program.setUniformMatrix('vectorMatrix', getTransformVectorMatrix(transform));
+  program.setUniformFloat('pixelsToWorldUnits', renderer.pixelsToWorldUnits);
+  program.setUniformColor('pathColorScale', pathColor);
+  program.setUniformColor('fillColorScale', fillColor);
+  renderer.setEnabled(renderer.gl.BLEND, true);
+  geometry.draw(program);
+}
+
+const SHAPE_LIST_VERTEX_SHADER = `
+  uniform mat3 modelMatrix;
+  uniform mat2 vectorMatrix;
+  uniform mat3 viewProjectionMatrix;
+  uniform float pixelsToWorldUnits;
+  uniform vec3 pathColorScale;
+  uniform vec3 fillColorScale;
+  attribute vec2 vertex;
+  attribute vec2 vector;
+  attribute float joint;
+  attribute float thickness;
+  attribute vec3 pathColor;
+  attribute vec3 fillColor;
+  varying vec2 interpolatedVector;
+  varying float interpolatedJoint;
+  varying float stepSize;
+  varying vec3 interpolatedPathColor;
+  varying vec3 interpolatedFillColor;
+  void main(void) {
+    interpolatedVector = vector;
+    interpolatedJoint = joint;
+    interpolatedPathColor = pathColor * pathColorScale;
+    interpolatedFillColor = fillColor * fillColorScale;
+    stepSize = pixelsToWorldUnits / thickness;
+    vec3 point =
+      modelMatrix * vec3(vertex, 1.0) +
+      vec3(vectorMatrix * vector, 0.0) * thickness;
+    vec3 position = viewProjectionMatrix * point;
+    gl_Position = vec4(position.xy, 0.0, 1.0);
+  }
+`;
+
+const SHAPE_LIST_FRAGMENT_SHADER = `
+  precision mediump float;
+  varying vec2 interpolatedVector;
+  varying float interpolatedJoint;
+  varying float stepSize;
+  varying vec3 interpolatedPathColor;
+  varying vec3 interpolatedFillColor;
+  void main(void) {
+    float dist = length(interpolatedVector);
+    float filled = 1.0 - step(dist, 0.0);
+    float inside = 1.0 - smoothstep(1.0 - stepSize, 1.0, dist);
+    // joints are drawn twice, so adjust alpha accordingly
+    float joint = smoothstep(0.0, stepSize, interpolatedJoint);
+    float alpha = mix(2.0 * inside - inside * inside, inside, joint);
+    gl_FragColor = vec4(
+      mix(interpolatedFillColor, interpolatedPathColor, filled),
+      alpha
+    );
+  }
+`;
+
+function renderTranslucentShapeList(
+  renderer: Renderer,
+  transform: Transform,
+  pathColor: string,
+  fillColor: string,
+  geometry: Geometry,
+) {
+  const program = renderer.getProgram(
+    renderTranslucentShapeList,
+    renderer.getVertexShader(
+      renderTranslucentShapeList,
+      SHAPE_LIST_VERTEX_SHADER,
+    ),
+    renderer.getFragmentShader(
+      renderTranslucentShapeList,
+      TRANSLUCENT_SHAPE_LIST_FRAGMENT_SHADER,
+    ),
+  );
+  program.setUniformViewProjectionMatrix('viewProjectionMatrix');
+  program.setUniformMatrix('modelMatrix', transform, getTransformMatrix);
+  program.setUniformMatrix('vectorMatrix', getTransformVectorMatrix(transform));
+  program.setUniformFloat('pixelsToWorldUnits', renderer.pixelsToWorldUnits);
+  program.setUniformColor('pathColorScale', pathColor);
+  program.setUniformColor('fillColorScale', fillColor);
+  renderer.setEnabled(renderer.gl.BLEND, true);
+  geometry.draw(program);
+}
+
+export const TRANSLUCENT_SHAPE_LIST_FRAGMENT_SHADER = `
+  precision mediump float;
+  varying vec2 interpolatedVector;
+  varying float interpolatedJoint;
+  varying float stepSize;
+  varying vec3 interpolatedPathColor;
+  varying vec3 interpolatedFillColor;
+  void main(void) {
+    float dist = length(interpolatedVector);
+    float filled = 1.0 - step(dist, 0.0);
+    float inside = 1.0 - smoothstep(1.0 - stepSize, 1.0, dist);
+    // joints are drawn twice, so adjust alpha accordingly
+    float joint = smoothstep(0.0, stepSize, interpolatedJoint);
+    float alpha = mix(2.0 * inside - inside * inside, inside, joint);
+    gl_FragColor = vec4(
+      mix(interpolatedFillColor, interpolatedPathColor, filled),
+      alpha * 0.25
+    );
   }
 `;
 

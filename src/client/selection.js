@@ -13,7 +13,6 @@ import {createEntity} from './entity';
 import {Menu, Submenu, MenuItem, Shortcut} from './util/ui';
 import {GeometryComponents} from './geometry/components';
 import {PathColorProperty, FillColorProperty} from './renderer/components';
-import {getColorArray} from './renderer/util';
 import type {Vector2, Transform} from '../server/store/math';
 import {
   getTransformTranslation,
@@ -45,7 +44,7 @@ import {
   parsePath,
 } from '../server/store/geometry';
 import {Scene, SceneActions} from '../server/store/scene';
-import {getValue} from '../server/store/util';
+import {getValue, getColorArray} from '../server/store/util';
 
 /**
  * The selection menu dropdown.
@@ -500,7 +499,7 @@ function convertToShapeList(locale: string) {
   }
   const entityState = {
     shapeList: {list: '', order: 1},
-    shapeRenderer: {order: 2},
+    shapeRenderer: {fillColor: '#ffffff', order: 2},
     shapeCollider: {order: 3},
     rigidBody: {order: 4},
   };
@@ -565,7 +564,6 @@ function convertToShapeList(locale: string) {
     combinedList.add(shapeList);
   }
   entityState.shapeList.list = combinedList.encode();
-  console.log(entityState.shapeList.list);
   createEntity(GeometryComponents.shapeList.label, locale, entityState, {
     translation: centroid,
   });

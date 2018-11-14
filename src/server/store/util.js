@@ -34,3 +34,18 @@ export function setsEqual<T>(s1: Set<T>, s2: Set<T>): boolean {
   }
   return true;
 }
+
+/**
+ * Converts a hex color string to an array of floats that we can use as a
+ * uniform value.
+ *
+ * @param value the hex color string.
+ * @return the corresponding array of floats.
+ */
+export function getColorArray(value: string): number[] {
+  return [
+    parseInt(value.substring(1, 3), 16) / 255.0,
+    parseInt(value.substring(3, 5), 16) / 255.0,
+    parseInt(value.substring(5, 7), 16) / 255.0,
+  ];
+}

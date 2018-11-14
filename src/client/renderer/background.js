@@ -7,7 +7,8 @@
 
 import {RendererComponents} from './components';
 import {Geometry} from './util';
-import type {Camera, Renderer, getColorArray} from './util';
+import type {Camera, Renderer} from './util';
+import {getColorArray} from '../../server/store/util';
 
 type BackgroundData = {color?: string, gridColor?: string};
 

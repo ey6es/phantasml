@@ -38,7 +38,7 @@ import {
   clamp,
   roundToPrecision,
 } from './math';
-import {getValue} from './util';
+import {getValue, getColorArray} from './util';
 import {Path, Shape, ShapeList} from './shape';
 import type {CollisionGeometry} from './collision';
 
@@ -688,10 +688,60 @@ export const ComponentGeometry: {[string]: GeometryData} = {
   },
   shapeList: {
     addToBounds: (bounds, data) => {
-      return 0.0;
+      const list = data.list || '';
+      let maxThickness = 0.0;
+      const boundsVisitor = createBoundsVisitor(bounds);
+      parseShapeList(list, {
+        createShapeVisitor: (fillColor, pathColor, thickness) => {
+          maxThickness = Math.max(maxThickness, thickness);
+          return boundsVisitor;
+        },
+        createPathVisitor: (loop, pathColor, thickness) => {
+          maxThickness = Math.max(maxThickness, thickness);
+          return boundsVisitor;
+        },
+      });
+      return maxThickness;
     },
     createShapeList: data => {
-      return new ShapeList();
+      const list = data.list || '';
+      const shapeList = new ShapeList();
+      const createVisitor = (path, fillColor, pathColor, thickness) => {
+        const attributes: Object = {
+          thickness,
+          pathColor: getColorArray(pathColor),
+        };
+        if (fillColor) {
+          attributes.fillColor = getColorArray(fillColor);
+        }
+        return {
+          moveTo: position => path.moveTo(equals(position), 0, attributes),
+          lineTo: position => path.lineTo(equals(position), 0, attributes),
+          arcTo: (position, radius) =>
+            path.arcTo(equals(position), radius, 0, attributes),
+          curveTo: (position, c1, c2) =>
+            path.curveTo(
+              equals(position),
+              equals(c1),
+              equals(c2),
+              0,
+              attributes,
+            ),
+        };
+      };
+      parseShapeList(list, {
+        createShapeVisitor: (fillColor, pathColor, thickness) => {
+          const exterior = new Path(true);
+          shapeList.shapes.push(new Shape(exterior));
+          return createVisitor(exterior, fillColor, pathColor, thickness);
+        },
+        createPathVisitor: (loop, pathColor, thickness) => {
+          const path = new Path(loop);
+          shapeList.paths.push(path);
+          return createVisitor(path, null, pathColor, thickness);
+        },
+      });
+      return shapeList;
     },
     getControlPoints: data => {
       return [];
@@ -709,13 +759,18 @@ function addShapeOrPathToBounds(
 ): number {
   const path = (shape ? data.exterior : data.path) || '';
   const thickness = getValue(data.thickness, DEFAULT_THICKNESS);
+  parsePath(path, createBoundsVisitor(bounds));
+  return thickness;
+}
+
+function createBoundsVisitor(bounds: Bounds): PathVisitor {
   const lastPosition = vec2();
   const vector = vec2();
   const addCommand = (position: Vector2) => {
     addToBoundsEquals(bounds, position.x, position.y);
     equals(position, lastPosition);
   };
-  parsePath(path, {
+  return {
     moveTo: addCommand,
     lineTo: addCommand,
     arcTo: (position, radius) => {
@@ -744,8 +799,7 @@ function addShapeOrPathToBounds(
       addToBoundsEquals(bounds, c2.x, c2.y);
       addCommand(position);
     },
-  });
-  return thickness;
+  };
 }
 
 function createShapeOrPathShapeList(data: Object, shape: boolean): ShapeList {
@@ -961,41 +1015,49 @@ const end = vec2();
  * @param path the path to parse.
  * @param visitor the visitor functions to call.
  * @param [reversed=false] if true, visit the path elements in reverse order.
+ * @param [startIndex=0] the index at which to start reading the path.
+ * @return the current index within the string.
  */
 export function parsePath(
   path: string,
   visitor: PathVisitor,
   reversed: boolean = false,
-) {
+  startIndex: number = 0,
+): number {
   if (reversed) {
     const lastPosition = vec2();
     const commands: Object[] = [];
-    parsePath(path, {
-      moveTo: position => {
-        equals(position, lastPosition);
+    const position = parsePath(
+      path,
+      {
+        moveTo: position => {
+          equals(position, lastPosition);
+        },
+        lineTo: position => {
+          commands.unshift({type: 'line', position: equals(lastPosition)});
+          equals(position, lastPosition);
+        },
+        arcTo: (position, radius) => {
+          commands.unshift({
+            type: 'arc',
+            position: equals(lastPosition),
+            radius: -radius,
+          });
+          equals(position, lastPosition);
+        },
+        curveTo: (position, c1, c2) => {
+          commands.unshift({
+            type: 'curve',
+            position: equals(lastPosition),
+            c1: equals(c2),
+            c2: equals(c1),
+          });
+          equals(position, lastPosition);
+        },
       },
-      lineTo: position => {
-        commands.unshift({type: 'line', position: equals(lastPosition)});
-        equals(position, lastPosition);
-      },
-      arcTo: (position, radius) => {
-        commands.unshift({
-          type: 'arc',
-          position: equals(lastPosition),
-          radius: -radius,
-        });
-        equals(position, lastPosition);
-      },
-      curveTo: (position, c1, c2) => {
-        commands.unshift({
-          type: 'curve',
-          position: equals(lastPosition),
-          c1: equals(c2),
-          c2: equals(c1),
-        });
-        equals(position, lastPosition);
-      },
-    });
+      false,
+      startIndex,
+    );
     visitor.moveTo(lastPosition);
     for (const command of commands) {
       switch (command.type) {
@@ -1010,10 +1072,13 @@ export function parsePath(
           break;
       }
     }
-    return;
+    return position;
   }
-  for (let ii = 0; ii < path.length; ) {
+  for (let ii = startIndex; ii < path.length; ) {
     const command = path.charAt(ii);
+    if ('MLAC'.indexOf(command) === -1) {
+      return ii; // assume it's the next list command
+    }
     ii += 2;
 
     let nextSpaceIndex = getNextSpaceIndex(path, ii);
@@ -1059,9 +1124,75 @@ export function parsePath(
 
         visitor.curveTo(vertex, start, end);
         break;
+    }
+  }
+  return path.length;
+}
 
+interface ShapeListVisitor {
+  createShapeVisitor(
+    fillColor: string,
+    pathColor: string,
+    thickness: number,
+  ): PathVisitor;
+
+  createPathVisitor(
+    loop: boolean,
+    pathColor: string,
+    thickness: number,
+  ): PathVisitor;
+}
+
+function parseShapeList(list: string, visitor: ShapeListVisitor) {
+  for (let ii = 0; ii < list.length; ) {
+    const command = list.charAt(ii);
+    ii += 2;
+
+    switch (command) {
+      case 'S': {
+        let nextSpaceIndex = getNextSpaceIndex(list, ii);
+        const fillColor = list.substring(ii, nextSpaceIndex);
+        ii = nextSpaceIndex + 1;
+
+        nextSpaceIndex = getNextSpaceIndex(list, ii);
+        const pathColor = list.substring(ii, nextSpaceIndex);
+        ii = nextSpaceIndex + 1;
+
+        nextSpaceIndex = getNextSpaceIndex(list, ii);
+        const thickness = parseFloat(list.substring(ii, nextSpaceIndex));
+        ii = nextSpaceIndex + 1;
+
+        ii = parsePath(
+          list,
+          visitor.createShapeVisitor(fillColor, pathColor, thickness),
+          false,
+          ii,
+        );
+        break;
+      }
+      case 'P': {
+        let nextSpaceIndex = getNextSpaceIndex(list, ii);
+        const loop = list.substring(ii, nextSpaceIndex) === '1';
+        ii = nextSpaceIndex + 1;
+
+        nextSpaceIndex = getNextSpaceIndex(list, ii);
+        const pathColor = list.substring(ii, nextSpaceIndex);
+        ii = nextSpaceIndex + 1;
+
+        nextSpaceIndex = getNextSpaceIndex(list, ii);
+        const thickness = parseFloat(list.substring(ii, nextSpaceIndex));
+        ii = nextSpaceIndex + 1;
+
+        ii = parsePath(
+          list,
+          visitor.createPathVisitor(loop, pathColor, thickness),
+          false,
+          ii,
+        );
+        break;
+      }
       default:
-        throw new Error('Unrecognized path command: ' + command);
+        throw new Error('Unrecognized shape list command: ' + command);
     }
   }
 }
