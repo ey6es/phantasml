@@ -15,6 +15,7 @@ import {GeometryComponents} from './geometry/components';
 import {PathColorProperty, FillColorProperty} from './renderer/components';
 import type {Vector2, Transform} from '../server/store/math';
 import {
+  ZERO_VECTOR,
   getTransformTranslation,
   composeTransforms,
   getTransformMatrix,
@@ -42,6 +43,7 @@ import {
   DEFAULT_THICKNESS,
   ComponentGeometry,
   parsePath,
+  parseShapeList,
 } from '../server/store/geometry';
 import {Scene, SceneActions} from '../server/store/scene';
 import {getValue, getColorArray} from '../server/store/util';
@@ -465,14 +467,6 @@ function convertToShapeOrPath(locale: string, shape: boolean) {
   });
 }
 
-function positionToString(position: Vector2, offset: Vector2): string {
-  return (
-    roundToPrecision(position.x - offset.x, 6) +
-    ' ' +
-    roundToPrecision(position.y - offset.y, 6)
-  );
-}
-
 const ToShapeListItem = ReactRedux.connect(state => ({
   disabled: state.selection.size === 0,
 }))(props => (
@@ -733,8 +727,106 @@ function convertToParts(locale: string) {
     const shapeListData = entity.state.shapeList;
     if (shapeListData) {
       map[id] = null;
+      const baseState = Object.assign({}, entity.state);
+      delete baseState.parent;
+      delete baseState.name;
+      delete baseState.order;
+      delete baseState.transform;
+      delete baseState.shapeList;
+      delete baseState.shapeRenderer;
+
+      const transform = resource.getWorldTransform(id);
+      const list = shapeListData.list || '';
+      const createVisitor = (fillColor, pathColor, thickness, createEntity) => {
+        let path = '';
+        return {
+          moveTo: position => {
+            path += 'M ' + positionToString(position, ZERO_VECTOR);
+          },
+          lineTo: position => {
+            path += ' L ' + positionToString(position, ZERO_VECTOR);
+          },
+          arcTo: (position, radius) => {
+            path +=
+              ' A ' +
+              positionToString(position, ZERO_VECTOR) +
+              ' ' +
+              roundToPrecision(radius, 6);
+          },
+          curveTo: (position, c1, c2) => {
+            path +=
+              ' C ' +
+              positionToString(position, ZERO_VECTOR) +
+              ' ' +
+              positionToString(c1, ZERO_VECTOR) +
+              ' ' +
+              positionToString(c2, ZERO_VECTOR);
+          },
+          end: () => createEntity(path),
+        };
+      };
+      parseShapeList(list, {
+        createShapeVisitor: (fillColor, pathColor, thickness) => {
+          return createVisitor(fillColor, pathColor, thickness, path => {
+            const id = createEntity(
+              GeometryComponents.shape.label,
+              locale,
+              Object.assign(
+                {
+                  shape: {
+                    exterior: path,
+                    thickness,
+                    fill: true,
+                    order: 1,
+                  },
+                  shapeRenderer: {
+                    pathColor,
+                    fillColor,
+                    order: 2,
+                  },
+                },
+                baseState,
+              ),
+              transform,
+            );
+            id && (selection[id] = true);
+          });
+        },
+        createPathVisitor: (loop, pathColor, thickness) => {
+          return createVisitor(null, pathColor, thickness, path => {
+            const id = createEntity(
+              GeometryComponents.path.label,
+              locale,
+              Object.assign(
+                {
+                  path: {
+                    path,
+                    thickness,
+                    order: 1,
+                  },
+                  shapeRenderer: {
+                    pathColor,
+                    order: 2,
+                  },
+                },
+                baseState,
+              ),
+              transform,
+            );
+            id && (selection[id] = true);
+          });
+        },
+      });
     }
   }
   store.dispatch(SceneActions.editEntities.create(map));
   store.dispatch(StoreActions.select.create(selection));
+}
+
+function positionToString(position: Vector2, offset: Vector2): string {
+  return (
+    roundToPrecision(position.x - offset.x, 6) +
+    ' ' +
+    roundToPrecision(position.y - offset.y, 6)
+  );
 }

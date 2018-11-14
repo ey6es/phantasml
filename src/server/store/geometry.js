@@ -1024,6 +1024,7 @@ export function parsePath(
   reversed: boolean = false,
   startIndex: number = 0,
 ): number {
+  const endFn: ?() => void = (visitor: Object).end;
   if (reversed) {
     const lastPosition = vec2();
     const commands: Object[] = [];
@@ -1072,11 +1073,13 @@ export function parsePath(
           break;
       }
     }
+    endFn && endFn();
     return position;
   }
   for (let ii = startIndex; ii < path.length; ) {
     const command = path.charAt(ii);
     if ('MLAC'.indexOf(command) === -1) {
+      endFn && endFn();
       return ii; // assume it's the next list command
     }
     ii += 2;
@@ -1126,6 +1129,7 @@ export function parsePath(
         break;
     }
   }
+  endFn && endFn();
   return path.length;
 }
 
@@ -1143,7 +1147,13 @@ interface ShapeListVisitor {
   ): PathVisitor;
 }
 
-function parseShapeList(list: string, visitor: ShapeListVisitor) {
+/**
+ * Parses an encoded shape list.
+ *
+ * @param list the list to parse.
+ * @param visitor the visitor to apply to the list elements.
+ */
+export function parseShapeList(list: string, visitor: ShapeListVisitor) {
   for (let ii = 0; ii < list.length; ) {
     const command = list.charAt(ii);
     ii += 2;
