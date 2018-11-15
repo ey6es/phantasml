@@ -487,6 +487,8 @@ export class ResourceContent extends React.Component<
     id: string,
     locale: string,
     userStatus: UserStatusResponse,
+    preferences: UserGetPreferencesResponse,
+    setPreferences: UserGetPreferencesResponse => void,
     setLoading: (Object, boolean) => void,
     resource: ?ResourceDescriptor,
     setResource: (?ResourceDescriptor) => void,
@@ -549,6 +551,8 @@ export class ResourceContent extends React.Component<
             <div className="d-flex flex-column left-column">
               <Toolset
                 locale={this.props.locale}
+                preferences={this.props.preferences}
+                setPreferences={this.props.setPreferences}
                 renderer={this.props.renderer}
               />
               <EntityTree renderer={this.props.renderer} />

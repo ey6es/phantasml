@@ -119,9 +119,23 @@ export type UserGetPreferencesRequest = ApiRequest;
 export const UserGetPreferencesRequestType = (reify: Type<
   UserGetPreferencesRequest,
 >);
-export type UserGetPreferencesResponse = {autoSaveMinutes?: ?number};
+type PreferencesData = {
+  autoSaveMinutes?: ?number,
+  gridSnap?: ?boolean,
+  featureSnap?: ?boolean,
+  local?: ?boolean,
+  snap?: ?boolean,
+  radius?: ?number,
+  thickness?: ?number,
+  pathColor?: ?string,
+  dynamic?: ?boolean,
+  loop?: ?boolean,
+  fillColor?: ?string,
+  fill?: ?boolean,
+};
+export type UserGetPreferencesResponse = PreferencesData;
 
-export type UserPutPreferencesRequest = ApiRequest & {autoSaveMinutes: number};
+export type UserPutPreferencesRequest = ApiRequest & PreferencesData;
 export const UserPutPreferencesRequestType = (reify: Type<
   UserPutPreferencesRequest,
 >);

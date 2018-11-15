@@ -776,11 +776,24 @@ export function getPreferences(
     (async request => {
       const session = await requireSession(request.authToken);
       const preferences = await getSettings(session.userId.S);
+      if (!preferences) {
+        return {};
+      }
       return {
         autoSaveMinutes:
-          preferences &&
           preferences.autoSaveMinutes &&
           parseInt(preferences.autoSaveMinutes.N),
+        gridSnap: preferences.gridSnap && preferences.gridSnap.BOOL,
+        featureSnap: preferences.featureSnap && preferences.featureSnap.BOOL,
+        local: preferences.local && preferences.local.BOOL,
+        snap: preferences.snap && preferences.snap.BOOL,
+        radius: preferences.radius && parseFloat(preferences.radius.N),
+        thickness: preferences.thickness && parseFloat(preferences.thickness.N),
+        pathColor: preferences.pathColor && preferences.pathColor.S,
+        dynamic: preferences.dynamic && preferences.dynamic.BOOL,
+        loop: preferences.loop && preferences.loop.BOOL,
+        fillColor: preferences.fillColor && preferences.fillColor.S,
+        fill: preferences.fill && preferences.fill.BOOL,
       };
     }: UserGetPreferencesRequest => Promise<UserGetPreferencesResponse>),
   );
@@ -795,12 +808,44 @@ export function putPreferences(
     UserPutPreferencesRequestType,
     (async request => {
       const session = await requireSession(request.authToken);
-      await updateSettings(
-        {
-          autoSaveMinutes: {N: String(request.autoSaveMinutes)},
-        },
-        session.userId.S,
-      );
+      const settings = {};
+      if (request.autoSaveMinutes != null) {
+        settings.autoSaveMinutes = {N: String(request.autoSaveMinutes)};
+      }
+      if (request.gridSnap != null) {
+        settings.gridSnap = {BOOL: request.gridSnap};
+      }
+      if (request.featureSnap != null) {
+        settings.featureSnap = {BOOL: request.featureSnap};
+      }
+      if (request.local != null) {
+        settings.local = {BOOL: request.local};
+      }
+      if (request.snap != null) {
+        settings.snap = {BOOL: request.snap};
+      }
+      if (request.radius != null) {
+        settings.radius = {N: String(request.radius)};
+      }
+      if (request.thickness != null) {
+        settings.thickness = {N: String(request.thickness)};
+      }
+      if (request.pathColor != null) {
+        settings.pathColor = {S: request.pathColor};
+      }
+      if (request.dynamic != null) {
+        settings.dynamic = {BOOL: request.dynamic};
+      }
+      if (request.loop != null) {
+        settings.loop = {BOOL: request.loop};
+      }
+      if (request.fillColor != null) {
+        settings.fillColor = {S: request.fillColor};
+      }
+      if (request.fill != null) {
+        settings.fill = {BOOL: request.fill};
+      }
+      await updateSettings(settings, session.userId.S);
       return {};
     }: UserPutPreferencesRequest => Promise<UserPutPreferencesResponse>),
   );

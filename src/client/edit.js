@@ -18,12 +18,10 @@ import {
   DropdownMenu,
 } from 'reactstrap';
 import {StoreActions, store} from './store';
-import {putToApi} from './util/api';
 import {Menu, MenuItem, Shortcut, RequestDialog} from './util/ui';
 import {getAutoSaveMinutes} from './resource';
 import type {
   UserGetPreferencesResponse,
-  UserPutPreferencesRequest,
   ResourceDescriptor,
 } from '../server/api';
 import type {Resource} from '../server/store/resource';
@@ -37,6 +35,7 @@ export class EditDropdown extends React.Component<
   {
     preferences: UserGetPreferencesResponse,
     setPreferences: UserGetPreferencesResponse => void,
+    flushPreferences: () => Promise<void>,
     resource: ?ResourceDescriptor,
     setDialog: (?React.Element<any>) => void,
   },
@@ -65,6 +64,7 @@ export class EditDropdown extends React.Component<
               <PreferencesDialog
                 preferences={this.props.preferences}
                 setPreferences={this.props.setPreferences}
+                flushPreferences={this.props.flushPreferences}
                 onClosed={this._clearDialog}
               />,
             )
@@ -191,6 +191,7 @@ class PreferencesDialog extends React.Component<
   {
     preferences: UserGetPreferencesResponse,
     setPreferences: UserGetPreferencesResponse => void,
+    flushPreferences: () => Promise<void>,
     onClosed: () => void,
   },
   {autoSaveMinutes: number},
@@ -250,11 +251,10 @@ class PreferencesDialog extends React.Component<
   }
 
   _makeRequest = async () => {
-    const request: UserPutPreferencesRequest = {
-      autoSaveMinutes: this.state.autoSaveMinutes,
-    };
-    await putToApi('/user/preferences', request);
-    this.props.setPreferences((request: any));
+    this.props.setPreferences(
+      Object.assign({}, this.props.preferences, this.state),
+    );
+    await this.props.flushPreferences();
     return {};
   };
 }

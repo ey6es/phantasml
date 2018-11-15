@@ -35,7 +35,7 @@ import {ComponentDropdown} from './component';
 import {AdminDropdown} from './admin';
 import {AppTitle, HelpDropdown} from './help';
 import type {Renderer} from './renderer/util';
-import {getFromApi} from './util/api';
+import {getFromApi, putToApi} from './util/api';
 import {
   MenuBar,
   LoadingSpinner,
@@ -46,6 +46,7 @@ import {
 import type {
   UserStatusResponse,
   UserGetPreferencesResponse,
+  UserPutPreferencesRequest,
   ResourceDescriptor,
 } from '../server/api';
 
@@ -79,6 +80,8 @@ export class Interface extends React.Component<
     dialog: null,
     renderer: null,
   };
+
+  _preferencesIntervalId: ?IntervalID;
 
   render() {
     return (
@@ -116,6 +119,7 @@ export class Interface extends React.Component<
               <EditDropdown
                 preferences={this.state.preferences}
                 setPreferences={this._setPreferences}
+                flushPreferences={this._flushPreferences}
                 resource={this.state.resource}
                 setDialog={this._setDialog}
               />
@@ -178,6 +182,7 @@ export class Interface extends React.Component<
 
   componentWillUnmount() {
     window.removeEventListener('popstate', this._updateSearch);
+    this._clearPreferencesInterval();
   }
 
   async _fetchPreferences() {
@@ -186,7 +191,29 @@ export class Interface extends React.Component<
 
   _setPreferences = (preferences: UserGetPreferencesResponse) => {
     this.setState({preferences});
+    if (this._preferencesIntervalId == null) {
+      this._preferencesIntervalId = setInterval(
+        this._flushPreferences,
+        60 * 1000,
+      );
+    }
   };
+
+  _flushPreferences = async () => {
+    this._clearPreferencesInterval();
+    const request: UserPutPreferencesRequest = Object.assign(
+      {},
+      this.state.preferences,
+    );
+    await putToApi('/user/preferences', request);
+  };
+
+  _clearPreferencesInterval() {
+    if (this._preferencesIntervalId != null) {
+      clearInterval(this._preferencesIntervalId);
+      this._preferencesIntervalId = null;
+    }
+  }
 
   _setLoading = (source: Object, loading: boolean) => {
     if (loading) {
@@ -235,6 +262,8 @@ export class Interface extends React.Component<
               id={id}
               locale={this.props.locale}
               userStatus={this.props.userStatus}
+              preferences={this.state.preferences}
+              setPreferences={this._setPreferences}
               setLoading={this._setLoading}
               resource={this.state.resource}
               setResource={this._setResource}

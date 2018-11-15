@@ -80,6 +80,7 @@ import {
 } from './geometry/components';
 import {DynamicProperty} from './physics/components';
 import {Shortcut, ShortcutHandler} from './util/ui';
+import type {UserGetPreferencesResponse} from '../server/api';
 import type {Resource, Entity} from '../server/store/resource';
 import {Scene, SceneActions} from '../server/store/scene';
 import type {Vector2, LineSegment, Transform} from '../server/store/math';
@@ -160,8 +161,13 @@ type OptionProperties = {[string]: PropertyData};
  * The set of tools available.
  */
 export class Toolset extends React.Component<
-  {locale: string, renderer: ?Renderer},
-  {optionProperties: ?OptionProperties, [string]: any},
+  {
+    locale: string,
+    preferences: UserGetPreferencesResponse,
+    setPreferences: UserGetPreferencesResponse => void,
+    renderer: ?Renderer,
+  },
+  {optionProperties: ?OptionProperties},
 > {
   state = {optionProperties: null};
 
@@ -169,7 +175,7 @@ export class Toolset extends React.Component<
     const toolProps = {
       locale: this.props.locale,
       renderer: this.props.renderer,
-      options: this.state,
+      options: this.props.preferences,
       setOptionProperties: this._setOptionProperties,
     };
     return (
@@ -217,8 +223,12 @@ export class Toolset extends React.Component<
                 labelSize={6}
                 padding={false}
                 rightAlign={true}
-                values={this.state}
-                setValue={(key, value) => this.setState({[key]: value})}
+                values={this.props.preferences}
+                setValue={(key, value) =>
+                  this.props.setPreferences(
+                    Object.assign({}, this.props.preferences, {[key]: value}),
+                  )
+                }
               />
             </Container>
           ) : null}
@@ -363,7 +373,7 @@ function ShortcutTooltip(props: {
 type ToolProps = {
   locale: string,
   renderer: ?Renderer,
-  options: Object,
+  options: UserGetPreferencesResponse,
   setOptionProperties: (?OptionProperties) => void,
   activeTool: ToolType,
   tempTool: ?ToolType,
