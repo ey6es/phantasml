@@ -154,20 +154,23 @@ library.add(faProjectDiagram);
 library.add(faVectorSquare);
 library.add(faStamp);
 
+type OptionProperties = {[string]: PropertyData};
+
 /**
  * The set of tools available.
  */
 export class Toolset extends React.Component<
   {locale: string, renderer: ?Renderer},
-  {options: ?React.Element<any>},
+  {optionProperties: ?OptionProperties, [string]: any},
 > {
-  state = {options: null};
+  state = {optionProperties: null};
 
   render() {
     const toolProps = {
       locale: this.props.locale,
       renderer: this.props.renderer,
-      setOptions: this._setOptions,
+      options: this.state,
+      setOptionProperties: this._setOptionProperties,
     };
     return (
       <div>
@@ -206,13 +209,27 @@ export class Toolset extends React.Component<
               <StampTool {...toolProps} />
             </ButtonGroup>
           </div>
-          {this.state.options}
+          {this.state.optionProperties ? (
+            <Container className="mt-1">
+              <PropertyEditorGroup
+                type="options"
+                properties={this.state.optionProperties}
+                labelSize={6}
+                padding={false}
+                rightAlign={true}
+                values={this.state}
+                setValue={(key, value) => this.setState({[key]: value})}
+              />
+            </Container>
+          ) : null}
         </div>
       </div>
     );
   }
 
-  _setOptions = (options: ?React.Element<any>) => this.setState({options});
+  _setOptionProperties = (optionProperties: ?OptionProperties) => {
+    this.setState({optionProperties});
+  };
 }
 
 const PlayButton = ReactRedux.connect(state => ({
@@ -346,7 +363,8 @@ function ShortcutTooltip(props: {
 type ToolProps = {
   locale: string,
   renderer: ?Renderer,
-  setOptions: (?React.Element<any>) => void,
+  options: Object,
+  setOptionProperties: (?OptionProperties) => void,
   activeTool: ToolType,
   tempTool: ?ToolType,
   selection: Set<string>,
@@ -364,15 +382,13 @@ function connectTool(toolImpl: Function) {
   }))(toolImpl);
 }
 
-class ToolImpl extends React.Component<ToolProps, Object> {
-  state = {};
-
+class ToolImpl extends React.Component<ToolProps, {}> {
   _type: ToolType;
   _icon: string;
   _name: React.Element<any>;
   _tempActivateShortcut: Shortcut;
   _activateShortcut: Shortcut;
-  _options: {[string]: PropertyData};
+  _optionProperties: OptionProperties;
 
   /** Checks whether the tool is active. */
   get active(): boolean {
@@ -394,7 +410,7 @@ class ToolImpl extends React.Component<ToolProps, Object> {
     icon: string,
     name: React.Element<any>,
     charOrCode: string | number,
-    options: {[string]: PropertyData},
+    optionProperties: OptionProperties,
     ...args: any[]
   ) {
     super(...args);
@@ -403,7 +419,7 @@ class ToolImpl extends React.Component<ToolProps, Object> {
     this._name = name;
     this._tempActivateShortcut = new Shortcut(charOrCode);
     this._activateShortcut = new Shortcut(charOrCode, Shortcut.SHIFT);
-    this._options = options;
+    this._optionProperties = optionProperties;
   }
 
   render() {
@@ -451,20 +467,6 @@ class ToolImpl extends React.Component<ToolProps, Object> {
         wasActive ? this._onDeactivate(renderer) : this._onActivate(renderer);
       }
     }
-    if (!(this.active && renderer)) {
-      return;
-    }
-    let stateChanged = false;
-    for (const key in this.state) {
-      if (this.state[key] !== prevState[key]) {
-        stateChanged = true;
-        break;
-      }
-    }
-    if (stateChanged) {
-      this._updateOptions();
-      renderer.requestFrameRender();
-    }
   }
 
   _subscribeToRenderer(renderer: Renderer) {
@@ -494,32 +496,12 @@ class ToolImpl extends React.Component<ToolProps, Object> {
   }
 
   _onActivate(renderer: Renderer) {
-    this._updateOptions();
+    this.props.setOptionProperties(this._optionProperties);
     renderer.requestFrameRender();
   }
 
   _onDeactivate(renderer: Renderer) {
     // nothing by default
-  }
-
-  _updateOptions() {
-    this.props.setOptions(this._renderOptions());
-  }
-
-  _renderOptions(): ?React.Element<any> {
-    return (
-      <Container className="mt-1">
-        <PropertyEditorGroup
-          type="options"
-          properties={this._options}
-          labelSize={6}
-          padding={false}
-          rightAlign={true}
-          values={this.state}
-          setValue={(key, value) => this.setState({[key]: value})}
-        />
-      </Container>
-    );
   }
 
   _renderHelpers = (renderer: Renderer) => {
@@ -674,10 +656,10 @@ class ToolImpl extends React.Component<ToolProps, Object> {
   ): Vector2 {
     const position = renderer.getEventPosition(clientX, clientY);
     const snapped = equals(position);
-    if (this.state.gridSnap) {
+    if (this.props.options.gridSnap) {
       roundEquals(snapped);
     }
-    if (!this.state.featureSnap) {
+    if (!this.props.options.featureSnap) {
       return snapped;
     }
     const resource = store.getState().resource;
@@ -721,7 +703,8 @@ class ToolImpl extends React.Component<ToolProps, Object> {
     );
     if (
       nearestDistance < Infinity &&
-      (!this.state.gridSnap || nearestDistance < distance(position, snapped))
+      (!this.props.options.gridSnap ||
+        nearestDistance < distance(position, snapped))
     ) {
       return nearestPosition;
     }
@@ -1142,7 +1125,7 @@ class HandleToolImpl extends ToolImpl {
   _pressed = false;
 
   get _local(): boolean {
-    return !!this.state.local;
+    return !!this.props.options.local;
   }
 
   _renderHelpers = (renderer: Renderer) => {
@@ -1301,16 +1284,16 @@ class TranslateToolImpl extends HandleToolImpl {
     oldPosition: Vector2,
     newPosition: Vector2,
   ): Transform {
-    this.state.gridSnap && roundEquals(newPosition);
+    this.props.options.gridSnap && roundEquals(newPosition);
     const translation = minus(newPosition, oldPosition);
     if (this._hover !== 'xy') {
       const axis = this._hover === 'x' ? vec2(1.0, 0.0) : vec2(0.0, 1.0);
       rotateEquals(axis, this._rotation);
       times(axis, dot(axis, translation), translation);
-      if (this.state.gridSnap) {
+      if (this.props.options.gridSnap) {
         roundEquals(plus(oldPosition, translation, newPosition));
         minus(newPosition, oldPosition, translation);
-        if (this.state.local) {
+        if (this.props.options.local) {
           const len = length(translation);
           if (len > 0) {
             const dp = dot(axis, translation) / len;
@@ -1378,7 +1361,7 @@ class RotateToolImpl extends HandleToolImpl {
       minusEquals(plus(newPosition, this._relativePosition), handlePosition),
     );
     let destRotation = sourceRotation + Math.asin(cross(from, to));
-    if (this.state.snap) {
+    if (this.props.options.snap) {
       destRotation = (Math.round((8 * destRotation) / Math.PI) * Math.PI) / 8;
     }
     const rotation = destRotation - sourceRotation;
@@ -1400,7 +1383,7 @@ function roundScale(scale: number): number {
 
 class ScaleToolImpl extends HandleToolImpl {
   get _local(): boolean {
-    return this.state.local !== false;
+    return this.props.options.local !== false;
   }
 
   constructor(...args: any[]) {
@@ -1456,7 +1439,7 @@ class ScaleToolImpl extends HandleToolImpl {
     if (this._hover !== 'y') {
       const fromScale = dot(from, axisX);
       let toScale = dot(to, axisX);
-      if (this.state.snap) {
+      if (this.props.options.snap) {
         toScale = roundScale(toScale);
       }
       if (fromScale !== 0.0 && toScale !== 0.0) {
@@ -1466,7 +1449,7 @@ class ScaleToolImpl extends HandleToolImpl {
     if (this._hover !== 'x') {
       const fromScale = dot(from, axisY);
       let toScale = dot(to, axisY);
-      if (this.state.snap) {
+      if (this.props.options.snap) {
         toScale = roundScale(toScale);
       }
       if (fromScale !== 0.0 && toScale !== 0.0) {
@@ -1523,7 +1506,7 @@ class ContiguousSelectToolImpl extends HoverToolImpl {
       const entity = resource.getEntity(id);
       entity && remainingEntities.add(entity);
     }
-    const radius = getValue(this.state.radius, 1.0);
+    const radius = getValue(this.props.options.radius, 1.0);
     const map: {[string]: boolean} = {};
     while (remainingEntities.size > 0) {
       for (const entity of remainingEntities) {
@@ -1654,16 +1637,16 @@ class PointToolImpl extends DrawToolImpl {
         this.props.locale,
         {
           point: {
-            thickness: this.state.thickness,
+            thickness: this.props.options.thickness,
             order: 1,
           },
           shapeRenderer: {
-            pathColor: this.state.pathColor,
+            pathColor: this.props.options.pathColor,
             order: 2,
           },
           shapeCollider: {order: 3},
           rigidBody: {
-            dynamic: this.state.dynamic,
+            dynamic: this.props.options.dynamic,
             order: 4,
           },
         },
@@ -1675,8 +1658,11 @@ class PointToolImpl extends DrawToolImpl {
     renderPointHelper(
       renderer,
       {translation},
-      getValue(this.state.thickness, DEFAULT_THICKNESS),
-      getValue(this.state.pathColor, PathColorProperty.pathColor.defaultValue),
+      getValue(this.props.options.thickness, DEFAULT_THICKNESS),
+      getValue(
+        this.props.options.pathColor,
+        PathColorProperty.pathColor.defaultValue,
+      ),
     );
   }
 }
@@ -1719,17 +1705,17 @@ class LineToolImpl extends DrawToolImpl {
       this.props.locale,
       {
         line: {
-          thickness: this.state.thickness,
+          thickness: this.props.options.thickness,
           length: distance(start, this._translation),
           order: 1,
         },
         shapeRenderer: {
-          pathColor: this.state.pathColor,
+          pathColor: this.props.options.pathColor,
           order: 2,
         },
         shapeCollider: {order: 3},
         rigidBody: {
-          dynamic: this.state.dynamic,
+          dynamic: this.props.options.dynamic,
           order: 4,
         },
       },
@@ -1745,9 +1731,9 @@ class LineToolImpl extends DrawToolImpl {
       renderPointHelper(
         renderer,
         this._getTransform(),
-        getValue(this.state.thickness, DEFAULT_THICKNESS),
+        getValue(this.props.options.thickness, DEFAULT_THICKNESS),
         getValue(
-          this.state.pathColor,
+          this.props.options.pathColor,
           PathColorProperty.pathColor.defaultValue,
         ),
       );
@@ -1756,8 +1742,11 @@ class LineToolImpl extends DrawToolImpl {
     renderLineHelper(
       renderer,
       this._getTransform(),
-      getValue(this.state.thickness, DEFAULT_THICKNESS),
-      getValue(this.state.pathColor, PathColorProperty.pathColor.defaultValue),
+      getValue(this.props.options.thickness, DEFAULT_THICKNESS),
+      getValue(
+        this.props.options.pathColor,
+        PathColorProperty.pathColor.defaultValue,
+      ),
       distance(start, translation),
     );
   }
@@ -1834,9 +1823,9 @@ class VertexToolImpl extends DrawToolImpl {
       renderPointHelper(
         renderer,
         {translation: equals(this._translation)},
-        getValue(this.state.thickness, DEFAULT_THICKNESS),
+        getValue(this.props.options.thickness, DEFAULT_THICKNESS),
         getValue(
-          this.state.pathColor,
+          this.props.options.pathColor,
           PathColorProperty.pathColor.defaultValue,
         ),
       );
@@ -1866,8 +1855,11 @@ class VertexToolImpl extends DrawToolImpl {
         translation: timesEquals(plus(start, end), 0.5),
         rotation: Math.atan2(vector.y, vector.x),
       },
-      getValue(this.state.thickness, DEFAULT_THICKNESS),
-      getValue(this.state.pathColor, PathColorProperty.pathColor.defaultValue),
+      getValue(this.props.options.thickness, DEFAULT_THICKNESS),
+      getValue(
+        this.props.options.pathColor,
+        PathColorProperty.pathColor.defaultValue,
+      ),
       distance(start, end),
     );
   }
@@ -1875,7 +1867,7 @@ class VertexToolImpl extends DrawToolImpl {
 
 class LineGroupToolImpl extends VertexToolImpl {
   get _loop(): boolean {
-    return getValue(this.state.loop, LoopProperty.loop.defaultValue);
+    return getValue(this.props.options.loop, LoopProperty.loop.defaultValue);
   }
 
   constructor(...args: any[]) {
@@ -1902,18 +1894,18 @@ class LineGroupToolImpl extends VertexToolImpl {
       this.props.locale,
       {
         lineGroup: {
-          thickness: this.state.thickness,
+          thickness: this.props.options.thickness,
           vertices: this._vertices,
-          loop: this.state.loop,
+          loop: this.props.options.loop,
           order: 1,
         },
         shapeRenderer: {
-          pathColor: this.state.pathColor,
+          pathColor: this.props.options.pathColor,
           order: 2,
         },
         shapeCollider: {order: 3},
         rigidBody: {
-          dynamic: this.state.dynamic,
+          dynamic: this.props.options.dynamic,
           order: 4,
         },
       },
@@ -1955,7 +1947,10 @@ class PolygonToolImpl extends VertexToolImpl {
   }
 
   _drawVertices(renderer: Renderer) {
-    const fill = getValue(this.state.fill, FillProperty.fill.defaultValue);
+    const fill = getValue(
+      this.props.options.fill,
+      FillProperty.fill.defaultValue,
+    );
     if (!fill || this._vertices.length === 1) {
       super._drawVertices(renderer);
       return;
@@ -1983,9 +1978,15 @@ class PolygonToolImpl extends VertexToolImpl {
     renderPolygonHelper(
       renderer,
       null,
-      getValue(this.state.thickness, DEFAULT_THICKNESS),
-      getValue(this.state.pathColor, PathColorProperty.pathColor.defaultValue),
-      getValue(this.state.fillColor, FillColorProperty.fillColor.defaultValue),
+      getValue(this.props.options.thickness, DEFAULT_THICKNESS),
+      getValue(
+        this.props.options.pathColor,
+        PathColorProperty.pathColor.defaultValue,
+      ),
+      getValue(
+        this.props.options.fillColor,
+        FillColorProperty.fillColor.defaultValue,
+      ),
       geometry,
     );
   }
@@ -1999,19 +2000,19 @@ class PolygonToolImpl extends VertexToolImpl {
       this.props.locale,
       {
         polygon: {
-          thickness: this.state.thickness,
+          thickness: this.props.options.thickness,
           vertices: this._vertices,
-          fill: this.state.fill,
+          fill: this.props.options.fill,
           order: 1,
         },
         shapeRenderer: {
-          pathColor: this.state.pathColor,
-          fillColor: this.state.fillColor,
+          pathColor: this.props.options.pathColor,
+          fillColor: this.props.options.fillColor,
           order: 2,
         },
         shapeCollider: {order: 3},
         rigidBody: {
-          dynamic: this.state.dynamic,
+          dynamic: this.props.options.dynamic,
           order: 4,
         },
       },
@@ -2072,20 +2073,20 @@ class RectangleToolImpl extends DrawToolImpl {
       this.props.locale,
       {
         rectangle: {
-          thickness: this.state.thickness,
+          thickness: this.props.options.thickness,
           width: Math.abs(this._translation.x - start.x),
           height: Math.abs(this._translation.y - start.y),
-          fill: this.state.fill,
+          fill: this.props.options.fill,
           order: 1,
         },
         shapeRenderer: {
-          pathColor: this.state.pathColor,
-          fillColor: this.state.fillColor,
+          pathColor: this.props.options.pathColor,
+          fillColor: this.props.options.fillColor,
           order: 2,
         },
         shapeCollider: {order: 3},
         rigidBody: {
-          dynamic: this.state.dynamic,
+          dynamic: this.props.options.dynamic,
           order: 4,
         },
       },
@@ -2101,9 +2102,9 @@ class RectangleToolImpl extends DrawToolImpl {
       renderPointHelper(
         renderer,
         this._getTransform(),
-        getValue(this.state.thickness, DEFAULT_THICKNESS),
+        getValue(this.props.options.thickness, DEFAULT_THICKNESS),
         getValue(
-          this.state.pathColor,
+          this.props.options.pathColor,
           PathColorProperty.pathColor.defaultValue,
         ),
       );
@@ -2112,10 +2113,16 @@ class RectangleToolImpl extends DrawToolImpl {
     renderRectangleHelper(
       renderer,
       this._getTransform(),
-      getValue(this.state.thickness, DEFAULT_THICKNESS),
-      getValue(this.state.pathColor, PathColorProperty.pathColor.defaultValue),
-      getValue(this.state.fillColor, FillColorProperty.fillColor.defaultValue),
-      getValue(this.state.fill, FillProperty.fill.defaultValue),
+      getValue(this.props.options.thickness, DEFAULT_THICKNESS),
+      getValue(
+        this.props.options.pathColor,
+        PathColorProperty.pathColor.defaultValue,
+      ),
+      getValue(
+        this.props.options.fillColor,
+        FillColorProperty.fillColor.defaultValue,
+      ),
+      getValue(this.props.options.fill, FillProperty.fill.defaultValue),
       Math.abs(translation.x - start.x),
       Math.abs(translation.y - start.y),
     );
@@ -2183,20 +2190,20 @@ class ArcToolImpl extends DrawToolImpl {
         this.props.locale,
         {
           arc: {
-            thickness: this.state.thickness,
+            thickness: this.props.options.thickness,
             radius,
             angle,
-            fill: this.state.fill,
+            fill: this.props.options.fill,
             order: 1,
           },
           shapeRenderer: {
-            pathColor: this.state.pathColor,
-            fillColor: this.state.fillColor,
+            pathColor: this.props.options.pathColor,
+            fillColor: this.props.options.fillColor,
             order: 2,
           },
           shapeCollider: {order: 3},
           rigidBody: {
-            dynamic: this.state.dynamic,
+            dynamic: this.props.options.dynamic,
             order: 4,
           },
         },
@@ -2233,9 +2240,9 @@ class ArcToolImpl extends DrawToolImpl {
       renderPointHelper(
         renderer,
         transform,
-        getValue(this.state.thickness, DEFAULT_THICKNESS),
+        getValue(this.props.options.thickness, DEFAULT_THICKNESS),
         getValue(
-          this.state.pathColor,
+          this.props.options.pathColor,
           PathColorProperty.pathColor.defaultValue,
         ),
       );
@@ -2246,16 +2253,16 @@ class ArcToolImpl extends DrawToolImpl {
       renderArcHelper(
         renderer,
         transform,
-        getValue(this.state.thickness, DEFAULT_THICKNESS),
+        getValue(this.props.options.thickness, DEFAULT_THICKNESS),
         getValue(
-          this.state.pathColor,
+          this.props.options.pathColor,
           PathColorProperty.pathColor.defaultValue,
         ),
         getValue(
-          this.state.fillColor,
+          this.props.options.fillColor,
           FillColorProperty.fillColor.defaultValue,
         ),
-        getValue(this.state.fill, FillProperty.fill.defaultValue),
+        getValue(this.props.options.fill, FillProperty.fill.defaultValue),
         distance(center, this._translation),
         2 * Math.PI,
       );
@@ -2286,10 +2293,16 @@ class ArcToolImpl extends DrawToolImpl {
     renderArcHelper(
       renderer,
       transform,
-      getValue(this.state.thickness, DEFAULT_THICKNESS),
-      getValue(this.state.pathColor, PathColorProperty.pathColor.defaultValue),
-      getValue(this.state.fillColor, FillColorProperty.fillColor.defaultValue),
-      getValue(this.state.fill, FillProperty.fill.defaultValue),
+      getValue(this.props.options.thickness, DEFAULT_THICKNESS),
+      getValue(
+        this.props.options.pathColor,
+        PathColorProperty.pathColor.defaultValue,
+      ),
+      getValue(
+        this.props.options.fillColor,
+        FillColorProperty.fillColor.defaultValue,
+      ),
+      getValue(this.props.options.fill, FillProperty.fill.defaultValue),
       radius,
       angle,
     );
@@ -2353,19 +2366,19 @@ class CurveToolImpl extends DrawToolImpl {
         this.props.locale,
         {
           curve: {
-            thickness: this.state.thickness,
+            thickness: this.props.options.thickness,
             span: distance(start, end),
             c1: minusEquals(times(controlPoint, 2.0), rightPoint),
             c2: rightPoint,
             order: 1,
           },
           shapeRenderer: {
-            pathColor: this.state.pathColor,
+            pathColor: this.props.options.pathColor,
             order: 2,
           },
           shapeCollider: {order: 3},
           rigidBody: {
-            dynamic: this.state.dynamic,
+            dynamic: this.props.options.dynamic,
             order: 4,
           },
         },
@@ -2405,9 +2418,9 @@ class CurveToolImpl extends DrawToolImpl {
       renderPointHelper(
         renderer,
         transform,
-        getValue(this.state.thickness, DEFAULT_THICKNESS),
+        getValue(this.props.options.thickness, DEFAULT_THICKNESS),
         getValue(
-          this.state.pathColor,
+          this.props.options.pathColor,
           PathColorProperty.pathColor.defaultValue,
         ),
       );
@@ -2418,9 +2431,9 @@ class CurveToolImpl extends DrawToolImpl {
       renderLineHelper(
         renderer,
         transform,
-        getValue(this.state.thickness, DEFAULT_THICKNESS),
+        getValue(this.props.options.thickness, DEFAULT_THICKNESS),
         getValue(
-          this.state.pathColor,
+          this.props.options.pathColor,
           PathColorProperty.pathColor.defaultValue,
         ),
         distance(start, this._translation),
@@ -2436,18 +2449,18 @@ class CurveToolImpl extends DrawToolImpl {
       renderPointHelper(
         renderer,
         {translation: this._translation},
-        getValue(this.state.thickness, DEFAULT_THICKNESS),
+        getValue(this.props.options.thickness, DEFAULT_THICKNESS),
         getValue(
-          this.state.pathColor,
+          this.props.options.pathColor,
           PathColorProperty.pathColor.defaultValue,
         ),
       );
       renderCurveHelper(
         renderer,
         transform,
-        getValue(this.state.thickness, DEFAULT_THICKNESS),
+        getValue(this.props.options.thickness, DEFAULT_THICKNESS),
         getValue(
-          this.state.pathColor,
+          this.props.options.pathColor,
           PathColorProperty.pathColor.defaultValue,
         ),
         distance(start, end),
@@ -2473,16 +2486,22 @@ class CurveToolImpl extends DrawToolImpl {
           controlCenter.x - this._translation.x,
         ),
       },
-      getValue(this.state.thickness, DEFAULT_THICKNESS),
-      getValue(this.state.pathColor, PathColorProperty.pathColor.defaultValue),
+      getValue(this.props.options.thickness, DEFAULT_THICKNESS),
+      getValue(
+        this.props.options.pathColor,
+        PathColorProperty.pathColor.defaultValue,
+      ),
       2.0 * distance(rightPoint, controlPoint),
       true,
     );
     renderCurveHelper(
       renderer,
       transform,
-      getValue(this.state.thickness, DEFAULT_THICKNESS),
-      getValue(this.state.pathColor, PathColorProperty.pathColor.defaultValue),
+      getValue(this.props.options.thickness, DEFAULT_THICKNESS),
+      getValue(
+        this.props.options.pathColor,
+        PathColorProperty.pathColor.defaultValue,
+      ),
       distance(start, end),
       minusEquals(times(controlPoint, 2.0), rightPoint),
       rightPoint,
