@@ -18,6 +18,7 @@ import {
   minusEquals,
   times,
   timesEquals,
+  negativeEquals,
   distance,
   length,
   dot,
@@ -32,6 +33,7 @@ import {
   getTransformRotation,
   transformPoint,
   transformPointEquals,
+  emptyBounds,
   addToBoundsEquals,
   getMean,
   getCentroid,
@@ -744,13 +746,104 @@ export const ComponentGeometry: {[string]: GeometryData} = {
       return shapeList;
     },
     getControlPoints: data => {
-      return [];
+      // we use negative thickness to indicate "invisible" control points
+      // used only for programmatic manipulation
+      return [
+        {position: vec2(), thickness: -1},
+        {position: vec2(1.0, 0.0), thickness: -1},
+        {position: vec2(0.0, 1.0), thickness: -1},
+      ];
     },
     createControlPointEdit: (entity, indexPositions, mirrored) => {
-      return {};
+      const list = entity.state.shapeList.list || '';
+      const vertices = [vec2(), vec2(1.0, 0.0), vec2(0.0, 1.0)];
+      const worldTransform = entity.getLastCachedValue('worldTransform');
+      const worldMatrix = getTransformMatrix(worldTransform);
+      vertices.forEach(vertex => transformPointEquals(vertex, worldMatrix));
+      for (const [index, position] of indexPositions) {
+        equals(position, vertices[index]);
+      }
+      const translation = vertices[0];
+      const axisX = vertices[1];
+      const axisY = vertices[2];
+      minusEquals(axisX, translation);
+      minusEquals(axisY, translation);
+      mirrored && negativeEquals(axisX);
+      const rotation = Math.atan2(axisX.y, axisX.x);
+      const scale = vec2(length(axisX), length(axisY));
+      return {
+        transform: simplifyTransform(
+          composeTransforms(
+            entity.state.transform,
+            composeTransforms(invertTransform(worldTransform), {
+              translation,
+              rotation,
+              scale,
+            }),
+          ),
+        ),
+        shapeList: {
+          list: mirrored ? mirrorShapeList(list) : list,
+        },
+      };
     },
   },
 };
+
+function mirrorShapeList(list: string): string {
+  const positionToString = (position: Vector2) => {
+    return (
+      roundToPrecision(-position.x, 6) + ' ' + roundToPrecision(position.y, 6)
+    );
+  };
+  let newList = '';
+  const pathVisitor = {
+    moveTo: position => {
+      newList += ` M ${positionToString(position)}`;
+    },
+    lineTo: position => {
+      newList += ` L ${positionToString(position)}`;
+    },
+    arcTo: (position, radius) => {
+      newList += ` A ${positionToString(position)} ${roundToPrecision(
+        -radius,
+        6,
+      )}`;
+    },
+    curveTo: (position, c1, c2) => {
+      newList +=
+        ` C ${positionToString(position)} ` +
+        `${positionToString(c1)} ${positionToString(c2)}`;
+    },
+  };
+  parseShapeList(
+    list,
+    {
+      createShapeVisitor: (fillColor, pathColor, thickness) => {
+        if (newList.length > 0) {
+          newList += ' ';
+        }
+        newList += `S ${fillColor} ${pathColor} ${roundToPrecision(
+          thickness,
+          6,
+        )}`;
+        return pathVisitor;
+      },
+      createPathVisitor: (loop, pathColor, thickness) => {
+        if (newList.length > 0) {
+          newList += ' ';
+        }
+        newList += `P ${Number(loop)} ${pathColor} ${roundToPrecision(
+          thickness,
+          6,
+        )}`;
+        return pathVisitor;
+      },
+    },
+    true,
+  );
+  return newList;
+}
 
 function addShapeOrPathToBounds(
   bounds: Bounds,
@@ -1152,8 +1245,13 @@ interface ShapeListVisitor {
  *
  * @param list the list to parse.
  * @param visitor the visitor to apply to the list elements.
+ * @param reversed if true, parse the paths in reverse order.
  */
-export function parseShapeList(list: string, visitor: ShapeListVisitor) {
+export function parseShapeList(
+  list: string,
+  visitor: ShapeListVisitor,
+  reversed: boolean = false,
+) {
   for (let ii = 0; ii < list.length; ) {
     const command = list.charAt(ii);
     ii += 2;
@@ -1175,7 +1273,7 @@ export function parseShapeList(list: string, visitor: ShapeListVisitor) {
         ii = parsePath(
           list,
           visitor.createShapeVisitor(fillColor, pathColor, thickness),
-          false,
+          reversed,
           ii,
         );
         break;
@@ -1196,7 +1294,7 @@ export function parseShapeList(list: string, visitor: ShapeListVisitor) {
         ii = parsePath(
           list,
           visitor.createPathVisitor(loop, pathColor, thickness),
-          false,
+          reversed,
           ii,
         );
         break;

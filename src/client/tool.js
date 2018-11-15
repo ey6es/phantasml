@@ -777,6 +777,7 @@ class SelectPanToolImpl extends ToolImpl {
     if (!resource) {
       return;
     }
+    const thicknessIncrement = this._getThicknessIncrement(renderer);
     for (const [id, controlPoints] of this._controlPoints) {
       const entity = resource.getEntity(id);
       if (!entity) {
@@ -787,13 +788,20 @@ class SelectPanToolImpl extends ToolImpl {
       );
       for (let ii = 0; ii < controlPoints.length; ii++) {
         const controlPoint = controlPoints[ii];
+        if (controlPoint.thickness < 0) {
+          continue;
+        }
         const position = transformPoint(controlPoint.position, matrix);
         const hovered =
           this._draggingIndices.get(id) === ii ||
-          distance(position, eventPosition) <= controlPoint.thickness;
+          this._isHovered(
+            position,
+            eventPosition,
+            controlPoint,
+            thicknessIncrement,
+          );
         let outlineColor = '#ffffff';
         let centerColor = '#222222';
-        const thicknessIncrement = renderer.pixelsToWorldUnits * 3;
         let centerThickness = thicknessIncrement;
         let outlineThickness = centerThickness + thicknessIncrement;
         if (hovered) {
@@ -845,6 +853,7 @@ class SelectPanToolImpl extends ToolImpl {
       this._lastClientX,
       this._lastClientY,
     );
+    const thicknessIncrement = this._getThicknessIncrement(renderer);
     for (const [id, controlPoints] of this._controlPoints) {
       const entity = resource.getEntity(id);
       if (!entity) {
@@ -855,8 +864,18 @@ class SelectPanToolImpl extends ToolImpl {
       );
       for (let ii = 0; ii < controlPoints.length; ii++) {
         const controlPoint = controlPoints[ii];
+        if (controlPoint.thickness < 0) {
+          continue;
+        }
         const position = transformPoint(controlPoint.position, matrix);
-        if (distance(position, eventPosition) <= controlPoint.thickness) {
+        if (
+          this._isHovered(
+            position,
+            eventPosition,
+            controlPoint,
+            thicknessIncrement,
+          )
+        ) {
           this._draggingIndices.set(id, ii);
         }
       }
@@ -878,6 +897,22 @@ class SelectPanToolImpl extends ToolImpl {
       this._panning = true;
     }
   };
+
+  _getThicknessIncrement(renderer: Renderer): number {
+    return renderer.pixelsToWorldUnits * 3;
+  }
+
+  _isHovered(
+    position: Vector2,
+    eventPosition: Vector2,
+    controlPoint: ControlPoint,
+    thicknessIncrement: number,
+  ): boolean {
+    return (
+      distance(position, eventPosition) <=
+      Math.max(controlPoint.thickness, thicknessIncrement * 2)
+    );
+  }
 
   _onMouseUp = (event: MouseEvent) => {
     if (this._draggingIndices.size > 0) {
