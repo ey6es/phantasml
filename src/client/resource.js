@@ -50,9 +50,13 @@ import {
   isResourceDescriptionValid,
 } from '../server/constants';
 import {ResourceActions} from '../server/store/resource';
+import {getValue} from '../server/store/util';
 
 /** The parameter prefix used for resources. */
 export const RESOURCE_PARAM = 'r=';
+
+/** The default number of minutes after which to auto-save. */
+export const DEFAULT_AUTO_SAVE_MINUTES = 5;
 
 /**
  * Retrieves the auto-save minutes setting from the preferences.
@@ -63,7 +67,7 @@ export const RESOURCE_PARAM = 'r=';
 export function getAutoSaveMinutes(
   preferences: UserGetPreferencesResponse,
 ): number {
-  return preferences.autoSaveMinutes == null ? 5 : preferences.autoSaveMinutes;
+  return getValue(preferences.autoSaveMinutes, DEFAULT_AUTO_SAVE_MINUTES);
 }
 
 /**

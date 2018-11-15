@@ -186,7 +186,8 @@ export class Interface extends React.Component<
   }
 
   async _fetchPreferences() {
-    this._setPreferences(await getFromApi('/user/preferences'));
+    const preferences = await getFromApi('/user/preferences');
+    this.setState({preferences});
   }
 
   _setPreferences = (preferences: UserGetPreferencesResponse) => {
@@ -194,16 +195,19 @@ export class Interface extends React.Component<
     if (this._preferencesIntervalId == null) {
       this._preferencesIntervalId = setInterval(
         this._flushPreferences,
-        60 * 1000,
+        30 * 1000,
       );
     }
   };
 
-  _flushPreferences = async () => {
+  _flushPreferences = async (preferences: ?UserGetPreferencesResponse) => {
+    if (this._preferencesIntervalId == null) {
+      return;
+    }
     this._clearPreferencesInterval();
     const request: UserPutPreferencesRequest = Object.assign(
       {},
-      this.state.preferences,
+      preferences || this.state.preferences,
     );
     await putToApi('/user/preferences', request);
   };

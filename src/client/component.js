@@ -27,6 +27,7 @@ import {
   DropdownToggle,
   DropdownMenu,
   DropdownItem,
+  UncontrolledDropdown,
   CustomInput,
 } from 'reactstrap';
 import type {EditorTab} from './store';
@@ -699,6 +700,40 @@ const PropertyEditors = {
           </Col>
         </Row>
       </Container>
+    );
+  },
+  select: (props: {
+    id: string,
+    property: PropertyData,
+    sm: number,
+    classSuffix: string,
+    rightAlign: ?boolean,
+    value: ?any,
+    setValue: any => void,
+  }) => {
+    const options = props.property.options || [];
+    const value = getValue(props.value, props.property.defaultValue);
+    let valueLabel = null;
+    for (const option of options) {
+      if (value === option.value) {
+        valueLabel = option.label;
+      }
+    }
+    return (
+      <div className={`col-sm-${props.sm}${props.classSuffix}`}>
+        <UncontrolledDropdown>
+          <DropdownToggle caret>{valueLabel}</DropdownToggle>
+          <DropdownMenu>
+            {options.map((option, index) => (
+              <DropdownItem
+                key={index}
+                onClick={() => props.setValue(option.value)}>
+                {option.label}
+              </DropdownItem>
+            ))}
+          </DropdownMenu>
+        </UncontrolledDropdown>
+      </div>
     );
   },
 };

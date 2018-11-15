@@ -8,18 +8,12 @@
 import * as React from 'react';
 import * as ReactRedux from 'react-redux';
 import {FormattedMessage} from 'react-intl';
-import {
-  DropdownItem,
-  Form,
-  FormGroup,
-  Label,
-  UncontrolledDropdown,
-  DropdownToggle,
-  DropdownMenu,
-} from 'reactstrap';
+import {DropdownItem, Form} from 'reactstrap';
+import type {PropertyData} from './component';
+import {PropertyEditorGroup} from './component';
 import {StoreActions, store} from './store';
 import {Menu, MenuItem, Shortcut, RequestDialog} from './util/ui';
-import {getAutoSaveMinutes} from './resource';
+import {DEFAULT_AUTO_SAVE_MINUTES} from './resource';
 import type {
   UserGetPreferencesResponse,
   ResourceDescriptor,
@@ -185,18 +179,61 @@ const SelectAllItem = ReactRedux.connect(state => {
   </MenuItem>
 ));
 
-const AUTO_SAVE_MINUTES_OPTIONS = [0, 1, 5, 15];
+const PreferenceProperties: {[string]: PropertyData} = {
+  autoSaveMinutes: {
+    type: 'select',
+    label: (
+      <FormattedMessage id="preferences.autosave" defaultMessage="Auto-Save:" />
+    ),
+    options: [
+      {
+        label: (
+          <FormattedMessage id="autosave.minutes.0" defaultMessage="Never" />
+        ),
+        value: 0,
+      },
+      {
+        label: (
+          <FormattedMessage
+            id="autosave.minutes.1"
+            defaultMessage="Every Minute"
+          />
+        ),
+        value: 1,
+      },
+      {
+        label: (
+          <FormattedMessage
+            id="autosave.minutes.5"
+            defaultMessage="Every 5 Minutes"
+          />
+        ),
+        value: 5,
+      },
+      {
+        label: (
+          <FormattedMessage
+            id="autosave.minutes.15"
+            defaultMessage="Every 15 Minutes"
+          />
+        ),
+        value: 15,
+      },
+    ],
+    defaultValue: DEFAULT_AUTO_SAVE_MINUTES,
+  },
+};
 
 class PreferencesDialog extends React.Component<
   {
     preferences: UserGetPreferencesResponse,
     setPreferences: UserGetPreferencesResponse => void,
-    flushPreferences: () => Promise<void>,
+    flushPreferences: (?UserGetPreferencesResponse) => Promise<void>,
     onClosed: () => void,
   },
-  {autoSaveMinutes: number},
+  {autoSaveMinutes: ?number},
 > {
-  state = {autoSaveMinutes: getAutoSaveMinutes(this.props.preferences)};
+  state = Object.assign({}, this.props.preferences);
 
   render() {
     return (
@@ -212,49 +249,22 @@ class PreferencesDialog extends React.Component<
         applicable
         cancelable>
         <Form>
-          <FormGroup>
-            <Label>
-              <FormattedMessage
-                id="preferences.autosave"
-                defaultMessage="Auto-Save"
-              />
-            </Label>
-            <UncontrolledDropdown>
-              <DropdownToggle caret>
-                {this._getAutoSaveMessage(this.state.autoSaveMinutes)}
-              </DropdownToggle>
-              <DropdownMenu>
-                {AUTO_SAVE_MINUTES_OPTIONS.map(autoSaveMinutes => (
-                  <DropdownItem
-                    key={autoSaveMinutes}
-                    onClick={() => this.setState({autoSaveMinutes})}>
-                    {this._getAutoSaveMessage(autoSaveMinutes)}
-                  </DropdownItem>
-                ))}
-              </DropdownMenu>
-            </UncontrolledDropdown>
-          </FormGroup>
+          <PropertyEditorGroup
+            properties={PreferenceProperties}
+            type="preferences"
+            labelSize={6}
+            values={this.state}
+            setValue={(key, value) => this.setState({[key]: value})}
+          />
         </Form>
       </RequestDialog>
     );
   }
 
-  _getAutoSaveMessage(autoSaveMinutes: number) {
-    return (
-      <FormattedMessage
-        id="autosave.minutes"
-        defaultMessage={`{autoSaveMinutes, plural,
-          =0 {Never} one {Every Minute} other {Every # Minutes}}`}
-        values={{autoSaveMinutes}}
-      />
-    );
-  }
-
   _makeRequest = async () => {
-    this.props.setPreferences(
-      Object.assign({}, this.props.preferences, this.state),
-    );
-    await this.props.flushPreferences();
+    const preferences = Object.assign({}, this.props.preferences, this.state);
+    this.props.setPreferences(preferences);
+    await this.props.flushPreferences(preferences);
     return {};
   };
 }
