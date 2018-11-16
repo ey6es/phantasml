@@ -5,6 +5,7 @@
  * @flow
  */
 
+import {ComponentColliders} from '../collision/colliders';
 import type {Entity} from '../../server/store/resource';
 import type {Scene} from '../../server/store/scene';
 import {
@@ -54,6 +55,12 @@ export const ComponentPhysics: {[string]: PhysicsData} = {
             ),
           },
         };
+        for (const key in entity.state) {
+          const collider = ComponentColliders[key];
+          if (collider) {
+            collider.collide(scene, entity, map);
+          }
+        }
         return true;
       }
       return true;
