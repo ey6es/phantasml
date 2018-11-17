@@ -19,7 +19,10 @@ export const CollisionCategory: {[string]: CategoryData} = {
   },
 };
 
-const FlagsProperty = {
+/**
+ * The shared flags property.
+ */
+export const FlagsProperty = {
   flags: {
     type: 'mask',
     label: <FormattedMessage id="collision.flags" defaultMessage="Flags:" />,
@@ -27,7 +30,10 @@ const FlagsProperty = {
   },
 };
 
-const MaskProperty = {
+/**
+ * The shared mask property.
+ */
+export const MaskProperty = {
   mask: {
     type: 'mask',
     label: <FormattedMessage id="collision.mask" defaultMessage="Mask:" />,
