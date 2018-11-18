@@ -23,7 +23,7 @@ import {
   transformBoundsEquals,
   expandBoundsEquals,
 } from './math';
-import {ComponentGeometry} from './geometry';
+import {ComponentBounds} from './bounds';
 import type {ResourceType} from '../api';
 
 const LEAF_EXPAND_SIZE = 16;
@@ -738,6 +738,7 @@ class QuadtreeNode {
 }
 
 function addToQuadtrees(
+  idTree: IdTreeNode,
   quadtrees: Map<string, QuadtreeNode>,
   lineage: Entity[],
 ): Map<string, QuadtreeNode> {
@@ -749,12 +750,16 @@ function addToQuadtrees(
   const root = newQuadtrees.get(page) || new QuadtreeNode(8);
   newQuadtrees.set(
     page,
-    root.addEntity(lineage[lineage.length - 1], getWorldBounds(lineage)),
+    root.addEntity(
+      lineage[lineage.length - 1],
+      getWorldBounds(idTree, lineage),
+    ),
   );
   return newQuadtrees;
 }
 
 function removeFromQuadtrees(
+  idTree: IdTreeNode,
   quadtrees: Map<string, QuadtreeNode>,
   lineage: Entity[],
 ): Map<string, QuadtreeNode> {
@@ -767,7 +772,7 @@ function removeFromQuadtrees(
   if (root) {
     root = root.removeEntity(
       lineage[lineage.length - 1],
-      getWorldBounds(lineage),
+      getWorldBounds(idTree, lineage),
     );
     if (root.isEmpty()) {
       newQuadtrees.delete(page);
@@ -778,24 +783,25 @@ function removeFromQuadtrees(
   return newQuadtrees;
 }
 
-function getWorldBounds(lineage: Entity[]): Bounds {
+function getWorldBounds(idTree: IdTreeNode, lineage: Entity[]): Bounds {
   return lineage[lineage.length - 1].getCachedValue(
     'worldBounds',
     computeWorldBounds,
+    idTree,
     lineage,
   );
 }
 
-function computeWorldBounds(lineage: Entity[]): Bounds {
+function computeWorldBounds(idTree: IdTreeNode, lineage: Entity[]): Bounds {
   const lastEntity = lineage[lineage.length - 1];
   const bounds = emptyBounds();
   let maxThickness = 0.0;
   for (const key in lastEntity.state) {
-    const data = ComponentGeometry[key];
+    const data = ComponentBounds[key];
     if (data) {
       maxThickness = Math.max(
         maxThickness,
-        data.addToBounds(bounds, lastEntity.state[key]),
+        data.addToBounds(idTree, lastEntity, bounds),
       );
     }
   }
@@ -918,7 +924,7 @@ export class Scene extends Resource {
     return new this.constructor(
       newIdTree,
       this._entityHierarchy.addEntity(lineage),
-      addToQuadtrees(this._quadtrees, lineage),
+      addToQuadtrees(newIdTree, this._quadtrees, lineage),
     );
   }
 
@@ -939,7 +945,10 @@ export class Scene extends Resource {
    * @return the entity's world bounds.
    */
   getWorldBounds(id: string): Bounds {
-    return getWorldBounds(this.getEntityLineage(this.getEntity(id)));
+    return getWorldBounds(
+      this._idTree,
+      this.getEntityLineage(this.getEntity(id)),
+    );
   }
 
   /**
@@ -1022,7 +1031,7 @@ export class Scene extends Resource {
     return new this.constructor(
       newIdTree,
       this._entityHierarchy.removeEntity(lineage),
-      removeFromQuadtrees(this._quadtrees, lineage),
+      removeFromQuadtrees(this._idTree, this._quadtrees, lineage),
     );
   }
 
@@ -1176,7 +1185,7 @@ export class Scene extends Resource {
     let newQuadtrees = this._quadtrees;
     for (const entity of removeFromQuadtree) {
       const lineage = this._idTree.getEntityLineage(entity);
-      newQuadtrees = removeFromQuadtrees(newQuadtrees, lineage);
+      newQuadtrees = removeFromQuadtrees(this._idTree, newQuadtrees, lineage);
     }
 
     // then the additions with the new one
@@ -1186,7 +1195,7 @@ export class Scene extends Resource {
     }
     for (const entity of addToQuadtree) {
       const lineage = newIdTree.getEntityLineage(entity);
-      newQuadtrees = addToQuadtrees(newQuadtrees, lineage);
+      newQuadtrees = addToQuadtrees(newIdTree, newQuadtrees, lineage);
     }
     return new this.constructor(newIdTree, newEntityHierarchy, newQuadtrees);
   }
@@ -1215,7 +1224,11 @@ export class Scene extends Resource {
         this._idTree = newIdTree;
       } else {
         this._entityHierarchy = this._entityHierarchy.addEntity(lineage);
-        this._quadtrees = addToQuadtrees(this._quadtrees, lineage);
+        this._quadtrees = addToQuadtrees(
+          this._idTree,
+          this._quadtrees,
+          lineage,
+        );
       }
     }
   }

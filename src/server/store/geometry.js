@@ -50,7 +50,6 @@ export type ControlPoint = {
 };
 
 type GeometryData = {
-  addToBounds: (Bounds, Object) => number,
   createShapeList: Object => ShapeList,
   getControlPoints: Object => ControlPoint[],
   createControlPointEdit: (Entity, [number, Vector2][], boolean) => Object,
@@ -163,11 +162,6 @@ function createShapeList(entity: Entity): ?TransferableValue<ShapeList> {
  */
 export const ComponentGeometry: {[string]: GeometryData} = {
   point: {
-    addToBounds: (bounds, data) => {
-      const thickness = getValue(data.thickness, DEFAULT_THICKNESS);
-      addToBoundsEquals(bounds, 0.0, 0.0);
-      return thickness;
-    },
     createShapeList: data => {
       const thickness = getValue(data.thickness, DEFAULT_THICKNESS);
       return new ShapeList().penDown(false, {thickness});
@@ -193,13 +187,6 @@ export const ComponentGeometry: {[string]: GeometryData} = {
     },
   },
   line: {
-    addToBounds: (bounds, data) => {
-      const thickness = getValue(data.thickness, DEFAULT_THICKNESS);
-      const halfLength = getValue(data.length, DEFAULT_LINE_LENGTH) * 0.5;
-      addToBoundsEquals(bounds, -halfLength, 0.0);
-      addToBoundsEquals(bounds, halfLength, 0.0);
-      return thickness;
-    },
     createShapeList: data => {
       const thickness = getValue(data.thickness, DEFAULT_THICKNESS);
       const length = getValue(data.length, DEFAULT_LINE_LENGTH);
@@ -242,14 +229,6 @@ export const ComponentGeometry: {[string]: GeometryData} = {
     },
   },
   lineGroup: {
-    addToBounds: (bounds, data) => {
-      const thickness = getValue(data.thickness, DEFAULT_THICKNESS);
-      const vertices = getValue(data.vertices, DEFAULT_VERTICES);
-      for (const vertex of vertices) {
-        addToBoundsEquals(bounds, vertex.x, vertex.y);
-      }
-      return thickness;
-    },
     createShapeList: data => {
       const thickness = getValue(data.thickness, DEFAULT_THICKNESS);
       const vertices = getValue(data.vertices, DEFAULT_VERTICES);
@@ -296,14 +275,6 @@ export const ComponentGeometry: {[string]: GeometryData} = {
     },
   },
   polygon: {
-    addToBounds: (bounds, data) => {
-      const thickness = getValue(data.thickness, DEFAULT_THICKNESS);
-      const vertices = getValue(data.vertices, DEFAULT_VERTICES);
-      for (const vertex of vertices) {
-        addToBoundsEquals(bounds, vertex.x, vertex.y);
-      }
-      return thickness;
-    },
     createShapeList: data => {
       const thickness = getValue(data.thickness, DEFAULT_THICKNESS);
       const vertices = getValue(data.vertices, DEFAULT_VERTICES);
@@ -362,14 +333,6 @@ export const ComponentGeometry: {[string]: GeometryData} = {
     },
   },
   rectangle: {
-    addToBounds: (bounds, data) => {
-      const thickness = getValue(data.thickness, DEFAULT_THICKNESS);
-      const halfWidth = getValue(data.width, DEFAULT_RECTANGLE_WIDTH) * 0.5;
-      const halfHeight = getValue(data.height, DEFAULT_RECTANGLE_HEIGHT) * 0.5;
-      addToBoundsEquals(bounds, -halfWidth, -halfHeight);
-      addToBoundsEquals(bounds, halfWidth, halfHeight);
-      return thickness;
-    },
     createShapeList: data => {
       const thickness = getValue(data.thickness, DEFAULT_THICKNESS);
       const width = getValue(data.width, DEFAULT_RECTANGLE_WIDTH);
@@ -490,13 +453,6 @@ export const ComponentGeometry: {[string]: GeometryData} = {
     },
   },
   arc: {
-    addToBounds: (bounds, data) => {
-      const thickness = getValue(data.thickness, DEFAULT_THICKNESS);
-      const radius = getValue(data.radius, DEFAULT_ARC_RADIUS);
-      addToBoundsEquals(bounds, -radius, -radius);
-      addToBoundsEquals(bounds, radius, radius);
-      return thickness;
-    },
     createShapeList: data => {
       const thickness = getValue(data.thickness, DEFAULT_THICKNESS);
       const radius = getValue(data.radius, DEFAULT_ARC_RADIUS);
@@ -579,17 +535,6 @@ export const ComponentGeometry: {[string]: GeometryData} = {
     },
   },
   curve: {
-    addToBounds: (bounds, data) => {
-      const thickness = getValue(data.thickness, DEFAULT_THICKNESS);
-      const halfSpan = getValue(data.span, DEFAULT_CURVE_SPAN) * 0.5;
-      const c1 = getValue(data.c1, DEFAULT_CURVE_C1);
-      const c2 = getValue(data.c2, DEFAULT_CURVE_C2);
-      addToBoundsEquals(bounds, -halfSpan, 0.0);
-      addToBoundsEquals(bounds, halfSpan, 0.0);
-      addToBoundsEquals(bounds, c1.x, c1.y);
-      addToBoundsEquals(bounds, c2.x, c2.y);
-      return thickness;
-    },
     createShapeList: data => {
       const thickness = getValue(data.thickness, DEFAULT_THICKNESS);
       const halfSpan = getValue(data.span, DEFAULT_CURVE_SPAN) * 0.5;
@@ -651,9 +596,6 @@ export const ComponentGeometry: {[string]: GeometryData} = {
     },
   },
   path: {
-    addToBounds: (bounds, data) => {
-      return addShapeOrPathToBounds(bounds, data, false);
-    },
     createShapeList: data => {
       return createShapeOrPathShapeList(data, false);
     },
@@ -670,9 +612,6 @@ export const ComponentGeometry: {[string]: GeometryData} = {
     },
   },
   shape: {
-    addToBounds: (bounds, data) => {
-      return addShapeOrPathToBounds(bounds, data, true);
-    },
     createShapeList: data => {
       return createShapeOrPathShapeList(data, true);
     },
@@ -689,22 +628,6 @@ export const ComponentGeometry: {[string]: GeometryData} = {
     },
   },
   shapeList: {
-    addToBounds: (bounds, data) => {
-      const list = data.list || '';
-      let maxThickness = 0.0;
-      const boundsVisitor = createBoundsVisitor(bounds);
-      parseShapeList(list, {
-        createShapeVisitor: (fillColor, pathColor, thickness) => {
-          maxThickness = Math.max(maxThickness, thickness);
-          return boundsVisitor;
-        },
-        createPathVisitor: (loop, pathColor, thickness) => {
-          maxThickness = Math.max(maxThickness, thickness);
-          return boundsVisitor;
-        },
-      });
-      return maxThickness;
-    },
     createShapeList: data => {
       const list = data.list || '';
       const shapeList = new ShapeList();
@@ -843,56 +766,6 @@ function mirrorShapeList(list: string): string {
     true,
   );
   return newList;
-}
-
-function addShapeOrPathToBounds(
-  bounds: Bounds,
-  data: Object,
-  shape: boolean,
-): number {
-  const path = (shape ? data.exterior : data.path) || '';
-  const thickness = getValue(data.thickness, DEFAULT_THICKNESS);
-  parsePath(path, createBoundsVisitor(bounds));
-  return thickness;
-}
-
-function createBoundsVisitor(bounds: Bounds): PathVisitor {
-  const lastPosition = vec2();
-  const vector = vec2();
-  const addCommand = (position: Vector2) => {
-    addToBoundsEquals(bounds, position.x, position.y);
-    equals(position, lastPosition);
-  };
-  return {
-    moveTo: addCommand,
-    lineTo: addCommand,
-    arcTo: (position, radius) => {
-      minus(position, lastPosition, vector);
-      const height = length(vector) / 2.0;
-      const angle = 2.0 * Math.asin(clamp(height / radius, -1.0, 1.0));
-      const distanceToCenter = radius * Math.cos(angle * 0.5);
-      plusEquals(
-        timesEquals(plusEquals(lastPosition, position), 0.5),
-        timesEquals(orthonormalizeEquals(vector), distanceToCenter),
-      );
-      addToBoundsEquals(
-        bounds,
-        lastPosition.x - radius,
-        lastPosition.y - radius,
-      );
-      addToBoundsEquals(
-        bounds,
-        lastPosition.x + radius,
-        lastPosition.y + radius,
-      );
-      addCommand(position);
-    },
-    curveTo: (position, c1, c2) => {
-      addToBoundsEquals(bounds, c1.x, c1.y);
-      addToBoundsEquals(bounds, c2.x, c2.y);
-      addCommand(position);
-    },
-  };
 }
 
 function createShapeOrPathShapeList(data: Object, shape: boolean): ShapeList {

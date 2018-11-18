@@ -1273,6 +1273,52 @@ export function expandBoundsEquals(bounds: Bounds, amount: number): Bounds {
 }
 
 /**
+ * Computes the union of two bounds objects.
+ *
+ * @param first the first of the bounds to combine.
+ * @param second the second of the bounds to combine.
+ * @param [result] the bounds in which to store the result (otherwise, a new
+ * bounds object will be created).
+ * @return a reference to the result bounds.
+ */
+export function boundsUnion(
+  first: Bounds,
+  second: Bounds,
+  result?: Bounds,
+): Bounds {
+  if (!result) {
+    return {
+      min: vec2(
+        Math.min(first.min.x, second.min.x),
+        Math.min(first.min.y, second.min.y),
+      ),
+      max: vec2(
+        Math.max(first.max.x, second.max.x),
+        Math.max(first.max.y, second.max.y),
+      ),
+    };
+  }
+  result.min.x = Math.min(first.min.x, second.min.x);
+  result.min.y = Math.min(first.min.y, second.min.y);
+  result.max.x = Math.max(first.max.x, second.max.x);
+  result.max.y = Math.max(first.max.y, second.max.y);
+  return result;
+}
+
+/**
+ * Computes the union of two bounds objects.
+ *
+ * @param first the first of the bounds to combine.
+ * @param second the second of the bounds to combine.
+ * @param [result] the bounds in which to store the result (otherwise, a new
+ * bounds object will be created).
+ * @return a reference to the result bounds.
+ */
+export function boundsUnionEquals(first: Bounds, second: Bounds): Bounds {
+  return boundsUnion(first, second, first);
+}
+
+/**
  * Gets the vertices of the provided bounds in CCW order.
  *
  * @param bounds the bounds of interest.

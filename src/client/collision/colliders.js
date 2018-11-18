@@ -7,15 +7,18 @@
 
 import {FlagsProperty, MaskProperty} from './components';
 import type {Entity} from '../../server/store/resource';
-import type {Scene} from '../../server/store/scene';
+import type {Scene, IdTreeNode} from '../../server/store/scene';
+import {ComponentBounds} from '../../server/store/bounds';
 import {
   DEFAULT_THICKNESS,
   getCollisionGeometry,
 } from '../../server/store/geometry';
+import type {Bounds} from '../../server/store/math';
 import {
   getTransformTranslation,
   composeTransforms,
   vec2,
+  addToBoundsEquals,
 } from '../../server/store/math';
 import {getValue} from '../../server/store/util';
 
@@ -86,5 +89,14 @@ export const ComponentColliders: {[string]: ColliderData} = {
         }
       });
     },
+  },
+};
+
+ComponentBounds.pointCollider = {
+  addToBounds: (idTree: IdTreeNode, entity: Entity, bounds: Bounds) => {
+    const data = entity.state.pointCollider;
+    const thickness = getValue(data.thickness, DEFAULT_THICKNESS);
+    addToBoundsEquals(bounds, 0.0, 0.0);
+    return thickness;
   },
 };

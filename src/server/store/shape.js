@@ -5,7 +5,7 @@
  * @flow
  */
 
-import type {Vector2, Transform, Plane} from './math';
+import type {Vector2, Transform, Plane, Bounds} from './math';
 import {
   radians,
   distance,
@@ -32,6 +32,9 @@ import {
   signedDistance,
   mix,
   roundToPrecision,
+  emptyBounds,
+  addToBoundsEquals,
+  boundsUnionEquals,
 } from './math';
 import type {CollisionPath, CollisionPolygon} from './collision';
 import {CollisionGeometry} from './collision';
@@ -136,6 +139,32 @@ export class Path {
       encoded += command.encode();
     }
     return encoded;
+  }
+
+  /**
+   * Adds this path to the provided bounds.
+   *
+   * @param bounds the bounds to add to.
+   * @return the maximum thickness.
+   */
+  addToBounds(bounds: Bounds): number {
+    this._ensureStartPosition(0);
+    let maxThickness = 0.0;
+    for (let ii = 0; ii < this.commands.length; ii++) {
+      const command = this.commands[ii];
+      let previous: ?PathCommand;
+      if (this.loop) {
+        const lastIndex = this.commands.length - 1;
+        previous = this.commands[(ii + lastIndex) % this.commands.length];
+      } else {
+        previous = this.commands[ii - 1];
+      }
+      maxThickness = Math.max(
+        maxThickness,
+        command.addToBounds(bounds, previous),
+      );
+    }
+    return maxThickness;
   }
 
   /**
@@ -407,6 +436,11 @@ class PathCommand {
 
   encode(): string {
     throw new Error('Not implemented.');
+  }
+
+  addToBounds(bounds: Bounds, previous: ?PathCommand): number {
+    addToBoundsEquals(bounds, this.dest.x, this.dest.y);
+    return (this.attributes && (this.attributes.thickness: any)) || 0.0;
   }
 
   requiresTessellation(): boolean {
@@ -842,6 +876,26 @@ class ArcTo extends PathCommand {
     );
   }
 
+  addToBounds(bounds: Bounds, previous: ?PathCommand): number {
+    if (!previous) {
+      throw new Error('Missing previous command.');
+    }
+    const [length, divisions] = this._getArcParameters(1.0, previous);
+    const angle = length / this.radius;
+    const midpoint = timesEquals(plus(this.dest, previous.dest), 0.5);
+    const distanceToCenter = this.radius * Math.cos(angle * 0.5);
+    const directionToCenter = orthonormalizeEquals(
+      minus(this.dest, previous.dest),
+    );
+    const center = plusEquals(
+      times(directionToCenter, distanceToCenter),
+      midpoint,
+    );
+    addToBoundsEquals(bounds, center.x - this.radius, center.y - this.radius);
+    addToBoundsEquals(bounds, center.x + this.radius, center.y + this.radius);
+    return super.addToBounds(bounds);
+  }
+
   requiresTessellation(): boolean {
     return true;
   }
@@ -1030,6 +1084,12 @@ class CurveTo extends PathCommand {
       ' ' +
       encodePoint(this.c2)
     );
+  }
+
+  addToBounds(bounds: Bounds, previous: ?PathCommand): number {
+    addToBoundsEquals(bounds, this.c1.x, this.c1.y);
+    addToBoundsEquals(bounds, this.c2.x, this.c2.y);
+    return super.addToBounds(bounds);
   }
 
   requiresTessellation(): boolean {
@@ -1235,6 +1295,16 @@ export class Shape {
    */
   encode(): string {
     return 'S ' + this.exterior.encodeContents(true);
+  }
+
+  /**
+   * Adds this shape to the provided bounds.
+   *
+   * @param bounds the bounds to add to.
+   * @return the maximum thickness.
+   */
+  addToBounds(bounds: Bounds): number {
+    return this.exterior.addToBounds(bounds);
   }
 
   /**
@@ -1471,6 +1541,9 @@ export class ShapeList {
 
   _stack: StackEntry[] = [];
 
+  _bounds: ?Bounds;
+  _maxThickness = 0.0;
+
   constructor(shapes: Shape[] = [], paths: Path[] = []) {
     this.shapes = shapes;
     this.paths = paths;
@@ -1534,6 +1607,33 @@ export class ShapeList {
       encoded += path.encode();
     }
     return encoded;
+  }
+
+  /**
+   * Adds this shape list's (lazily computed) bounds to the bounds object
+   * provided.
+   *
+   * @param bounds the bounds to add to.
+   * @return the maximum thickness.
+   */
+  addToBounds(bounds: Bounds): number {
+    if (!this._bounds) {
+      this._bounds = emptyBounds();
+      for (const shape of this.shapes) {
+        this._maxThickness = Math.max(
+          this._maxThickness,
+          shape.addToBounds(this._bounds),
+        );
+      }
+      for (const path of this.paths) {
+        this._maxThickness = Math.max(
+          this._maxThickness,
+          path.addToBounds(this._bounds),
+        );
+      }
+    }
+    boundsUnionEquals(bounds, this._bounds);
+    return this._maxThickness;
   }
 
   /**
