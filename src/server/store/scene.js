@@ -728,8 +728,8 @@ class QuadtreeNode {
           let newChild = newParent._children[ii];
           if (!newChild) {
             newChild = newParent._children[ii] = new QuadtreeNode();
-            newChild._entityBounds.set(entity, bounds);
           }
+          newChild._entityBounds.set(entity, bounds);
         }
       }
     }
