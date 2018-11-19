@@ -95,8 +95,8 @@ export const ComponentColliders: {[string]: ColliderData} = {
             'worldTransform',
           );
           const localTransform = composeTransforms(
-            invertTransform(entityTransform),
-            worldTransform,
+            invertTransform(worldTransform),
+            entityTransform,
           );
           collider.getShapePenetration(
             otherEntity,
@@ -108,11 +108,11 @@ export const ComponentColliders: {[string]: ColliderData} = {
             transformVectorEquals(
               transformVectorEquals(
                 penetration,
-                getTransformMatrix(entityTransform),
+                getTransformMatrix(worldTransform),
               ),
               getTransformInverseMatrix(parentTransform),
             );
-            plusEquals(separation, penetration);
+            minusEquals(separation, penetration);
           }
         }
       });
