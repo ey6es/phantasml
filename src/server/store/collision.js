@@ -239,7 +239,7 @@ export class CollisionGeometry {
         const vertexThickness = this._getVertexThickness(finalIndex, vertex);
         other.getPointPenetration(
           transformPointEquals(vertex, matrix),
-          vertexThickness,
+          vertexThickness + radius,
           otherPenetration,
         );
         const penetrationLength = length(otherPenetration);
@@ -752,7 +752,16 @@ export class CollisionGeometry {
   }
 }
 
-function getPointPointPenetration(
+/**
+ * Finds the penetration vector between two points.
+ *
+ * @param point the point to penetrate.
+ * @param pointThickness the point's associated thickness.
+ * @param vertex the penetrating vertex.
+ * @param vertexThickness the thickness associated with the vertex.
+ * @param result a vector to hold the result.
+ */
+export function getPointPointPenetration(
   point: Vector2,
   pointThickness: number,
   vertex: Vector2,

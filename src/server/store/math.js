@@ -818,6 +818,44 @@ export function transformPointEquals(
 }
 
 /**
+ * Transforms a vector by a 3x3 matrix.
+ *
+ * @param vector the vector to transform.
+ * @param matrix the matrix to transform by.
+ * @param [result] the vector in which to store the result (otherwise, a new
+ * vector will be created).
+ * @return a reference to the result vector, for chaining.
+ */
+export function transformVector(
+  vector: Vector2,
+  matrix: number[],
+  result?: Vector2,
+): Vector2 {
+  const x = vector.x * matrix[0] + vector.y * matrix[3];
+  const y = vector.x * matrix[1] + vector.y * matrix[4];
+  if (!result) {
+    return {x, y};
+  }
+  result.x = x;
+  result.y = y;
+  return result;
+}
+
+/**
+ * Transforms a vector by a 3x3 matrix.
+ *
+ * @param vector the vector to transform.
+ * @param matrix the matrix to transform by.
+ * @return a reference to the result vector, for chaining.
+ */
+export function transformVectorEquals(
+  vector: Vector2,
+  matrix: number[],
+): Vector2 {
+  return transformVector(vector, matrix, vector);
+}
+
+/**
  * Retrieves the minimum of each vector's components.
  *
  * @param v1 the first vector to compare.
