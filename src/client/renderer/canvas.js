@@ -96,7 +96,7 @@ export function getEntityRenderer(
  * Renders the scene.
  */
 export class RenderCanvas extends React.Component<
-  {setRenderer: (?Renderer) => void},
+  {setRenderer: (?Renderer) => void, fontImage: HTMLImageElement},
   {},
 > {
   _renderer: ?Renderer;
@@ -152,7 +152,10 @@ export class RenderCanvas extends React.Component<
       this.props.setRenderer((this._renderer = null));
     }
     if (canvas) {
-      const renderer = (this._renderer = new Renderer(canvas));
+      const renderer = (this._renderer = new Renderer(
+        canvas,
+        this.props.fontImage,
+      ));
       renderer.addRenderCallback(this._renderScene);
       this.props.setRenderer(renderer);
       renderer.renderFrame();

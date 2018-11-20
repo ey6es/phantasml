@@ -118,7 +118,11 @@ function PanShortcutHandler(props: {keyCode: number, dx: number, dy: number}) {
  * The 2D scene view.
  */
 export class SceneView extends React.Component<
-  {locale: string, setRenderer: (?Renderer) => void},
+  {
+    locale: string,
+    setRenderer: (?Renderer) => void,
+    fontImage: HTMLImageElement,
+  },
   {},
 > {
   render() {
@@ -129,7 +133,10 @@ export class SceneView extends React.Component<
           className={
             'flex-grow-1 border-left border-secondary position-relative'
           }>
-          <RenderCanvas setRenderer={this.props.setRenderer} />
+          <RenderCanvas
+            setRenderer={this.props.setRenderer}
+            fontImage={this.props.fontImage}
+          />
         </div>
       </div>
     );

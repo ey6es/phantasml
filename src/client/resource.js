@@ -499,15 +499,31 @@ export class ResourceContent extends React.Component<
     renderer: ?Renderer,
     setRenderer: (?Renderer) => void,
   },
-  {dialog: ?React.Element<any>},
+  {dialog: ?React.Element<any>, fontImage: ?HTMLImageElement},
 > {
-  state = {dialog: null};
+  state = {dialog: null, fontImage: null};
+
+  _fontImage: Promise<HTMLImageElement> = new Promise(
+    resolve => (this._resolveFontImage = resolve),
+  );
+  _resolveFontImage: HTMLImageElement => void;
 
   render() {
     return (
       <div>
         {this.props.resource ? this._createLayout(this.props.resource) : null}
         {this.state.dialog}
+        <img
+          ref={image => {
+            if (image) {
+              image.addEventListener('load', () =>
+                this._resolveFontImage(image),
+              );
+            }
+          }}
+          className="invisible"
+          src="Lato-Regular.png"
+        />
       </div>
     );
   }
@@ -515,10 +531,12 @@ export class ResourceContent extends React.Component<
   async componentDidMount() {
     this.props.setLoading(this, true);
     try {
-      const [resource, content] = await Promise.all([
+      const [resource, content, fontImage] = await Promise.all([
         getFromApi(getResourceMetadataPath(this.props.id)),
         getFromApi(getResourceContentPath(this.props.id)),
+        this._fontImage,
       ]);
+      this.setState({fontImage});
       this.props.setResource(resource);
       setStoreResource(resource.type, content);
       if (isResourceOwned(resource, this.props.userStatus) && !resource.name) {
@@ -565,6 +583,7 @@ export class ResourceContent extends React.Component<
               <SceneView
                 locale={this.props.locale}
                 setRenderer={this.props.setRenderer}
+                fontImage={(this.state.fontImage: any)}
               />
             </div>
             <div className="d-flex flex-column right-column">

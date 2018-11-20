@@ -23,6 +23,22 @@ import {
 } from '../../server/store/math';
 import * as FontData from '../font/Lato-Regular.json';
 
+const FontCharacters: Map<string, Object> = new Map();
+let maxCharacterId = 0;
+for (const character of FontData.chars) {
+  FontCharacters.set(character.char, character);
+  maxCharacterId = Math.max(maxCharacterId, character.id);
+}
+const Kernings: Map<number, number> = new Map();
+for (const kerning of FontData.kernings) {
+  Kernings.set(getKerningKey(kerning.first, kerning.second), kerning.amount);
+}
+function getKerningKey(first: number, second: number) {
+  return first * (maxCharacterId + 1) + second;
+}
+
+const FONT_SCALE = 1.0 / 10.0;
+
 /** Type of hover states that alter rendering behavior. */
 export type HoverState = boolean | 'erase' | Transform;
 
@@ -102,7 +118,11 @@ export const ComponentRenderers: {[string]: RendererData} = {
   textRenderer: {
     getZOrder: (data: Object) => data.zOrder || 0,
     createRenderFn: (data: Object, entity: Entity) => {
-      return (renderer, selected, hoverState) => {};
+      const transform: Transform = entity.getLastCachedValue('worldTransform');
+      const geometry = getTextGeometry(entity);
+      return (renderer, selected, hoverState) => {
+        renderText(renderer, transform, geometry);
+      };
     },
   },
   moduleRenderer: {
@@ -115,6 +135,41 @@ export const ComponentRenderers: {[string]: RendererData} = {
 
 ComponentBounds.textRenderer = {
   addToBounds: (idTree: IdTreeNode, entity: Entity, bounds: Bounds) => {
+    const text = entity.state.textRenderer.text || '';
+    let positionX = 0.0;
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+    let lastCharacterId: ?number;
+    for (let ii = 0; ii < text.length; ii++) {
+      const character = FontCharacters.get(text.charAt(ii));
+      if (!character) {
+        continue;
+      }
+      if (lastCharacterId != null) {
+        const kerning = Kernings.get(
+          getKerningKey(lastCharacterId, character.id),
+        );
+        if (kerning) {
+          positionX += kerning;
+        }
+      }
+      lastCharacterId = character.id;
+      minX = Math.min(minX, positionX + character.xoffset);
+      maxX = Math.max(maxX, positionX + character.xoffset + character.width);
+      minY = Math.min(
+        minY,
+        FontData.common.base - character.yoffset - character.height,
+      );
+      maxY = Math.max(maxY, FontData.common.base - character.yoffset);
+      positionX += character.xadvance;
+    }
+    const offsetX = positionX * 0.5;
+    bounds.min.x = Math.min(bounds.min.x, (minX - offsetX) * FONT_SCALE);
+    bounds.max.x = Math.max(bounds.max.x, (maxX - offsetX) * FONT_SCALE);
+    bounds.min.y = Math.min(bounds.min.y, minY * FONT_SCALE);
+    bounds.max.y = Math.max(bounds.max.y, maxY * FONT_SCALE);
     return 0.0;
   },
 };
@@ -124,6 +179,140 @@ ComponentBounds.moduleRenderer = {
     return 0.0;
   },
 };
+
+function getTextGeometry(entity: Entity): Geometry {
+  return (entity.getCachedValue(
+    'textGeometry',
+    createTextGeometry,
+    entity.state.textRenderer,
+  ): any);
+}
+
+function createTextGeometry(data: Object): TransferableValue<Geometry> {
+  const text = data.text || '';
+  let renderedChars = 0;
+  let width = 0;
+  for (let ii = 0; ii < text.length; ii++) {
+    const character = FontCharacters.get(text.charAt(ii));
+    if (character) {
+      renderedChars++;
+      width += character.xadvance;
+    }
+  }
+  const arrayBuffer = new Float32Array(4 * 4 * renderedChars);
+  const elementArrayBuffer = new Uint32Array(2 * 3 * renderedChars);
+  let arrayIndex = 0;
+  let elementArrayIndex = 0;
+  let elementIndex = 0;
+  const scaleS = 1.0 / FontData.common.scaleW;
+  const scaleT = 1.0 / FontData.common.scaleH;
+  let positionX = -width * 0.5;
+  let lastCharacterId: ?number;
+  for (let ii = 0; ii < text.length; ii++) {
+    const character = FontCharacters.get(text.charAt(ii));
+    if (!character) {
+      continue;
+    }
+    elementArrayBuffer[elementArrayIndex++] = elementIndex;
+    elementArrayBuffer[elementArrayIndex++] = elementIndex + 1;
+    elementArrayBuffer[elementArrayIndex++] = elementIndex + 2;
+
+    elementArrayBuffer[elementArrayIndex++] = elementIndex;
+    elementArrayBuffer[elementArrayIndex++] = elementIndex + 2;
+    elementArrayBuffer[elementArrayIndex++] = elementIndex + 3;
+    elementIndex += 4;
+
+    if (lastCharacterId != null) {
+      const kerning = Kernings.get(
+        getKerningKey(lastCharacterId, character.id),
+      );
+      if (kerning) {
+        positionX += kerning;
+      }
+    }
+    lastCharacterId = character.id;
+
+    const left = (positionX + character.xoffset) * FONT_SCALE;
+    const right =
+      (positionX + character.xoffset + character.width) * FONT_SCALE;
+    const top = (FontData.common.base - character.yoffset) * FONT_SCALE;
+    const bottom =
+      (FontData.common.base - character.yoffset - character.height) *
+      FONT_SCALE;
+    const uvLeft = character.x * scaleS;
+    const uvRight = (character.x + character.width) * scaleS;
+    const uvTop = character.y * scaleT;
+    const uvBottom = (character.y + character.height) * scaleT;
+    arrayBuffer[arrayIndex++] = left;
+    arrayBuffer[arrayIndex++] = bottom;
+    arrayBuffer[arrayIndex++] = uvLeft;
+    arrayBuffer[arrayIndex++] = uvBottom;
+
+    arrayBuffer[arrayIndex++] = right;
+    arrayBuffer[arrayIndex++] = bottom;
+    arrayBuffer[arrayIndex++] = uvRight;
+    arrayBuffer[arrayIndex++] = uvBottom;
+
+    arrayBuffer[arrayIndex++] = right;
+    arrayBuffer[arrayIndex++] = top;
+    arrayBuffer[arrayIndex++] = uvRight;
+    arrayBuffer[arrayIndex++] = uvTop;
+
+    arrayBuffer[arrayIndex++] = left;
+    arrayBuffer[arrayIndex++] = top;
+    arrayBuffer[arrayIndex++] = uvLeft;
+    arrayBuffer[arrayIndex++] = uvTop;
+
+    positionX += character.xadvance;
+  }
+  return new TransferableValue(
+    new Geometry(arrayBuffer, elementArrayBuffer, {vertex: 2, uv: 2}),
+    newEntity => {
+      return newEntity.state.textRenderer === data;
+    },
+  );
+}
+
+function renderText(
+  renderer: Renderer,
+  transform: Transform,
+  geometry: Geometry,
+) {
+  const program = renderer.getProgram(
+    renderText,
+    renderer.getVertexShader(renderText, TEXT_VERTEX_SHADER),
+    renderer.getFragmentShader(renderText, TEXT_FRAGMENT_SHADER),
+  );
+  program.setUniformViewProjectionMatrix('viewProjectionMatrix');
+  program.setUniformMatrix('modelMatrix', transform, getTransformMatrix);
+  program.setUniformInt('texture', 0);
+  renderer.setEnabled(renderer.gl.BLEND, true);
+  renderer.bindTexture(renderer.fontTexture);
+  geometry.draw(program);
+  renderer.bindTexture(null);
+}
+
+const TEXT_VERTEX_SHADER = `
+  uniform mat3 modelMatrix;
+  uniform mat3 viewProjectionMatrix;
+  attribute vec2 vertex;
+  attribute vec2 uv;
+  varying vec2 interpolatedUv;
+  void main(void) {
+    interpolatedUv = uv;
+    vec3 position = viewProjectionMatrix * (modelMatrix * vec3(vertex, 1.0));
+    gl_Position = vec4(position.xy, 0.0, 1.0);
+  }
+`;
+
+export const TEXT_FRAGMENT_SHADER = `
+  precision mediump float; 
+  uniform sampler2D texture;
+  varying vec2 interpolatedUv;
+  void main(void) {
+    gl_FragColor = texture2D(texture, interpolatedUv);
+  }
+`;
 
 function createGeometry(
   shapeList: ShapeList,

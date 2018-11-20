@@ -99,6 +99,20 @@ export class Program {
   }
 
   /**
+   * Sets the value of a uniform to a single integer.
+   *
+   * @param name the name of the uniform to set.
+   * @param value the value to set.
+   */
+  setUniformInt(name: string, value: number) {
+    if (this._uniformValues.get(name) !== value) {
+      this.bind();
+      this.renderer.gl.uniform1i(this.getUniformLocation(name), value);
+      this._uniformValues.set(name, value);
+    }
+  }
+
+  /**
    * Sets the value of a uniform to a vector.
    *
    * @param name the name of the uniform to set.
@@ -343,12 +357,15 @@ export class Renderer {
   programs: Map<mixed, Program> = new Map();
   levelOfDetail = 1.0 / 8.0;
 
+  fontTexture: WebGLTexture;
+
   _renderCallbacks: [(Renderer) => void, number][] = [];
   _frameDirty = false;
 
   _boundArrayBuffer: ?WebGLBuffer;
   _boundElementArrayBuffer: ?WebGLBuffer;
   _boundProgram: ?Program;
+  _boundTexture: ?WebGLTexture;
   _vertexAttribArraysEnabled: Set<number> = new Set();
   _capsEnabled: Set<number> = new Set();
   _blendFunc: {sfactor?: number, dfactor?: number} = {};
@@ -365,7 +382,7 @@ export class Renderer {
     return this._camera.size / this.canvas.clientHeight;
   }
 
-  constructor(canvas: HTMLCanvasElement) {
+  constructor(canvas: HTMLCanvasElement, fontImage: HTMLImageElement) {
     this.canvas = canvas;
     const gl = canvas.getContext('webgl', {alpha: false, depth: false});
     if (!gl) {
@@ -376,6 +393,19 @@ export class Renderer {
 
     // only one blend function at the moment
     this.setBlendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+
+    // load the font image
+    this.bindTexture((this.fontTexture = gl.createTexture()));
+    gl.texImage2D(
+      gl.TEXTURE_2D,
+      0,
+      gl.RGB,
+      gl.RGB,
+      gl.UNSIGNED_BYTE,
+      fontImage,
+    );
+    gl.generateMipmap(gl.TEXTURE_2D);
+    this.bindTexture(null);
   }
 
   /**
@@ -397,6 +427,7 @@ export class Renderer {
     for (const buffer of this.elementArrayBuffers.values()) {
       this.gl.deleteBuffer(buffer);
     }
+    this.gl.deleteTexture(this.fontTexture);
     this._frameDirty = false;
   }
 
@@ -639,6 +670,18 @@ export class Renderer {
     if (this._boundProgram !== program) {
       this.gl.useProgram(program.program);
       this._boundProgram = program;
+    }
+  }
+
+  /**
+   * Binds a texture.
+   *
+   * @param texture the texture to bind.
+   */
+  bindTexture(texture: ?WebGLTexture) {
+    if (this._boundTexture !== texture) {
+      this.gl.bindTexture(this.gl.TEXTURE_2D, texture);
+      this._boundTexture = texture;
     }
   }
 
