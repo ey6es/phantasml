@@ -50,6 +50,15 @@ export const FillColorProperty = {
   },
 };
 
+const ZOrderProperty = {
+  zOrder: {
+    type: 'number',
+    label: (
+      <FormattedMessage id="shape_renderer.z_order" defaultMessage="Z Order:" />
+    ),
+  },
+};
+
 /**
  * Renderer component metadata mapped by component name.
  */
@@ -91,15 +100,37 @@ export const RendererComponents: {[string]: ComponentData} = {
     properties: {
       ...PathColorProperty,
       ...FillColorProperty,
-      zOrder: {
-        type: 'number',
+      ...ZOrderProperty,
+    },
+    category: 'renderer',
+  },
+  textRenderer: {
+    label: (
+      <FormattedMessage
+        id="text_renderer.title"
+        defaultMessage="Text Renderer"
+      />
+    ),
+    properties: {
+      text: {
+        type: 'string',
         label: (
-          <FormattedMessage
-            id="shape_renderer.z_order"
-            defaultMessage="Z Order:"
-          />
+          <FormattedMessage id="text_renderer.text" defaultMessage="Text:" />
         ),
       },
+      ...ZOrderProperty,
+    },
+    category: 'renderer',
+  },
+  moduleRenderer: {
+    label: (
+      <FormattedMessage
+        id="module_renderer.title"
+        defaultMessage="Module Renderer"
+      />
+    ),
+    properties: {
+      ...ZOrderProperty,
     },
     category: 'renderer',
   },

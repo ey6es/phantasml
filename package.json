@@ -34,6 +34,7 @@
     "babel-preset-react": "^6.24.1",
     "bootswatch": "^4.1.2",
     "browserify-shim": "^3.8.14",
+    "cached-path-relative": ">=1.0.2",
     "fb": "^2.0.0",
     "flow-aws-lambda": "^1.0.3",
     "flow-bin": "^0.74.0",
@@ -56,13 +57,13 @@
     "husky": "^0.14.3",
     "js-yaml": "^3.12.0",
     "load-grunt-tasks": "^4.0.0",
+    "msdf-bmfont-xml": "^2.3.5",
     "opn": "^5.3.0",
     "prettier": "^1.13.7",
     "pretty-quick": "^1.6.0",
     "react-intl": "^2.4.0",
     "reactstrap": "^6.3.0",
-    "uuid": "^3.3.2",
-    "cached-path-relative": ">=1.0.2"
+    "uuid": "^3.3.2"
   },
   "dependencies": {
     "react": "^16.4.1",

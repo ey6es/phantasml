@@ -10,15 +10,18 @@ import type {Renderer} from './util';
 import {Geometry} from './util';
 import type {Entity} from '../../server/store/resource';
 import {TransferableValue} from '../../server/store/resource';
+import type {IdTreeNode} from '../../server/store/scene';
 import type {ShapeList} from '../../server/store/shape';
 import {getShapeList} from '../../server/store/geometry';
-import type {Transform} from '../../server/store/math';
+import {ComponentBounds} from '../../server/store/bounds';
+import type {Transform, Bounds} from '../../server/store/math';
 import {
   getTransformMatrix,
   getTransformVectorMatrix,
   getTransformMaxScaleMagnitude,
   composeTransforms,
 } from '../../server/store/math';
+import * as FontData from '../font/Lato-Regular.json';
 
 /** Type of hover states that alter rendering behavior. */
 export type HoverState = boolean | 'erase' | Transform;
@@ -95,6 +98,30 @@ export const ComponentRenderers: {[string]: RendererData} = {
         );
       };
     },
+  },
+  textRenderer: {
+    getZOrder: (data: Object) => data.zOrder || 0,
+    createRenderFn: (data: Object, entity: Entity) => {
+      return (renderer, selected, hoverState) => {};
+    },
+  },
+  moduleRenderer: {
+    getZOrder: (data: Object) => data.zOrder || 0,
+    createRenderFn: (data: Object, entity: Entity) => {
+      return (renderer, selected, hoverState) => {};
+    },
+  },
+};
+
+ComponentBounds.textRenderer = {
+  addToBounds: (idTree: IdTreeNode, entity: Entity, bounds: Bounds) => {
+    return 0.0;
+  },
+};
+
+ComponentBounds.moduleRenderer = {
+  addToBounds: (idTree: IdTreeNode, entity: Entity, bounds: Bounds) => {
+    return 0.0;
   },
 };
 

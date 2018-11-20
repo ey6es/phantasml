@@ -486,6 +486,28 @@ function isDroppable(
 }
 
 const PropertyEditors = {
+  string: (props: {
+    id: string,
+    property: PropertyData,
+    sm: number,
+    classSuffix: string,
+    rightAlign: ?boolean,
+    value: ?string,
+    setValue: string => void,
+  }) => {
+    return (
+      <div className={`col-sm-${props.sm}${props.classSuffix}`}>
+        <Input
+          id={props.id}
+          value={getValue(
+            props.value,
+            props.property.defaultValue || DefaultValues.string,
+          )}
+          onChange={event => props.setValue(event.target.value)}
+        />
+      </div>
+    );
+  },
   boolean: (props: {
     id: string,
     property: PropertyData,
@@ -739,6 +761,7 @@ const PropertyEditors = {
 };
 
 const DefaultValues = {
+  string: '',
   boolean: false,
   number: 0,
   mask: 0,

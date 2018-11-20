@@ -82,6 +82,16 @@ module.exports = function(grunt) {
             },
           ],
         },
+        json: {
+          files: [
+            {
+              expand: true,
+              cwd: 'src',
+              src: '**/*.json',
+              dest: 'build/',
+            },
+          ],
+        },
         server: {
           files: [
             {
@@ -98,12 +108,18 @@ module.exports = function(grunt) {
           src: 'build/client/app.bundle.js',
           dest: `dist/${key}/app.min.js`,
         };
-        taskConfig[key + '-icon'] = {
+        taskConfig[key + '-static'] = {
           files: [
             {
               expand: true,
               cwd: 'src/client/favicon',
               src: '*',
+              dest: `dist/${key}/`,
+            },
+            {
+              expand: true,
+              cwd: 'src/client/font',
+              src: '*.png',
               dest: `dist/${key}/`,
             },
           ],
@@ -362,10 +378,11 @@ module.exports = function(grunt) {
     const distributionConfig = config.distributions[key];
     grunt.registerTask(`build-${key}`, `Builds the ${key} distribution.`, [
       'babel',
+      'copy:json',
       `env:${key}`,
       `browserify:${key}`,
       'copy:server',
-      `copy:${key}-icon`,
+      `copy:${key}-static`,
       `${distributionConfig.beautify ? 'copy' : 'uglify'}:${key}`,
       `replace:${key}`,
       `less:${key}`,

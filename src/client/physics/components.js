@@ -87,6 +87,20 @@ export const PhysicsComponents: {[string]: ComponentData} = {
         precision: 2,
         defaultValue: 1.0,
       },
+      restitution: {
+        type: 'number',
+        label: (
+          <FormattedMessage
+            id="rigid_body.restitution"
+            defaultMessage="Restitution:"
+          />
+        ),
+        min: 0.0,
+        step: 0.01,
+        wheelStep: 0.1,
+        precision: 2,
+        defaultValue: 0.5,
+      },
     },
     category: 'physics',
   },
