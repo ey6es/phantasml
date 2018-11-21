@@ -118,7 +118,79 @@ export const RendererComponents: {[string]: ComponentData} = {
           <FormattedMessage id="text_renderer.text" defaultMessage="Text:" />
         ),
       },
+      color: {
+        type: 'color',
+        label: (
+          <FormattedMessage id="text_renderer.color" defaultMessage="Color:" />
+        ),
+        defaultValue: '#ffffff',
+      },
       ...ZOrderProperty,
+      hAlign: {
+        type: 'select',
+        label: (
+          <FormattedMessage
+            id="text_renderer.h_align"
+            defaultMessage="H Align:"
+          />
+        ),
+        options: [
+          {
+            label: <FormattedMessage id="h_align.left" defaultMessage="Left" />,
+            value: 'left',
+          },
+          {
+            label: (
+              <FormattedMessage id="h_align.center" defaultMessage="Center" />
+            ),
+            value: 'center',
+          },
+          {
+            label: (
+              <FormattedMessage id="h_align.right" defaultMessage="Right" />
+            ),
+            value: 'right',
+          },
+        ],
+        defaultValue: 'center',
+      },
+      vAlign: {
+        type: 'select',
+        label: (
+          <FormattedMessage
+            id="text_renderer.v_align"
+            defaultMessage="V Align:"
+          />
+        ),
+        options: [
+          {
+            label: <FormattedMessage id="v_align.top" defaultMessage="Top" />,
+            value: 'top',
+          },
+          {
+            label: (
+              <FormattedMessage id="v_align.middle" defaultMessage="Middle" />
+            ),
+            value: 'middle',
+          },
+          {
+            label: (
+              <FormattedMessage id="v_align.bottom" defaultMessage="Bottom" />
+            ),
+            value: 'bottom',
+          },
+          {
+            label: (
+              <FormattedMessage
+                id="v_align.baseline"
+                defaultMessage="Baseline"
+              />
+            ),
+            value: 'baseline',
+          },
+        ],
+        defaultValue: 'baseline',
+      },
     },
     category: 'renderer',
   },

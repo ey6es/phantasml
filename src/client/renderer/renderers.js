@@ -119,9 +119,12 @@ export const ComponentRenderers: {[string]: RendererData} = {
     getZOrder: (data: Object) => data.zOrder || 0,
     createRenderFn: (data: Object, entity: Entity) => {
       const transform: Transform = entity.getLastCachedValue('worldTransform');
+      const color =
+        data.color ||
+        RendererComponents.textRenderer.properties.color.defaultValue;
       const geometry = getTextGeometry(entity);
       return (renderer, selected, hoverState) => {
-        renderText(renderer, transform, geometry);
+        renderText(renderer, transform, color, geometry);
       };
     },
   },
@@ -135,7 +138,10 @@ export const ComponentRenderers: {[string]: RendererData} = {
 
 ComponentBounds.textRenderer = {
   addToBounds: (idTree: IdTreeNode, entity: Entity, bounds: Bounds) => {
-    const text = entity.state.textRenderer.text || '';
+    const data = entity.state.textRenderer;
+    const text = data.text || '';
+    const hAlign = data.hAlign || 'center';
+    const vAlign = data.vAlign || 'baseline';
     let positionX = 0.0;
     let minX = Infinity;
     let minY = Infinity;
@@ -165,11 +171,24 @@ ComponentBounds.textRenderer = {
       maxY = Math.max(maxY, FontData.common.base - character.yoffset);
       positionX += character.xadvance;
     }
-    const offsetX = positionX * 0.5;
-    bounds.min.x = Math.min(bounds.min.x, (minX - offsetX) * FONT_SCALE);
-    bounds.max.x = Math.max(bounds.max.x, (maxX - offsetX) * FONT_SCALE);
-    bounds.min.y = Math.min(bounds.min.y, minY * FONT_SCALE);
-    bounds.max.y = Math.max(bounds.max.y, maxY * FONT_SCALE);
+    let offsetX = 0.0;
+    if (hAlign === 'center') {
+      offsetX = -positionX * 0.5;
+    } else if (hAlign === 'right') {
+      offsetX = -positionX;
+    }
+    let offsetY = 0.0;
+    if (vAlign === 'top') {
+      offsetY = -FontData.common.base;
+    } else if (vAlign === 'middle') {
+      offsetY = FontData.common.lineHeight * 0.5 - FontData.common.base;
+    } else if (vAlign === 'bottom') {
+      offsetY = FontData.common.lineHeight - FontData.common.base;
+    }
+    bounds.min.x = Math.min(bounds.min.x, (minX + offsetX) * FONT_SCALE);
+    bounds.max.x = Math.max(bounds.max.x, (maxX + offsetX) * FONT_SCALE);
+    bounds.min.y = Math.min(bounds.min.y, (minY + offsetY) * FONT_SCALE);
+    bounds.max.y = Math.max(bounds.max.y, (maxY + offsetY) * FONT_SCALE);
     return 0.0;
   },
 };
@@ -190,6 +209,8 @@ function getTextGeometry(entity: Entity): Geometry {
 
 function createTextGeometry(data: Object): TransferableValue<Geometry> {
   const text = data.text || '';
+  const hAlign = data.hAlign || 'center';
+  const vAlign = data.vAlign || 'baseline';
   let renderedChars = 0;
   let width = 0;
   for (let ii = 0; ii < text.length; ii++) {
@@ -206,7 +227,20 @@ function createTextGeometry(data: Object): TransferableValue<Geometry> {
   let elementIndex = 0;
   const scaleS = 1.0 / FontData.common.scaleW;
   const scaleT = 1.0 / FontData.common.scaleH;
-  let positionX = -width * 0.5;
+  let positionX = 0.0;
+  if (hAlign === 'center') {
+    positionX = -width * 0.5;
+  } else if (hAlign === 'right') {
+    positionX = -width;
+  }
+  let offsetY = 0.0;
+  if (vAlign === 'top') {
+    offsetY = -FontData.common.base;
+  } else if (vAlign === 'middle') {
+    offsetY = FontData.common.lineHeight * 0.5 - FontData.common.base;
+  } else if (vAlign === 'bottom') {
+    offsetY = FontData.common.lineHeight - FontData.common.base;
+  }
   let lastCharacterId: ?number;
   for (let ii = 0; ii < text.length; ii++) {
     const character = FontCharacters.get(text.charAt(ii));
@@ -235,9 +269,10 @@ function createTextGeometry(data: Object): TransferableValue<Geometry> {
     const left = (positionX + character.xoffset) * FONT_SCALE;
     const right =
       (positionX + character.xoffset + character.width) * FONT_SCALE;
-    const top = (FontData.common.base - character.yoffset) * FONT_SCALE;
+    const top =
+      (FontData.common.base - character.yoffset + offsetY) * FONT_SCALE;
     const bottom =
-      (FontData.common.base - character.yoffset - character.height) *
+      (FontData.common.base - character.yoffset - character.height + offsetY) *
       FONT_SCALE;
     const uvLeft = character.x * scaleS;
     const uvRight = (character.x + character.width) * scaleS;
@@ -276,6 +311,7 @@ function createTextGeometry(data: Object): TransferableValue<Geometry> {
 function renderText(
   renderer: Renderer,
   transform: Transform,
+  color: string,
   geometry: Geometry,
 ) {
   const program = renderer.getProgram(
@@ -286,6 +322,8 @@ function renderText(
   program.setUniformViewProjectionMatrix('viewProjectionMatrix');
   program.setUniformMatrix('modelMatrix', transform, getTransformMatrix);
   program.setUniformInt('texture', 0);
+  program.setUniformFloat('stepSize', renderer.pixelsToWorldUnits * 2.0);
+  program.setUniformColor('color', color);
   renderer.setEnabled(renderer.gl.BLEND, true);
   renderer.bindTexture(renderer.fontTexture);
   geometry.draw(program);
@@ -308,9 +346,17 @@ const TEXT_VERTEX_SHADER = `
 export const TEXT_FRAGMENT_SHADER = `
   precision mediump float; 
   uniform sampler2D texture;
+  uniform float stepSize;
+  uniform vec3 color;
   varying vec2 interpolatedUv;
   void main(void) {
-    gl_FragColor = texture2D(texture, interpolatedUv);
+    vec4 dists = texture2D(texture, interpolatedUv);
+    float dist = max(
+      min(max(dists.r, dists.g), dists.b),
+      min(max(dists.b, dists.g), dists.r)
+    );
+    float alpha = smoothstep(0.5 - stepSize, 0.5 + stepSize, dist);
+    gl_FragColor = vec4(color, alpha);
   }
 `;
 
