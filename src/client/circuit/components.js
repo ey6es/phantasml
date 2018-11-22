@@ -10,15 +10,25 @@ import {FormattedMessage} from 'react-intl';
 import type {ComponentData, CategoryData} from '../component';
 
 /**
- * The circuit component category.
+ * The circuit component categories.
  */
-export const CircuitCategory: {[string]: CategoryData} = {
+export const CircuitCategories: {[string]: CategoryData} = {
   circuit: {
     label: <FormattedMessage id="circuit.title" defaultMessage="Circuit" />,
+  },
+  basic: {
+    label: <FormattedMessage id="basic.title" defaultMessage="Basic" />,
+    parent: 'circuit',
   },
 };
 
 /**
  * Circuit component metadata mapped by component name.
  */
-export const CircuitComponents: {[string]: ComponentData} = {};
+export const CircuitComponents: {[string]: ComponentData} = {
+  add: {
+    label: <FormattedMessage id="add.title" defaultMessage="Add" />,
+    properties: {},
+    category: 'basic',
+  },
+};

@@ -11,6 +11,7 @@ import {FormattedMessage} from 'react-intl';
 import {StoreActions, store, createUuid, centerPageOnSelection} from './store';
 import type {ComponentData} from './component';
 import {GeometryComponents} from './geometry/components';
+import {CircuitCategories, CircuitComponents} from './circuit/components';
 import type {Renderer} from './renderer/util';
 import {Menu, MenuItem, Submenu, renderText} from './util/ui';
 import type {Resource, Entity} from '../server/store/resource';
@@ -40,7 +41,6 @@ export class EntityDropdown extends React.Component<{locale: string}, {}> {
         <MenuItem onClick={() => this._createEntity(groupLabel)}>
           {groupLabel}
         </MenuItem>
-        <ShapeMenu createEntity={this._createEntity} />
         <MenuItem
           onClick={() =>
             this._createEntity(textLabel, {
@@ -52,6 +52,8 @@ export class EntityDropdown extends React.Component<{locale: string}, {}> {
           }>
           {textLabel}
         </MenuItem>
+        <ShapeMenu createEntity={this._createEntity} />
+        <ModuleMenu createEntity={this._createEntity} />
       </Menu>
     );
   }
@@ -91,6 +93,47 @@ function ShapeMenu(props: {
             </MenuItem>
           ) : null,
       )}
+    </Submenu>
+  );
+}
+
+function ModuleMenu(props: {
+  createEntity: (React.Element<any>, Object) => void,
+}) {
+  const entries: [string, ComponentData][] = (Object.entries(
+    CircuitComponents,
+  ): [string, any][]);
+  const categories: Map<string, [string, ComponentData][]> = new Map();
+  for (const [name, data] of entries) {
+    const category = data.category;
+    if (!category) {
+      continue;
+    }
+    let array = categories.get(category);
+    if (!array) {
+      categories.set(category, (array = []));
+    }
+    array.push([name, data]);
+  }
+  return (
+    <Submenu
+      label={<FormattedMessage id="entity.module" defaultMessage="Module" />}>
+      {Array.from(categories.entries()).map(([name, components]) => (
+        <Submenu key={name} label={CircuitCategories[name].label}>
+          {components.map(([name, data]) => (
+            <MenuItem
+              key={name}
+              onClick={() =>
+                props.createEntity(data.label, {
+                  [name]: {order: 1},
+                  moduleRenderer: {order: 2},
+                })
+              }>
+              {data.label}
+            </MenuItem>
+          ))}
+        </Submenu>
+      ))}
     </Submenu>
   );
 }

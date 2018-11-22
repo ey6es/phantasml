@@ -47,6 +47,7 @@ import {GeometryCategory, GeometryComponents} from './geometry/components';
 import {RendererCategory, RendererComponents} from './renderer/components';
 import {CollisionCategory, CollisionComponents} from './collision/components';
 import {PhysicsCategory, PhysicsComponents} from './physics/components';
+import {CircuitCategories, CircuitComponents} from './circuit/components';
 import type {Resource, Entity} from '../server/store/resource';
 import {Scene, SceneActions} from '../server/store/scene';
 import {radians, degrees, roundToPrecision, vec2} from '../server/store/math';
@@ -76,13 +77,25 @@ function CategorySubmenus() {
     return null;
   }
   const page = state.editorTab === 'page';
-  const categories: Map<string, [string, ComponentData][]> = new Map();
+  const categories: Map<
+    string,
+    [string, ComponentData | CategoryData][],
+  > = new Map();
   for (const name in Components) {
     const data = Components[name];
     const category = data.category;
     if (category && (page ? data.page === true : data.entity !== false)) {
       let array = categories.get(category);
       if (!array) {
+        const categoryData = Categories[category];
+        const parent = categoryData.parent;
+        if (parent) {
+          let parentArray = categories.get(parent);
+          if (!parentArray) {
+            categories.set(parent, (parentArray = []));
+          }
+          parentArray.push([category, categoryData]);
+        }
         categories.set(category, (array = []));
       }
       array.push([name, data]);
@@ -94,34 +107,52 @@ function CategorySubmenus() {
     const entity = resource.getEntity(id);
     entity && entities.push(entity);
   }
-  return Object.entries(Categories).map(([name, data]) => {
+  const createElement = ([name, data]) => {
+    if (data.properties) {
+      return (
+        <MenuItem
+          key={name}
+          disabled={entities.length === 0}
+          onClick={() => {
+            const map = {};
+            for (const entity of entities) {
+              let highestOrder = 0;
+              for (const key in entity.state) {
+                highestOrder = Math.max(
+                  highestOrder,
+                  entity.state[key].order || 0,
+                );
+              }
+              map[entity.id] = {[name]: {order: highestOrder + 1}};
+            }
+            store.dispatch(SceneActions.editEntities.create(map));
+          }}>
+          {data.label}
+        </MenuItem>
+      );
+    }
     const array = categories.get(name);
     if (!array) {
       return null;
     }
     return (
-      <Submenu key={name} label={(data: any).label}>
-        {array.map(([name, data]) => (
-          <MenuItem
-            key={name}
-            disabled={entities.length === 0}
-            onClick={() => {
-              const map = {};
-              for (const entity of entities) {
-                let highestOrder = 0;
-                for (const key in entity.state) {
-                  highestOrder = Math.max(
-                    highestOrder,
-                    entity.state[key].order || 0,
-                  );
-                }
-                map[entity.id] = {[name]: {order: highestOrder + 1}};
-              }
-              store.dispatch(SceneActions.editEntities.create(map));
-            }}>
-            {data.label}
-          </MenuItem>
-        ))}
+      <Submenu key={name} label={data.label}>
+        {array.map(createElement)}
+      </Submenu>
+    );
+  };
+  return Object.entries(Categories).map(([name, value]) => {
+    const data: CategoryData = (value: any);
+    if (data.parent) {
+      return null;
+    }
+    const array = categories.get(name);
+    if (!array) {
+      return null;
+    }
+    return (
+      <Submenu key={name} label={data.label}>
+        {array.map(createElement)}
       </Submenu>
     );
   });
@@ -846,10 +877,12 @@ const Components: {[string]: ComponentData} = {
   ...RendererComponents,
   ...CollisionComponents,
   ...PhysicsComponents,
+  ...CircuitComponents,
 };
 
 export type CategoryData = {
   label: React.Element<any>,
+  parent?: string,
 };
 
 const Categories: {[string]: CategoryData} = {
@@ -857,4 +890,5 @@ const Categories: {[string]: CategoryData} = {
   ...RendererCategory,
   ...CollisionCategory,
   ...PhysicsCategory,
+  ...CircuitCategories,
 };
