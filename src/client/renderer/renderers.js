@@ -11,8 +11,8 @@ import {Geometry} from './util';
 import type {Entity} from '../../server/store/resource';
 import {TransferableValue} from '../../server/store/resource';
 import type {IdTreeNode} from '../../server/store/scene';
-import type {ShapeList} from '../../server/store/shape';
-import {getShapeList} from '../../server/store/geometry';
+import {Path, Shape, ShapeList} from '../../server/store/shape';
+import {ComponentGeometry, getShapeList} from '../../server/store/geometry';
 import {ComponentBounds} from '../../server/store/bounds';
 import type {Transform, Bounds} from '../../server/store/math';
 import {
@@ -20,6 +20,8 @@ import {
   getTransformVectorMatrix,
   getTransformMaxScaleMagnitude,
   composeTransforms,
+  boundsUnionEquals,
+  vec2,
 } from '../../server/store/math';
 import * as FontData from '../font/Lato-Regular.json';
 
@@ -124,7 +126,7 @@ export const ComponentRenderers: {[string]: RendererData} = {
         RendererComponents.textRenderer.properties.color.defaultValue;
       const geometry = getTextGeometry(entity);
       return (renderer, selected, hoverState) => {
-        renderText(renderer, transform, color, geometry);
+        renderText(renderer, transform, color, geometry, selected, hoverState);
       };
     },
   },
@@ -138,60 +140,78 @@ export const ComponentRenderers: {[string]: RendererData} = {
 
 ComponentBounds.textRenderer = {
   addToBounds: (idTree: IdTreeNode, entity: Entity, bounds: Bounds) => {
-    const data = entity.state.textRenderer;
-    const text = data.text || '';
-    const hAlign = data.hAlign || 'center';
-    const vAlign = data.vAlign || 'baseline';
-    let positionX = 0.0;
-    let minX = Infinity;
-    let minY = Infinity;
-    let maxX = -Infinity;
-    let maxY = -Infinity;
-    let lastCharacterId: ?number;
-    for (let ii = 0; ii < text.length; ii++) {
-      const character = FontCharacters.get(text.charAt(ii));
-      if (!character) {
-        continue;
-      }
-      if (lastCharacterId != null) {
-        const kerning = Kernings.get(
-          getKerningKey(lastCharacterId, character.id),
-        );
-        if (kerning) {
-          positionX += kerning;
-        }
-      }
-      lastCharacterId = character.id;
-      minX = Math.min(minX, positionX + character.xoffset);
-      maxX = Math.max(maxX, positionX + character.xoffset + character.width);
-      minY = Math.min(
-        minY,
-        FontData.common.base - character.yoffset - character.height,
-      );
-      maxY = Math.max(maxY, FontData.common.base - character.yoffset);
-      positionX += character.xadvance;
-    }
-    let offsetX = 0.0;
-    if (hAlign === 'center') {
-      offsetX = -positionX * 0.5;
-    } else if (hAlign === 'right') {
-      offsetX = -positionX;
-    }
-    let offsetY = 0.0;
-    if (vAlign === 'top') {
-      offsetY = -FontData.common.base;
-    } else if (vAlign === 'middle') {
-      offsetY = FontData.common.lineHeight * 0.5 - FontData.common.base;
-    } else if (vAlign === 'bottom') {
-      offsetY = FontData.common.lineHeight - FontData.common.base;
-    }
-    bounds.min.x = Math.min(bounds.min.x, (minX + offsetX) * FONT_SCALE);
-    bounds.max.x = Math.max(bounds.max.x, (maxX + offsetX) * FONT_SCALE);
-    bounds.min.y = Math.min(bounds.min.y, (minY + offsetY) * FONT_SCALE);
-    bounds.max.y = Math.max(bounds.max.y, (maxY + offsetY) * FONT_SCALE);
+    boundsUnionEquals(bounds, getTextBounds(entity.state.textRenderer));
     return 0.0;
   },
 };
+
+ComponentGeometry.textRenderer = {
+  createShapeList: data => {
+    const bounds = getTextBounds(data);
+    const path = new Path()
+      .moveTo(bounds.min)
+      .lineTo(vec2(bounds.max.x, bounds.min.y))
+      .lineTo(bounds.max)
+      .lineTo(vec2(bounds.min.x, bounds.max.y))
+      .lineTo(bounds.min);
+    return new ShapeList([new Shape(path)]);
+  },
+  getControlPoints: data => [],
+  createControlPointEdit: (entity, indexPositions, mirrored) => ({}),
+};
+
+function getTextBounds(data: Object): Bounds {
+  const text = data.text || '';
+  const hAlign = data.hAlign || 'center';
+  const vAlign = data.vAlign || 'baseline';
+  let positionX = 0.0;
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  let lastCharacterId: ?number;
+  for (let ii = 0; ii < text.length; ii++) {
+    const character = FontCharacters.get(text.charAt(ii));
+    if (!character) {
+      continue;
+    }
+    if (lastCharacterId != null) {
+      const kerning = Kernings.get(
+        getKerningKey(lastCharacterId, character.id),
+      );
+      if (kerning) {
+        positionX += kerning;
+      }
+    }
+    lastCharacterId = character.id;
+    minX = Math.min(minX, positionX + character.xoffset);
+    maxX = Math.max(maxX, positionX + character.xoffset + character.width);
+    minY = Math.min(
+      minY,
+      FontData.common.base - character.yoffset - character.height,
+    );
+    maxY = Math.max(maxY, FontData.common.base - character.yoffset);
+    positionX += character.xadvance;
+  }
+  let offsetX = 0.0;
+  if (hAlign === 'center') {
+    offsetX = -positionX * 0.5;
+  } else if (hAlign === 'right') {
+    offsetX = -positionX;
+  }
+  let offsetY = 0.0;
+  if (vAlign === 'top') {
+    offsetY = -FontData.common.base;
+  } else if (vAlign === 'middle') {
+    offsetY = FontData.common.lineHeight * 0.5 - FontData.common.base;
+  } else if (vAlign === 'bottom') {
+    offsetY = FontData.common.lineHeight - FontData.common.base;
+  }
+  return {
+    min: vec2((minX + offsetX) * FONT_SCALE, (minY + offsetY) * FONT_SCALE),
+    max: vec2((maxX + offsetX) * FONT_SCALE, (maxY + offsetY) * FONT_SCALE),
+  };
+}
 
 ComponentBounds.moduleRenderer = {
   addToBounds: (idTree: IdTreeNode, entity: Entity, bounds: Bounds) => {
@@ -313,7 +333,21 @@ function renderText(
   transform: Transform,
   color: string,
   geometry: Geometry,
+  selected: boolean,
+  hoverState: HoverState,
 ) {
+  if (typeof hoverState === 'object') {
+    renderTranslucentText(
+      renderer,
+      composeTransforms(hoverState, transform),
+      color,
+      geometry,
+    );
+    return;
+  }
+  if (selected || hoverState) {
+    renderTextBackdrop(renderer, transform, geometry, selected, hoverState);
+  }
   const program = renderer.getProgram(
     renderText,
     renderer.getVertexShader(renderText, TEXT_VERTEX_SHADER),
@@ -322,7 +356,7 @@ function renderText(
   program.setUniformViewProjectionMatrix('viewProjectionMatrix');
   program.setUniformMatrix('modelMatrix', transform, getTransformMatrix);
   program.setUniformInt('texture', 0);
-  program.setUniformFloat('stepSize', renderer.pixelsToWorldUnits * 2.0);
+  program.setUniformFloat('stepSize', renderer.pixelsToWorldUnits);
   program.setUniformColor('color', color);
   renderer.setEnabled(renderer.gl.BLEND, true);
   renderer.bindTexture(renderer.fontTexture);
@@ -357,6 +391,99 @@ export const TEXT_FRAGMENT_SHADER = `
     );
     float alpha = smoothstep(0.5 - stepSize, 0.5 + stepSize, dist);
     gl_FragColor = vec4(color, alpha);
+  }
+`;
+
+function renderTranslucentText(
+  renderer: Renderer,
+  transform: Transform,
+  color: string,
+  geometry: Geometry,
+) {
+  const program = renderer.getProgram(
+    renderTranslucentText,
+    renderer.getVertexShader(renderTranslucentText, TEXT_VERTEX_SHADER),
+    renderer.getFragmentShader(
+      renderTranslucentText,
+      TRANSLUCENT_TEXT_FRAGMENT_SHADER,
+    ),
+  );
+  program.setUniformViewProjectionMatrix('viewProjectionMatrix');
+  program.setUniformMatrix('modelMatrix', transform, getTransformMatrix);
+  program.setUniformInt('texture', 0);
+  program.setUniformFloat('stepSize', renderer.pixelsToWorldUnits);
+  program.setUniformColor('color', color);
+  renderer.setEnabled(renderer.gl.BLEND, true);
+  renderer.bindTexture(renderer.fontTexture);
+  geometry.draw(program);
+  renderer.bindTexture(null);
+}
+
+export const TRANSLUCENT_TEXT_FRAGMENT_SHADER = `
+  precision mediump float; 
+  uniform sampler2D texture;
+  uniform float stepSize;
+  uniform vec3 color;
+  varying vec2 interpolatedUv;
+  void main(void) {
+    vec4 dists = texture2D(texture, interpolatedUv);
+    float dist = max(
+      min(max(dists.r, dists.g), dists.b),
+      min(max(dists.b, dists.g), dists.r)
+    );
+    float alpha = smoothstep(0.5 - stepSize, 0.5 + stepSize, dist);
+    gl_FragColor = vec4(color, alpha * 0.25);
+  }
+`;
+
+function renderTextBackdrop(
+  renderer: Renderer,
+  transform: Transform,
+  geometry: Geometry,
+  selected: boolean,
+  hoverState: HoverState,
+) {
+  const program = renderer.getProgram(
+    renderTextBackdrop,
+    renderer.getVertexShader(renderTextBackdrop, TEXT_VERTEX_SHADER),
+    renderer.getFragmentShader(
+      renderTextBackdrop,
+      TEXT_BACKDROP_FRAGMENT_SHADER,
+    ),
+  );
+  program.setUniformViewProjectionMatrix('viewProjectionMatrix');
+  program.setUniformMatrix('modelMatrix', transform, getTransformMatrix);
+  program.setUniformInt('texture', 0);
+  program.setUniformFloat('stepSize', renderer.pixelsToWorldUnits);
+  program.setUniformColor(
+    'color',
+    hoverState === 'erase' ? ERASE_COLOR : SELECT_COLOR,
+  );
+  program.setUniformFloat('alpha', selected ? 1.0 : 0.25);
+  renderer.setEnabled(renderer.gl.BLEND, true);
+  renderer.bindTexture(renderer.fontTexture);
+  geometry.draw(program);
+  renderer.bindTexture(null);
+}
+
+export const TEXT_BACKDROP_FRAGMENT_SHADER = `
+  precision mediump float; 
+  uniform sampler2D texture;
+  uniform float stepSize;
+  uniform vec3 color;
+  uniform float alpha;
+  varying vec2 interpolatedUv;
+  void main(void) {
+    vec4 dists = texture2D(texture, interpolatedUv);
+    float dist = max(
+      min(max(dists.r, dists.g), dists.b),
+      min(max(dists.b, dists.g), dists.r)
+    );
+    float baseAlpha = smoothstep(
+      0.5 - stepSize * 8.0,
+      0.5 - stepSize * 6.0, dist
+    );
+    gl_FragColor = vec4(color, baseAlpha * alpha);
   }
 `;
 

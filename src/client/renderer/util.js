@@ -404,6 +404,11 @@ export class Renderer {
       gl.UNSIGNED_BYTE,
       fontImage,
     );
+    gl.texParameteri(
+      gl.TEXTURE_2D,
+      gl.TEXTURE_MIN_FILTER,
+      gl.LINEAR_MIPMAP_LINEAR,
+    );
     gl.generateMipmap(gl.TEXTURE_2D);
     this.bindTexture(null);
   }

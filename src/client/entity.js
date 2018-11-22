@@ -22,6 +22,49 @@ import {
   simplifyTransform,
 } from '../server/store/math';
 
+/**
+ * The entity menu dropdown.
+ */
+export class EntityDropdown extends React.Component<{locale: string}, {}> {
+  render() {
+    const groupLabel = (
+      <FormattedMessage id="entity.group" defaultMessage="Group" />
+    );
+    const textLabel = (
+      <FormattedMessage id="entity.text" defaultMessage="Text" />
+    );
+    return (
+      <Menu
+        label={<FormattedMessage id="entity.title" defaultMessage="Entity" />}
+        omitChildrenWhenClosed={true}>
+        <MenuItem onClick={() => this._createEntity(groupLabel)}>
+          {groupLabel}
+        </MenuItem>
+        <ShapeMenu createEntity={this._createEntity} />
+        <MenuItem
+          onClick={() =>
+            this._createEntity(textLabel, {
+              textRenderer: {
+                text: renderText(textLabel, this.props.locale),
+                order: 1,
+              },
+            })
+          }>
+          {textLabel}
+        </MenuItem>
+      </Menu>
+    );
+  }
+
+  _createEntity = (label: React.Element<any>, state: Object = {}) => {
+    const storeState = store.getState();
+    const pageState = storeState.pageStates.get(storeState.page) || {};
+    const x: number = pageState.x || 0.0;
+    const y: number = pageState.y || 0.0;
+    createEntity(label, this.props.locale, state, {translation: {x, y}});
+  };
+}
+
 function ShapeMenu(props: {
   createEntity: (React.Element<any>, Object) => void,
 }) {
@@ -50,35 +93,6 @@ function ShapeMenu(props: {
       )}
     </Submenu>
   );
-}
-
-/**
- * The entity menu dropdown.
- */
-export class EntityDropdown extends React.Component<{locale: string}, {}> {
-  render() {
-    const groupLabel = (
-      <FormattedMessage id="entity.group" defaultMessage="Group" />
-    );
-    return (
-      <Menu
-        label={<FormattedMessage id="entity.title" defaultMessage="Entity" />}
-        omitChildrenWhenClosed={true}>
-        <MenuItem onClick={() => this._createEntity(groupLabel)}>
-          {groupLabel}
-        </MenuItem>
-        <ShapeMenu createEntity={this._createEntity} />
-      </Menu>
-    );
-  }
-
-  _createEntity = (label: React.Element<any>, state: Object = {}) => {
-    const storeState = store.getState();
-    const pageState = storeState.pageStates.get(storeState.page) || {};
-    const x: number = pageState.x || 0.0;
-    const y: number = pageState.y || 0.0;
-    createEntity(label, this.props.locale, state, {translation: {x, y}});
-  };
 }
 
 /**
