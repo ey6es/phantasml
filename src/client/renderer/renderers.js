@@ -138,6 +138,12 @@ export const ComponentRenderers: {[string]: RendererData} = {
   },
 };
 
+ComponentBounds.moduleRenderer = {
+  addToBounds: (idTree: IdTreeNode, entity: Entity, bounds: Bounds) => {
+    return 0.0;
+  },
+};
+
 ComponentBounds.textRenderer = {
   addToBounds: (idTree: IdTreeNode, entity: Entity, bounds: Bounds) => {
     boundsUnionEquals(bounds, getTextBounds(entity.state.textRenderer));
@@ -212,12 +218,6 @@ function getTextBounds(data: Object): Bounds {
     max: vec2((maxX + offsetX) * FONT_SCALE, (maxY + offsetY) * FONT_SCALE),
   };
 }
-
-ComponentBounds.moduleRenderer = {
-  addToBounds: (idTree: IdTreeNode, entity: Entity, bounds: Bounds) => {
-    return 0.0;
-  },
-};
 
 function getTextGeometry(entity: Entity): Geometry {
   return (entity.getCachedValue(
