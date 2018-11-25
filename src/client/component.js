@@ -389,11 +389,21 @@ const ComponentPanel = ReactRedux.connect(state => ({
           {component.label}
           {component.removable !== false ? (
             <Button
-              className="close float-right"
+              className="close float-right ml-2"
               onClick={() => props.editEntities({[props.id]: null})}>
               &times;
             </Button>
           ) : null}
+          {component.actions &&
+            component.actions.map((action, index) => (
+              <Button
+                key={index}
+                color="primary"
+                className="py-0 float-right"
+                onClick={() => action.execute(props.editEntities)}>
+                {action.label}
+              </Button>
+            ))}
         </CardHeader>
         <CardBody className="p-2">
           <PropertyEditorGroup
@@ -831,9 +841,15 @@ export type PropertyData = {
   [string]: any,
 };
 
+type ActionData = {
+  label: React.Element<any>,
+  execute: (editEntities: (Object) => void) => void,
+};
+
 export type ComponentData = {
   label: React.Element<any>,
   properties: {[string]: PropertyData},
+  actions?: ActionData[],
   removable?: boolean,
   category?: string,
   page?: boolean,
@@ -871,6 +887,15 @@ const Components: {[string]: ComponentData} = {
         defaultValue: vec2(1.0, 1.0),
       },
     },
+    actions: [
+      {
+        label: <FormattedMessage id="transform.reset" defaultMessage="Reset" />,
+        execute: editEntities =>
+          editEntities({
+            transform: {translation: null, rotation: null, scale: null},
+          }),
+      },
+    ],
     removable: false,
   },
   ...GeometryComponents,
