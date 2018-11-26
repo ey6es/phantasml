@@ -8,6 +8,7 @@
 import {RendererComponents} from './components';
 import type {Renderer} from './util';
 import {Geometry} from './util';
+import {ComponentModules} from '../circuit/modules';
 import type {Entity} from '../../server/store/resource';
 import {TransferableValue} from '../../server/store/resource';
 import type {IdTreeNode} from '../../server/store/scene';
@@ -21,6 +22,7 @@ import {
   getTransformMaxScaleMagnitude,
   composeTransforms,
   boundsUnionEquals,
+  addToBoundsEquals,
   vec2,
 } from '../../server/store/math';
 import * as FontData from '../font/Lato-Regular.json';
@@ -63,58 +65,13 @@ export const ComponentRenderers: {[string]: RendererData} = {
       if (!shapeList) {
         return () => {};
       }
-      const renderShapeFn = entity.state.shapeList
-        ? renderShapeList
-        : renderShape;
-      if (!shapeList.requiresTessellation()) {
-        const geometry: Geometry = (entity.getCachedValue(
-          'geometry',
-          createGeometry,
-          shapeList,
-          0,
-        ): any);
-        return (renderer, selected, hoverState) => {
-          const transform: Transform = entity.getLastCachedValue(
-            'worldTransform',
-          );
-          renderShapeFn(
-            renderer,
-            transform,
-            pathColor,
-            fillColor,
-            geometry,
-            selected,
-            hoverState,
-          );
-        };
-      }
-      return (renderer, selected, hoverState) => {
-        const transform: Transform = entity.getLastCachedValue(
-          'worldTransform',
-        );
-        const magnitude = getTransformMaxScaleMagnitude(transform);
-        const world = renderer.pixelsToWorldUnits / renderer.levelOfDetail;
-        const tessellation = magnitude / world;
-        const exponent =
-          tessellation === 0.0
-            ? 0.0
-            : Math.round(Math.log(tessellation) / Math.LN2);
-        const geometry: Geometry = (entity.getCachedValue(
-          exponent,
-          createGeometry,
-          shapeList,
-          exponent,
-        ): any);
-        renderShapeFn(
-          renderer,
-          transform,
-          pathColor,
-          fillColor,
-          geometry,
-          selected,
-          hoverState,
-        );
-      };
+      return createShapeListRenderFn(
+        entity,
+        shapeList,
+        entity.state.shapeList ? renderShapeList : renderShape,
+        pathColor,
+        fillColor,
+      );
     },
   },
   textRenderer: {
@@ -133,14 +90,175 @@ export const ComponentRenderers: {[string]: RendererData} = {
   moduleRenderer: {
     getZOrder: (data: Object) => data.zOrder || 0,
     createRenderFn: (data: Object, entity: Entity) => {
-      return (renderer, selected, hoverState) => {};
+      const shapeList = getModuleShapeList(entity);
+      if (!shapeList) {
+        return () => {};
+      }
+      return createShapeListRenderFn(
+        entity,
+        shapeList,
+        renderShapeList,
+        '#ffffff',
+        '#ffffff',
+      );
     },
   },
 };
 
+type RenderShapeFn = (
+  Renderer,
+  Transform,
+  string,
+  string,
+  Geometry,
+  boolean,
+  HoverState,
+) => void;
+
+function createShapeListRenderFn(
+  entity: Entity,
+  shapeList: ShapeList,
+  renderShapeFn: RenderShapeFn,
+  pathColor: string,
+  fillColor: string,
+): (Renderer, boolean, HoverState) => void {
+  if (!shapeList.requiresTessellation()) {
+    const geometry: Geometry = (entity.getCachedValue(
+      'geometry',
+      createGeometry,
+      shapeList,
+      0,
+    ): any);
+    return (renderer, selected, hoverState) => {
+      const transform: Transform = entity.getLastCachedValue('worldTransform');
+      renderShapeFn(
+        renderer,
+        transform,
+        pathColor,
+        fillColor,
+        geometry,
+        selected,
+        hoverState,
+      );
+    };
+  }
+  return (renderer, selected, hoverState) => {
+    const transform: Transform = entity.getLastCachedValue('worldTransform');
+    const magnitude = getTransformMaxScaleMagnitude(transform);
+    const world = renderer.pixelsToWorldUnits / renderer.levelOfDetail;
+    const tessellation = magnitude / world;
+    const exponent =
+      tessellation === 0.0
+        ? 0.0
+        : Math.round(Math.log(tessellation) / Math.LN2);
+    const geometry: Geometry = (entity.getCachedValue(
+      exponent,
+      createGeometry,
+      shapeList,
+      exponent,
+    ): any);
+    renderShapeFn(
+      renderer,
+      transform,
+      pathColor,
+      fillColor,
+      geometry,
+      selected,
+      hoverState,
+    );
+  };
+}
+
+const MODULE_WIDTH = 4.0;
+const MODULE_THICKNESS = 0.2;
+const TERMINAL_WIDTH = 1.5;
+const MODULE_HEIGHT_PER_TERMINAL = 2.0;
+const MODULE_BODY_ATTRIBUTES = {
+  thickness: 0.2,
+  pathColor: [1.0, 1.0, 1.0],
+  fillColor: [0.5, 0.5, 0.5],
+};
+
+function getModuleShapeList(entity: Entity): ?ShapeList {
+  return (entity.getCachedValue(
+    'moduleShapeList',
+    createModuleShapeList,
+    entity,
+  ): any);
+}
+
+function createModuleShapeList(entity: Entity): ?TransferableValue<ShapeList> {
+  for (const key in entity.state) {
+    const module = ComponentModules[key];
+    if (!module) {
+      continue;
+    }
+    const data = entity.state[key];
+    const icon = module.getIcon(data);
+    const inputs = module.getInputs(data);
+    const inputCount = Object.keys(inputs).length;
+    const outputs = module.getOutputs(data);
+    const outputCount = Object.keys(outputs).length;
+    const height =
+      MODULE_HEIGHT_PER_TERMINAL * Math.max(inputCount, outputCount);
+    const shapeList = new ShapeList();
+    let y = (inputCount - 1) * MODULE_HEIGHT_PER_TERMINAL * 0.5;
+    for (const input in inputs) {
+      shapeList
+        .move(MODULE_WIDTH * -0.5, y, 180)
+        .penDown(false, MODULE_BODY_ATTRIBUTES)
+        .advance(1)
+        .penUp()
+        .penDown(false, {thickness: 0.5})
+        .penUp();
+      y -= MODULE_HEIGHT_PER_TERMINAL;
+    }
+    y = (outputCount - 1) * MODULE_HEIGHT_PER_TERMINAL * 0.5;
+    for (const output in outputs) {
+      shapeList
+        .move(MODULE_WIDTH * 0.5, y, 0)
+        .penDown(false, MODULE_BODY_ATTRIBUTES)
+        .advance(0.7)
+        .penUp()
+        .pivot(-90)
+        .advance(0.3)
+        .pivot(116.5651)
+        .penDown(true, {fillColor: [1.0, 1.0, 1.0]})
+        .advance(0.67082)
+        .pivot(126.8699)
+        .advance(0.67082)
+        .pivot(116.5651)
+        .advance(0.6)
+        .penUp();
+      y -= MODULE_HEIGHT_PER_TERMINAL;
+    }
+    shapeList
+      .move(MODULE_WIDTH * -0.5, height * -0.5, 0, MODULE_BODY_ATTRIBUTES)
+      .penDown(true)
+      .advance(MODULE_WIDTH)
+      .pivot(90)
+      .advance(height)
+      .pivot(90)
+      .advance(MODULE_WIDTH)
+      .pivot(90)
+      .advance(height)
+      .penUp();
+    shapeList.add(module.getIcon(data));
+    return new TransferableValue(shapeList, newEntity => {
+      // we can transfer if we have the same module component
+      return newEntity.state[key] === data;
+    });
+  }
+}
+
 ComponentBounds.moduleRenderer = {
   addToBounds: (idTree: IdTreeNode, entity: Entity, bounds: Bounds) => {
-    return 0.0;
+    const shapeList = getModuleShapeList(entity);
+    if (!shapeList) {
+      return 0.0;
+    }
+    // TODO: add wire control points to bounds
+    return shapeList.addToBounds(bounds);
   },
 };
 
