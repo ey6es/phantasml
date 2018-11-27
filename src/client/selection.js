@@ -45,6 +45,8 @@ import {
   parsePath,
   parseShapeList,
 } from '../server/store/geometry';
+import type {Entity} from '../server/store/resource';
+import {TransferableValue} from '../server/store/resource';
 import {Scene, SceneActions} from '../server/store/scene';
 import {getValue, getColorArray} from '../server/store/util';
 
@@ -480,7 +482,7 @@ const ToShapeListItem = ReactRedux.connect(state => ({
 
 type ShapeListElement = {
   type: string,
-  data: Object,
+  entity: Entity,
   renderer: Object,
   transform: Transform,
 };
@@ -522,7 +524,7 @@ function convertToShapeList(locale: string) {
       plusEquals(centroid, getTransformTranslation(transform));
       elements.push({
         type: key,
-        data,
+        entity,
         renderer,
         transform,
       });
@@ -545,7 +547,10 @@ function convertToShapeList(locale: string) {
   const offset = {translation: negative(centroid)};
   for (const element of elements) {
     const geometry = ComponentGeometry[element.type];
-    const shapeList = geometry.createShapeList(element.data);
+    let shapeList = geometry.createShapeList(resource.idTree, element.entity);
+    if (shapeList instanceof TransferableValue) {
+      shapeList = shapeList.value;
+    }
     shapeList.transform(composeTransforms(offset, element.transform));
     shapeList.addAttributes({
       pathColor: getColorArray(

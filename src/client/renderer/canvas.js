@@ -13,6 +13,7 @@ import {ComponentRenderers} from './renderers';
 import type {PageState, ToolType} from '../store';
 import {DEFAULT_PAGE_SIZE, store} from '../store';
 import type {Resource, Entity} from '../../server/store/resource';
+import type {IdTreeNode} from '../../server/store/scene';
 import {Scene} from '../../server/store/scene';
 import {vec2} from '../../server/store/math';
 
@@ -64,20 +65,19 @@ export function compareEntityZOrders(a: EntityZOrder, b: EntityZOrder): number {
 /**
  * Creates the renderer for an entity.
  *
+ * @param idTree the id tree to use to look up entities.
  * @param entity the entity whose renderer is desired.
  * @return the render function.
  */
 export function getEntityRenderer(
+  idTree: IdTreeNode,
   entity: Entity,
 ): (Renderer, boolean, HoverState) => void {
   let renderFn: ?(Renderer, boolean, HoverState) => void;
   for (const key in entity.state) {
     const componentRenderer = ComponentRenderers[key];
     if (componentRenderer) {
-      const currentRenderFn = componentRenderer.createRenderFn(
-        entity.state[key],
-        entity,
-      );
+      const currentRenderFn = componentRenderer.createRenderFn(idTree, entity);
       if (renderFn) {
         const previousRenderFn = renderFn;
         renderFn = (renderer, selected, hoverState) => {
@@ -206,7 +206,12 @@ export class RenderCanvas extends React.Component<
       (state.tempTool || state.tool) === 'erase' ? 'erase' : true;
     for (const entityZOrder of entityZOrders) {
       const entity = entityZOrder.entity;
-      entity.getCachedValue('entityRenderer', getEntityRenderer, entity)(
+      entity.getCachedValue(
+        'entityRenderer',
+        getEntityRenderer,
+        resource.idTree,
+        entity,
+      )(
         renderer,
         state.selection.has(entity.id),
         state.hover.has(entity.id) ? hoverState : false,

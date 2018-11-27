@@ -601,7 +601,7 @@ class ToolImpl extends React.Component<ToolProps, {}> {
     const bounds = {min: position, max: position};
     if (boundsContain(renderer.getCameraBounds(), bounds)) {
       resource.applyToEntities(this.props.page, bounds, entity => {
-        const collisionGeometry = getCollisionGeometry(entity);
+        const collisionGeometry = getCollisionGeometry(resource.idTree, entity);
         if (
           collisionGeometry &&
           collisionGeometry.intersectsPoint(
@@ -637,7 +637,7 @@ class ToolImpl extends React.Component<ToolProps, {}> {
     const localVertices = [];
     const hover: Set<string> = new Set();
     resource.applyToEntities(this.props.page, bounds, entity => {
-      const collisionGeometry = getCollisionGeometry(entity);
+      const collisionGeometry = getCollisionGeometry(resource.idTree, entity);
       if (!collisionGeometry) {
         return;
       }
@@ -682,7 +682,7 @@ class ToolImpl extends React.Component<ToolProps, {}> {
       this.props.page,
       expandBoundsEquals({min: equals(position), max: equals(position)}, 1.0),
       entity => {
-        const collisionGeometry = getCollisionGeometry(entity);
+        const collisionGeometry = getCollisionGeometry(resource.idTree, entity);
         if (
           !collisionGeometry ||
           (matchFeatureEntity && !matchFeatureEntity(entity))
@@ -1522,7 +1522,7 @@ class ContiguousSelectToolImpl extends HoverToolImpl {
       for (const entity of remainingEntities) {
         map[entity.id] = additive ? !this.props.selection.has(entity.id) : true;
         remainingEntities.delete(entity);
-        const collisionGeometry = getCollisionGeometry(entity);
+        const collisionGeometry = getCollisionGeometry(resource.idTree, entity);
         if (!collisionGeometry) {
           continue;
         }
@@ -1536,7 +1536,10 @@ class ContiguousSelectToolImpl extends HoverToolImpl {
             if (map[entity.id] !== undefined) {
               return;
             }
-            const otherCollisionGeometry = getCollisionGeometry(entity);
+            const otherCollisionGeometry = getCollisionGeometry(
+              resource.idTree,
+              entity,
+            );
             if (
               otherCollisionGeometry &&
               otherCollisionGeometry.intersects(
@@ -2610,11 +2613,12 @@ class StampToolImpl extends DrawToolImpl {
     entityZOrders.sort(compareEntityZOrders);
     for (const entityZOrder of entityZOrders) {
       const entity = entityZOrder.entity;
-      entity.getCachedValue('entityRenderer', getEntityRenderer, entity)(
-        renderer,
-        false,
-        this._transform,
-      );
+      entity.getCachedValue(
+        'entityRenderer',
+        getEntityRenderer,
+        resource.idTree,
+        entity,
+      )(renderer, false, this._transform);
     }
   }
 }

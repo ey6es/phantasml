@@ -7,6 +7,7 @@
 
 import type {Entity} from './resource';
 import {TransferableValue} from './resource';
+import type {IdTreeNode} from './scene';
 import type {Vector2, Transform, Bounds} from './math';
 import {
   vec2,
@@ -50,7 +51,10 @@ export type ControlPoint = {
 };
 
 type GeometryData = {
-  createShapeList: Object => ShapeList,
+  createShapeList: (
+    IdTreeNode,
+    Entity,
+  ) => ShapeList | TransferableValue<ShapeList>,
   getControlPoints: Object => ControlPoint[],
   createControlPointEdit: (Entity, [number, Vector2][], boolean) => Object,
 };
@@ -71,21 +75,27 @@ export const DEFAULT_CURVE_C2 = vec2(0.833, -2);
 /**
  * Gets the collision geometry for the specified entity through the cache.
  *
+ * @param idTree the id tree to use to look up entities.
  * @param entity the entity whose collision geometry is desired.
  * @return the collision geometry, if any.
  */
-export function getCollisionGeometry(entity: Entity): ?CollisionGeometry {
+export function getCollisionGeometry(
+  idTree: IdTreeNode,
+  entity: Entity,
+): ?CollisionGeometry {
   return (entity.getCachedValue(
     'collisionGeometry',
     createCollisionGeometry,
+    idTree,
     entity,
   ): any);
 }
 
 function createCollisionGeometry(
+  idTree: IdTreeNode,
   entity: Entity,
 ): ?TransferableValue<CollisionGeometry> {
-  const shapeList = getShapeList(entity);
+  const shapeList = getShapeList(idTree, entity);
   if (!shapeList) {
     return null;
   }
@@ -116,25 +126,38 @@ function createCollisionGeometry(
 /**
  * Gets the shape list for the specified entity through the cache.
  *
+ * @param idTree the id tree to use to look up entities.
  * @param entity the entity whose shape list is desired.
  * @return the shape list, if any.
  */
-export function getShapeList(entity: Entity): ?ShapeList {
-  return (entity.getCachedValue('shapeList', createShapeList, entity): any);
+export function getShapeList(idTree: IdTreeNode, entity: Entity): ?ShapeList {
+  return (entity.getCachedValue(
+    'shapeList',
+    createShapeList,
+    idTree,
+    entity,
+  ): any);
 }
 
-function createShapeList(entity: Entity): ?TransferableValue<ShapeList> {
+function createShapeList(
+  idTree: IdTreeNode,
+  entity: Entity,
+): ?TransferableValue<ShapeList> {
   let currentShapeList: ?ShapeList;
   const components: GeometryData[] = [];
   for (const key in entity.state) {
     const data = ComponentGeometry[key];
     if (data) {
       const component = entity.state[key];
+      const shapeList = data.createShapeList(idTree, entity);
+      if (shapeList instanceof TransferableValue) {
+        return shapeList;
+      }
       components.push(component);
       if (currentShapeList) {
-        currentShapeList.add(data.createShapeList(component));
+        currentShapeList.add(shapeList);
       } else {
-        currentShapeList = data.createShapeList(component);
+        currentShapeList = shapeList;
       }
     }
   }
@@ -162,7 +185,8 @@ function createShapeList(entity: Entity): ?TransferableValue<ShapeList> {
  */
 export const ComponentGeometry: {[string]: GeometryData} = {
   point: {
-    createShapeList: data => {
+    createShapeList: (idTree, entity) => {
+      const data = entity.state.point;
       const thickness = getValue(data.thickness, DEFAULT_THICKNESS);
       return new ShapeList().penDown(false, {thickness});
     },
@@ -187,7 +211,8 @@ export const ComponentGeometry: {[string]: GeometryData} = {
     },
   },
   line: {
-    createShapeList: data => {
+    createShapeList: (idTree, entity) => {
+      const data = entity.state.line;
       const thickness = getValue(data.thickness, DEFAULT_THICKNESS);
       const length = getValue(data.length, DEFAULT_LINE_LENGTH);
       return new ShapeList()
@@ -229,7 +254,8 @@ export const ComponentGeometry: {[string]: GeometryData} = {
     },
   },
   lineGroup: {
-    createShapeList: data => {
+    createShapeList: (idTree, entity) => {
+      const data = entity.state.lineGroup;
       const thickness = getValue(data.thickness, DEFAULT_THICKNESS);
       const vertices = getValue(data.vertices, DEFAULT_VERTICES);
       const loop = getValue(data.loop, DEFAULT_LINE_GROUP_LOOP);
@@ -275,7 +301,8 @@ export const ComponentGeometry: {[string]: GeometryData} = {
     },
   },
   polygon: {
-    createShapeList: data => {
+    createShapeList: (idTree, entity) => {
+      const data = entity.state.polygon;
       const thickness = getValue(data.thickness, DEFAULT_THICKNESS);
       const vertices = getValue(data.vertices, DEFAULT_VERTICES);
       const fill = getValue(data.fill, DEFAULT_FILL);
@@ -333,7 +360,8 @@ export const ComponentGeometry: {[string]: GeometryData} = {
     },
   },
   rectangle: {
-    createShapeList: data => {
+    createShapeList: (idTree, entity) => {
+      const data = entity.state.rectangle;
       const thickness = getValue(data.thickness, DEFAULT_THICKNESS);
       const width = getValue(data.width, DEFAULT_RECTANGLE_WIDTH);
       const height = getValue(data.height, DEFAULT_RECTANGLE_HEIGHT);
@@ -453,7 +481,8 @@ export const ComponentGeometry: {[string]: GeometryData} = {
     },
   },
   arc: {
-    createShapeList: data => {
+    createShapeList: (idTree, entity) => {
+      const data = entity.state.arc;
       const thickness = getValue(data.thickness, DEFAULT_THICKNESS);
       const radius = getValue(data.radius, DEFAULT_ARC_RADIUS);
       const angle = getValue(data.angle, DEFAULT_ARC_ANGLE);
@@ -535,7 +564,8 @@ export const ComponentGeometry: {[string]: GeometryData} = {
     },
   },
   curve: {
-    createShapeList: data => {
+    createShapeList: (idTree, entity) => {
+      const data = entity.state.curve;
       const thickness = getValue(data.thickness, DEFAULT_THICKNESS);
       const halfSpan = getValue(data.span, DEFAULT_CURVE_SPAN) * 0.5;
       const c1 = getValue(data.c1, DEFAULT_CURVE_C1);
@@ -596,7 +626,8 @@ export const ComponentGeometry: {[string]: GeometryData} = {
     },
   },
   path: {
-    createShapeList: data => {
+    createShapeList: (idTree, entity) => {
+      const data = entity.state.path;
       return createShapeOrPathShapeList(data, false);
     },
     getControlPoints: data => {
@@ -612,7 +643,8 @@ export const ComponentGeometry: {[string]: GeometryData} = {
     },
   },
   shape: {
-    createShapeList: data => {
+    createShapeList: (idTree, entity) => {
+      const data = entity.state.shape;
       return createShapeOrPathShapeList(data, true);
     },
     getControlPoints: data => {
@@ -628,7 +660,8 @@ export const ComponentGeometry: {[string]: GeometryData} = {
     },
   },
   shapeList: {
-    createShapeList: data => {
+    createShapeList: (idTree, entity) => {
+      const data = entity.state.shapeList;
       const list = data.list || '';
       const shapeList = new ShapeList();
       const createVisitor = (path, fillColor, pathColor, thickness) => {

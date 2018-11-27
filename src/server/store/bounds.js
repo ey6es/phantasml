@@ -50,12 +50,12 @@ export const ComponentBounds: {[string]: BoundsData} = {
   },
   lineGroup: {
     addToBounds: (idTree: IdTreeNode, entity: Entity, bounds: Bounds) => {
-      return addShapeListToBounds(entity, bounds, 'lineGroup');
+      return addShapeListToBounds(idTree, entity, bounds, 'lineGroup');
     },
   },
   polygon: {
     addToBounds: (idTree: IdTreeNode, entity: Entity, bounds: Bounds) => {
-      return addShapeListToBounds(entity, bounds, 'polygon');
+      return addShapeListToBounds(idTree, entity, bounds, 'polygon');
     },
   },
   rectangle: {
@@ -95,30 +95,31 @@ export const ComponentBounds: {[string]: BoundsData} = {
   },
   path: {
     addToBounds: (idTree: IdTreeNode, entity: Entity, bounds: Bounds) => {
-      return addShapeListToBounds(entity, bounds, 'path');
+      return addShapeListToBounds(idTree, entity, bounds, 'path');
     },
   },
   shape: {
     addToBounds: (idTree: IdTreeNode, entity: Entity, bounds: Bounds) => {
-      return addShapeListToBounds(entity, bounds, 'shape');
+      return addShapeListToBounds(idTree, entity, bounds, 'shape');
     },
   },
   shapeList: {
     addToBounds: (idTree: IdTreeNode, entity: Entity, bounds: Bounds) => {
-      const shapeList = getShapeList(entity);
+      const shapeList = getShapeList(idTree, entity);
       return shapeList ? shapeList.addToBounds(bounds) : 0.0;
     },
   },
 };
 
 function addShapeListToBounds(
+  idTree: IdTreeNode,
   entity: Entity,
   bounds: Bounds,
   key: string,
 ): number {
   const data = entity.state[key];
   const thickness = getValue(data.thickness, DEFAULT_THICKNESS);
-  const shapeList = getShapeList(entity);
+  const shapeList = getShapeList(idTree, entity);
   shapeList && shapeList.addToBounds(bounds);
   return thickness;
 }

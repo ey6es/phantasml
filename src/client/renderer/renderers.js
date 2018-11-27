@@ -48,7 +48,10 @@ export type HoverState = boolean | 'erase' | Transform;
 
 type RendererData = {
   getZOrder: Object => number,
-  createRenderFn: (Object, Entity) => (Renderer, boolean, HoverState) => void,
+  createRenderFn: (
+    IdTreeNode,
+    Entity,
+  ) => (Renderer, boolean, HoverState) => void,
 };
 
 /**
@@ -57,11 +60,12 @@ type RendererData = {
 export const ComponentRenderers: {[string]: RendererData} = {
   shapeRenderer: {
     getZOrder: (data: Object) => data.zOrder || 0,
-    createRenderFn: (data: Object, entity: Entity) => {
+    createRenderFn: (idTree: IdTreeNode, entity: Entity) => {
+      const data = entity.state.shapeRenderer;
       const props = RendererComponents.shapeRenderer.properties;
       const pathColor = data.pathColor || props.pathColor.defaultValue;
       const fillColor = data.fillColor || props.fillColor.defaultValue;
-      const shapeList = getShapeList(entity);
+      const shapeList = getShapeList(idTree, entity);
       if (!shapeList) {
         return () => {};
       }
@@ -76,7 +80,8 @@ export const ComponentRenderers: {[string]: RendererData} = {
   },
   textRenderer: {
     getZOrder: (data: Object) => data.zOrder || 0,
-    createRenderFn: (data: Object, entity: Entity) => {
+    createRenderFn: (idTree: IdTreeNode, entity: Entity) => {
+      const data = entity.state.textRenderer;
       const transform: Transform = entity.getLastCachedValue('worldTransform');
       const color =
         data.color ||
@@ -89,7 +94,7 @@ export const ComponentRenderers: {[string]: RendererData} = {
   },
   moduleRenderer: {
     getZOrder: (data: Object) => data.zOrder || 0,
-    createRenderFn: (data: Object, entity: Entity) => {
+    createRenderFn: (idTree: IdTreeNode, entity: Entity) => {
       const shapeList = getModuleShapeList(entity);
       if (!shapeList) {
         return () => {};
@@ -270,7 +275,8 @@ ComponentBounds.textRenderer = {
 };
 
 ComponentGeometry.textRenderer = {
-  createShapeList: data => {
+  createShapeList: (idTree, entity) => {
+    const data = entity.state.textRenderer;
     const bounds = getTextBounds(data);
     const path = new Path()
       .moveTo(bounds.min)

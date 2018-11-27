@@ -40,8 +40,14 @@ import {getValue} from '../../server/store/util';
 
 type ColliderData = {
   collide: (Scene, Entity, Object) => void,
-  getShapePenetration: (Entity, CollisionGeometry, Transform, Vector2) => void,
-  getPointPenetration: (Entity, Vector2, number, Vector2) => void,
+  getShapePenetration: (
+    IdTreeNode,
+    Entity,
+    CollisionGeometry,
+    Transform,
+    Vector2,
+  ) => void,
+  getPointPenetration: (IdTreeNode, Entity, Vector2, number, Vector2) => void,
 };
 
 const bounds = {min: vec2(), max: vec2()};
@@ -58,8 +64,8 @@ export const ComponentColliders: {[string]: ColliderData} = {
     collide: (scene: Scene, entity: Entity, map: Object) => {
       const data = entity.state.shapeCollider;
       const mask = getValue(data.mask, MaskProperty.mask.defaultValue);
-      const shapeList = getShapeList(entity);
-      const collisionGeometry = getCollisionGeometry(entity);
+      const shapeList = getShapeList(scene.idTree, entity);
+      const collisionGeometry = getCollisionGeometry(scene.idTree, entity);
       if (!(shapeList && collisionGeometry && mask !== 0)) {
         return;
       }
@@ -99,6 +105,7 @@ export const ComponentColliders: {[string]: ColliderData} = {
             entityTransform,
           );
           collider.getShapePenetration(
+            scene.idTree,
             otherEntity,
             collisionGeometry,
             localTransform,
@@ -119,12 +126,13 @@ export const ComponentColliders: {[string]: ColliderData} = {
       plusEquals(newTransform.translation, separation);
     },
     getShapePenetration: (
+      idTree: IdTreeNode,
       entity: Entity,
       geometry: CollisionGeometry,
       transform: Transform,
       result: Vector2,
     ) => {
-      const collisionGeometry = getCollisionGeometry(entity);
+      const collisionGeometry = getCollisionGeometry(idTree, entity);
       if (collisionGeometry) {
         collisionGeometry.getPenetration(geometry, transform, 0.0, result);
       } else {
@@ -132,12 +140,13 @@ export const ComponentColliders: {[string]: ColliderData} = {
       }
     },
     getPointPenetration: (
+      idTree: IdTreeNode,
       entity: Entity,
       vertex: Vector2,
       vertexThickness: number,
       result: Vector2,
     ) => {
-      const collisionGeometry = getCollisionGeometry(entity);
+      const collisionGeometry = getCollisionGeometry(idTree, entity);
       if (collisionGeometry) {
         collisionGeometry.getPointPenetration(vertex, vertexThickness, result);
       } else {
@@ -190,6 +199,7 @@ export const ComponentColliders: {[string]: ColliderData} = {
             worldTransform,
           );
           collider.getPointPenetration(
+            scene.idTree,
             otherEntity,
             getTransformTranslation(localTransform),
             thickness,
@@ -210,6 +220,7 @@ export const ComponentColliders: {[string]: ColliderData} = {
       plusEquals(newTransform.translation, separation);
     },
     getShapePenetration: (
+      idTree: IdTreeNode,
       entity: Entity,
       geometry: CollisionGeometry,
       transform: Transform,
@@ -224,6 +235,7 @@ export const ComponentColliders: {[string]: ColliderData} = {
       }
     },
     getPointPenetration: (
+      idTree: IdTreeNode,
       entity: Entity,
       vertex: Vector2,
       vertexThickness: number,
