@@ -56,6 +56,8 @@ export type ToolType =
   | 'curve'
   | 'stamp';
 
+export type HoverState = any;
+
 type PlayState = 'stopped' | 'playing' | 'paused';
 
 type Snapshot = {frame: number, resource: Resource};
@@ -76,7 +78,7 @@ type StoreState = {
   tempTool: ?ToolType,
   expanded: Set<string>,
   selection: Set<string>,
-  hover: Set<string>,
+  hoverStates: Map<string, HoverState>,
   draggingSelection: boolean,
   draggingComponent: ?string,
   clipboard: Map<string, Object>,
@@ -105,7 +107,7 @@ const initialState = {
   tempTool: null,
   expanded: new Set(),
   selection: new Set(),
-  hover: new Set(),
+  hoverStates: new Map(),
   draggingSelection: false,
   draggingComponent: null,
   clipboard: new Map(),
@@ -250,10 +252,13 @@ export const StoreActions = {
       return Object.assign({}, state, {selection});
     },
   },
-  setHover: {
-    create: (hover: Set<string>) => ({type: 'setHover', hover}),
+  setHoverStates: {
+    create: (hoverStates: Map<string, mixed>) => ({
+      type: 'setHoverStates',
+      hoverStates,
+    }),
     reduce: (state: StoreState, action: StoreAction) => {
-      return Object.assign({}, state, {hover: action.hover});
+      return Object.assign({}, state, {hoverStates: action.hoverStates});
     },
   },
   cut: {

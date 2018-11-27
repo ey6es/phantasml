@@ -8,9 +8,8 @@
 import * as React from 'react';
 import {renderBackground} from './background';
 import {Renderer} from './util';
-import type {HoverState} from './renderers';
 import {ComponentRenderers} from './renderers';
-import type {PageState, ToolType} from '../store';
+import type {PageState, ToolType, HoverState} from '../store';
 import {DEFAULT_PAGE_SIZE, store} from '../store';
 import type {Resource, Entity} from '../../server/store/resource';
 import type {IdTreeNode} from '../../server/store/scene';
@@ -114,7 +113,7 @@ export class RenderCanvas extends React.Component<
     let lastPage = state.page;
     let lastPageState = state.pageStates.get(state.page);
     let lastSelection = state.selection;
-    let lastHover = state.hover;
+    let lastHoverStates = state.hoverStates;
     let lastTool = state.tool;
     let lastTempTool = state.tempTool;
     this._unsubscribeFromStore = store.subscribe(() => {
@@ -125,7 +124,7 @@ export class RenderCanvas extends React.Component<
         state.page !== lastPage ||
         pageState !== lastPageState ||
         state.selection !== lastSelection ||
-        state.hover !== lastHover ||
+        state.hoverStates !== lastHoverStates ||
         state.tool !== lastTool ||
         state.tempTool !== lastTempTool
       ) {
@@ -133,7 +132,7 @@ export class RenderCanvas extends React.Component<
         lastPage = state.page;
         lastPageState = pageState;
         lastSelection = state.selection;
-        lastHover = state.hover;
+        lastHoverStates = state.hoverStates;
         lastTool = state.tool;
         lastTempTool = state.tempTool;
         this._renderer && this._renderer.requestFrameRender();
@@ -202,10 +201,11 @@ export class RenderCanvas extends React.Component<
     entityZOrders.sort(compareEntityZOrders);
 
     // render in sorted order
-    const hoverState =
-      (state.tempTool || state.tool) === 'erase' ? 'erase' : true;
+    const overrideHoverState =
+      (state.tempTool || state.tool) === 'erase' ? 'erase' : false;
     for (const entityZOrder of entityZOrders) {
       const entity = entityZOrder.entity;
+      const hoverState = state.hoverStates.get(entity.id);
       entity.getCachedValue(
         'entityRenderer',
         getEntityRenderer,
@@ -214,7 +214,7 @@ export class RenderCanvas extends React.Component<
       )(
         renderer,
         state.selection.has(entity.id),
-        state.hover.has(entity.id) ? hoverState : false,
+        hoverState ? overrideHoverState || hoverState : false,
       );
     }
 

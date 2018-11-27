@@ -8,6 +8,7 @@
 import {RendererComponents} from './components';
 import type {Renderer} from './util';
 import {Geometry} from './util';
+import type {HoverState} from '../store';
 import {ComponentModules} from '../circuit/modules';
 import type {Entity} from '../../server/store/resource';
 import {TransferableValue} from '../../server/store/resource';
@@ -42,9 +43,6 @@ function getKerningKey(first: number, second: number) {
 }
 
 const FONT_SCALE = 1.0 / 10.0;
-
-/** Type of hover states that alter rendering behavior. */
-export type HoverState = boolean | 'erase' | Transform;
 
 type RendererData = {
   getZOrder: Object => number,

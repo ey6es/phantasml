@@ -36,6 +36,25 @@ export function setsEqual<T>(s1: Set<T>, s2: Set<T>): boolean {
 }
 
 /**
+ * Compares the contents of two maps for strict equality.
+ *
+ * @param m1 the first map to compare.
+ * @param m2 the second map to compare.
+ * @return whether or not the contents are equal.
+ */
+export function mapsEqual<K, V>(m1: Map<K, V>, m2: Map<K, V>): boolean {
+  if (m1.size !== m2.size) {
+    return false;
+  }
+  for (const [key, value] of m1) {
+    if (m2.get(key) !== value) {
+      return false;
+    }
+  }
+  return true;
+}
+
+/**
  * Converts a hex color string to an array of floats that we can use as a
  * uniform value.
  *

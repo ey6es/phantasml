@@ -38,7 +38,7 @@ import {faBezierCurve} from '@fortawesome/free-solid-svg-icons/faBezierCurve';
 import {faProjectDiagram} from '@fortawesome/free-solid-svg-icons/faProjectDiagram';
 import {faVectorSquare} from '@fortawesome/free-solid-svg-icons/faVectorSquare';
 import {faStamp} from '@fortawesome/free-solid-svg-icons/faStamp';
-import type {ToolType} from './store';
+import type {ToolType, HoverState} from './store';
 import {
   StoreActions,
   store,
@@ -132,7 +132,7 @@ import {
   ComponentGeometry,
 } from '../server/store/geometry';
 import {ShapeList, Shape, Path} from '../server/store/shape';
-import {getValue, setsEqual} from '../server/store/util';
+import {getValue, mapsEqual} from '../server/store/util';
 
 library.add(faPlay);
 library.add(faPause);
@@ -378,7 +378,7 @@ type ToolProps = {
   activeTool: ToolType,
   tempTool: ?ToolType,
   selection: Set<string>,
-  hover: Set<string>,
+  hoverStates: Map<string, HoverState>,
   page: string,
 };
 
@@ -387,7 +387,7 @@ function connectTool(toolImpl: Function) {
     activeTool: state.tool,
     tempTool: state.tempTool,
     selection: state.selection,
-    hover: state.hover,
+    hoverStates: state.hoverStates,
     page: state.page,
   }))(toolImpl);
 }
@@ -597,7 +597,7 @@ class ToolImpl extends React.Component<ToolProps, {}> {
     }
     const position = renderer.getEventPosition(clientX, clientY);
     const localPosition = vec2();
-    const hover: Set<string> = new Set();
+    const hoverStates: Map<string, HoverState> = new Map();
     const bounds = {min: position, max: position};
     if (boundsContain(renderer.getCameraBounds(), bounds)) {
       resource.applyToEntities(this.props.page, bounds, entity => {
@@ -614,13 +614,13 @@ class ToolImpl extends React.Component<ToolProps, {}> {
             ),
           )
         ) {
-          hover.add(entity.id);
+          hoverStates.set(entity.id, true);
         }
       });
     }
-    (document.body: any).style.cursor = hover.size > 0 ? 'pointer' : null;
-    if (!setsEqual(hover, this.props.hover)) {
-      store.dispatch(StoreActions.setHover.create(hover));
+    (document.body: any).style.cursor = hoverStates.size > 0 ? 'pointer' : null;
+    if (!mapsEqual(hoverStates, this.props.hoverStates)) {
+      store.dispatch(StoreActions.setHoverStates.create(hoverStates));
     }
   }
 
@@ -635,7 +635,7 @@ class ToolImpl extends React.Component<ToolProps, {}> {
     };
     const vertices = getBoundsVertices(bounds);
     const localVertices = [];
-    const hover: Set<string> = new Set();
+    const hoverStates: Map<string, HoverState> = new Map();
     resource.applyToEntities(this.props.page, bounds, entity => {
       const collisionGeometry = getCollisionGeometry(resource.idTree, entity);
       if (!collisionGeometry) {
@@ -650,11 +650,11 @@ class ToolImpl extends React.Component<ToolProps, {}> {
         collisionGeometry &&
         collisionGeometry.intersectsPolygon(localVertices)
       ) {
-        hover.add(entity.id);
+        hoverStates.set(entity.id, true);
       }
     });
-    if (!setsEqual(hover, this.props.hover)) {
-      store.dispatch(StoreActions.setHover.create(hover));
+    if (!mapsEqual(hoverStates, this.props.hoverStates)) {
+      store.dispatch(StoreActions.setHoverStates.create(hoverStates));
     }
   }
 
@@ -877,9 +877,9 @@ class SelectPanToolImpl extends ToolImpl {
       renderer.requestFrameRender();
       return;
     }
-    if (this.props.hover.size > 0) {
+    if (this.props.hoverStates.size > 0) {
       const map = {};
-      for (const id of this.props.hover) {
+      for (const id of this.props.hoverStates.keys()) {
         map[id] = event.ctrlKey ? !this.props.selection.has(id) : true;
       }
       store.dispatch(StoreActions.select.create(map, event.ctrlKey));
@@ -1052,7 +1052,7 @@ class HoverToolImpl extends ToolImpl {
   _onMouseDown = (event: MouseEvent) => {
     const renderer = this.props.renderer;
     if (this.active && event.button === 0 && renderer) {
-      if (this.props.hover.size === 0) {
+      if (this.props.hoverStates.size === 0) {
         const position = this._getMousePosition(
           renderer,
           event.clientX,
@@ -1117,11 +1117,11 @@ class RectSelectToolImpl extends HoverToolImpl {
 
   _processHovered(additive: boolean) {
     const map: {[string]: boolean} = {};
-    for (const id of this.props.hover) {
+    for (const id of this.props.hoverStates.keys()) {
       map[id] = additive ? !this.props.selection.has(id) : true;
     }
     store.dispatch(StoreActions.select.create(map, additive));
-    store.dispatch(StoreActions.setHover.create(new Set()));
+    store.dispatch(StoreActions.setHoverStates.create(new Map()));
   }
 }
 const RectSelectTool = connectTool(RectSelectToolImpl);
@@ -1512,7 +1512,7 @@ class ContiguousSelectToolImpl extends HoverToolImpl {
       return;
     }
     const remainingEntities: Set<Entity> = new Set();
-    for (const id of this.props.hover) {
+    for (const id of this.props.hoverStates.keys()) {
       const entity = resource.getEntity(id);
       entity && remainingEntities.add(entity);
     }
@@ -1558,7 +1558,7 @@ class ContiguousSelectToolImpl extends HoverToolImpl {
       }
     }
     store.dispatch(StoreActions.select.create(map, additive));
-    store.dispatch(StoreActions.setHover.create(new Set()));
+    store.dispatch(StoreActions.setHoverStates.create(new Map()));
   }
 }
 const ContiguousSelectTool = connectTool(ContiguousSelectToolImpl);
@@ -1582,15 +1582,15 @@ class EraseToolImpl extends HoverToolImpl {
   }
 
   _processHovered(additive: boolean) {
-    if (this.props.hover.size === 0) {
+    if (this.props.hoverStates.size === 0) {
       return;
     }
     const map = {};
-    for (const id of this.props.hover) {
+    for (const id of this.props.hoverStates.keys()) {
       map[id] = null;
     }
     store.dispatch(SceneActions.editEntities.create(map));
-    store.dispatch(StoreActions.setHover.create(new Set()));
+    store.dispatch(StoreActions.setHoverStates.create(new Map()));
   }
 }
 const EraseTool = connectTool(EraseToolImpl);
