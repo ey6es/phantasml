@@ -95,7 +95,7 @@ export const ComponentRenderers: {[string]: RendererData} = {
   moduleRenderer: {
     getZOrder: (data: Object) => data.zOrder || 0,
     createRenderFn: (idTree: IdTreeNode, entity: Entity) => {
-      const shapeList = getModuleShapeList(entity);
+      const shapeList = getShapeList(idTree, entity);
       if (!shapeList) {
         return () => {};
       }
@@ -184,87 +184,84 @@ const MODULE_BODY_ATTRIBUTES = {
   fillColor: [0.5, 0.5, 0.5],
 };
 
-function getModuleShapeList(entity: Entity): ?ShapeList {
-  return (entity.getCachedValue(
-    'moduleShapeList',
-    createModuleShapeList,
-    entity,
-  ): any);
-}
-
-function createModuleShapeList(entity: Entity): ?TransferableValue<ShapeList> {
-  for (const key in entity.state) {
-    const module = ComponentModules[key];
-    if (!module) {
-      continue;
-    }
-    const data = entity.state[key];
-    const icon = module.getIcon(data);
-    const inputs = module.getInputs(data);
-    const inputCount = Object.keys(inputs).length;
-    const outputs = module.getOutputs(data);
-    const outputCount = Object.keys(outputs).length;
-    const height =
-      MODULE_HEIGHT_PER_TERMINAL * Math.max(inputCount, outputCount);
-    const shapeList = new ShapeList();
-    let y = (inputCount - 1) * MODULE_HEIGHT_PER_TERMINAL * 0.5;
-    for (const input in inputs) {
-      shapeList
-        .move(MODULE_WIDTH * -0.5, y, 180)
-        .penDown(false, MODULE_BODY_ATTRIBUTES)
-        .advance(1)
-        .penUp()
-        .penDown(false, {thickness: 0.5})
-        .penUp();
-      y -= MODULE_HEIGHT_PER_TERMINAL;
-    }
-    y = (outputCount - 1) * MODULE_HEIGHT_PER_TERMINAL * 0.5;
-    for (const output in outputs) {
-      shapeList
-        .move(MODULE_WIDTH * 0.5, y, 0)
-        .penDown(false, MODULE_BODY_ATTRIBUTES)
-        .advance(0.7)
-        .penUp()
-        .pivot(-90)
-        .advance(0.3)
-        .pivot(116.5651)
-        .penDown(true, {fillColor: [1.0, 1.0, 1.0]})
-        .advance(0.67082)
-        .pivot(126.8699)
-        .advance(0.67082)
-        .pivot(116.5651)
-        .advance(0.6)
-        .penUp();
-      y -= MODULE_HEIGHT_PER_TERMINAL;
-    }
-    shapeList
-      .move(MODULE_WIDTH * -0.5, height * -0.5, 0, MODULE_BODY_ATTRIBUTES)
-      .penDown(true)
-      .advance(MODULE_WIDTH)
-      .pivot(90)
-      .advance(height)
-      .pivot(90)
-      .advance(MODULE_WIDTH)
-      .pivot(90)
-      .advance(height)
-      .penUp();
-    shapeList.add(module.getIcon(data));
-    return new TransferableValue(shapeList, newEntity => {
-      // we can transfer if we have the same module component
-      return newEntity.state[key] === data;
-    });
-  }
-}
-
 ComponentBounds.moduleRenderer = {
   addToBounds: (idTree: IdTreeNode, entity: Entity, bounds: Bounds) => {
-    const shapeList = getModuleShapeList(entity);
+    const shapeList = getShapeList(idTree, entity);
     if (!shapeList) {
       return 0.0;
     }
     // TODO: add wire control points to bounds
     return shapeList.addToBounds(bounds);
   },
+};
+
+ComponentGeometry.moduleRenderer = {
+  createShapeList: (idTree, entity) => {
+    for (const key in entity.state) {
+      const module = ComponentModules[key];
+      if (!module) {
+        continue;
+      }
+      const data = entity.state[key];
+      const icon = module.getIcon(data);
+      const inputs = module.getInputs(data);
+      const inputCount = Object.keys(inputs).length;
+      const outputs = module.getOutputs(data);
+      const outputCount = Object.keys(outputs).length;
+      const height =
+        MODULE_HEIGHT_PER_TERMINAL * Math.max(inputCount, outputCount);
+      const shapeList = new ShapeList();
+      let y = (inputCount - 1) * MODULE_HEIGHT_PER_TERMINAL * 0.5;
+      for (const input in inputs) {
+        shapeList
+          .move(MODULE_WIDTH * -0.5, y, 180)
+          .penDown(false, MODULE_BODY_ATTRIBUTES)
+          .advance(1)
+          .penUp()
+          .penDown(false, {thickness: 0.5})
+          .penUp();
+        y -= MODULE_HEIGHT_PER_TERMINAL;
+      }
+      y = (outputCount - 1) * MODULE_HEIGHT_PER_TERMINAL * 0.5;
+      for (const output in outputs) {
+        shapeList
+          .move(MODULE_WIDTH * 0.5, y, 0)
+          .penDown(false, MODULE_BODY_ATTRIBUTES)
+          .advance(0.7)
+          .penUp()
+          .pivot(-90)
+          .advance(0.3)
+          .pivot(116.5651)
+          .penDown(true, {fillColor: [1.0, 1.0, 1.0]})
+          .advance(0.67082)
+          .pivot(126.8699)
+          .advance(0.67082)
+          .pivot(116.5651)
+          .advance(0.6)
+          .penUp();
+        y -= MODULE_HEIGHT_PER_TERMINAL;
+      }
+      shapeList
+        .move(MODULE_WIDTH * -0.5, height * -0.5, 0, MODULE_BODY_ATTRIBUTES)
+        .penDown(true)
+        .advance(MODULE_WIDTH)
+        .pivot(90)
+        .advance(height)
+        .pivot(90)
+        .advance(MODULE_WIDTH)
+        .pivot(90)
+        .advance(height)
+        .penUp();
+      shapeList.add(module.getIcon(data));
+      return new TransferableValue(shapeList, newEntity => {
+        // we can transfer if we have the same module component
+        return newEntity.state[key] === data;
+      });
+    }
+    return new ShapeList();
+  },
+  getControlPoints: data => [],
+  createControlPointEdit: (entity, indexPositions, mirrored) => ({}),
 };
 
 ComponentBounds.textRenderer = {
