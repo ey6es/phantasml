@@ -110,13 +110,14 @@ export const ComponentRenderers: {[string]: RendererData} = {
       return createShapeListRenderFn(
         entity,
         shapeList,
-        renderShapeList,
+        renderModule,
         '#ffffff',
         '#ffffff',
       );
     },
     onHover: (entity, position) => {
-      const resource = store.getState().resource;
+      const state = store.getState();
+      const resource = state.resource;
       if (!(resource instanceof Scene)) {
         return;
       }
@@ -126,7 +127,21 @@ export const ComponentRenderers: {[string]: RendererData} = {
       }
       const results: PenetrationResult[] = [];
       collisionGeometry.getPointPenetration(position, 0.0, vec2(), results);
-      return results.length > 0;
+      if (results.length === 0) {
+        return;
+      }
+      const part = collisionGeometry.getFloatAttribute(
+        results[0].fromIndex,
+        'part',
+      );
+      if (part === 0) {
+        return true;
+      }
+      const oldHoverState = state.hoverStates.get(entity.id);
+      if (oldHoverState && oldHoverState.part === part) {
+        return oldHoverState;
+      }
+      return {part};
     },
   },
 };
@@ -780,6 +795,78 @@ export const TRANSLUCENT_SHAPE_FRAGMENT_SHADER = `
     float joint = smoothstep(0.0, stepSize, interpolatedJoint);
     float alpha = mix(2.0 * inside - inside * inside, inside, joint);
     gl_FragColor = vec4(mix(fillColor, pathColor, filled), alpha * 0.25);
+  }
+`;
+
+function renderModule(
+  renderer: Renderer,
+  transform: Transform,
+  pathColor: string,
+  fillColor: string,
+  geometry: Geometry,
+  selected: boolean,
+  hoverState: HoverState,
+) {
+  const partHover = hoverState && hoverState.part;
+  if (partHover) {
+    const program = renderer.getProgram(
+      renderModule,
+      renderer.getVertexShader(renderModule, MODULE_VERTEX_SHADER),
+      renderer.getFragmentShader(renderModule, SHAPE_LIST_FRAGMENT_SHADER),
+    );
+    program.setUniformViewProjectionMatrix('viewProjectionMatrix');
+    program.setUniformMatrix('modelMatrix', transform, getTransformMatrix);
+    program.setUniformMatrix(
+      'vectorMatrix',
+      getTransformVectorMatrix(transform),
+    );
+    program.setUniformFloat('pixelsToWorldUnits', renderer.pixelsToWorldUnits);
+    program.setUniformFloat('hoverPart', hoverState.part);
+    renderer.setEnabled(renderer.gl.BLEND, true);
+    geometry.draw(program);
+  }
+  renderShapeList(
+    renderer,
+    transform,
+    pathColor,
+    fillColor,
+    geometry,
+    selected,
+    partHover ? undefined : hoverState,
+  );
+}
+
+const MODULE_VERTEX_SHADER = `
+  uniform mat3 modelMatrix;
+  uniform mat2 vectorMatrix;
+  uniform mat3 viewProjectionMatrix;
+  uniform float pixelsToWorldUnits;
+  uniform float hoverPart;
+  attribute vec2 vertex;
+  attribute vec2 vector;
+  attribute float joint;
+  attribute float thickness;
+  attribute vec3 pathColor;
+  attribute vec3 fillColor;
+  attribute float part;
+  varying vec2 interpolatedVector;
+  varying float interpolatedJoint;
+  varying float stepSize;
+  varying vec3 interpolatedPathColor;
+  varying vec3 interpolatedFillColor;
+  void main(void) {
+    interpolatedVector = vector;
+    interpolatedJoint = joint;
+    interpolatedPathColor = pathColor;
+    interpolatedFillColor = fillColor;
+    float hovered = step(hoverPart - 0.5, part) * step(part, hoverPart + 0.5);
+    float adjustedThickness = thickness + hovered * 0.05;
+    stepSize = pixelsToWorldUnits / adjustedThickness;
+    vec3 point =
+      modelMatrix * vec3(vertex, 1.0) +
+      vec3(vectorMatrix * vector, 0.0) * adjustedThickness;
+    vec3 position = viewProjectionMatrix * point;
+    gl_Position = vec4(position.xy, 0.0, 1.0);
   }
 `;
 

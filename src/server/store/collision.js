@@ -124,6 +124,20 @@ export class CollisionGeometry {
   }
 
   /**
+   * Retrieves a single float-valued attribute value for the identified vertex.
+   *
+   * @param index the index of the vertex to fetch.
+   * @param name the name of the attribute desired.
+   * @return the attribute value.
+   */
+  getFloatAttribute(index: number, name: string): number {
+    const offset = this._attributeOffsets[name];
+    return offset === undefined
+      ? 0.0
+      : this._arrayBuffer[index * this._vertexSize + offset];
+  }
+
+  /**
    * Returns the moment of inertia about the specified position.  This does not
    * factor in the density, so multiply by that before using.
    *
