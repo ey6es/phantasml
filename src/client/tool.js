@@ -71,7 +71,11 @@ import {
   renderCurveHelper,
 } from './renderer/helpers';
 import {PathColorProperty, FillColorProperty} from './renderer/components';
-import {SELECT_COLOR, ERASE_COLOR} from './renderer/renderers';
+import {
+  SELECT_COLOR,
+  ERASE_COLOR,
+  ComponentRenderers,
+} from './renderer/renderers';
 import {
   ThicknessProperty,
   FillProperty,
@@ -990,11 +994,41 @@ class SelectPanToolImpl extends ToolImpl {
     if (!this.active) {
       return;
     }
-    super._updatePointHover(clientX, clientY);
-    const resource = store.getState().resource;
     const renderer = this.props.renderer;
+    const resource = store.getState().resource;
     if (!(renderer && resource instanceof Scene)) {
       return;
+    }
+    const position = renderer.getEventPosition(clientX, clientY);
+    const localPosition = vec2();
+    const hoverStates: Map<string, HoverState> = new Map();
+    const bounds = {min: position, max: position};
+    if (boundsContain(renderer.getCameraBounds(), bounds)) {
+      resource.applyToEntities(this.props.page, bounds, entity => {
+        for (const key in entity.state) {
+          const renderer = ComponentRenderers[key];
+          if (renderer) {
+            const hoverState = renderer.onHover(
+              entity,
+              transformPoint(
+                position,
+                getTransformInverseMatrix(
+                  entity.getLastCachedValue('worldTransform'),
+                ),
+                localPosition,
+              ),
+            );
+            if (hoverState !== undefined) {
+              hoverStates.set(entity.id, hoverState);
+            }
+            return;
+          }
+        }
+      });
+    }
+    (document.body: any).style.cursor = hoverStates.size > 0 ? 'pointer' : null;
+    if (!mapsEqual(hoverStates, this.props.hoverStates)) {
+      store.dispatch(StoreActions.setHoverStates.create(hoverStates));
     }
     for (const id of this.props.selection) {
       const entity: Entity = (resource.getEntity(id): any);

@@ -265,7 +265,12 @@ export class Path {
     }
   }
 
-  updateStats(stats: GeometryStats, tessellation: number, edge: boolean) {
+  updateStats(
+    stats: GeometryStats,
+    tessellation: number,
+    omitAttributes: Set<string>,
+    edge: boolean,
+  ) {
     this._ensureStartPosition(0);
     const previousVertices = stats.vertices;
     for (let ii = 0; ii < this.commands.length; ii++) {
@@ -277,7 +282,7 @@ export class Path {
       } else {
         previous = this.commands[ii - 1];
       }
-      command.updateStats(stats, tessellation, previous, edge);
+      command.updateStats(stats, tessellation, omitAttributes, previous, edge);
     }
     if (stats.vertices === previousVertices) {
       // special handling for zero-length paths
@@ -292,12 +297,17 @@ export class Path {
     }
   }
 
-  updateCollisionStats(stats: CollisionGeometryStats, tessellation: number) {
+  updateCollisionStats(
+    stats: CollisionGeometryStats,
+    tessellation: number,
+    omitAttributes: Set<string>,
+  ) {
     this._ensureStartPosition(0);
     for (let ii = this.loop ? 1 : 0; ii < this.commands.length; ii++) {
       this.commands[ii].updateCollisionStats(
         stats,
         tessellation,
+        omitAttributes,
         this.commands[ii - 1],
       );
     }
@@ -450,24 +460,33 @@ class PathCommand {
   updateStats(
     stats: GeometryStats,
     tessellation: number,
+    omitAttributes: Set<string>,
     previous: ?PathCommand,
     edge: boolean,
   ) {
-    this._updateAttributeSizes(stats.attributeSizes);
+    this._updateAttributeSizes(stats.attributeSizes, omitAttributes);
   }
 
   updateCollisionStats(
     stats: CollisionGeometryStats,
     tessellation: number,
+    omitAttributes: Set<string>,
     previous: ?PathCommand,
   ) {
-    this._updateAttributeSizes(stats.attributeSizes);
+    this._updateAttributeSizes(stats.attributeSizes, omitAttributes);
   }
 
-  _updateAttributeSizes(attributeSizes: {[string]: number}) {
-    if (this.attributes) {
-      for (const name in this.attributes) {
-        const value = this.attributes[name];
+  _updateAttributeSizes(
+    attributeSizes: {[string]: number},
+    omitAttributes: Set<string>,
+  ) {
+    const attributes = this.attributes;
+    if (attributes) {
+      for (const name in attributes) {
+        if (omitAttributes.has(name)) {
+          continue;
+        }
+        const value = attributes[name];
         const length = Array.isArray(value) ? value.length : 1;
         if (!(length <= attributeSizes[name])) {
           attributeSizes[name] = length;
@@ -723,6 +742,7 @@ class MoveTo extends PathCommand {
   updateCollisionStats(
     stats: CollisionGeometryStats,
     tessellation: number,
+    omitAttributes: Set<string>,
     previous: ?PathCommand,
   ) {
     stats.vertices++;
@@ -761,13 +781,14 @@ class LineTo extends PathCommand {
   updateStats(
     stats: GeometryStats,
     tessellation: number,
+    omitAttributes: Set<string>,
     previous: ?PathCommand,
     edge: boolean,
   ) {
     if (!previous) {
       throw new Error('Missing previous command.');
     }
-    super.updateStats(stats, tessellation, previous, edge);
+    super.updateStats(stats, tessellation, omitAttributes, previous, edge);
     if (distance(previous.dest, this.dest) > 0) {
       this._addToStats(stats, 1, edge);
     }
@@ -776,12 +797,13 @@ class LineTo extends PathCommand {
   updateCollisionStats(
     stats: CollisionGeometryStats,
     tessellation: number,
+    omitAttributes: Set<string>,
     previous: ?PathCommand,
   ) {
     if (!previous) {
       throw new Error('Missing previous command.');
     }
-    super.updateCollisionStats(stats, tessellation, previous);
+    super.updateCollisionStats(stats, tessellation, omitAttributes, previous);
     if (distance(previous.dest, this.dest) > 0) {
       stats.vertices++;
     }
@@ -903,13 +925,14 @@ class ArcTo extends PathCommand {
   updateStats(
     stats: GeometryStats,
     tessellation: number,
+    omitAttributes: Set<string>,
     previous: ?PathCommand,
     edge: boolean,
   ) {
     if (!previous) {
       throw new Error('Missing previous command.');
     }
-    super.updateStats(stats, tessellation, previous, edge);
+    super.updateStats(stats, tessellation, omitAttributes, previous, edge);
     const [length, divisions] = this._getArcParameters(tessellation, previous);
     this._addToStats(stats, divisions, edge);
   }
@@ -917,12 +940,13 @@ class ArcTo extends PathCommand {
   updateCollisionStats(
     stats: CollisionGeometryStats,
     tessellation: number,
+    omitAttributes: Set<string>,
     previous: ?PathCommand,
   ) {
     if (!previous) {
       throw new Error('Missing previous command.');
     }
-    super.updateCollisionStats(stats, tessellation, previous);
+    super.updateCollisionStats(stats, tessellation, omitAttributes, previous);
     const [length, divisions] = this._getArcParameters(tessellation, previous);
     stats.vertices += divisions;
   }
@@ -1099,13 +1123,14 @@ class CurveTo extends PathCommand {
   updateStats(
     stats: GeometryStats,
     tessellation: number,
+    omitAttributes: Set<string>,
     previous: ?PathCommand,
     edge: boolean,
   ) {
     if (!previous) {
       throw new Error('Missing previous command.');
     }
-    super.updateStats(stats, tessellation, previous, edge);
+    super.updateStats(stats, tessellation, omitAttributes, previous, edge);
     const [a, b, c, d, divisions] = this._getSplineParameters(
       tessellation,
       previous,
@@ -1116,12 +1141,13 @@ class CurveTo extends PathCommand {
   updateCollisionStats(
     stats: CollisionGeometryStats,
     tessellation: number,
+    omitAttributes: Set<string>,
     previous: ?PathCommand,
   ) {
     if (!previous) {
       throw new Error('Missing previous command.');
     }
-    super.updateCollisionStats(stats, tessellation, previous);
+    super.updateCollisionStats(stats, tessellation, omitAttributes, previous);
     const [a, b, c, d, divisions] = this._getSplineParameters(
       tessellation,
       previous,
@@ -1316,11 +1342,15 @@ export class Shape {
     return this.exterior.requiresTessellation();
   }
 
-  updateStats(stats: GeometryStats, tessellation: number) {
+  updateStats(
+    stats: GeometryStats,
+    tessellation: number,
+    omitAttributes: Set<string>,
+  ) {
     const group = {start: 0, end: 0, zOrder: this.exterior.zOrder};
     stats.groups.push(group);
     let previousVertices = stats.vertices;
-    this.exterior.updateStats(stats, tessellation, true);
+    this.exterior.updateStats(stats, tessellation, omitAttributes, true);
     const exteriorVertices = stats.vertices - previousVertices;
     const triangles = exteriorVertices / 9 - 2;
     const indices = 3 * triangles;
@@ -1536,6 +1566,9 @@ export class ShapeList {
   rotation = 0.0;
   zOrder = 0;
   attributes: VertexAttributes = {};
+
+  omitRenderAttributes: Set<string> = new Set();
+  omitCollisionAttributes: Set<string> = new Set();
 
   _drawingPath: ?Path;
 
@@ -1972,10 +2005,18 @@ export class ShapeList {
       vertices: 0,
     };
     for (const shape of this.shapes) {
-      shape.exterior.updateCollisionStats(stats, tessellation);
+      shape.exterior.updateCollisionStats(
+        stats,
+        tessellation,
+        this.omitCollisionAttributes,
+      );
     }
     for (const path of this.paths) {
-      path.updateCollisionStats(stats, tessellation);
+      path.updateCollisionStats(
+        stats,
+        tessellation,
+        this.omitCollisionAttributes,
+      );
     }
     const attributeOffsets: {[string]: number} = {};
     let vertexSize = 0;
@@ -2035,10 +2076,10 @@ export class ShapeList {
       groups: [],
     };
     for (const shape of this.shapes) {
-      shape.updateStats(stats, tessellation);
+      shape.updateStats(stats, tessellation, this.omitRenderAttributes);
     }
     for (const path of this.paths) {
-      path.updateStats(stats, tessellation, false);
+      path.updateStats(stats, tessellation, this.omitRenderAttributes, false);
     }
     const attributeOffsets: {[string]: number} = {};
     let vertexSize = 0;

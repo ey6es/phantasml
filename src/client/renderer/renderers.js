@@ -9,14 +9,21 @@ import {RendererComponents} from './components';
 import type {Renderer} from './util';
 import {Geometry} from './util';
 import type {HoverState} from '../store';
+import {store} from '../store';
 import {ComponentModules} from '../circuit/modules';
 import type {Entity} from '../../server/store/resource';
 import {TransferableValue} from '../../server/store/resource';
 import type {IdTreeNode} from '../../server/store/scene';
+import {Scene} from '../../server/store/scene';
 import {Path, Shape, ShapeList} from '../../server/store/shape';
-import {ComponentGeometry, getShapeList} from '../../server/store/geometry';
+import {
+  ComponentGeometry,
+  getCollisionGeometry,
+  getShapeList,
+} from '../../server/store/geometry';
+import type {PenetrationResult} from '../../server/store/collision';
 import {ComponentBounds} from '../../server/store/bounds';
-import type {Transform, Bounds} from '../../server/store/math';
+import type {Vector2, Transform, Bounds} from '../../server/store/math';
 import {
   getTransformMatrix,
   getTransformVectorMatrix,
@@ -50,6 +57,7 @@ type RendererData = {
     IdTreeNode,
     Entity,
   ) => (Renderer, boolean, HoverState) => void,
+  onHover: (Entity, Vector2) => HoverState,
 };
 
 /**
@@ -75,6 +83,7 @@ export const ComponentRenderers: {[string]: RendererData} = {
         fillColor,
       );
     },
+    onHover: onShapeHover,
   },
   textRenderer: {
     getZOrder: (data: Object) => data.zOrder || 0,
@@ -89,6 +98,7 @@ export const ComponentRenderers: {[string]: RendererData} = {
         renderText(renderer, transform, color, geometry, selected, hoverState);
       };
     },
+    onHover: onShapeHover,
   },
   moduleRenderer: {
     getZOrder: (data: Object) => data.zOrder || 0,
@@ -105,8 +115,32 @@ export const ComponentRenderers: {[string]: RendererData} = {
         '#ffffff',
       );
     },
+    onHover: (entity, position) => {
+      const resource = store.getState().resource;
+      if (!(resource instanceof Scene)) {
+        return;
+      }
+      const collisionGeometry = getCollisionGeometry(resource.idTree, entity);
+      if (!collisionGeometry) {
+        return;
+      }
+      const results: PenetrationResult[] = [];
+      collisionGeometry.getPointPenetration(position, 0.0, vec2(), results);
+      return results.length > 0;
+    },
   },
 };
+
+function onShapeHover(entity: Entity, position: Vector2): HoverState {
+  const resource = store.getState().resource;
+  if (!(resource instanceof Scene)) {
+    return;
+  }
+  const collisionGeometry = getCollisionGeometry(resource.idTree, entity);
+  if (collisionGeometry && collisionGeometry.intersectsPoint(position)) {
+    return true;
+  }
+}
 
 type RenderShapeFn = (
   Renderer,
@@ -180,6 +214,7 @@ const MODULE_BODY_ATTRIBUTES = {
   thickness: 0.2,
   pathColor: [1.0, 1.0, 1.0],
   fillColor: [0.5, 0.5, 0.5],
+  part: 0,
 };
 
 ComponentBounds.moduleRenderer = {
@@ -209,22 +244,26 @@ ComponentGeometry.moduleRenderer = {
       const height =
         MODULE_HEIGHT_PER_TERMINAL * Math.max(inputCount, outputCount);
       const shapeList = new ShapeList();
+      shapeList.omitCollisionAttributes.add('pathColor');
+      shapeList.omitCollisionAttributes.add('fillColor');
       let y = (inputCount - 1) * MODULE_HEIGHT_PER_TERMINAL * 0.5;
+      let part = 1;
       for (const input in inputs) {
         shapeList
           .move(MODULE_WIDTH * -0.5, y, 180)
-          .penDown(false, MODULE_BODY_ATTRIBUTES)
+          .penDown(false, {thickness: 0.2, pathColor: [1.0, 1.0, 1.0], part})
           .advance(1)
           .penUp()
           .penDown(false, {thickness: 0.5})
           .penUp();
         y -= MODULE_HEIGHT_PER_TERMINAL;
+        part++;
       }
       y = (outputCount - 1) * MODULE_HEIGHT_PER_TERMINAL * 0.5;
       for (const output in outputs) {
         shapeList
           .move(MODULE_WIDTH * 0.5, y, 0)
-          .penDown(false, MODULE_BODY_ATTRIBUTES)
+          .penDown(false, {thickness: 0.2, pathColor: [1.0, 1.0, 1.0], part})
           .advance(0.7)
           .penUp()
           .pivot(-90)
@@ -238,6 +277,7 @@ ComponentGeometry.moduleRenderer = {
           .advance(0.6)
           .penUp();
         y -= MODULE_HEIGHT_PER_TERMINAL;
+        part++;
       }
       shapeList
         .move(MODULE_WIDTH * -0.5, height * -0.5, 0, MODULE_BODY_ATTRIBUTES)
