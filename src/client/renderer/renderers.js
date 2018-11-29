@@ -57,7 +57,10 @@ type RendererData = {
     IdTreeNode,
     Entity,
   ) => (Renderer, boolean, HoverState) => void,
-  onHover: (Entity, Vector2) => HoverState,
+  onMove: (Entity, Vector2) => HoverState,
+  onFrame: Entity => HoverState,
+  onPress: (Entity, Vector2) => HoverState,
+  onRelease: (Entity, Vector2) => HoverState,
 };
 
 /**
@@ -83,7 +86,10 @@ export const ComponentRenderers: {[string]: RendererData} = {
         fillColor,
       );
     },
-    onHover: onShapeHover,
+    onMove: onShapeMove,
+    onFrame: onShapeFrame,
+    onPress: onShapePress,
+    onRelease: onShapeRelease,
   },
   textRenderer: {
     getZOrder: (data: Object) => data.zOrder || 0,
@@ -98,7 +104,10 @@ export const ComponentRenderers: {[string]: RendererData} = {
         renderText(renderer, transform, color, geometry, selected, hoverState);
       };
     },
-    onHover: onShapeHover,
+    onMove: onShapeMove,
+    onFrame: onShapeFrame,
+    onPress: onShapePress,
+    onRelease: onShapeRelease,
   },
   moduleRenderer: {
     getZOrder: (data: Object) => data.zOrder || 0,
@@ -115,7 +124,7 @@ export const ComponentRenderers: {[string]: RendererData} = {
         '#ffffff',
       );
     },
-    onHover: (entity, position) => {
+    onMove: (entity, position) => {
       const state = store.getState();
       const resource = state.resource;
       if (!(resource instanceof Scene)) {
@@ -141,12 +150,28 @@ export const ComponentRenderers: {[string]: RendererData} = {
       if (oldHoverState && oldHoverState.part === part) {
         return oldHoverState;
       }
-      return {part};
+      return {part, moveTime: Date.now()};
+    },
+    onFrame: entity => {
+      const oldState = store.getState().hoverStates.get(entity.id);
+      if (!(oldState && oldState.part)) {
+        return oldState;
+      }
+      const elapsed = Date.now() - oldState.moveTime;
+      return elapsed > 750 && !oldState.tip
+        ? Object.assign({tip: true}, oldState)
+        : oldState;
+    },
+    onPress: (entity, position) => {
+      return store.getState().hoverStates.get(entity.id);
+    },
+    onRelease: (entity, position) => {
+      return store.getState().hoverStates.get(entity.id);
     },
   },
 };
 
-function onShapeHover(entity: Entity, position: Vector2): HoverState {
+function onShapeMove(entity: Entity, position: Vector2): HoverState {
   const resource = store.getState().resource;
   if (!(resource instanceof Scene)) {
     return;
@@ -155,6 +180,18 @@ function onShapeHover(entity: Entity, position: Vector2): HoverState {
   if (collisionGeometry && collisionGeometry.intersectsPoint(position)) {
     return true;
   }
+}
+
+function onShapeFrame(entity: Entity): HoverState {
+  return store.getState().hoverStates.get(entity.id);
+}
+
+function onShapePress(entity: Entity, position: Vector2): HoverState {
+  return store.getState().hoverStates.get(entity.id);
+}
+
+function onShapeRelease(entity: Entity, position: Vector2): HoverState {
+  return store.getState().hoverStates.get(entity.id);
 }
 
 type RenderShapeFn = (
@@ -232,6 +269,15 @@ const MODULE_BODY_ATTRIBUTES = {
   part: 0,
 };
 
+const WireColors: number[][] = [
+  [0.0, 1.0, 1.0], // cyan
+  [1.0, 0.0, 1.0], // magenta
+  [1.0, 1.0, 0.0], // yellow
+  [0.0, 1.0, 0.0], // green
+  [1.0, 0.5, 0.0], // orange
+  [1.0, 0.0, 0.0], // red
+];
+
 ComponentBounds.moduleRenderer = {
   addToBounds: (idTree: IdTreeNode, entity: Entity, bounds: Bounds) => {
     const shapeList = getShapeList(idTree, entity);
@@ -258,7 +304,7 @@ ComponentGeometry.moduleRenderer = {
       const outputCount = Object.keys(outputs).length;
       const height =
         MODULE_HEIGHT_PER_TERMINAL * Math.max(inputCount, outputCount);
-      const shapeList = new ShapeList();
+      const shapeList = new ShapeList().lower();
       shapeList.omitCollisionAttributes.add('pathColor');
       shapeList.omitCollisionAttributes.add('fillColor');
       let y = (inputCount - 1) * MODULE_HEIGHT_PER_TERMINAL * 0.5;
@@ -275,16 +321,24 @@ ComponentGeometry.moduleRenderer = {
         part++;
       }
       y = (outputCount - 1) * MODULE_HEIGHT_PER_TERMINAL * 0.5;
+      let color = 0;
       for (const output in outputs) {
+        const wireColor = WireColors[color];
+        color = (color + 1) % WireColors.length;
         shapeList
           .move(MODULE_WIDTH * 0.5, y, 0)
-          .penDown(false, {thickness: 0.2, pathColor: [1.0, 1.0, 1.0], part})
+          .penDown(false, {
+            thickness: 0.2,
+            pathColor: wireColor,
+            fillColor: wireColor,
+            part,
+          })
           .advance(0.7)
           .penUp()
           .pivot(-90)
           .advance(0.3)
           .pivot(116.5651)
-          .penDown(true, {fillColor: [1.0, 1.0, 1.0]})
+          .penDown(true)
           .advance(0.67082)
           .pivot(126.8699)
           .advance(0.67082)
@@ -295,6 +349,7 @@ ComponentGeometry.moduleRenderer = {
         part++;
       }
       shapeList
+        .raise()
         .move(MODULE_WIDTH * -0.5, height * -0.5, 0, MODULE_BODY_ATTRIBUTES)
         .penDown(true)
         .advance(MODULE_WIDTH)
@@ -812,7 +867,7 @@ function renderModule(
     const program = renderer.getProgram(
       renderModule,
       renderer.getVertexShader(renderModule, MODULE_VERTEX_SHADER),
-      renderer.getFragmentShader(renderModule, SHAPE_LIST_FRAGMENT_SHADER),
+      renderer.getFragmentShader(renderModule, MODULE_FRAGMENT_SHADER),
     );
     program.setUniformViewProjectionMatrix('viewProjectionMatrix');
     program.setUniformMatrix('modelMatrix', transform, getTransformMatrix);
@@ -860,13 +915,34 @@ const MODULE_VERTEX_SHADER = `
     interpolatedPathColor = pathColor;
     interpolatedFillColor = fillColor;
     float hovered = step(hoverPart - 0.5, part) * step(part, hoverPart + 0.5);
-    float adjustedThickness = thickness + hovered * 0.05;
+    float adjustedThickness = thickness + hovered * pixelsToWorldUnits * 2.0;
     stepSize = pixelsToWorldUnits / adjustedThickness;
     vec3 point =
       modelMatrix * vec3(vertex, 1.0) +
       vec3(vectorMatrix * vector, 0.0) * adjustedThickness;
     vec3 position = viewProjectionMatrix * point;
     gl_Position = vec4(position.xy, 0.0, 1.0);
+  }
+`;
+
+export const MODULE_FRAGMENT_SHADER = `
+  precision mediump float;
+  varying vec2 interpolatedVector;
+  varying float interpolatedJoint;
+  varying float stepSize;
+  varying vec3 interpolatedPathColor;
+  varying vec3 interpolatedFillColor;
+  void main(void) {
+    float dist = length(interpolatedVector);
+    float filled = 1.0 - step(dist, 0.0);
+    float inside = 1.0 - smoothstep(1.0 - stepSize, 1.0, dist);
+    // joints are drawn twice, so adjust alpha accordingly
+    float joint = smoothstep(0.0, stepSize, interpolatedJoint);
+    float alpha = mix(2.0 * inside - inside * inside, inside, joint);
+    gl_FragColor = vec4(
+      mix(interpolatedFillColor, interpolatedPathColor, filled),
+      alpha * 0.25
+    );
   }
 `;
 

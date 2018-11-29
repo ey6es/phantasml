@@ -743,6 +743,8 @@ class SelectPanToolImpl extends ToolImpl {
   _controlPoints: Map<string, ControlPoint[]> = new Map();
   _draggingIndices: Map<string, number> = new Map();
 
+  _updatingHoverStates = false;
+
   constructor(...args: any[]) {
     super(
       'selectPan',
@@ -1008,7 +1010,7 @@ class SelectPanToolImpl extends ToolImpl {
         for (const key in entity.state) {
           const renderer = ComponentRenderers[key];
           if (renderer) {
-            const hoverState = renderer.onHover(
+            const hoverState = renderer.onMove(
               entity,
               transformPoint(
                 position,
@@ -1029,6 +1031,7 @@ class SelectPanToolImpl extends ToolImpl {
     (document.body: any).style.cursor = hoverStates.size > 0 ? 'pointer' : null;
     if (!mapsEqual(hoverStates, this.props.hoverStates)) {
       store.dispatch(StoreActions.setHoverStates.create(hoverStates));
+      this._maybeRequestHoverStateUpdate();
     }
     for (const id of this.props.selection) {
       const entity: Entity = (resource.getEntity(id): any);
@@ -1048,6 +1051,43 @@ class SelectPanToolImpl extends ToolImpl {
     }
     renderer.requestFrameRender();
   }
+
+  _maybeRequestHoverStateUpdate() {
+    if (store.getState().hoverStates.size > 0 && !this._updatingHoverStates) {
+      requestAnimationFrame(this._updateHoverStates);
+      this._updatingHoverStates = true;
+    }
+  }
+
+  _updateHoverStates = () => {
+    this._updatingHoverStates = false;
+    const state = store.getState();
+    const resource = state.resource;
+    if (!(this.active && resource instanceof Scene)) {
+      return;
+    }
+    let hoverStates = state.hoverStates;
+    for (const [id, hoverState] of state.hoverStates) {
+      const entity = resource.getEntity(id);
+      for (const key in entity.state) {
+        const renderer = ComponentRenderers[key];
+        if (renderer) {
+          const newHoverState = renderer.onFrame(entity);
+          if (newHoverState !== hoverState) {
+            if (hoverStates === state.hoverStates) {
+              hoverStates = new Map(state.hoverStates);
+            }
+            hoverStates.set(id, newHoverState);
+          }
+          break;
+        }
+      }
+    }
+    if (hoverStates !== state.hoverStates) {
+      store.dispatch(StoreActions.setHoverStates.create(hoverStates));
+    }
+    this._maybeRequestHoverStateUpdate();
+  };
 }
 const SelectPanTool = connectTool(SelectPanToolImpl);
 
