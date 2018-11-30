@@ -83,7 +83,7 @@ import {
   GeometryComponents,
 } from './geometry/components';
 import {DynamicProperty} from './physics/components';
-import {Shortcut, ShortcutHandler} from './util/ui';
+import {TOOLTIP_DELAY, Shortcut, ShortcutHandler} from './util/ui';
 import type {UserGetPreferencesResponse} from '../server/api';
 import type {Resource, Entity} from '../server/store/resource';
 import {Scene, SceneActions} from '../server/store/scene';
@@ -361,7 +361,9 @@ function ShortcutTooltip(props: {
   shortcut: Shortcut,
 }) {
   return (
-    <UncontrolledTooltip delay={{show: 750, hide: 0}} target={props.target}>
+    <UncontrolledTooltip
+      delay={{show: TOOLTIP_DELAY, hide: 0}}
+      target={props.target}>
       <FormattedMessage
         id="tool.tip"
         defaultMessage="{name} ({shortcut})"
@@ -740,6 +742,7 @@ class SelectPanToolImpl extends ToolImpl {
   _lastClientX = -1;
   _lastClientY = -1;
   _panning = false;
+  _pressed = false;
   _controlPoints: Map<string, ControlPoint[]> = new Map();
   _draggingIndices: Map<string, number> = new Map();
 
@@ -843,6 +846,7 @@ class SelectPanToolImpl extends ToolImpl {
     if (!(this.active && event.button === 0)) {
       return;
     }
+    this._pressed = true;
     const renderer = this.props.renderer;
     const resource = store.getState().resource;
     if (!(renderer && resource)) {
@@ -852,6 +856,7 @@ class SelectPanToolImpl extends ToolImpl {
       this._lastClientX,
       this._lastClientY,
     );
+    const localPosition = vec2();
     const thicknessIncrement = this._getThicknessIncrement(renderer);
     for (const [id, controlPoints] of this._controlPoints) {
       const entity = resource.getEntity(id);
@@ -885,8 +890,37 @@ class SelectPanToolImpl extends ToolImpl {
     }
     if (this.props.hoverStates.size > 0) {
       const map = {};
-      for (const id of this.props.hoverStates.keys()) {
+      let hoverStates = this.props.hoverStates;
+      for (const [id, hoverState] of this.props.hoverStates) {
+        const entity = resource.getEntity(id);
+        if (entity) {
+          for (const key in entity.state) {
+            const renderer = ComponentRenderers[key];
+            if (renderer) {
+              const newHoverState = renderer.onPress(
+                entity,
+                transformPoint(
+                  eventPosition,
+                  getTransformInverseMatrix(
+                    entity.getLastCachedValue('worldTransform'),
+                  ),
+                  localPosition,
+                ),
+              );
+              if (newHoverState !== hoverState) {
+                if (hoverStates === this.props.hoverStates) {
+                  hoverStates = new Map(this.props.hoverStates);
+                }
+                hoverStates.set(id, newHoverState);
+              }
+              break;
+            }
+          }
+        }
         map[id] = event.ctrlKey ? !this.props.selection.has(id) : true;
+      }
+      if (hoverStates !== this.props.hoverStates) {
+        store.dispatch(StoreActions.setHoverStates.create(hoverStates));
       }
       store.dispatch(StoreActions.select.create(map, event.ctrlKey));
     } else {
@@ -914,6 +948,9 @@ class SelectPanToolImpl extends ToolImpl {
   }
 
   _onMouseUp = (event: MouseEvent) => {
+    if (event.button === 0) {
+      this._pressed = false;
+    }
     if (this._draggingIndices.size > 0) {
       this._draggingIndices.clear();
       this.props.renderer && this.props.renderer.requestFrameRender();
@@ -921,6 +958,54 @@ class SelectPanToolImpl extends ToolImpl {
     if (this._panning) {
       (document.body: any).style.cursor = null;
       this._panning = false;
+    }
+    if (this.props.hoverStates.size > 0) {
+      const renderer = this.props.renderer;
+      const resource = store.getState().resource;
+      if (!(renderer && resource)) {
+        return;
+      }
+      const eventPosition = renderer.getEventPosition(
+        this._lastClientX,
+        this._lastClientY,
+      );
+      const localPosition = vec2();
+      let hoverStates = this.props.hoverStates;
+      let hovered = false;
+      for (const [id, hoverState] of this.props.hoverStates) {
+        const entity = resource.getEntity(id);
+        if (entity) {
+          for (const key in entity.state) {
+            const renderer = ComponentRenderers[key];
+            if (renderer) {
+              const newHoverState = renderer.onRelease(
+                entity,
+                transformPoint(
+                  eventPosition,
+                  getTransformInverseMatrix(
+                    entity.getLastCachedValue('worldTransform'),
+                  ),
+                  localPosition,
+                ),
+              );
+              if (newHoverState) {
+                hovered = true;
+              }
+              if (newHoverState !== hoverState) {
+                if (hoverStates === this.props.hoverStates) {
+                  hoverStates = new Map(this.props.hoverStates);
+                }
+                hoverStates.set(id, newHoverState);
+              }
+              break;
+            }
+          }
+        }
+      }
+      if (hoverStates !== this.props.hoverStates) {
+        store.dispatch(StoreActions.setHoverStates.create(hoverStates));
+      }
+      (document.body: any).style.cursor = hovered ? 'pointer' : null;
     }
   };
 
@@ -974,6 +1059,55 @@ class SelectPanToolImpl extends ToolImpl {
         ),
       );
       (document.body: any).style.cursor = 'all-scroll';
+    } else if (this._pressed) {
+      const renderer = this.props.renderer;
+      const resource = store.getState().resource;
+      if (!(renderer && resource instanceof Scene)) {
+        return;
+      }
+      const eventPosition = renderer.getEventPosition(
+        event.clientX,
+        event.clientY,
+      );
+      const localPosition = vec2();
+      let hoverStates = this.props.hoverStates;
+      let dragging = false;
+      for (const [id, hoverState] of this.props.hoverStates) {
+        const entity = resource.getEntity(id);
+        if (entity) {
+          for (const key in entity.state) {
+            const renderer = ComponentRenderers[key];
+            if (renderer) {
+              const newHoverState = renderer.onMove(
+                entity,
+                transformPoint(
+                  eventPosition,
+                  getTransformInverseMatrix(
+                    entity.getLastCachedValue('worldTransform'),
+                  ),
+                  localPosition,
+                ),
+              );
+              if (newHoverState && newHoverState.dragging) {
+                dragging = true;
+              }
+              if (newHoverState !== hoverState) {
+                if (hoverStates === this.props.hoverStates) {
+                  hoverStates = new Map(this.props.hoverStates);
+                }
+                hoverStates.set(id, newHoverState);
+              }
+              break;
+            }
+          }
+        }
+      }
+      if (hoverStates !== this.props.hoverStates) {
+        store.dispatch(StoreActions.setHoverStates.create(hoverStates));
+      }
+      if (dragging) {
+        (document.body: any).style.cursor = 'all-scroll';
+      }
     } else {
       this._updatePointHover(this._lastClientX, this._lastClientY);
     }

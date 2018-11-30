@@ -12,6 +12,7 @@ import {Geometry} from './util';
 import type {HoverState} from '../store';
 import {StoreActions, store} from '../store';
 import {ComponentModules} from '../circuit/modules';
+import {TOOLTIP_DELAY} from '../util/ui';
 import type {Entity} from '../../server/store/resource';
 import {TransferableValue} from '../../server/store/resource';
 import type {IdTreeNode} from '../../server/store/scene';
@@ -35,6 +36,7 @@ import {
   boundsUnionEquals,
   addToBoundsEquals,
   vec2,
+  equals,
 } from '../../server/store/math';
 import * as FontData from '../font/Lato-Regular.json';
 
@@ -127,40 +129,13 @@ export const ComponentRenderers: {[string]: RendererData} = {
         '#ffffff',
       );
     },
-    onMove: (entity, position) => {
-      const state = store.getState();
-      const resource = state.resource;
-      if (!(resource instanceof Scene)) {
-        return;
-      }
-      const collisionGeometry = getCollisionGeometry(resource.idTree, entity);
-      if (!collisionGeometry) {
-        return;
-      }
-      const results: PenetrationResult[] = [];
-      collisionGeometry.getPointPenetration(position, 0.0, vec2(), results);
-      if (results.length === 0) {
-        return;
-      }
-      const part = collisionGeometry.getFloatAttribute(
-        results[0].fromIndex,
-        'part',
-      );
-      if (part === 0) {
-        return true;
-      }
-      const oldHoverState = state.hoverStates.get(entity.id);
-      if (oldHoverState && oldHoverState.part === part) {
-        return oldHoverState;
-      }
-      return {part, moveTime: Date.now()};
-    },
+    onMove: onModuleMove,
     onFrame: entity => {
       const state = store.getState();
       const oldHoverState = state.hoverStates.get(entity.id);
       if (oldHoverState && oldHoverState.part) {
         const elapsed = Date.now() - oldHoverState.moveTime;
-        if (elapsed > 750) {
+        if (elapsed > TOOLTIP_DELAY && !oldHoverState.dragging) {
           if (!(state.tooltip && state.tooltip.entityId == entity.id)) {
             for (const key in entity.state) {
               const module = ComponentModules[key];
@@ -215,10 +190,58 @@ export const ComponentRenderers: {[string]: RendererData} = {
       }
       return oldHoverState;
     },
-    onPress: getCurrentHoverState,
-    onRelease: getCurrentHoverState,
+    onPress: (entity, position) => {
+      const state = store.getState();
+      const oldHoverState = state.hoverStates.get(entity.id);
+      if (oldHoverState && oldHoverState.part) {
+        if (state.tooltip && state.tooltip.entityId === entity.id) {
+          store.dispatch(StoreActions.setTooltip.create(null));
+        }
+        return Object.assign({}, oldHoverState, {dragging: equals(position)});
+      } else if (oldHoverState) {
+        return {dragging: equals(position)};
+      }
+      return oldHoverState;
+    },
+    onRelease: (entity, position) => onModuleMove(entity, position, true),
   },
 };
+
+function onModuleMove(
+  entity: Entity,
+  position: Vector2,
+  release: boolean = false,
+): HoverState {
+  const state = store.getState();
+  const oldHoverState = state.hoverStates.get(entity.id);
+  if (oldHoverState && oldHoverState.dragging && !release) {
+    return oldHoverState; // Object.assign({}, oldHoverState, {dragging: equals(position)});
+  }
+  const resource = state.resource;
+  if (!(resource instanceof Scene)) {
+    return;
+  }
+  const collisionGeometry = getCollisionGeometry(resource.idTree, entity);
+  if (!collisionGeometry) {
+    return;
+  }
+  const results: PenetrationResult[] = [];
+  collisionGeometry.getPointPenetration(position, 0.0, vec2(), results);
+  if (results.length === 0) {
+    return;
+  }
+  const part = collisionGeometry.getFloatAttribute(
+    results[0].fromIndex,
+    'part',
+  );
+  if (part === 0) {
+    return true;
+  }
+  if (oldHoverState && oldHoverState.part === part) {
+    return oldHoverState;
+  }
+  return {part, moveTime: Date.now()};
+}
 
 function onShapeMove(entity: Entity, position: Vector2): HoverState {
   const resource = store.getState().resource;
@@ -904,6 +927,7 @@ function renderModule(
   hoverState: HoverState,
 ) {
   const partHover = hoverState && hoverState.part;
+  const dragging = hoverState && hoverState.dragging;
   if (partHover) {
     const program = renderer.getProgram(
       renderModule,
@@ -928,7 +952,7 @@ function renderModule(
     fillColor,
     geometry,
     selected,
-    partHover ? undefined : hoverState,
+    partHover || dragging ? undefined : hoverState,
   );
 }
 

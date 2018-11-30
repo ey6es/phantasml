@@ -92,29 +92,48 @@ export const ComponentModules: {[string]: ModuleData} = {
   },
   add: {
     getIcon: data => AddIcon,
-    getInputs: createMultipleInputs,
-    getOutputs: data => SingleOutput,
+    getInputs: data =>
+      createMultipleInputs(data, index => (
+        <FormattedMessage
+          id="add.summand.n"
+          defaultMessage="Summand {number}"
+          values={{number: index}}
+        />
+      )),
+    getOutputs: data => ({
+      output: {
+        label: <FormattedMessage id="add.sum" defaultMessage="Sum" />,
+      },
+    }),
   },
   multiply: {
     getIcon: data => MultiplyIcon,
-    getInputs: createMultipleInputs,
-    getOutputs: data => SingleOutput,
+    getInputs: data =>
+      createMultipleInputs(data, index => (
+        <FormattedMessage
+          id="multiply.factor.n"
+          defaultMessage="Factor {number}"
+          values={{number: index}}
+        />
+      )),
+    getOutputs: data => ({
+      output: {
+        label: (
+          <FormattedMessage id="multiply.product" defaultMessage="Product" />
+        ),
+      },
+    }),
   },
 };
 
-function createMultipleInputs(data: Object): {[string]: InputData} {
+function createMultipleInputs(
+  data: Object,
+  getLabel: number => React.Element<any>,
+): {[string]: InputData} {
   const inputs = {};
   const inputCount = data.inputs || InputsProperty.inputs.defaultValue;
   for (let ii = 1; ii <= inputCount; ii++) {
-    inputs['input' + ii] = {
-      label: (
-        <FormattedMessage
-          id="circuit.input.n"
-          defaultMessage="Input {number}"
-          values={{number: ii}}
-        />
-      ),
-    };
+    inputs['input' + ii] = {label: getLabel(ii)};
   }
   return inputs;
 }

@@ -37,6 +37,9 @@ import {store} from '../store';
 
 library.add(faEllipsisV);
 
+/** The standard tooltip delay in milliseconds. */
+export const TOOLTIP_DELAY = 750;
+
 /**
  * Base for dialogs that make requests to the server.
  *
