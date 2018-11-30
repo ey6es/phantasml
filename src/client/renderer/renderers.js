@@ -5,11 +5,12 @@
  * @flow
  */
 
+import * as React from 'react';
 import {RendererComponents} from './components';
 import type {Renderer} from './util';
 import {Geometry} from './util';
 import type {HoverState} from '../store';
-import {store} from '../store';
+import {StoreActions, store} from '../store';
 import {ComponentModules} from '../circuit/modules';
 import type {Entity} from '../../server/store/resource';
 import {TransferableValue} from '../../server/store/resource';
@@ -28,7 +29,9 @@ import {
   getTransformMatrix,
   getTransformVectorMatrix,
   getTransformMaxScaleMagnitude,
+  getTransformTranslation,
   composeTransforms,
+  transformPointEquals,
   boundsUnionEquals,
   addToBoundsEquals,
   vec2,
@@ -87,9 +90,9 @@ export const ComponentRenderers: {[string]: RendererData} = {
       );
     },
     onMove: onShapeMove,
-    onFrame: onShapeFrame,
-    onPress: onShapePress,
-    onRelease: onShapeRelease,
+    onFrame: getCurrentHoverState,
+    onPress: getCurrentHoverState,
+    onRelease: getCurrentHoverState,
   },
   textRenderer: {
     getZOrder: (data: Object) => data.zOrder || 0,
@@ -105,9 +108,9 @@ export const ComponentRenderers: {[string]: RendererData} = {
       };
     },
     onMove: onShapeMove,
-    onFrame: onShapeFrame,
-    onPress: onShapePress,
-    onRelease: onShapeRelease,
+    onFrame: getCurrentHoverState,
+    onPress: getCurrentHoverState,
+    onRelease: getCurrentHoverState,
   },
   moduleRenderer: {
     getZOrder: (data: Object) => data.zOrder || 0,
@@ -153,21 +156,67 @@ export const ComponentRenderers: {[string]: RendererData} = {
       return {part, moveTime: Date.now()};
     },
     onFrame: entity => {
-      const oldState = store.getState().hoverStates.get(entity.id);
-      if (!(oldState && oldState.part)) {
-        return oldState;
+      const state = store.getState();
+      const oldHoverState = state.hoverStates.get(entity.id);
+      if (oldHoverState && oldHoverState.part) {
+        const elapsed = Date.now() - oldHoverState.moveTime;
+        if (elapsed > 750) {
+          if (!(state.tooltip && state.tooltip.entityId == entity.id)) {
+            for (const key in entity.state) {
+              const module = ComponentModules[key];
+              if (module) {
+                const data = entity.state[key];
+                const inputs = module.getInputs(data);
+                const inputKeys = Object.keys(inputs);
+                const outputs = module.getOutputs(data);
+                const outputKeys = Object.keys(outputs);
+                let index = oldHoverState.part - 1;
+                let label: React.Element<any>;
+                const position = vec2();
+                if (index < inputKeys.length) {
+                  label = inputs[inputKeys[index]].label;
+                  vec2(
+                    MODULE_WIDTH * -0.5 - MODULE_HEIGHT_PER_TERMINAL * 0.5,
+                    ((inputKeys.length - 1) * 0.5 - index + 0.25) *
+                      MODULE_HEIGHT_PER_TERMINAL,
+                    position,
+                  );
+                } else {
+                  index -= inputKeys.length;
+                  label = outputs[outputKeys[index]].label;
+                  vec2(
+                    MODULE_WIDTH * 0.5 + MODULE_HEIGHT_PER_TERMINAL * 0.5,
+                    ((outputKeys.length - 1) * 0.5 - index + 0.25) *
+                      MODULE_HEIGHT_PER_TERMINAL,
+                    position,
+                  );
+                }
+                store.dispatch(
+                  StoreActions.setTooltip.create({
+                    entityId: entity.id,
+                    label,
+                    position: transformPointEquals(
+                      position,
+                      getTransformMatrix(
+                        entity.getLastCachedValue('worldTransform'),
+                      ),
+                    ),
+                  }),
+                );
+                break;
+              }
+            }
+          }
+          return oldHoverState;
+        }
       }
-      const elapsed = Date.now() - oldState.moveTime;
-      return elapsed > 750 && !oldState.tip
-        ? Object.assign({tip: true}, oldState)
-        : oldState;
+      if (state.tooltip && state.tooltip.entityId === entity.id) {
+        store.dispatch(StoreActions.setTooltip.create(null));
+      }
+      return oldHoverState;
     },
-    onPress: (entity, position) => {
-      return store.getState().hoverStates.get(entity.id);
-    },
-    onRelease: (entity, position) => {
-      return store.getState().hoverStates.get(entity.id);
-    },
+    onPress: getCurrentHoverState,
+    onRelease: getCurrentHoverState,
   },
 };
 
@@ -182,15 +231,7 @@ function onShapeMove(entity: Entity, position: Vector2): HoverState {
   }
 }
 
-function onShapeFrame(entity: Entity): HoverState {
-  return store.getState().hoverStates.get(entity.id);
-}
-
-function onShapePress(entity: Entity, position: Vector2): HoverState {
-  return store.getState().hoverStates.get(entity.id);
-}
-
-function onShapeRelease(entity: Entity, position: Vector2): HoverState {
+function getCurrentHoverState(entity: Entity): HoverState {
   return store.getState().hoverStates.get(entity.id);
 }
 

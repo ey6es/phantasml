@@ -479,7 +479,31 @@ export class Renderer {
       (offsetX / canvas.clientWidth - 0.5) * camera.size * camera.aspect;
     const y = camera.y + (0.5 - offsetY / canvas.clientHeight) * camera.size;
     if (!result) {
-      result = {x, y};
+      return {x, y};
+    }
+    result.x = x;
+    result.y = y;
+    return result;
+  }
+
+  /**
+   * Gets the pixel coords corresponding to the given world position.
+   *
+   * @param position the position to convert.
+   * @return [result] an optional result vector to hold the result.  If not
+   * given, a new vector will be created.
+   * @return the result vector.
+   */
+  getCanvasPosition(position: Vector2, result?: Vector2): Vector2 {
+    const x =
+      this.canvas.clientWidth *
+      ((position.x - this.camera.x) / (this.camera.size * this.camera.aspect) +
+        0.5);
+    const y =
+      this.canvas.clientHeight *
+      ((this.camera.y - position.y) / this.camera.size + 0.5);
+    if (!result) {
+      return {x, y};
     }
     result.x = x;
     result.y = y;

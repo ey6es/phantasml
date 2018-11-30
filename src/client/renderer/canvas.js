@@ -6,15 +6,17 @@
  */
 
 import * as React from 'react';
+import * as ReactRedux from 'react-redux';
+import {Tooltip} from 'reactstrap';
 import {renderBackground} from './background';
 import {Renderer} from './util';
 import {ComponentRenderers} from './renderers';
-import type {PageState, ToolType, HoverState} from '../store';
+import type {PageState, ToolType, HoverState, TooltipData} from '../store';
 import {DEFAULT_PAGE_SIZE, store} from '../store';
 import type {Resource, Entity} from '../../server/store/resource';
 import type {IdTreeNode} from '../../server/store/scene';
 import {Scene} from '../../server/store/scene';
-import {vec2} from '../../server/store/math';
+import {vec2, roundEquals} from '../../server/store/math';
 
 const cameraBounds = {min: vec2(), max: vec2()};
 
@@ -96,13 +98,23 @@ export function getEntityRenderer(
  */
 export class RenderCanvas extends React.Component<
   {setRenderer: (?Renderer) => void, fontImage: HTMLImageElement},
-  {},
+  {renderer: ?Renderer},
 > {
+  state = {renderer: null};
+
   _renderer: ?Renderer;
   _unsubscribeFromStore: ?() => void;
 
   render() {
-    return <canvas ref={this._setCanvas} className="render-canvas" />;
+    return [
+      <canvas
+        key="canvas"
+        id="render-canvas"
+        ref={this._setCanvas}
+        className="render-canvas"
+      />,
+      <CanvasTooltip key="tooltip" renderer={this.state.renderer} />,
+    ];
   }
 
   componentDidMount() {
@@ -155,6 +167,7 @@ export class RenderCanvas extends React.Component<
         canvas,
         this.props.fontImage,
       ));
+      this.setState({renderer});
       renderer.addRenderCallback(this._renderScene);
       this.props.setRenderer(renderer);
       renderer.renderFrame();
@@ -222,3 +235,30 @@ export class RenderCanvas extends React.Component<
     entityZOrders.splice(0, entityZOrders.length);
   };
 }
+
+const CanvasTooltip = ReactRedux.connect(state => ({
+  tooltip: state.tooltip,
+}))((props: {renderer: ?Renderer, tooltip: ?TooltipData}) => {
+  const tooltip = props.tooltip;
+  const renderer = props.renderer;
+  if (!(tooltip && renderer)) {
+    return null;
+  }
+  const offset = roundEquals(renderer.getCanvasPosition(tooltip.position));
+  offset.x -= renderer.canvas.clientWidth / 2;
+  return (
+    <Tooltip
+      isOpen={true}
+      target="render-canvas"
+      placement="top"
+      arrowClassName="canvas-tooltip-arrow"
+      modifiers={{
+        flip: {enabled: false},
+        keepTogether: {enabled: false},
+        arrow: {enabled: false},
+        offset: {offset: `${offset.x}, ${-offset.y}`},
+      }}>
+      {tooltip.label}
+    </Tooltip>
+  );
+});

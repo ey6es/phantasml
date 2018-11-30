@@ -5,6 +5,7 @@
  * @flow
  */
 
+import * as React from 'react';
 import * as Redux from 'redux';
 import uuid from 'uuid/v1';
 import {getFromApi, putToApi} from './util/api';
@@ -23,6 +24,7 @@ import {
   undoStackReducer,
 } from '../server/store/resource';
 import {Scene, SceneActions, advanceEditNumber} from '../server/store/scene';
+import type {Vector2} from '../server/store/math';
 import {getTransformTranslation, boundsValid} from '../server/store/math';
 
 type StoreAction = {type: string, [string]: any};
@@ -58,6 +60,12 @@ export type ToolType =
 
 export type HoverState = any;
 
+export type TooltipData = {
+  entityId: string,
+  label: React.Element<any>,
+  position: Vector2,
+};
+
 type PlayState = 'stopped' | 'playing' | 'paused';
 
 type Snapshot = {frame: number, resource: Resource};
@@ -79,6 +87,7 @@ type StoreState = {
   expanded: Set<string>,
   selection: Set<string>,
   hoverStates: Map<string, HoverState>,
+  tooltip: ?TooltipData,
   draggingSelection: boolean,
   draggingComponent: ?string,
   clipboard: Map<string, Object>,
@@ -108,6 +117,7 @@ const initialState = {
   expanded: new Set(),
   selection: new Set(),
   hoverStates: new Map(),
+  tooltip: null,
   draggingSelection: false,
   draggingComponent: null,
   clipboard: new Map(),
@@ -258,7 +268,18 @@ export const StoreActions = {
       hoverStates,
     }),
     reduce: (state: StoreState, action: StoreAction) => {
-      return Object.assign({}, state, {hoverStates: action.hoverStates});
+      const hoverStates: Map<string, HoverState> = action.hoverStates;
+      let tooltip = state.tooltip;
+      if (state.tooltip && !hoverStates.has(state.tooltip.entityId)) {
+        tooltip = null;
+      }
+      return Object.assign({}, state, {hoverStates, tooltip});
+    },
+  },
+  setTooltip: {
+    create: (tooltip: ?TooltipData) => ({type: 'setTooltip', tooltip}),
+    reduce: (state: StoreState, action: StoreAction) => {
+      return Object.assign({}, state, {tooltip: action.tooltip});
     },
   },
   cut: {
