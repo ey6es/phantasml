@@ -16,7 +16,7 @@ import {TOOLTIP_DELAY} from '../util/ui';
 import type {Entity} from '../../server/store/resource';
 import {TransferableValue} from '../../server/store/resource';
 import type {IdTreeNode} from '../../server/store/scene';
-import {Scene} from '../../server/store/scene';
+import {Scene, SceneActions} from '../../server/store/scene';
 import {Path, Shape, ShapeList} from '../../server/store/shape';
 import {
   ComponentGeometry,
@@ -32,11 +32,15 @@ import {
   getTransformMaxScaleMagnitude,
   getTransformTranslation,
   composeTransforms,
+  simplifyTransform,
+  transformPoint,
   transformPointEquals,
   boundsUnionEquals,
   addToBoundsEquals,
   vec2,
   equals,
+  minus,
+  plusEquals,
 } from '../../server/store/math';
 import * as FontData from '../font/Lato-Regular.json';
 
@@ -193,13 +197,24 @@ export const ComponentRenderers: {[string]: RendererData} = {
     onPress: (entity, position) => {
       const state = store.getState();
       const oldHoverState = state.hoverStates.get(entity.id);
+      const parentPosition = transformPoint(
+        position,
+        getTransformMatrix(entity.state.transform),
+      );
+      const offset = minus(
+        getTransformTranslation(entity.state.transform),
+        parentPosition,
+      );
       if (oldHoverState && oldHoverState.part) {
         if (state.tooltip && state.tooltip.entityId === entity.id) {
           store.dispatch(StoreActions.setTooltip.create(null));
         }
-        return Object.assign({}, oldHoverState, {dragging: equals(position)});
+        return Object.assign({}, oldHoverState, {
+          dragging: parentPosition,
+          offset,
+        });
       } else if (oldHoverState) {
-        return {dragging: equals(position)};
+        return {dragging: parentPosition, offset};
       }
       return oldHoverState;
     },
@@ -215,7 +230,30 @@ function onModuleMove(
   const state = store.getState();
   const oldHoverState = state.hoverStates.get(entity.id);
   if (oldHoverState && oldHoverState.dragging && !release) {
-    return oldHoverState; // Object.assign({}, oldHoverState, {dragging: equals(position)});
+    for (const key in entity.state) {
+      const module = ComponentModules[key];
+      if (module) {
+        const inputs = Object.keys(module.getInputs(entity.state[key]));
+        if (!oldHoverState.part || oldHoverState.part <= inputs.length) {
+          const parentPosition = transformPoint(
+            position,
+            getTransformMatrix(entity.state.transform),
+          );
+          const oldTrans = getTransformTranslation(entity.state.transform);
+          const translation = plusEquals(parentPosition, oldHoverState.offset);
+          if (translation.x !== oldTrans.x || translation.y !== oldTrans.y) {
+            store.dispatch(
+              SceneActions.editEntities.create({
+                [entity.id]: {
+                  transform: {translation},
+                },
+              }),
+            );
+          }
+        }
+      }
+    }
+    return Object.assign({}, oldHoverState, {dragging: equals(position)});
   }
   const resource = state.resource;
   if (!(resource instanceof Scene)) {
@@ -237,7 +275,7 @@ function onModuleMove(
   if (part === 0) {
     return true;
   }
-  if (oldHoverState && oldHoverState.part === part) {
+  if (oldHoverState && oldHoverState.part === part && !oldHoverState.dragging) {
     return oldHoverState;
   }
   return {part, moveTime: Date.now()};

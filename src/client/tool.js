@@ -767,6 +767,18 @@ class SelectPanToolImpl extends ToolImpl {
 
   componentDidUpdate(prevProps: ToolProps, prevState: Object) {
     super.componentDidUpdate(prevProps, prevState);
+    if (prevProps.selection !== this.props.selection) {
+      this._updatePointHover(this._lastClientX, this._lastClientY);
+    }
+  }
+
+  _onActivate(renderer: Renderer) {
+    this._updatePointHover(this._lastClientX, this._lastClientY);
+    this.props.setOptionProperties(this._optionProperties);
+    renderer.requestFrameRender();
+  }
+
+  _onDeactivate(renderer: Renderer) {
     this._updatePointHover(this._lastClientX, this._lastClientY);
   }
 
@@ -1135,37 +1147,40 @@ class SelectPanToolImpl extends ToolImpl {
     if (!(renderer && resource instanceof Scene)) {
       return;
     }
-    const position = renderer.getEventPosition(clientX, clientY);
-    const localPosition = vec2();
-    const hoverStates: Map<string, HoverState> = new Map();
-    const bounds = {min: position, max: position};
-    if (boundsContain(renderer.getCameraBounds(), bounds)) {
-      resource.applyToEntities(this.props.page, bounds, entity => {
-        for (const key in entity.state) {
-          const renderer = ComponentRenderers[key];
-          if (renderer) {
-            const hoverState = renderer.onMove(
-              entity,
-              transformPoint(
-                position,
-                getTransformInverseMatrix(
-                  entity.getLastCachedValue('worldTransform'),
+    if (!this._pressed) {
+      const position = renderer.getEventPosition(clientX, clientY);
+      const localPosition = vec2();
+      const hoverStates: Map<string, HoverState> = new Map();
+      const bounds = {min: position, max: position};
+      if (boundsContain(renderer.getCameraBounds(), bounds)) {
+        resource.applyToEntities(this.props.page, bounds, entity => {
+          for (const key in entity.state) {
+            const renderer = ComponentRenderers[key];
+            if (renderer) {
+              const hoverState = renderer.onMove(
+                entity,
+                transformPoint(
+                  position,
+                  getTransformInverseMatrix(
+                    entity.getLastCachedValue('worldTransform'),
+                  ),
+                  localPosition,
                 ),
-                localPosition,
-              ),
-            );
-            if (hoverState !== undefined) {
-              hoverStates.set(entity.id, hoverState);
+              );
+              if (hoverState !== undefined) {
+                hoverStates.set(entity.id, hoverState);
+              }
+              return;
             }
-            return;
           }
-        }
-      });
-    }
-    (document.body: any).style.cursor = hoverStates.size > 0 ? 'pointer' : null;
-    if (!mapsEqual(hoverStates, this.props.hoverStates)) {
-      store.dispatch(StoreActions.setHoverStates.create(hoverStates));
-      this._maybeRequestHoverStateUpdate();
+        });
+      }
+      (document.body: any).style.cursor =
+        hoverStates.size > 0 ? 'pointer' : null;
+      if (!mapsEqual(hoverStates, this.props.hoverStates)) {
+        store.dispatch(StoreActions.setHoverStates.create(hoverStates));
+        this._maybeRequestHoverStateUpdate();
+      }
     }
     for (const id of this.props.selection) {
       const entity: Entity = (resource.getEntity(id): any);
