@@ -36,7 +36,11 @@ const SingleOutput = {
   },
 };
 
-const IconAttributes = {thickness: 0.2, pathColor: [1.0, 1.0, 1.0]};
+const IconAttributes = {
+  thickness: 0.2,
+  pathColor: [1.0, 1.0, 1.0],
+  fillColor: [1.0, 1.0, 1.0],
+};
 
 const SplitIcon = new ShapeList()
   .move(-0.5, 0.0)

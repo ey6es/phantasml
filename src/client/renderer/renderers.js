@@ -125,13 +125,18 @@ export const ComponentRenderers: {[string]: RendererData} = {
       if (!shapeList) {
         return () => {};
       }
-      return createShapeListRenderFn(
+      const renderShapeList = createShapeListRenderFn(
         entity,
         shapeList,
         renderModule,
         '#ffffff',
         '#ffffff',
       );
+      return (renderer, selected, hoverState) => {
+        if (hoverState && hoverState.part && hoverState.dragging) {
+        }
+        renderShapeList(renderer, selected, hoverState);
+      };
     },
     onMove: onModuleMove,
     onFrame: entity => {
@@ -209,10 +214,11 @@ export const ComponentRenderers: {[string]: RendererData} = {
         if (state.tooltip && state.tooltip.entityId === entity.id) {
           store.dispatch(StoreActions.setTooltip.create(null));
         }
-        return Object.assign({}, oldHoverState, {
-          dragging: parentPosition,
-          offset,
-        });
+        let part = oldHoverState.part;
+        if (part <= getInputCount(entity)) {
+          part = 0;
+        }
+        return {dragging: parentPosition, offset, part};
       } else if (oldHoverState) {
         return {dragging: parentPosition, offset};
       }
@@ -230,27 +236,21 @@ function onModuleMove(
   const state = store.getState();
   const oldHoverState = state.hoverStates.get(entity.id);
   if (oldHoverState && oldHoverState.dragging && !release) {
-    for (const key in entity.state) {
-      const module = ComponentModules[key];
-      if (module) {
-        const inputs = Object.keys(module.getInputs(entity.state[key]));
-        if (!oldHoverState.part || oldHoverState.part <= inputs.length) {
-          const parentPosition = transformPoint(
-            position,
-            getTransformMatrix(entity.state.transform),
-          );
-          const oldTrans = getTransformTranslation(entity.state.transform);
-          const translation = plusEquals(parentPosition, oldHoverState.offset);
-          if (translation.x !== oldTrans.x || translation.y !== oldTrans.y) {
-            store.dispatch(
-              SceneActions.editEntities.create({
-                [entity.id]: {
-                  transform: {translation},
-                },
-              }),
-            );
-          }
-        }
+    if (!oldHoverState.part) {
+      const parentPosition = transformPoint(
+        position,
+        getTransformMatrix(entity.state.transform),
+      );
+      const oldTrans = getTransformTranslation(entity.state.transform);
+      const translation = plusEquals(parentPosition, oldHoverState.offset);
+      if (translation.x !== oldTrans.x || translation.y !== oldTrans.y) {
+        store.dispatch(
+          SceneActions.editEntities.create({
+            [entity.id]: {
+              transform: {translation},
+            },
+          }),
+        );
       }
     }
     return Object.assign({}, oldHoverState, {dragging: equals(position)});
@@ -279,6 +279,16 @@ function onModuleMove(
     return oldHoverState;
   }
   return {part, moveTime: Date.now()};
+}
+
+function getInputCount(entity: Entity): number {
+  for (const key in entity.state) {
+    const module = ComponentModules[key];
+    if (module) {
+      return Object.keys(module.getInputs(entity.state[key])).length;
+    }
+  }
+  return 0;
 }
 
 function onShapeMove(entity: Entity, position: Vector2): HoverState {
@@ -414,7 +424,12 @@ ComponentGeometry.moduleRenderer = {
       for (const input in inputs) {
         shapeList
           .move(MODULE_WIDTH * -0.5, y, 180)
-          .penDown(false, {thickness: 0.2, pathColor: [1.0, 1.0, 1.0], part})
+          .penDown(false, {
+            thickness: 0.2,
+            pathColor: [1.0, 1.0, 1.0],
+            fillColor: [1.0, 1.0, 1.0],
+            part,
+          })
           .advance(1)
           .penUp()
           .penDown(false, {thickness: 0.5})
@@ -965,33 +980,48 @@ function renderModule(
   hoverState: HoverState,
 ) {
   const partHover = hoverState && hoverState.part;
-  const dragging = hoverState && hoverState.dragging;
-  if (partHover) {
-    const program = renderer.getProgram(
-      renderModule,
-      renderer.getVertexShader(renderModule, MODULE_VERTEX_SHADER),
-      renderer.getFragmentShader(renderModule, MODULE_FRAGMENT_SHADER),
+  if (!partHover) {
+    renderShapeList(
+      renderer,
+      transform,
+      pathColor,
+      fillColor,
+      geometry,
+      selected,
+      hoverState,
     );
-    program.setUniformViewProjectionMatrix('viewProjectionMatrix');
-    program.setUniformMatrix('modelMatrix', transform, getTransformMatrix);
-    program.setUniformMatrix(
-      'vectorMatrix',
-      getTransformVectorMatrix(transform),
-    );
-    program.setUniformFloat('pixelsToWorldUnits', renderer.pixelsToWorldUnits);
-    program.setUniformFloat('hoverPart', hoverState.part);
-    renderer.setEnabled(renderer.gl.BLEND, true);
-    geometry.draw(program);
+    return;
   }
-  renderShapeList(
-    renderer,
-    transform,
-    pathColor,
-    fillColor,
-    geometry,
-    selected,
-    partHover || dragging ? undefined : hoverState,
+  const program = renderer.getProgram(
+    renderModule,
+    renderer.getVertexShader(renderModule, MODULE_VERTEX_SHADER),
+    renderer.getFragmentShader(renderModule, MODULE_FRAGMENT_SHADER),
   );
+  program.setUniformViewProjectionMatrix('viewProjectionMatrix');
+  program.setUniformMatrix('modelMatrix', transform, getTransformMatrix);
+  program.setUniformMatrix('vectorMatrix', getTransformVectorMatrix(transform));
+  program.setUniformFloat('pixelsToWorldUnits', renderer.pixelsToWorldUnits);
+  program.setUniformFloat(
+    'omitPart',
+    hoverState.dragging ? hoverState.part : -1.0,
+  );
+  program.setUniformColor('outlineColor', SELECT_COLOR);
+  renderer.setEnabled(renderer.gl.BLEND, true);
+  if (selected) {
+    program.setUniformFloat('alpha', 1.0);
+    program.setUniformFloat('outline', 1.0);
+    program.setUniformFloat('hoverPart', -1.0);
+    geometry.draw(program);
+    program.setUniformFloat('outline', 0.0);
+  } else {
+    program.setUniformFloat('alpha', 0.25);
+    program.setUniformFloat('outline', 0.0);
+    program.setUniformFloat('hoverPart', hoverState.part);
+    geometry.draw(program);
+    program.setUniformFloat('alpha', 1.0);
+    program.setUniformFloat('hoverPart', -1.0);
+  }
+  geometry.draw(program);
 }
 
 const MODULE_VERTEX_SHADER = `
@@ -1000,6 +1030,10 @@ const MODULE_VERTEX_SHADER = `
   uniform mat3 viewProjectionMatrix;
   uniform float pixelsToWorldUnits;
   uniform float hoverPart;
+  uniform float omitPart;
+  uniform float alpha;
+  uniform float outline;
+  uniform vec3 outlineColor;
   attribute vec2 vertex;
   attribute vec2 vector;
   attribute float joint;
@@ -1012,13 +1046,17 @@ const MODULE_VERTEX_SHADER = `
   varying float stepSize;
   varying vec3 interpolatedPathColor;
   varying vec3 interpolatedFillColor;
+  varying float interpolatedAlpha;
   void main(void) {
     interpolatedVector = vector;
     interpolatedJoint = joint;
-    interpolatedPathColor = pathColor;
-    interpolatedFillColor = fillColor;
+    interpolatedPathColor = mix(pathColor, outlineColor, outline);
+    interpolatedFillColor = mix(fillColor, outlineColor, outline);
+    float omit = step(omitPart - 0.5, part) * step(part, omitPart + 0.5);
+    interpolatedAlpha = alpha * (1.0 - omit);
     float hovered = step(hoverPart - 0.5, part) * step(part, hoverPart + 0.5);
-    float adjustedThickness = thickness + hovered * pixelsToWorldUnits * 2.0;
+    float adjustedThickness =
+      thickness + (hovered * 2.0 + outline * 3.0) * pixelsToWorldUnits;
     stepSize = pixelsToWorldUnits / adjustedThickness;
     vec3 point =
       modelMatrix * vec3(vertex, 1.0) +
@@ -1035,6 +1073,7 @@ export const MODULE_FRAGMENT_SHADER = `
   varying float stepSize;
   varying vec3 interpolatedPathColor;
   varying vec3 interpolatedFillColor;
+  varying float interpolatedAlpha;
   void main(void) {
     float dist = length(interpolatedVector);
     float filled = 1.0 - step(dist, 0.0);
@@ -1044,7 +1083,7 @@ export const MODULE_FRAGMENT_SHADER = `
     float alpha = mix(2.0 * inside - inside * inside, inside, joint);
     gl_FragColor = vec4(
       mix(interpolatedFillColor, interpolatedPathColor, filled),
-      alpha * 0.25
+      alpha * interpolatedAlpha
     );
   }
 `;
@@ -1058,7 +1097,7 @@ function renderShapeList(
   selected: boolean,
   hoverState: HoverState,
 ) {
-  if (typeof hoverState === 'object') {
+  if (typeof hoverState === 'object' && !(hoverState && hoverState.dragging)) {
     renderTranslucentShapeList(
       renderer,
       composeTransforms(hoverState, transform),
