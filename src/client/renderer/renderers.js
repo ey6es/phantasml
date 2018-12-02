@@ -9,6 +9,7 @@ import * as React from 'react';
 import {RendererComponents} from './components';
 import type {Renderer} from './util';
 import {Geometry} from './util';
+import {renderWireHelper, drawWireArrow} from './helpers';
 import type {HoverState} from '../store';
 import {StoreActions, store} from '../store';
 import {ComponentModules} from '../circuit/modules';
@@ -42,6 +43,7 @@ import {
   minus,
   plusEquals,
 } from '../../server/store/math';
+import {getColorArray} from '../../server/store/util';
 import * as FontData from '../font/Lato-Regular.json';
 
 const FontCharacters: Map<string, Object> = new Map();
@@ -132,8 +134,33 @@ export const ComponentRenderers: {[string]: RendererData} = {
         '#ffffff',
         '#ffffff',
       );
+      const transform = entity.getLastCachedValue('worldTransform');
+      const inputCount = getInputCount(entity);
+      const outputCount = getOutputCount(entity);
+      const start = vec2(MODULE_WIDTH * 0.5);
       return (renderer, selected, hoverState) => {
         if (hoverState && hoverState.part && hoverState.dragging) {
+          const index = hoverState.part - inputCount - 1;
+          start.y =
+            ((outputCount - 1) * 0.5 - index) * MODULE_HEIGHT_PER_TERMINAL;
+          if (selected) {
+            renderWireHelper(
+              renderer,
+              transform,
+              MODULE_THICKNESS + renderer.pixelsToWorldUnits * 3.0,
+              SELECT_COLOR,
+              start,
+              hoverState.dragging,
+            );
+          }
+          renderWireHelper(
+            renderer,
+            transform,
+            MODULE_THICKNESS,
+            WireColors[index % WireColors.length],
+            start,
+            hoverState.dragging,
+          );
         }
         renderShapeList(renderer, selected, hoverState);
       };
@@ -218,9 +245,9 @@ export const ComponentRenderers: {[string]: RendererData} = {
         if (part <= getInputCount(entity)) {
           part = 0;
         }
-        return {dragging: parentPosition, offset, part};
+        return {dragging: position, offset, part};
       } else if (oldHoverState) {
-        return {dragging: parentPosition, offset};
+        return {dragging: position, offset};
       }
       return oldHoverState;
     },
@@ -286,6 +313,16 @@ function getInputCount(entity: Entity): number {
     const module = ComponentModules[key];
     if (module) {
       return Object.keys(module.getInputs(entity.state[key])).length;
+    }
+  }
+  return 0;
+}
+
+function getOutputCount(entity: Entity): number {
+  for (const key in entity.state) {
+    const module = ComponentModules[key];
+    if (module) {
+      return Object.keys(module.getOutputs(entity.state[key])).length;
     }
   }
   return 0;
@@ -381,14 +418,15 @@ const MODULE_BODY_ATTRIBUTES = {
   part: 0,
 };
 
-const WireColors: number[][] = [
-  [0.0, 1.0, 1.0], // cyan
-  [1.0, 0.0, 1.0], // magenta
-  [1.0, 1.0, 0.0], // yellow
-  [0.0, 1.0, 0.0], // green
-  [1.0, 0.5, 0.0], // orange
-  [1.0, 0.0, 0.0], // red
+const WireColors = [
+  '#00ffff', // cyan
+  '#ff00ff', // magenta
+  '#ffff00', // yellow
+  '#00ff00', // green
+  '#ff8000', // orange
+  '#ff0000', // red
 ];
+const WireColorArrays = WireColors.map(getColorArray);
 
 ComponentBounds.moduleRenderer = {
   addToBounds: (idTree: IdTreeNode, entity: Entity, bounds: Bounds) => {
@@ -440,8 +478,8 @@ ComponentGeometry.moduleRenderer = {
       y = (outputCount - 1) * MODULE_HEIGHT_PER_TERMINAL * 0.5;
       let color = 0;
       for (const output in outputs) {
-        const wireColor = WireColors[color];
-        color = (color + 1) % WireColors.length;
+        const wireColor = WireColorArrays[color];
+        color = (color + 1) % WireColorArrays.length;
         shapeList
           .move(MODULE_WIDTH * 0.5, y, 0)
           .penDown(false, {
@@ -451,17 +489,8 @@ ComponentGeometry.moduleRenderer = {
             part,
           })
           .advance(0.7)
-          .penUp()
-          .pivot(-90)
-          .advance(0.3)
-          .pivot(116.5651)
-          .penDown(true)
-          .advance(0.67082)
-          .pivot(126.8699)
-          .advance(0.67082)
-          .pivot(116.5651)
-          .advance(0.6)
           .penUp();
+        drawWireArrow(shapeList);
         y -= MODULE_HEIGHT_PER_TERMINAL;
         part++;
       }

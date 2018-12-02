@@ -12,7 +12,12 @@ import type {Vector2, LineSegment, Transform} from '../../server/store/math';
 import {
   getTransformMatrix,
   getTransformVectorMatrix,
+  composeTransforms,
   vec2,
+  distance,
+  timesEquals,
+  rotateEquals,
+  plus,
   radians,
   degrees,
 } from '../../server/store/math';
@@ -910,3 +915,71 @@ const CURVE_HELPER_VERTEX_SHADER = `
     gl_Position = vec4(position.xy, 0.0, 1.0);
   }
 `;
+
+/**
+ * Draws the arrow for the end of a wire.
+ *
+ * @param shapeList the shapeList to draw to.
+ * @return a reference to the shape list, for chaining.
+ */
+export function drawWireArrow(shapeList: ShapeList): ShapeList {
+  return shapeList
+    .pivot(-90)
+    .advance(0.3)
+    .pivot(116.5651)
+    .penDown(true)
+    .advance(0.67082)
+    .pivot(126.8699)
+    .advance(0.67082)
+    .pivot(116.5651)
+    .advance(0.6)
+    .penUp();
+}
+
+const WireArrowGeometry = new Geometry(
+  ...drawWireArrow(new ShapeList().move(-0.3, 0.0)).createGeometry(),
+);
+
+/**
+ * Renders a wire being manipulated.
+ *
+ * @param renderer the renderer to use.
+ * @param transform the module transform.
+ * @param thickness the thickness of the wire.
+ * @param color the wire color.
+ * @param start the local wire start position.
+ * @param end the local wire end position.
+ */
+export function renderWireHelper(
+  renderer: Renderer,
+  transform: Transform,
+  thickness: number,
+  color: string,
+  start: Vector2,
+  end: Vector2,
+) {
+  const rotation = Math.atan2(end.y - start.y, end.x - start.x);
+  const cosr = Math.cos(rotation);
+  const sinr = Math.sin(rotation);
+  const span = distance(start, end);
+  renderCurveHelper(
+    renderer,
+    composeTransforms(transform, {
+      translation: timesEquals(plus(start, end), 0.5),
+      rotation,
+    }),
+    thickness,
+    color,
+    span,
+    vec2(span * (-0.5 + cosr * 0.5), -sinr * span * 0.5),
+    vec2(span * (0.5 - cosr * 0.5), sinr * span * 0.5),
+  );
+  renderPolygonHelper(
+    renderer,
+    composeTransforms(transform, {translation: end}),
+    thickness,
+    color,
+    color,
+    WireArrowGeometry,
+  );
+}
