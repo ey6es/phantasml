@@ -928,7 +928,7 @@ export function drawWireArrow(shapeList: ShapeList): ShapeList {
     .pivot(-90)
     .advance(0.3)
     .pivot(116.5651)
-    .penDown(true)
+    .penDown(true, {thickness: 0.2})
     .advance(0.67082)
     .pivot(126.8699)
     .advance(0.67082)
