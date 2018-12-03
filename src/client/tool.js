@@ -1019,6 +1019,7 @@ class SelectPanToolImpl extends ToolImpl {
       }
       (document.body: any).style.cursor = hovered ? 'pointer' : null;
     }
+    this._updatePointHover(this._lastClientX, this._lastClientY);
   };
 
   _onMouseMove = (event: MouseEvent) => {
@@ -1084,31 +1085,44 @@ class SelectPanToolImpl extends ToolImpl {
       const localPosition = vec2();
       let hoverStates = this.props.hoverStates;
       let dragging = false;
+      const setHoverState = (id: string, hoverState: HoverState) => {
+        if (hoverStates.get(id) !== hoverState) {
+          if (hoverStates === this.props.hoverStates) {
+            hoverStates = new Map(this.props.hoverStates);
+          }
+          if (hoverState === undefined) {
+            hoverStates.delete(id);
+          } else {
+            hoverStates.set(id, hoverState);
+          }
+        }
+        if (hoverState && hoverState.dragging) {
+          dragging = true;
+        }
+      };
       for (const [id, hoverState] of this.props.hoverStates) {
+        if (!(hoverState && hoverState.dragging)) {
+          continue;
+        }
         const entity = resource.getEntity(id);
         if (entity) {
           for (const key in entity.state) {
             const renderer = ComponentRenderers[key];
             if (renderer) {
-              const newHoverState = renderer.onMove(
-                entity,
-                transformPoint(
-                  eventPosition,
-                  getTransformInverseMatrix(
-                    entity.getLastCachedValue('worldTransform'),
+              setHoverState(
+                id,
+                renderer.onDrag(
+                  entity,
+                  transformPoint(
+                    eventPosition,
+                    getTransformInverseMatrix(
+                      entity.getLastCachedValue('worldTransform'),
+                    ),
+                    localPosition,
                   ),
-                  localPosition,
+                  setHoverState,
                 ),
               );
-              if (newHoverState && newHoverState.dragging) {
-                dragging = true;
-              }
-              if (newHoverState !== hoverState) {
-                if (hoverStates === this.props.hoverStates) {
-                  hoverStates = new Map(this.props.hoverStates);
-                }
-                hoverStates.set(id, newHoverState);
-              }
               break;
             }
           }

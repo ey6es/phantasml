@@ -20,6 +20,7 @@ import {
   plus,
   radians,
   degrees,
+  emptyBounds,
 } from '../../server/store/math';
 import {Path, ShapeList} from '../../server/store/shape';
 
@@ -936,9 +937,16 @@ export function drawWireArrow(shapeList: ShapeList): ShapeList {
     .penUp();
 }
 
-const WireArrowGeometry = new Geometry(
-  ...drawWireArrow(new ShapeList().move(-0.3, 0.0)).createGeometry(),
-);
+const wireArrowShape = drawWireArrow(new ShapeList().move(-0.3, 0.0));
+
+/** The bounds of the wire arrow as drawn when dragging. */
+export const WireArrowBounds = emptyBounds();
+wireArrowShape.addToBounds(WireArrowBounds);
+
+/** The wire arrow collision geometry. */
+export const WireArrowCollisionGeometry = wireArrowShape.createCollisionGeometry();
+
+const WireArrowGeometry = new Geometry(...wireArrowShape.createGeometry());
 
 /**
  * Renders a wire being manipulated.

@@ -245,12 +245,15 @@ export class CollisionGeometry {
    * against the other.
    * @param radius the intersection radius.
    * @param result the vector to hold the result.
+   * @param [allResults] if provided, an array to populate with all the
+   * penetrations.
    */
   getPenetration(
     other: CollisionGeometry,
     transform: Transform,
     radius: number,
     result: Vector2,
+    allResults?: PenetrationResult[],
   ) {
     vec2(0.0, 0.0, result);
     let resultLength = 0.0;
@@ -269,6 +272,13 @@ export class CollisionGeometry {
         if (penetrationLength > resultLength) {
           negative(otherPenetration, result);
           resultLength = penetrationLength;
+        }
+        if (allResults && penetrationLength > 0.0) {
+          allResults.push({
+            penetration: negative(otherPenetration),
+            fromIndex: finalIndex,
+            toIndex: finalIndex,
+          });
         }
         continue;
       }
@@ -290,6 +300,13 @@ export class CollisionGeometry {
           negative(otherPenetration, result);
           resultLength = penetrationLength;
         }
+        if (allResults && penetrationLength > 0.0) {
+          allResults.push({
+            penetration: negative(otherPenetration),
+            fromIndex,
+            toIndex,
+          });
+        }
       }
     }
     for (const polygon of this._polygons) {
@@ -302,7 +319,7 @@ export class CollisionGeometry {
         );
         vertices.push(transformPointEquals(vertex, matrix));
       }
-      other.getPolygonPenetration(
+      const index = other.getPolygonPenetration(
         vertices,
         vertexThicknesses,
         otherPenetration,
@@ -311,6 +328,13 @@ export class CollisionGeometry {
       if (penetrationLength > resultLength) {
         negative(otherPenetration, result);
         resultLength = penetrationLength;
+      }
+      if (allResults && penetrationLength > 0.0) {
+        allResults.push({
+          penetration: negative(otherPenetration),
+          fromIndex: polygon.indices[index],
+          toIndex: polygon.indices[(index + 1) % polygon.indices.length],
+        });
       }
     }
   }
@@ -560,20 +584,22 @@ export class CollisionGeometry {
    * @param points the points of the polygon in CCW winding order.
    * @param thicknesses the thicknesses associated with each point, if any.
    * @param result a vector to hold the result.
+   * @return the index of the penetrated side, if any.
    */
   getPolygonPenetration(
     points: Vector2[],
     thicknesses: number[],
     result: Vector2,
-  ) {
+  ): number {
     vec2(0.0, 0.0, result);
     let resultLength = 0.0;
+    let resultIndex = 0;
 
     for (const path of this._paths) {
       const finalIndex = path.lastIndex - 1;
       if (path.firstIndex === finalIndex) {
         const pointThickness = this._getVertexThickness(finalIndex, point);
-        getPolygonPointPenetration(
+        const index = getPolygonPointPenetration(
           points,
           thicknesses,
           point,
@@ -584,6 +610,7 @@ export class CollisionGeometry {
         if (penetrationLength > resultLength) {
           negative(featurePenetration, result);
           resultLength = penetrationLength;
+          resultIndex = index;
         }
         continue;
       }
@@ -593,7 +620,7 @@ export class CollisionGeometry {
           fromIndex === finalIndex ? path.firstIndex : fromIndex + 1;
         const beginThickness = this._getVertexThickness(fromIndex, begin);
         const finishThickness = this._getVertexThickness(toIndex, finish);
-        getPolygonSegmentPenetration(
+        const index = getPolygonSegmentPenetration(
           points,
           thicknesses,
           begin,
@@ -606,6 +633,7 @@ export class CollisionGeometry {
         if (penetrationLength > resultLength) {
           negative(featurePenetration, result);
           resultLength = penetrationLength;
+          resultIndex = index;
         }
       }
     }
@@ -617,7 +645,7 @@ export class CollisionGeometry {
         vertices.push(vertex);
         vertexThicknesses.push(this._getVertexThickness(index, vertex));
       }
-      getPolygonPolygonPenetration(
+      const index = getPolygonPolygonPenetration(
         vertices,
         vertexThicknesses,
         points,
@@ -628,8 +656,10 @@ export class CollisionGeometry {
       if (penetrationLength > resultLength) {
         equals(featurePenetration, result);
         resultLength = penetrationLength;
+        resultIndex = index;
       }
     }
+    return resultIndex;
   }
 
   _computeAreaAndCenterOfMass() {
@@ -1064,7 +1094,7 @@ function getPolygonSegmentPenetration(
   fromThickness: number,
   toThickness: number,
   result: Vector2,
-) {
+): number {
   if (points.length === 1) {
     getSegmentPointPenetration(
       from,
@@ -1076,7 +1106,7 @@ function getPolygonSegmentPenetration(
       result,
     );
     negativeEquals(result);
-    return;
+    return 0;
   }
   if (points.length === 2) {
     getSegmentSegmentPenetration(
@@ -1090,10 +1120,11 @@ function getPolygonSegmentPenetration(
       toThickness,
       result,
     );
-    return;
+    return 0;
   }
   vec2(0.0, 0.0, result);
   let resultLength = Infinity;
+  let resultIndex = 0;
   for (let ii = 0; ii < points.length; ii++) {
     const toIndex = (ii + 1) % points.length;
     const allRightSide = getSideSegmentPenetration(
@@ -1109,17 +1140,18 @@ function getPolygonSegmentPenetration(
     );
     if (allRightSide) {
       equals(segmentPenetration, result);
-      return;
+      return ii;
     }
     const penetrationLength = length(segmentPenetration);
     if (penetrationLength > 0.0 && penetrationLength < resultLength) {
       equals(segmentPenetration, result);
       resultLength = penetrationLength;
+      resultIndex = ii;
     }
   }
 
   {
-    const allRightSide = getSidePolygonPenetration(
+    const [allRightSide, index] = getSidePolygonPenetration(
       from,
       to,
       fromThickness,
@@ -1130,17 +1162,18 @@ function getPolygonSegmentPenetration(
     );
     if (allRightSide) {
       negative(segmentPenetration, result);
-      return;
+      return index;
     }
     const penetrationLength = length(segmentPenetration);
     if (penetrationLength > 0.0 && penetrationLength < resultLength) {
       negative(segmentPenetration, result);
       resultLength = penetrationLength;
+      resultIndex = index;
     }
   }
 
   {
-    const allRightSide = getSidePolygonPenetration(
+    const [allRightSide, index] = getSidePolygonPenetration(
       to,
       from,
       toThickness,
@@ -1151,13 +1184,15 @@ function getPolygonSegmentPenetration(
     );
     if (allRightSide) {
       negative(segmentPenetration, result);
-      return;
+      return index;
     }
     const penetrationLength = length(segmentPenetration);
     if (penetrationLength > 0.0 && penetrationLength < resultLength) {
       negative(segmentPenetration, result);
+      resultIndex = index;
     }
   }
+  return resultIndex;
 }
 
 const polygonPenetration = vec2();
@@ -1168,19 +1203,18 @@ function getPolygonPolygonPenetration(
   secondPoints: Vector2[],
   secondThicknesses: number[],
   result: Vector2,
-) {
+): number {
   if (secondPoints.length === 1) {
-    getPolygonPointPenetration(
+    return getPolygonPointPenetration(
       firstPoints,
       firstThicknesses,
       secondPoints[0],
       secondThicknesses[0] || 0.0,
       result,
     );
-    return;
   }
   if (secondPoints.length === 2) {
-    getPolygonSegmentPenetration(
+    return getPolygonSegmentPenetration(
       firstPoints,
       firstThicknesses,
       secondPoints[0],
@@ -1189,13 +1223,13 @@ function getPolygonPolygonPenetration(
       secondThicknesses[1] || 0.0,
       result,
     );
-    return;
   }
   vec2(0.0, 0.0, result);
   let resultLength = Infinity;
+  let resultIndex = 0;
   for (let ii = 0; ii < firstPoints.length; ii++) {
     const toIndex = (ii + 1) % firstPoints.length;
-    const allRightSide = getSidePolygonPenetration(
+    const [allRightSide, index] = getSidePolygonPenetration(
       firstPoints[ii],
       firstPoints[toIndex],
       firstThicknesses[ii] || 0.0,
@@ -1206,18 +1240,19 @@ function getPolygonPolygonPenetration(
     );
     if (allRightSide) {
       equals(polygonPenetration, result);
-      return;
+      return ii;
     }
     const penetrationLength = length(polygonPenetration);
     if (penetrationLength > 0.0 && penetrationLength < resultLength) {
       equals(polygonPenetration, result);
       resultLength = penetrationLength;
+      resultIndex = ii;
     }
   }
 
   for (let ii = 0; ii < secondPoints.length; ii++) {
     const toIndex = (ii + 1) % secondPoints.length;
-    const allRightSide = getSidePolygonPenetration(
+    const [allRightSide, index] = getSidePolygonPenetration(
       secondPoints[ii],
       secondPoints[toIndex],
       secondThicknesses[ii] || 0.0,
@@ -1228,14 +1263,16 @@ function getPolygonPolygonPenetration(
     );
     if (allRightSide) {
       negative(polygonPenetration, result);
-      return;
+      return index;
     }
     const penetrationLength = length(polygonPenetration);
     if (penetrationLength > 0.0 && penetrationLength < resultLength) {
       negative(polygonPenetration, result);
       resultLength = penetrationLength;
+      resultIndex = index;
     }
   }
+  return resultIndex;
 }
 
 const sidePenetration = vec2();
@@ -1283,9 +1320,10 @@ function getSidePolygonPenetration(
   points: Vector2[],
   thicknesses: number[],
   result: Vector2,
-): boolean {
+): [boolean, number] {
   vec2(0.0, 0.0, result);
   let resultLength = 0.0;
+  let resultIndex = 0;
   let allRightSide = true;
   for (let ii = 0; ii < points.length; ii++) {
     const rightSide = getSidePointPenetration(
@@ -1301,10 +1339,11 @@ function getSidePolygonPenetration(
     if (penetrationLength > resultLength) {
       equals(sidePenetration, result);
       resultLength = penetrationLength;
+      resultIndex = ii;
     }
     allRightSide = allRightSide && rightSide;
   }
-  return allRightSide;
+  return [allRightSide, resultIndex];
 }
 
 const v1 = vec2();

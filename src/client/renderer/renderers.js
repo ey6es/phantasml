@@ -9,7 +9,12 @@ import * as React from 'react';
 import {RendererComponents} from './components';
 import type {Renderer} from './util';
 import {Geometry} from './util';
-import {renderWireHelper, drawWireArrow} from './helpers';
+import {
+  WireArrowBounds,
+  WireArrowCollisionGeometry,
+  renderWireHelper,
+  drawWireArrow,
+} from './helpers';
 import type {HoverState} from '../store';
 import {StoreActions, store} from '../store';
 import {ComponentModules} from '../circuit/modules';
@@ -33,11 +38,13 @@ import {
   getTransformMaxScaleMagnitude,
   getTransformTranslation,
   composeTransforms,
-  simplifyTransform,
+  invertTransform,
   transformPoint,
   transformPointEquals,
   boundsUnionEquals,
   addToBoundsEquals,
+  expandBoundsEquals,
+  transformBounds,
   vec2,
   equals,
   minus,
@@ -71,6 +78,8 @@ type RendererData = {
   onMove: (Entity, Vector2) => HoverState,
   onFrame: Entity => HoverState,
   onPress: (Entity, Vector2) => HoverState,
+  onDrag: (Entity, Vector2, (string, HoverState) => void) => HoverState,
+  onDragOver: (Entity, Entity, Transform) => HoverState,
   onRelease: (Entity, Vector2) => HoverState,
 };
 
@@ -100,6 +109,8 @@ export const ComponentRenderers: {[string]: RendererData} = {
     onMove: onShapeMove,
     onFrame: getCurrentHoverState,
     onPress: getCurrentHoverState,
+    onDrag: getCurrentHoverState,
+    onDragOver: getCurrentHoverState,
     onRelease: getCurrentHoverState,
   },
   textRenderer: {
@@ -118,7 +129,9 @@ export const ComponentRenderers: {[string]: RendererData} = {
     onMove: onShapeMove,
     onFrame: getCurrentHoverState,
     onPress: getCurrentHoverState,
-    onRelease: getCurrentHoverState,
+    onDrag: getCurrentHoverState,
+    onDragOver: getCurrentHoverState,
+    onRelease: onShapeMove,
   },
   moduleRenderer: {
     getZOrder: (data: Object) => data.zOrder || 0,
@@ -251,37 +264,121 @@ export const ComponentRenderers: {[string]: RendererData} = {
       }
       return oldHoverState;
     },
-    onRelease: (entity, position) => onModuleMove(entity, position, true),
+    onDrag: (entity, position, setHoverState) => {
+      const state = store.getState();
+      const oldHoverState = state.hoverStates.get(entity.id);
+      const resource = state.resource;
+      if (
+        !(oldHoverState && oldHoverState.dragging && resource instanceof Scene)
+      ) {
+        return oldHoverState;
+      }
+      if (oldHoverState.part) {
+        const transform = composeTransforms(
+          entity.getLastCachedValue('worldTransform'),
+          {translation: position},
+        );
+        const bounds = expandBoundsEquals(
+          transformBounds(WireArrowBounds, transform),
+          MODULE_THICKNESS,
+        );
+        const inverseTransform = invertTransform(transform);
+        const dropTargetIds: Set<string> = new Set();
+        resource.applyToEntities(state.page, bounds, otherEntity => {
+          if (otherEntity === entity) {
+            return;
+          }
+          for (const key in otherEntity.state) {
+            const renderer = ComponentRenderers[key];
+            if (renderer) {
+              const hoverState = renderer.onDragOver(
+                otherEntity,
+                entity,
+                inverseTransform,
+              );
+              if (hoverState) {
+                setHoverState(otherEntity.id, hoverState);
+                dropTargetIds.add(otherEntity.id);
+              }
+            }
+          }
+        });
+        for (const [id, hoverState] of state.hoverStates) {
+          if (!(hoverState.dragging || dropTargetIds.has(id))) {
+            setHoverState(id, undefined);
+          }
+        }
+      } else {
+        const parentPosition = transformPoint(
+          position,
+          getTransformMatrix(entity.state.transform),
+        );
+        const oldTrans = getTransformTranslation(entity.state.transform);
+        const translation = plusEquals(parentPosition, oldHoverState.offset);
+        if (translation.x !== oldTrans.x || translation.y !== oldTrans.y) {
+          store.dispatch(
+            SceneActions.editEntities.create({
+              [entity.id]: {
+                transform: {translation},
+              },
+            }),
+          );
+        }
+      }
+      return Object.assign({}, oldHoverState, {dragging: equals(position)});
+    },
+    onDragOver: (entity, draggedEntity, transform) => {
+      const state = store.getState();
+      const resource = state.resource;
+      if (!(resource instanceof Scene)) {
+        return;
+      }
+      const collisionGeometry = getCollisionGeometry(resource.idTree, entity);
+      if (!collisionGeometry) {
+        return;
+      }
+      const results: PenetrationResult[] = [];
+      collisionGeometry.getPenetration(
+        WireArrowCollisionGeometry,
+        composeTransforms(
+          transform,
+          entity.getLastCachedValue('worldTransform'),
+        ),
+        0.0,
+        vec2(),
+        results,
+      );
+      if (results.length === 0) {
+        return;
+      }
+      const part = collisionGeometry.getFloatAttribute(
+        results[0].fromIndex,
+        'part',
+      );
+      if (part === 0 || part > getInputCount(entity)) {
+        return;
+      }
+      for (let ii = 1; ii < results.length; ii++) {
+        const otherPart = collisionGeometry.getFloatAttribute(
+          results[ii].fromIndex,
+          'part',
+        );
+        if (otherPart !== part) {
+          return;
+        }
+      }
+      const oldHoverState = state.hoverStates.get(entity.id);
+      if (oldHoverState && oldHoverState.part === part) {
+        return oldHoverState;
+      }
+      return {part, moveTime: Date.now()};
+    },
+    onRelease: onModuleMove,
   },
 };
 
-function onModuleMove(
-  entity: Entity,
-  position: Vector2,
-  release: boolean = false,
-): HoverState {
+function onModuleMove(entity: Entity, position: Vector2): HoverState {
   const state = store.getState();
-  const oldHoverState = state.hoverStates.get(entity.id);
-  if (oldHoverState && oldHoverState.dragging && !release) {
-    if (!oldHoverState.part) {
-      const parentPosition = transformPoint(
-        position,
-        getTransformMatrix(entity.state.transform),
-      );
-      const oldTrans = getTransformTranslation(entity.state.transform);
-      const translation = plusEquals(parentPosition, oldHoverState.offset);
-      if (translation.x !== oldTrans.x || translation.y !== oldTrans.y) {
-        store.dispatch(
-          SceneActions.editEntities.create({
-            [entity.id]: {
-              transform: {translation},
-            },
-          }),
-        );
-      }
-    }
-    return Object.assign({}, oldHoverState, {dragging: equals(position)});
-  }
   const resource = state.resource;
   if (!(resource instanceof Scene)) {
     return;
@@ -302,6 +399,7 @@ function onModuleMove(
   if (part === 0) {
     return true;
   }
+  const oldHoverState = state.hoverStates.get(entity.id);
   if (oldHoverState && oldHoverState.part === part && !oldHoverState.dragging) {
     return oldHoverState;
   }
