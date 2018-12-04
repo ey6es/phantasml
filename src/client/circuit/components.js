@@ -8,6 +8,7 @@
 import * as React from 'react';
 import {FormattedMessage} from 'react-intl';
 import type {ComponentData, CategoryData} from '../component';
+import './renderers';
 
 /**
  * The circuit component categories.
