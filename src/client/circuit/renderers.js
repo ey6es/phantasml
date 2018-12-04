@@ -61,43 +61,35 @@ ComponentRenderers.moduleRenderer = {
     if (!shapeList) {
       return () => {};
     }
-    const renderShapeList = createShapeListRenderFn(
+    const inputCount = getInputCount(entity);
+    const outputCount = getOutputCount(entity);
+    return createShapeListRenderFn(
       entity,
       shapeList,
-      renderModule,
+      (
+        renderer: Renderer,
+        transform: Transform,
+        pathColor: string,
+        fillColor: string,
+        geometry: Geometry,
+        selected: boolean,
+        hoverState: HoverState,
+      ) => {
+        renderModule(
+          renderer,
+          transform,
+          pathColor,
+          fillColor,
+          geometry,
+          selected,
+          hoverState,
+          inputCount,
+          outputCount,
+        );
+      },
       '#ffffff',
       '#ffffff',
     );
-    const transform = entity.getLastCachedValue('worldTransform');
-    const inputCount = getInputCount(entity);
-    const outputCount = getOutputCount(entity);
-    const start = vec2(MODULE_WIDTH * 0.5);
-    return (renderer, selected, hoverState) => {
-      if (hoverState && hoverState.part && hoverState.dragging) {
-        const index = hoverState.part - inputCount - 1;
-        start.y =
-          ((outputCount - 1) * 0.5 - index) * MODULE_HEIGHT_PER_TERMINAL;
-        if (selected) {
-          renderWireHelper(
-            renderer,
-            transform,
-            MODULE_THICKNESS + renderer.pixelsToWorldUnits * 3.0,
-            SELECT_COLOR,
-            start,
-            hoverState.dragging,
-          );
-        }
-        renderWireHelper(
-          renderer,
-          transform,
-          MODULE_THICKNESS,
-          WireColors[index % WireColors.length],
-          start,
-          hoverState.dragging,
-        );
-      }
-      renderShapeList(renderer, selected, hoverState);
-    };
   },
   onMove: onModuleMove,
   onFrame: entity => {
@@ -284,13 +276,45 @@ ComponentRenderers.moduleRenderer = {
     if (!part) {
       return;
     }
+    let color: ?string;
+    const draggedHoverState = state.hoverStates.get(draggedEntity.id);
+    if (draggedHoverState && draggedHoverState.part) {
+      const index = draggedHoverState.part - getInputCount(draggedEntity) - 1;
+      color = WireColors[index % WireColors.length];
+    }
     const oldHoverState = state.hoverStates.get(entity.id);
-    if (oldHoverState && oldHoverState.part === part) {
+    if (
+      oldHoverState &&
+      oldHoverState.part === part &&
+      oldHoverState.color === color
+    ) {
       return oldHoverState;
     }
-    return {part, moveTime: Date.now()};
+    return {part, color, moveTime: Date.now()};
   },
-  onRelease: onModuleMove,
+  onRelease: (entity, position) => {
+    const state = store.getState();
+    const resource = state.resource;
+    const oldHoverState = state.hoverStates.get(entity.id);
+    if (
+      !(
+        resource instanceof Scene &&
+        oldHoverState.dragging &&
+        oldHoverState.part
+      )
+    ) {
+      return;
+    }
+    let targetEntity: ?Entity;
+    let targetPart = 0;
+    for (const [id, hoverState] of state.hoverStates) {
+      if (hoverState && !hoverState.dragging && hoverState.part) {
+        targetEntity = resource.getEntity(id);
+        targetPart = hoverState.part;
+        break;
+      }
+    }
+  },
 };
 
 function onModuleMove(entity: Entity, position: Vector2): HoverState {
@@ -453,6 +477,8 @@ ComponentGeometry.moduleRenderer = {
   createControlPointEdit: (entity, indexPositions, mirrored) => ({}),
 };
 
+const start = vec2();
+
 function renderModule(
   renderer: Renderer,
   transform: Transform,
@@ -461,6 +487,8 @@ function renderModule(
   geometry: Geometry,
   selected: boolean,
   hoverState: HoverState,
+  inputCount: number,
+  outputCount: number,
 ) {
   const partHover = hoverState && hoverState.part;
   if (!partHover) {
@@ -484,10 +512,16 @@ function renderModule(
   program.setUniformMatrix('modelMatrix', transform, getTransformMatrix);
   program.setUniformMatrix('vectorMatrix', getTransformVectorMatrix(transform));
   program.setUniformFloat('pixelsToWorldUnits', renderer.pixelsToWorldUnits);
-  program.setUniformFloat(
-    'omitPart',
-    hoverState.dragging ? hoverState.part : -1.0,
-  );
+  if (hoverState.dragging) {
+    program.setUniformFloat('replacePart', hoverState.part);
+    program.setUniformFloat('replaceAlpha', 0.0);
+  } else if (hoverState.color) {
+    program.setUniformFloat('replacePart', hoverState.part);
+    program.setUniformColor('replaceColor', hoverState.color);
+    program.setUniformFloat('replaceAlpha', 1.0);
+  } else {
+    program.setUniformFloat('replacePart', -1.0);
+  }
   program.setUniformColor('outlineColor', SELECT_COLOR);
   renderer.setEnabled(renderer.gl.BLEND, true);
   if (selected) {
@@ -504,6 +538,28 @@ function renderModule(
     program.setUniformFloat('alpha', 1.0);
     program.setUniformFloat('hoverPart', -1.0);
   }
+  if (hoverState.dragging) {
+    const index = hoverState.part - inputCount - 1;
+    start.y = ((outputCount - 1) * 0.5 - index) * MODULE_HEIGHT_PER_TERMINAL;
+    if (selected) {
+      renderWireHelper(
+        renderer,
+        transform,
+        MODULE_THICKNESS + renderer.pixelsToWorldUnits * 3.0,
+        SELECT_COLOR,
+        start,
+        hoverState.dragging,
+      );
+    }
+    renderWireHelper(
+      renderer,
+      transform,
+      MODULE_THICKNESS,
+      WireColors[index % WireColors.length],
+      start,
+      hoverState.dragging,
+    );
+  }
   geometry.draw(program);
 }
 
@@ -513,7 +569,9 @@ const MODULE_VERTEX_SHADER = `
   uniform mat3 viewProjectionMatrix;
   uniform float pixelsToWorldUnits;
   uniform float hoverPart;
-  uniform float omitPart;
+  uniform float replacePart;
+  uniform vec3 replaceColor;
+  uniform float replaceAlpha;
   uniform float alpha;
   uniform float outline;
   uniform vec3 outlineColor;
@@ -533,10 +591,13 @@ const MODULE_VERTEX_SHADER = `
   void main(void) {
     interpolatedVector = vector;
     interpolatedJoint = joint;
-    interpolatedPathColor = mix(pathColor, outlineColor, outline);
-    interpolatedFillColor = mix(fillColor, outlineColor, outline);
-    float omit = step(omitPart - 0.5, part) * step(part, omitPart + 0.5);
-    interpolatedAlpha = alpha * (1.0 - omit);
+    float replace =
+      step(replacePart - 0.5, part) * step(part, replacePart + 0.5);
+    vec3 basePathColor = mix(pathColor, replaceColor, replace);
+    vec3 baseFillColor = mix(fillColor, replaceColor, replace);
+    interpolatedPathColor = mix(basePathColor, outlineColor, outline);
+    interpolatedFillColor = mix(baseFillColor, outlineColor, outline);
+    interpolatedAlpha = alpha * mix(1.0, replaceAlpha, replace);
     float hovered = step(hoverPart - 0.5, part) * step(part, hoverPart + 0.5);
     float adjustedThickness =
       thickness + (hovered * 2.0 + outline * 3.0) * pixelsToWorldUnits;

@@ -28,8 +28,17 @@ export type EntityZOrder = {entity: Entity, zOrder: number};
 const entityZOrders: EntityZOrder[] = [];
 
 const collectZOrdersOp = (entity: Entity) => {
+  const entityZOrder = entity.getCachedValue(
+    'entityZOrder',
+    getEntityZOrder,
+    entity,
+  );
+  // render dragged entities on top
+  const hoverState = store.getState().hoverStates.get(entity.id);
   entityZOrders.push(
-    entity.getCachedValue('entityZOrder', getEntityZOrder, entity),
+    hoverState && hoverState.dragging
+      ? {entity, zOrder: entityZOrder.zOrder + 1000}
+      : entityZOrder,
   );
 };
 

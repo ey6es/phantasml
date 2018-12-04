@@ -112,7 +112,7 @@ export const ComponentRenderers: {[string]: RendererData} = {
     onPress: getCurrentHoverState,
     onDrag: getCurrentHoverState,
     onDragOver: getCurrentHoverState,
-    onRelease: onShapeMove,
+    onRelease: getCurrentHoverState,
   },
 };
 
