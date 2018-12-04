@@ -743,9 +743,6 @@ class SelectPanToolImpl extends ToolImpl {
   _lastClientY = -1;
   _panning = false;
   _pressed = false;
-  _controlPoints: Map<string, ControlPoint[]> = new Map();
-  _draggingIndices: Map<string, number> = new Map();
-
   _updatingHoverStates = false;
 
   constructor(...args: any[]) {
@@ -783,65 +780,6 @@ class SelectPanToolImpl extends ToolImpl {
   }
 
   _renderHelpers = (renderer: Renderer) => {
-    const eventPosition = renderer.getEventPosition(
-      this._lastClientX,
-      this._lastClientY,
-    );
-    const resource = store.getState().resource;
-    if (!resource) {
-      return;
-    }
-    const thicknessIncrement = this._getThicknessIncrement(renderer);
-    for (const [id, controlPoints] of this._controlPoints) {
-      const entity = resource.getEntity(id);
-      if (!entity) {
-        continue;
-      }
-      const matrix = getTransformMatrix(
-        entity.getLastCachedValue('worldTransform'),
-      );
-      for (let ii = 0; ii < controlPoints.length; ii++) {
-        const controlPoint = controlPoints[ii];
-        if (controlPoint.thickness < 0) {
-          continue;
-        }
-        const position = transformPoint(controlPoint.position, matrix);
-        const hovered =
-          this._draggingIndices.get(id) === ii ||
-          this._isHovered(
-            position,
-            eventPosition,
-            controlPoint,
-            thicknessIncrement,
-          );
-        let outlineColor = '#ffffff';
-        let centerColor = '#222222';
-        let centerThickness = thicknessIncrement;
-        let outlineThickness = centerThickness + thicknessIncrement;
-        if (hovered) {
-          if (this._draggingIndices.size > 0) {
-            outlineColor = '#222222';
-            centerColor = '#ffffff';
-          }
-          outlineThickness += thicknessIncrement;
-          centerThickness += thicknessIncrement;
-        }
-        renderPointHelper(
-          renderer,
-          {translation: position},
-          outlineThickness,
-          outlineColor,
-          false,
-        );
-        renderPointHelper(
-          renderer,
-          {translation: position},
-          centerThickness,
-          centerColor,
-          false,
-        );
-      }
-    }
     const activeTool = this.props.tempTool || this.props.activeTool;
     if (
       activeTool === 'translate' ||
@@ -869,37 +807,6 @@ class SelectPanToolImpl extends ToolImpl {
       this._lastClientY,
     );
     const localPosition = vec2();
-    const thicknessIncrement = this._getThicknessIncrement(renderer);
-    for (const [id, controlPoints] of this._controlPoints) {
-      const entity = resource.getEntity(id);
-      if (!entity) {
-        continue;
-      }
-      const matrix = getTransformMatrix(
-        entity.getLastCachedValue('worldTransform'),
-      );
-      for (let ii = 0; ii < controlPoints.length; ii++) {
-        const controlPoint = controlPoints[ii];
-        if (controlPoint.thickness < 0) {
-          continue;
-        }
-        const position = transformPoint(controlPoint.position, matrix);
-        if (
-          this._isHovered(
-            position,
-            eventPosition,
-            controlPoint,
-            thicknessIncrement,
-          )
-        ) {
-          this._draggingIndices.set(id, ii);
-        }
-      }
-    }
-    if (this._draggingIndices.size > 0) {
-      renderer.requestFrameRender();
-      return;
-    }
     if (this.props.hoverStates.size > 0) {
       const map = {};
       let hoverStates = this.props.hoverStates;
@@ -943,29 +850,9 @@ class SelectPanToolImpl extends ToolImpl {
     }
   };
 
-  _getThicknessIncrement(renderer: Renderer): number {
-    return renderer.pixelsToWorldUnits * 3;
-  }
-
-  _isHovered(
-    position: Vector2,
-    eventPosition: Vector2,
-    controlPoint: ControlPoint,
-    thicknessIncrement: number,
-  ): boolean {
-    return (
-      distance(position, eventPosition) <=
-      Math.max(controlPoint.thickness, thicknessIncrement * 2)
-    );
-  }
-
   _onMouseUp = (event: MouseEvent) => {
     if (event.button === 0) {
       this._pressed = false;
-    }
-    if (this._draggingIndices.size > 0) {
-      this._draggingIndices.clear();
-      this.props.renderer && this.props.renderer.requestFrameRender();
     }
     if (this._panning) {
       (document.body: any).style.cursor = null;
@@ -1026,38 +913,6 @@ class SelectPanToolImpl extends ToolImpl {
     this._lastClientX = event.clientX;
     this._lastClientY = event.clientY;
 
-    if (this._draggingIndices.size > 0) {
-      const renderer = this.props.renderer;
-      const resource = store.getState().resource;
-      if (!(renderer && resource instanceof Scene)) {
-        return;
-      }
-      const eventPosition = this._getMousePosition(
-        renderer,
-        event.clientX,
-        event.clientY,
-        entity => !this._draggingIndices.has(entity.id),
-      );
-      const map = {};
-      for (const [id, index] of this._draggingIndices) {
-        const entity = resource.getEntity(id);
-        if (!entity) {
-          continue;
-        }
-        for (const key in entity.state) {
-          const geometry = ComponentGeometry[key];
-          if (!geometry) {
-            continue;
-          }
-          map[id] = geometry.createControlPointEdit(
-            entity,
-            [[index, eventPosition]],
-            false,
-          );
-        }
-      }
-      store.dispatch(SceneActions.editEntities.create(map));
-    }
     if (this._panning) {
       const renderer = this.props.renderer;
       if (!renderer) {
@@ -1152,7 +1007,6 @@ class SelectPanToolImpl extends ToolImpl {
   };
 
   _updatePointHover(clientX: number, clientY: number) {
-    this._controlPoints.clear();
     if (!this.active) {
       return;
     }
@@ -1194,22 +1048,6 @@ class SelectPanToolImpl extends ToolImpl {
       if (!mapsEqual(hoverStates, this.props.hoverStates)) {
         store.dispatch(StoreActions.setHoverStates.create(hoverStates));
         this._maybeRequestHoverStateUpdate();
-      }
-    }
-    for (const id of this.props.selection) {
-      const entity: Entity = (resource.getEntity(id): any);
-      if (!entity) {
-        continue;
-      }
-      for (const key in entity.state) {
-        const geometry = ComponentGeometry[key];
-        if (geometry) {
-          this._controlPoints.set(
-            id,
-            geometry.getControlPoints(entity.state[key]),
-          );
-          break;
-        }
       }
     }
     renderer.requestFrameRender();

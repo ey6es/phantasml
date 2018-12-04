@@ -6,6 +6,7 @@
  */
 
 import {RendererComponents} from './components';
+import {renderPointHelper} from './helpers';
 import type {Renderer} from './util';
 import {Geometry} from './util';
 import type {HoverState} from '../store';
@@ -13,7 +14,7 @@ import {store} from '../store';
 import type {Entity} from '../../server/store/resource';
 import {TransferableValue} from '../../server/store/resource';
 import type {IdTreeNode} from '../../server/store/scene';
-import {Scene} from '../../server/store/scene';
+import {Scene, SceneActions} from '../../server/store/scene';
 import {Path, Shape, ShapeList} from '../../server/store/shape';
 import {
   ComponentGeometry,
@@ -26,11 +27,15 @@ import {
   getTransformMatrix,
   getTransformVectorMatrix,
   getTransformMaxScaleMagnitude,
+  getTransformTranslation,
   composeTransforms,
   transformPoint,
   boundsUnionEquals,
   vec2,
   equals,
+  plusEquals,
+  minus,
+  distance,
 } from '../../server/store/math';
 import * as FontData from '../font/Lato-Regular.json';
 
@@ -79,18 +84,72 @@ export const ComponentRenderers: {[string]: RendererData} = {
       if (!shapeList) {
         return () => {};
       }
-      return createShapeListRenderFn(
+      const baseRenderFn = createShapeListRenderFn(
         entity,
         shapeList,
         entity.state.shapeList ? renderShapeList : renderShape,
         pathColor,
         fillColor,
       );
+      return (renderer, selected, hoverState) => {
+        baseRenderFn(renderer, selected, hoverState);
+        if (!selected) {
+          return;
+        }
+        const state = store.getState();
+        if ((state.tempTool || state.tool) !== 'selectPan') {
+          return;
+        }
+        const matrix = getTransformMatrix(
+          entity.getLastCachedValue('worldTransform'),
+        );
+        const thicknessIncrement = renderer.pixelsToWorldUnits * 3;
+        for (const key in entity.state) {
+          const geometry = ComponentGeometry[key];
+          if (geometry) {
+            const controlPoints = geometry.getControlPoints(entity.state[key]);
+            for (let ii = 0; ii < controlPoints.length; ii++) {
+              const controlPoint = controlPoints[ii];
+              if (controlPoint.thickness < 0) {
+                continue;
+              }
+              const position = transformPoint(controlPoint.position, matrix);
+              let outlineColor = '#ffffff';
+              let centerColor = '#222222';
+              let centerThickness = thicknessIncrement;
+              let outlineThickness = centerThickness + thicknessIncrement;
+              if (hoverState && hoverState.point === ii) {
+                if (hoverState.dragging) {
+                  outlineColor = '#222222';
+                  centerColor = '#ffffff';
+                }
+                outlineThickness += thicknessIncrement;
+                centerThickness += thicknessIncrement;
+              }
+              renderPointHelper(
+                renderer,
+                {translation: position},
+                outlineThickness,
+                outlineColor,
+                false,
+              );
+              renderPointHelper(
+                renderer,
+                {translation: position},
+                centerThickness,
+                centerColor,
+                false,
+              );
+            }
+            break;
+          }
+        }
+      };
     },
     onMove: onShapeMove,
     onFrame: getCurrentHoverState,
-    onPress: getCurrentHoverState,
-    onDrag: getCurrentHoverState,
+    onPress: onShapePress,
+    onDrag: onShapeDrag,
     onDragOver: getCurrentHoverState,
     onRelease: getCurrentHoverState,
   },
@@ -109,22 +168,112 @@ export const ComponentRenderers: {[string]: RendererData} = {
     },
     onMove: onShapeMove,
     onFrame: getCurrentHoverState,
-    onPress: getCurrentHoverState,
-    onDrag: getCurrentHoverState,
+    onPress: onShapePress,
+    onDrag: onShapeDrag,
     onDragOver: getCurrentHoverState,
     onRelease: getCurrentHoverState,
   },
 };
 
 function onShapeMove(entity: Entity, position: Vector2): HoverState {
-  const resource = store.getState().resource;
+  const state = store.getState();
+  const resource = state.resource;
   if (!(resource instanceof Scene)) {
     return;
+  }
+  if (state.selection.has(entity.id)) {
+    const oldHoverState = state.hoverStates.get(entity.id);
+    for (const key in entity.state) {
+      const geometry = ComponentGeometry[key];
+      if (geometry) {
+        const controlPoints = geometry.getControlPoints(entity.state[key]);
+        for (let ii = 0; ii < controlPoints.length; ii++) {
+          const controlPoint = controlPoints[ii];
+          if (
+            distance(controlPoint.position, position) <= controlPoint.thickness
+          ) {
+            return oldHoverState &&
+              oldHoverState.point === ii &&
+              !oldHoverState.dragging
+              ? oldHoverState
+              : {point: ii};
+          }
+        }
+        break;
+      }
+    }
   }
   const collisionGeometry = getCollisionGeometry(resource.idTree, entity);
   if (collisionGeometry && collisionGeometry.intersectsPoint(position)) {
     return true;
   }
+}
+
+function onShapePress(entity: Entity, position: Vector2): HoverState {
+  const state = store.getState();
+  const oldHoverState = state.hoverStates.get(entity.id);
+  if (!oldHoverState) {
+    return oldHoverState;
+  }
+  if (oldHoverState.point !== undefined) {
+    return {dragging: position, point: oldHoverState.point};
+  }
+  const parentPosition = transformPoint(
+    position,
+    getTransformMatrix(entity.state.transform),
+  );
+  const offset = minus(
+    getTransformTranslation(entity.state.transform),
+    parentPosition,
+  );
+  return {dragging: position, offset};
+}
+
+function onShapeDrag(entity: Entity, position: Vector2): HoverState {
+  const state = store.getState();
+  const oldHoverState = state.hoverStates.get(entity.id);
+  const resource = state.resource;
+  if (!(oldHoverState && oldHoverState.dragging && resource instanceof Scene)) {
+    return oldHoverState;
+  }
+  if (oldHoverState.point !== undefined) {
+    for (const key in entity.state) {
+      const geometry = ComponentGeometry[key];
+      if (geometry) {
+        const worldPosition = transformPoint(
+          position,
+          getTransformMatrix(entity.getLastCachedValue('worldTransform')),
+        );
+        store.dispatch(
+          SceneActions.editEntities.create({
+            [entity.id]: geometry.createControlPointEdit(
+              entity,
+              [[oldHoverState.point, worldPosition]],
+              false,
+            ),
+          }),
+        );
+        break;
+      }
+    }
+  } else {
+    const parentPosition = transformPoint(
+      position,
+      getTransformMatrix(entity.state.transform),
+    );
+    const oldTrans = getTransformTranslation(entity.state.transform);
+    const translation = plusEquals(parentPosition, oldHoverState.offset);
+    if (translation.x !== oldTrans.x || translation.y !== oldTrans.y) {
+      store.dispatch(
+        SceneActions.editEntities.create({
+          [entity.id]: {
+            transform: {translation},
+          },
+        }),
+      );
+    }
+  }
+  return Object.assign({}, oldHoverState, {dragging: equals(position)});
 }
 
 function getCurrentHoverState(entity: Entity): HoverState {
@@ -398,7 +547,7 @@ function renderText(
   selected: boolean,
   hoverState: HoverState,
 ) {
-  if (typeof hoverState === 'object') {
+  if (isHoverStateTransform(hoverState)) {
     renderTranslucentText(
       renderer,
       composeTransforms(hoverState, transform),
@@ -570,7 +719,7 @@ function renderShape(
   selected: boolean,
   hoverState: HoverState,
 ) {
-  if (typeof hoverState === 'object') {
+  if (isHoverStateTransform(hoverState)) {
     renderTranslucentShape(
       renderer,
       composeTransforms(hoverState, transform),
@@ -706,7 +855,7 @@ export function renderShapeList(
   selected: boolean,
   hoverState: HoverState,
 ) {
-  if (typeof hoverState === 'object' && !(hoverState && hoverState.dragging)) {
+  if (isHoverStateTransform(hoverState)) {
     renderTranslucentShapeList(
       renderer,
       composeTransforms(hoverState, transform),
@@ -732,6 +881,13 @@ export function renderShapeList(
   program.setUniformColor('fillColorScale', fillColor);
   renderer.setEnabled(renderer.gl.BLEND, true);
   geometry.draw(program);
+}
+
+function isHoverStateTransform(hoverState: HoverState): boolean {
+  return (
+    typeof hoverState === 'object' &&
+    !(hoverState && (hoverState.dragging || hoverState.point !== undefined))
+  );
 }
 
 const SHAPE_LIST_VERTEX_SHADER = `
