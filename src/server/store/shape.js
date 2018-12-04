@@ -55,6 +55,10 @@ type CollisionGeometryStats = {
   vertices: number,
 };
 
+// because chrome's Array.sort isn't stable, we combine the explicit z order
+// with an offset derived from the array position
+const Z_ORDER_SCALE = 1000000;
+
 /**
  * A general representation of a path.
  *
@@ -292,7 +296,7 @@ export class Path {
       stats.groups.push({
         start,
         end: stats.indices,
-        zOrder: this.commands[0].zOrder,
+        zOrder: this.commands[0].zOrder * Z_ORDER_SCALE + stats.groups.length,
       });
     }
   }
@@ -499,7 +503,11 @@ class PathCommand {
     stats.vertices += this._getVerticesForDivisions(divisions, edge);
     const start = stats.indices;
     stats.indices += 18 * divisions;
-    stats.groups.push({start, end: stats.indices, zOrder: this.zOrder});
+    stats.groups.push({
+      start,
+      end: stats.indices,
+      zOrder: this.zOrder * Z_ORDER_SCALE + stats.groups.length,
+    });
   }
 
   _getVerticesForDivisions(divisions: number, edge: boolean): number {
@@ -1347,7 +1355,11 @@ export class Shape {
     tessellation: number,
     omitAttributes: Set<string>,
   ) {
-    const group = {start: 0, end: 0, zOrder: this.exterior.zOrder};
+    const group = {
+      start: 0,
+      end: 0,
+      zOrder: this.exterior.zOrder * Z_ORDER_SCALE + stats.groups.length,
+    };
     stats.groups.push(group);
     let previousVertices = stats.vertices;
     this.exterior.updateStats(stats, tessellation, omitAttributes, true);
