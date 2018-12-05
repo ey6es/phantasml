@@ -1033,12 +1033,20 @@ class SelectPanToolImpl extends ToolImpl {
       return;
     }
     if (!this._pressed) {
-      const position = renderer.getEventPosition(clientX, clientY);
-      const localPosition = vec2();
       const hoverStates: Map<string, HoverState> = new Map();
+      const position = renderer.getEventPosition(clientX, clientY);
       const bounds = {min: position, max: position};
       if (boundsContain(renderer.getCameraBounds(), bounds)) {
+        const entityZOrders: EntityZOrder[] = [];
         resource.applyToEntities(this.props.page, bounds, entity => {
+          entityZOrders.push(
+            entity.getCachedValue('entityZOrder', getEntityZOrder, entity),
+          );
+        });
+        entityZOrders.sort(compareEntityZOrders);
+        const localPosition = vec2();
+        entityLoop: for (let ii = entityZOrders.length - 1; ii >= 0; ii--) {
+          const entity = entityZOrders[ii].entity;
           for (const key in entity.state) {
             const renderer = ComponentRenderers[key];
             if (renderer) {
@@ -1052,13 +1060,14 @@ class SelectPanToolImpl extends ToolImpl {
                   localPosition,
                 ),
               );
-              if (hoverState !== undefined) {
+              if (hoverState) {
                 hoverStates.set(entity.id, hoverState);
+                break entityLoop;
               }
-              return;
+              break;
             }
           }
-        });
+        }
       }
       (document.body: any).style.cursor =
         hoverStates.size > 0 ? 'pointer' : null;
