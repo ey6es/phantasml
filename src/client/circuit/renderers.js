@@ -477,7 +477,7 @@ ComponentGeometry.moduleRenderer = {
   createControlPointEdit: (entity, indexPositions, mirrored) => ({}),
 };
 
-const start = vec2();
+const start = vec2(MODULE_WIDTH * 0.5);
 
 function renderModule(
   renderer: Renderer,
