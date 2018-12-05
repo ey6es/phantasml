@@ -450,7 +450,9 @@ export class EntityHierarchyNode {
 }
 
 const nodeBounds = {min: vec2(), max: vec2()};
-let currentVisit = 0;
+
+/** The last visit identifier used for traversal. */
+export let currentVisit = 0;
 
 const MAX_DEPTH = 16;
 

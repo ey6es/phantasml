@@ -926,18 +926,18 @@ const CURVE_HELPER_VERTEX_SHADER = `
 export function drawWireArrow(shapeList: ShapeList): ShapeList {
   return shapeList
     .pivot(-90)
-    .advance(0.3)
+    .advance(0.225)
     .pivot(116.5651)
-    .penDown(true, {thickness: 0.2})
-    .advance(0.67082)
+    .penDown(true, {thickness: 0.15})
+    .advance(0.503115)
     .pivot(126.8699)
-    .advance(0.67082)
+    .advance(0.503115)
     .pivot(116.5651)
-    .advance(0.6)
+    .advance(0.45)
     .penUp();
 }
 
-const wireArrowShape = drawWireArrow(new ShapeList().move(-0.3, 0.0));
+const wireArrowShape = drawWireArrow(new ShapeList().move(-0.225, 0.0));
 
 /** The bounds of the wire arrow as drawn when dragging. */
 export const WireArrowBounds = emptyBounds();

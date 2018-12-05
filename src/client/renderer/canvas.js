@@ -15,7 +15,7 @@ import type {PageState, ToolType, HoverState, TooltipData} from '../store';
 import {DEFAULT_PAGE_SIZE, store} from '../store';
 import type {Resource, Entity} from '../../server/store/resource';
 import type {IdTreeNode} from '../../server/store/scene';
-import {Scene} from '../../server/store/scene';
+import {Scene, currentVisit} from '../../server/store/scene';
 import {vec2, roundEquals} from '../../server/store/math';
 
 const cameraBounds = {min: vec2(), max: vec2()};
@@ -218,6 +218,15 @@ export class RenderCanvas extends React.Component<
     // traverse scene to find renderable entities in frame (and z orders)
     renderer.getCameraBounds(cameraBounds);
     resource.applyToEntities(state.page, cameraBounds, collectZOrdersOp);
+
+    // add anything in the hover states that wasn't already added
+    for (const id of state.hoverStates.keys()) {
+      const entity = resource.getEntity(id);
+      if (entity.visit !== currentVisit) {
+        entity.visit = currentVisit;
+        collectZOrdersOp(entity);
+      }
+    }
 
     // sort by increasing z-order
     entityZOrders.sort(compareEntityZOrders);

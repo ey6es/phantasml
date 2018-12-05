@@ -366,12 +366,12 @@ function getOutputCount(entity: Entity): number {
   return 0;
 }
 
-const MODULE_WIDTH = 4.0;
-const MODULE_THICKNESS = 0.2;
-const TERMINAL_WIDTH = 1.5;
-const MODULE_HEIGHT_PER_TERMINAL = 2.0;
+const MODULE_WIDTH = 3.0;
+const MODULE_THICKNESS = 0.15;
+const TERMINAL_WIDTH = 1.125;
+const MODULE_HEIGHT_PER_TERMINAL = 1.5;
 const MODULE_BODY_ATTRIBUTES = {
-  thickness: 0.2,
+  thickness: 0.15,
   pathColor: [1.0, 1.0, 1.0],
   fillColor: [0.5, 0.5, 0.5],
   part: 0,
@@ -422,14 +422,14 @@ ComponentGeometry.moduleRenderer = {
         shapeList
           .move(MODULE_WIDTH * -0.5, y, 180)
           .penDown(false, {
-            thickness: 0.2,
+            thickness: MODULE_THICKNESS,
             pathColor: [1.0, 1.0, 1.0],
             fillColor: [1.0, 1.0, 1.0],
             part,
           })
-          .advance(1)
+          .advance(0.75)
           .penUp()
-          .penDown(false, {thickness: 0.5})
+          .penDown(false, {thickness: 0.375})
           .penUp();
         y -= MODULE_HEIGHT_PER_TERMINAL;
         part++;
@@ -442,12 +442,12 @@ ComponentGeometry.moduleRenderer = {
         shapeList
           .move(MODULE_WIDTH * 0.5, y, 0)
           .penDown(false, {
-            thickness: 0.2,
+            thickness: MODULE_THICKNESS,
             pathColor: wireColor,
             fillColor: wireColor,
             part,
           })
-          .advance(0.7)
+          .advance(0.525)
           .penUp();
         drawWireArrow(shapeList);
         y -= MODULE_HEIGHT_PER_TERMINAL;

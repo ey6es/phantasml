@@ -37,48 +37,48 @@ const SingleOutput = {
 };
 
 const IconAttributes = {
-  thickness: 0.2,
+  thickness: 0.15,
   pathColor: [1.0, 1.0, 1.0],
   fillColor: [1.0, 1.0, 1.0],
 };
 
 const SplitIcon = new ShapeList()
-  .move(-0.5, 0.0)
+  .move(-0.375, 0.0)
   .penDown(false, IconAttributes)
-  .advance(0.5)
+  .advance(0.375)
   .pivot(45)
-  .advance(Math.SQRT1_2)
+  .advance(Math.SQRT1_2 * 0.75)
   .penUp()
   .move(0, 0, -45)
   .penDown()
-  .advance(Math.SQRT1_2);
+  .advance(Math.SQRT1_2 * 0.75);
 
 const InvertIcon = new ShapeList()
-  .move(-0.5, 0)
+  .move(-0.375, 0)
   .penDown(false, IconAttributes)
-  .advance(1.0);
+  .advance(0.75);
 
 const AddIcon = new ShapeList()
-  .move(-0.5, 0)
+  .move(-0.375, 0)
   .penDown(false, IconAttributes)
-  .advance(1.0)
+  .advance(0.75)
   .penUp()
-  .move(0, -0.5, 90)
+  .move(0, -0.375, 90)
   .penDown()
-  .advance(1.0);
+  .advance(0.75);
 
 const MultiplyIcon = new ShapeList()
-  .move(0, -0.5, 90)
+  .move(0, -0.375, 90)
   .penDown(false, IconAttributes)
-  .advance(1.0)
+  .advance(0.75)
   .penUp()
-  .move(-0.4, -0.2, 26.565)
+  .move(-0.3, -0.15, 26.565)
   .penDown()
-  .advance(0.8944)
+  .advance(0.6708)
   .penUp()
-  .move(-0.4, 0.2, -26.565)
+  .move(-0.3, 0.15, -26.565)
   .penDown()
-  .advance(0.8944);
+  .advance(0.6708);
 
 /**
  * Circuit component functions mapped by component name.
