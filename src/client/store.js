@@ -26,6 +26,7 @@ import {
 import {Scene, SceneActions, advanceEditNumber} from '../server/store/scene';
 import type {Vector2} from '../server/store/math';
 import {getTransformTranslation, boundsValid} from '../server/store/math';
+import {setsEqual} from '../server/store/util';
 
 type StoreAction = {type: string, [string]: any};
 
@@ -859,7 +860,7 @@ function reduceSelection(
       }
     }
   }
-  return selection;
+  return setsEqual(state.selection, selection) ? state.selection : selection;
 }
 
 function reduceEditorEntities(state: StoreState): Entity[] {

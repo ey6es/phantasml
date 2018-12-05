@@ -744,6 +744,7 @@ class SelectPanToolImpl extends ToolImpl {
   _panning = false;
   _pressed = false;
   _updatingHoverStates = false;
+  _unsubscribeFromStore: ?() => void;
 
   constructor(...args: any[]) {
     super(
@@ -762,20 +763,27 @@ class SelectPanToolImpl extends ToolImpl {
     );
   }
 
-  componentDidUpdate(prevProps: ToolProps, prevState: Object) {
-    super.componentDidUpdate(prevProps, prevState);
-    if (prevProps.selection !== this.props.selection) {
-      this._updatePointHover(this._lastClientX, this._lastClientY);
-    }
-  }
-
   _onActivate(renderer: Renderer) {
     this._updatePointHover(this._lastClientX, this._lastClientY);
     this.props.setOptionProperties(this._optionProperties);
     renderer.requestFrameRender();
+
+    const state = store.getState();
+    let lastPage = state.page;
+    let lastPageState = state.pageStates.get(state.page);
+    this._unsubscribeFromStore = store.subscribe(() => {
+      const state = store.getState();
+      const pageState = state.pageStates.get(state.page);
+      if (state.page !== lastPage || pageState !== lastPageState) {
+        lastPage = state.page;
+        lastPageState = pageState;
+        this._handleMoveOrScroll();
+      }
+    });
   }
 
   _onDeactivate(renderer: Renderer) {
+    this._unsubscribeFromStore && this._unsubscribeFromStore();
     this._updatePointHover(this._lastClientX, this._lastClientY);
   }
 
@@ -927,15 +935,24 @@ class SelectPanToolImpl extends ToolImpl {
         ),
       );
       (document.body: any).style.cursor = 'all-scroll';
-    } else if (this._pressed) {
+    } else {
+      this._handleMoveOrScroll();
+    }
+  };
+
+  _handleMoveOrScroll() {
+    if (this._panning) {
+      return;
+    }
+    if (this._pressed) {
       const renderer = this.props.renderer;
       const resource = store.getState().resource;
       if (!(renderer && resource instanceof Scene)) {
         return;
       }
       const eventPosition = renderer.getEventPosition(
-        event.clientX,
-        event.clientY,
+        this._lastClientX,
+        this._lastClientY,
       );
       const localPosition = vec2();
       let hoverStates = this.props.hoverStates;
@@ -992,7 +1009,7 @@ class SelectPanToolImpl extends ToolImpl {
     } else {
       this._updatePointHover(this._lastClientX, this._lastClientY);
     }
-  };
+  }
 
   _onWheel = (event: WheelEvent) => {
     const renderer = this.props.renderer;
