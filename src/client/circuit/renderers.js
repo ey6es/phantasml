@@ -346,19 +346,22 @@ ComponentRenderers.moduleRenderer = {
       const oldSource = oldInput && resource.getEntity(oldInput.ref);
       const oldModuleKey = oldSource && getModuleKey(oldSource);
       if (oldModuleKey) {
+        const existingValue = map[oldSource.id];
         map[oldSource.id] = {
-          [oldModuleKey]: {
-            [oldInput.output]: null,
-          },
+          [oldModuleKey]: Object.assign(
+            {},
+            existingValue && existingValue[oldModuleKey],
+            {[oldInput.output]: null},
+          ),
         };
       }
+      const existingValue = map[targetEntity.id];
       map[targetEntity.id] = {
-        [targetModuleKey]: {
-          [targetInputKey]: {
-            ref: entity.id,
-            output: outputKey,
-          },
-        },
+        [targetModuleKey]: Object.assign(
+          {},
+          existingValue && existingValue[targetModuleKey],
+          {[targetInputKey]: {ref: entity.id, output: outputKey}},
+        ),
       };
     } else if (oldOutput) {
       map[entity.id] = {
@@ -372,10 +375,13 @@ ComponentRenderers.moduleRenderer = {
     const oldTarget = oldOutput && resource.getEntity(oldOutput.ref);
     const oldTargetModuleKey = oldTarget && getModuleKey(oldTarget);
     if (oldTargetModuleKey) {
+      const existingValue = map[oldTarget.id];
       map[oldTarget.id] = {
-        [oldTargetModuleKey]: {
-          [oldOutput.input]: null,
-        },
+        [oldTargetModuleKey]: Object.assign(
+          {},
+          existingValue && existingValue[oldTargetModuleKey],
+          {[oldOutput.input]: null},
+        ),
       };
     }
     store.dispatch(SceneActions.editEntities.create(map));
@@ -497,11 +503,7 @@ const WireColorArrays = WireColors.map(getColorArray);
 ComponentBounds.moduleRenderer = {
   addToBounds: (idTree: IdTreeNode, entity: Entity, bounds: Bounds) => {
     const shapeList = getShapeList(idTree, entity);
-    if (!shapeList) {
-      return 0.0;
-    }
-    // TODO: add wire control points to bounds
-    return shapeList.addToBounds(bounds);
+    return shapeList ? shapeList.addToBounds(bounds) : 0.0;
   },
 };
 
@@ -557,6 +559,7 @@ ComponentGeometry.moduleRenderer = {
       y = (outputCount - 1) * MODULE_HEIGHT_PER_TERMINAL * 0.5;
       const outputPosition = vec2();
       let color = 0;
+      let connected = false;
       for (const output in outputs) {
         const wireColor = WireColorArrays[color];
         color = (color + 1) % WireColorArrays.length;
@@ -570,6 +573,7 @@ ComponentGeometry.moduleRenderer = {
         const targetEntity = target && idTree.getEntity(target.ref);
         const targetModuleKey = targetEntity && getModuleKey(targetEntity);
         if (targetEntity && targetModuleKey) {
+          connected = true;
           const targetInputKeys = Object.keys(
             ComponentModules[targetModuleKey].getInputs(
               targetEntity.state[targetModuleKey],
@@ -633,7 +637,13 @@ ComponentGeometry.moduleRenderer = {
       shapeList.add(module.getIcon(data));
       return new TransferableValue(shapeList, newEntity => {
         // we can transfer if we have the same module component
-        return newEntity.state[key] === data;
+        if (newEntity.state[key] !== data) {
+          return false;
+        }
+        if (!connected) {
+          return true;
+        }
+        return newEntity.state.transform === entity.state.transform;
       });
     }
     return new ShapeList();
