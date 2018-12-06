@@ -811,7 +811,13 @@ function computeWorldBounds(idTree: IdTreeNode, lineage: Entity[]): Bounds {
   return expandBoundsEquals(bounds, maxThickness);
 }
 
-function getWorldTransform(lineage: Entity[]): Transform {
+/**
+ * Gets the world transform of an entity given its complete lineage.
+ *
+ * @param lineage the entity's lineage.
+ * @return the entity's world transform.
+ */
+export function getWorldTransform(lineage: Entity[]): Transform {
   const lastIndex = lineage.length - 1;
   if (lastIndex < 0) {
     return null;

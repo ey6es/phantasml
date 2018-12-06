@@ -27,7 +27,7 @@ import {TOOLTIP_DELAY} from '../util/ui';
 import type {Entity} from '../../server/store/resource';
 import {TransferableValue} from '../../server/store/resource';
 import type {IdTreeNode} from '../../server/store/scene';
-import {Scene, SceneActions} from '../../server/store/scene';
+import {Scene, SceneActions, getWorldTransform} from '../../server/store/scene';
 import {ShapeList} from '../../server/store/shape';
 import {
   ComponentGeometry,
@@ -40,6 +40,7 @@ import type {Vector2, Transform, Bounds} from '../../server/store/math';
 import {
   getTransformMatrix,
   getTransformVectorMatrix,
+  getTransformInverseMatrix,
   getTransformTranslation,
   composeTransforms,
   invertTransform,
@@ -51,6 +52,7 @@ import {
   equals,
   minus,
   plusEquals,
+  distance,
 } from '../../server/store/math';
 import {getColorArray} from '../../server/store/util';
 
@@ -305,15 +307,78 @@ ComponentRenderers.moduleRenderer = {
     ) {
       return;
     }
+    const moduleKey = getModuleKey(entity);
+    const outputKey = getOutputKey(entity, oldHoverState.part);
+    if (!(moduleKey && outputKey)) {
+      return;
+    }
     let targetEntity: ?Entity;
-    let targetPart = 0;
+    let targetModuleKey: ?string;
+    let targetInputKey: ?string;
     for (const [id, hoverState] of state.hoverStates) {
       if (hoverState && !hoverState.dragging && hoverState.part) {
         targetEntity = resource.getEntity(id);
-        targetPart = hoverState.part;
+        targetModuleKey = targetEntity && getModuleKey(targetEntity);
+        targetInputKey =
+          targetEntity && getInputKey(targetEntity, hoverState.part);
         break;
       }
     }
+    const oldOutput = entity.state[moduleKey][outputKey];
+    const map = {};
+    if (targetEntity && targetModuleKey && targetInputKey) {
+      if (
+        oldOutput &&
+        oldOutput.ref === targetEntity.id &&
+        oldOutput.input === targetInputKey
+      ) {
+        return;
+      }
+      map[entity.id] = {
+        [moduleKey]: {
+          [outputKey]: {
+            ref: targetEntity.id,
+            input: targetInputKey,
+          },
+        },
+      };
+      const oldInput = targetEntity.state[targetModuleKey][targetInputKey];
+      const oldSource = oldInput && resource.getEntity(oldInput.ref);
+      const oldModuleKey = oldSource && getModuleKey(oldSource);
+      if (oldModuleKey) {
+        map[oldSource.id] = {
+          [oldModuleKey]: {
+            [oldInput.output]: null,
+          },
+        };
+      }
+      map[targetEntity.id] = {
+        [targetModuleKey]: {
+          [targetInputKey]: {
+            ref: entity.id,
+            output: outputKey,
+          },
+        },
+      };
+    } else if (oldOutput) {
+      map[entity.id] = {
+        [moduleKey]: {
+          [outputKey]: null,
+        },
+      };
+    } else {
+      return;
+    }
+    const oldTarget = oldOutput && resource.getEntity(oldOutput.ref);
+    const oldTargetModuleKey = oldTarget && getModuleKey(oldTarget);
+    if (oldTargetModuleKey) {
+      map[oldTarget.id] = {
+        [oldTargetModuleKey]: {
+          [oldOutput.input]: null,
+        },
+      };
+    }
+    store.dispatch(SceneActions.editEntities.create(map));
   },
 };
 
@@ -338,6 +403,17 @@ function onModuleMove(entity: Entity, position: Vector2): HoverState {
   );
   if (part === 0) {
     return true;
+  }
+  for (const key in entity.state) {
+    const module = ComponentModules[key];
+    if (module) {
+      const data = entity.state[key];
+      const inputKeys = Object.keys(module.getInputs(data));
+      const inputKey = inputKeys[part - 1];
+      if (inputKey && data[inputKey]) {
+        return; // connected input
+      }
+    }
   }
   const oldHoverState = state.hoverStates.get(entity.id);
   if (oldHoverState && oldHoverState.part === part && !oldHoverState.dragging) {
@@ -364,6 +440,37 @@ function getOutputCount(entity: Entity): number {
     }
   }
   return 0;
+}
+
+function getInputKey(entity: Entity, part: number): ?string {
+  for (const key in entity.state) {
+    const module = ComponentModules[key];
+    if (module) {
+      const data = entity.state[key];
+      const inputs = Object.keys(module.getInputs(data));
+      return inputs[part - 1];
+    }
+  }
+}
+
+function getOutputKey(entity: Entity, part: number): ?string {
+  for (const key in entity.state) {
+    const module = ComponentModules[key];
+    if (module) {
+      const data = entity.state[key];
+      const inputs = Object.keys(module.getInputs(data));
+      const outputs = Object.keys(module.getOutputs(data));
+      return outputs[part - inputs.length - 1];
+    }
+  }
+}
+
+function getModuleKey(entity: Entity): ?string {
+  for (const key in entity.state) {
+    if (ComponentModules[key]) {
+      return key;
+    }
+  }
 }
 
 const MODULE_WIDTH = 3.0;
@@ -419,12 +526,25 @@ ComponentGeometry.moduleRenderer = {
       let y = (inputCount - 1) * MODULE_HEIGHT_PER_TERMINAL * 0.5;
       let part = 1;
       for (const input in inputs) {
+        let color = [1.0, 1.0, 1.0];
+        const source = data[input];
+        const sourceEntity = source && idTree.getEntity(source.ref);
+        const sourceModuleKey = sourceEntity && getModuleKey(sourceEntity);
+        if (sourceEntity && sourceModuleKey) {
+          const sourceOutputs = Object.keys(
+            ComponentModules[sourceModuleKey].getOutputs(
+              sourceEntity.state[sourceModuleKey],
+            ),
+          );
+          const index = sourceOutputs.indexOf(source.output);
+          color = WireColorArrays[index % WireColorArrays.length];
+        }
         shapeList
           .move(MODULE_WIDTH * -0.5, y, 180)
           .penDown(false, {
             thickness: MODULE_THICKNESS,
-            pathColor: [1.0, 1.0, 1.0],
-            fillColor: [1.0, 1.0, 1.0],
+            pathColor: color,
+            fillColor: color,
             part,
           })
           .advance(0.75)
@@ -435,21 +555,66 @@ ComponentGeometry.moduleRenderer = {
         part++;
       }
       y = (outputCount - 1) * MODULE_HEIGHT_PER_TERMINAL * 0.5;
+      const outputPosition = vec2();
       let color = 0;
       for (const output in outputs) {
         const wireColor = WireColorArrays[color];
         color = (color + 1) % WireColorArrays.length;
-        shapeList
-          .move(MODULE_WIDTH * 0.5, y, 0)
-          .penDown(false, {
-            thickness: MODULE_THICKNESS,
-            pathColor: wireColor,
-            fillColor: wireColor,
-            part,
-          })
-          .advance(0.525)
-          .penUp();
-        drawWireArrow(shapeList);
+        shapeList.move(MODULE_WIDTH * 0.5, y, 0).penDown(false, {
+          thickness: MODULE_THICKNESS,
+          pathColor: wireColor,
+          fillColor: wireColor,
+          part,
+        });
+        const target = data[output];
+        const targetEntity = target && idTree.getEntity(target.ref);
+        const targetModuleKey = targetEntity && getModuleKey(targetEntity);
+        if (targetEntity && targetModuleKey) {
+          const targetInputKeys = Object.keys(
+            ComponentModules[targetModuleKey].getInputs(
+              targetEntity.state[targetModuleKey],
+            ),
+          );
+          const index = targetInputKeys.indexOf(target.input);
+          const inputPosition = vec2(
+            MODULE_WIDTH * -0.5 - MODULE_HEIGHT_PER_TERMINAL * 0.5,
+            ((targetInputKeys.length - 1) * 0.5 - index) *
+              MODULE_HEIGHT_PER_TERMINAL,
+          );
+          transformPointEquals(
+            inputPosition,
+            getTransformMatrix(
+              getWorldTransform(idTree.getEntityLineage(targetEntity)),
+            ),
+          );
+          transformPointEquals(
+            inputPosition,
+            getTransformInverseMatrix(
+              getWorldTransform(idTree.getEntityLineage(entity)),
+            ),
+          );
+          vec2(MODULE_WIDTH * 0.5, y, outputPosition);
+          const halfSpan = distance(outputPosition, inputPosition) * 0.5;
+          outputPosition.x += halfSpan;
+          inputPosition.x -= halfSpan;
+          const angle = Math.atan2(
+            inputPosition.y - outputPosition.y,
+            inputPosition.x - outputPosition.x,
+          );
+          shapeList
+            .curve(
+              halfSpan,
+              angle,
+              distance(outputPosition, inputPosition),
+              -angle,
+              halfSpan,
+            )
+            .penUp()
+            .penDown(false, {thickness: 0.375})
+            .penUp();
+        } else {
+          drawWireArrow(shapeList.advance(0.525).penUp());
+        }
         y -= MODULE_HEIGHT_PER_TERMINAL;
         part++;
       }
