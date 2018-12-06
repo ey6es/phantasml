@@ -421,6 +421,11 @@ class ToolImpl extends React.Component<ToolProps, {}> {
     return this.props.activeTool === this._type;
   }
 
+  /** Checks whether the tool allows snapping to features. */
+  get allowFeatureSnap(): boolean {
+    return true;
+  }
+
   constructor(
     type: ToolType,
     icon: string,
@@ -675,7 +680,7 @@ class ToolImpl extends React.Component<ToolProps, {}> {
     if (this.props.options.gridSnap) {
       roundEquals(snapped);
     }
-    if (!this.props.options.featureSnap) {
+    if (!(this.props.options.featureSnap && this.allowFeatureSnap)) {
       return snapped;
     }
     const resource = store.getState().resource;
@@ -950,9 +955,14 @@ class SelectPanToolImpl extends ToolImpl {
       if (!(renderer && resource instanceof Scene)) {
         return;
       }
-      const eventPosition = renderer.getEventPosition(
+      const eventPosition = this._getMousePosition(
+        renderer,
         this._lastClientX,
         this._lastClientY,
+        entity => {
+          const hoverState = this.props.hoverStates.get(entity.id);
+          return !(hoverState && hoverState.dragging);
+        },
       );
       const localPosition = vec2();
       let hoverStates = this.props.hoverStates;
@@ -1132,6 +1142,10 @@ class HoverToolImpl extends ToolImpl {
   _lastClientX = -1;
   _lastClientY = -1;
   _rect: ?LineSegment;
+
+  get allowFeatureSnap(): boolean {
+    return false;
+  }
 
   get _rectColor(): string {
     return SELECT_COLOR;
