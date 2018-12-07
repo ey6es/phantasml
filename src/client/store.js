@@ -898,16 +898,27 @@ function reduceSelection(
   if (!(resource instanceof Scene && action.type === 'editEntities')) {
     return state.selection;
   }
-  const selection: Set<string> = new Set();
+  let selection = state.selection;
+  let adding = false;
   for (const id in action.map) {
-    const state = action.map[id];
-    if (state !== null) {
-      if (getParent(state, resource.getEntity(id))) {
-        selection.add(id); // add added/edited entity to selection
+    const value = action.map[id];
+    if (value === null) {
+      if (selection === state.selection) {
+        selection = new Set(state.selection);
+      }
+      selection.delete(id);
+    } else {
+      const entity = resource.getEntity(id);
+      if (!entity && getParent(value, null)) {
+        if (!adding) {
+          selection = new Set();
+          adding = true;
+        }
+        selection.add(id);
       }
     }
   }
-  return setsEqual(state.selection, selection) ? state.selection : selection;
+  return selection;
 }
 
 function reduceEditorEntities(state: StoreState): Entity[] {
