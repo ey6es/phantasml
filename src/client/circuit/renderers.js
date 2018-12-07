@@ -8,7 +8,7 @@
 import * as React from 'react';
 import {ComponentModules} from './modules';
 import type {HoverState} from '../store';
-import {StoreActions, store} from '../store';
+import {ComponentEditCallbacks, StoreActions, store} from '../store';
 import {
   SELECT_COLOR,
   ComponentRenderers,
@@ -27,7 +27,12 @@ import {TOOLTIP_DELAY} from '../util/ui';
 import type {Entity} from '../../server/store/resource';
 import {TransferableValue} from '../../server/store/resource';
 import type {IdTreeNode} from '../../server/store/scene';
-import {Scene, SceneActions, getWorldTransform} from '../../server/store/scene';
+import {
+  Scene,
+  SceneActions,
+  getWorldTransform,
+  mergeEntityEdits,
+} from '../../server/store/scene';
 import {ShapeList} from '../../server/store/shape';
 import {
   ComponentGeometry,
@@ -388,6 +393,52 @@ ComponentRenderers.moduleRenderer = {
   },
 };
 
+ComponentEditCallbacks.moduleRenderer = {
+  onDelete: (scene, entity, map) => {
+    const moduleKey = getModuleKey(entity);
+    if (!moduleKey) {
+      return map;
+    }
+    let newMap = map;
+    const moduleData = entity.state[moduleKey];
+    for (const key in moduleData) {
+      const value = moduleData[key];
+      if (value && value.ref) {
+        const otherEntity = scene.getEntity(value.ref);
+        const otherModuleKey = otherEntity && getModuleKey(otherEntity);
+        if (otherModuleKey && newMap[value.ref] !== null) {
+          newMap = mergeEntityEdits(newMap, {
+            [value.ref]: {
+              [otherModuleKey]: {
+                [value.input || value.output]: null,
+              },
+            },
+          });
+        }
+      }
+    }
+    return newMap;
+  },
+  onEdit: (scene, entity, map) => {
+    const moduleKey = getModuleKey(entity);
+    if (!moduleKey) {
+      return map;
+    }
+    let newMap = map;
+    const moduleData = entity.state[moduleKey];
+    for (const key in moduleData) {
+      const value = moduleData[key];
+      if (value && value.ref && value.output) {
+        if (scene.getEntity(value.ref) && newMap[value.ref] !== null) {
+          // touch the source to trigger an update
+          newMap = mergeEntityEdits(newMap, {[value.ref]: {}});
+        }
+      }
+    }
+    return newMap;
+  },
+};
+
 function onModuleMove(entity: Entity, position: Vector2): HoverState {
   const state = store.getState();
   const resource = state.resource;
@@ -637,13 +688,7 @@ ComponentGeometry.moduleRenderer = {
       shapeList.add(module.getIcon(data));
       return new TransferableValue(shapeList, newEntity => {
         // we can transfer if we have the same module component
-        if (newEntity.state[key] !== data) {
-          return false;
-        }
-        if (!connected) {
-          return true;
-        }
-        return newEntity.state.transform === entity.state.transform;
+        return newEntity.state[key] === data && !connected;
       });
     }
     return new ShapeList();

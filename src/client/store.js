@@ -142,6 +142,9 @@ function reducer(state: StoreState, action: StoreAction): StoreState {
   const oldExpanded = state.expanded;
   const oldSelection = state.selection;
 
+  // give edited entities a chance to modify the edit
+  action = invokeEditCallbacks(state, action);
+
   // first try the store actions
   const handler = StoreActions[action.type];
   if (handler) {
@@ -187,6 +190,50 @@ function reducer(state: StoreState, action: StoreAction): StoreState {
   }
   return state;
 }
+
+function invokeEditCallbacks(
+  state: StoreState,
+  action: StoreAction,
+): StoreAction {
+  const resource = state.resource;
+  if (!(action.type === 'editEntities' && resource instanceof Scene)) {
+    return action;
+  }
+  let newMap = action.map;
+  for (const id in action.map) {
+    const entity = resource.getEntity(id);
+    if (!entity) {
+      continue;
+    }
+    const state = action.map[id];
+    if (state === null) {
+      for (const key in entity.state) {
+        const callbacks = ComponentEditCallbacks[key];
+        if (callbacks) {
+          newMap = callbacks.onDelete(resource, entity, newMap);
+        }
+      }
+    } else {
+      for (const key in entity.state) {
+        const callbacks = ComponentEditCallbacks[key];
+        if (callbacks) {
+          newMap = callbacks.onEdit(resource, entity, newMap);
+        }
+      }
+    }
+  }
+  return newMap === action.map
+    ? action
+    : SceneActions.editEntities.create(newMap);
+}
+
+type EditCallbackData = {
+  onDelete: (Scene, Entity, Object) => Object,
+  onEdit: (Scene, Entity, Object) => Object,
+};
+
+/** Callbacks for component types. */
+export const ComponentEditCallbacks: {[string]: EditCallbackData} = {};
 
 const FRAME_RATE = 60;
 const FRAME_DELAY = 1000 / FRAME_RATE;

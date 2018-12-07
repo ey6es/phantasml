@@ -1106,6 +1106,9 @@ class SelectPanToolImpl extends ToolImpl {
     let hoverStates = state.hoverStates;
     for (const [id, hoverState] of state.hoverStates) {
       const entity = resource.getEntity(id);
+      if (!entity) {
+        continue;
+      }
       for (const key in entity.state) {
         const renderer = ComponentRenderers[key];
         if (renderer) {

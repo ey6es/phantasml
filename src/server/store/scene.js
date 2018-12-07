@@ -1323,7 +1323,7 @@ function reverseEdit(state: Object, edit: Object): Object {
  * @param second the second edit to merge.
  * @return the merged edit.
  */
-function mergeEntityEdits(first: Object, second: Object): Object {
+export function mergeEntityEdits(first: Object, second: Object): Object {
   const merged = {};
   for (const key in first) {
     if (key.charAt(0) === '_') {

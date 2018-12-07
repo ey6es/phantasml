@@ -222,7 +222,7 @@ export class RenderCanvas extends React.Component<
     // add anything in the hover states that wasn't already added
     for (const id of state.hoverStates.keys()) {
       const entity = resource.getEntity(id);
-      if (entity.visit !== currentVisit) {
+      if (entity && entity.visit !== currentVisit) {
         entity.visit = currentVisit;
         collectZOrdersOp(entity);
       }
