@@ -132,6 +132,7 @@ type PreferencesData = {
   loop?: ?boolean,
   fillColor?: ?string,
   fill?: ?boolean,
+  unlinkScale?: ?boolean,
 };
 export type UserGetPreferencesResponse = PreferencesData;
 

@@ -587,7 +587,11 @@ export class ResourceContent extends React.Component<
               />
             </div>
             <div className="d-flex flex-column right-column">
-              <ComponentEditor locale={this.props.locale} />
+              <ComponentEditor
+                locale={this.props.locale}
+                preferences={this.props.preferences}
+                setPreferences={this.props.setPreferences}
+              />
             </div>
           </div>
         );

@@ -794,6 +794,7 @@ export function getPreferences(
         loop: preferences.loop && preferences.loop.BOOL,
         fillColor: preferences.fillColor && preferences.fillColor.S,
         fill: preferences.fill && preferences.fill.BOOL,
+        unlinkScale: preferences.unlinkScale && preferences.unlinkScale.BOOL,
       };
     }: UserGetPreferencesRequest => Promise<UserGetPreferencesResponse>),
   );
@@ -844,6 +845,9 @@ export function putPreferences(
       }
       if (request.fill != null) {
         settings.fill = {BOOL: request.fill};
+      }
+      if (request.unlinkScale != null) {
+        settings.unlinkScale = {BOOL: request.unlinkScale};
       }
       await updateSettings(settings, session.userId.S);
       return {};

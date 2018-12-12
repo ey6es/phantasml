@@ -233,6 +233,8 @@ export class Toolset extends React.Component<
                     Object.assign({}, this.props.preferences, {[key]: value}),
                   )
                 }
+                preferences={this.props.preferences}
+                setPreferences={this.props.setPreferences}
               />
             </Container>
           ) : null}

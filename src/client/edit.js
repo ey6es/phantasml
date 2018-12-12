@@ -255,6 +255,8 @@ class PreferencesDialog extends React.Component<
             labelSize={6}
             values={this.state}
             setValue={(key, value) => this.setState({[key]: value})}
+            preferences={this.props.preferences}
+            setPreferences={this.props.setPreferences}
           />
         </Form>
       </RequestDialog>

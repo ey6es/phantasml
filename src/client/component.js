@@ -30,6 +30,10 @@ import {
   UncontrolledDropdown,
   CustomInput,
 } from 'reactstrap';
+import {library} from '@fortawesome/fontawesome-svg-core';
+import {FontAwesomeIcon} from '@fortawesome/react-fontawesome';
+import {faLink} from '@fortawesome/free-solid-svg-icons/faLink';
+import {faUnlink} from '@fortawesome/free-solid-svg-icons/faUnlink';
 import type {EditorTab} from './store';
 import {StoreActions, store} from './store';
 import {EntityName} from './entity';
@@ -48,10 +52,14 @@ import {RendererCategory, RendererComponents} from './renderer/components';
 import {CollisionCategory, CollisionComponents} from './collision/components';
 import {PhysicsCategory, PhysicsComponents} from './physics/components';
 import {CircuitCategories, CircuitComponents} from './circuit/components';
+import type {UserGetPreferencesResponse} from '../server/api';
 import type {Resource, Entity} from '../server/store/resource';
 import {Scene, SceneActions} from '../server/store/scene';
 import {radians, degrees, roundToPrecision, vec2} from '../server/store/math';
 import {getValue} from '../server/store/util';
+
+library.add(faLink);
+library.add(faUnlink);
 
 /**
  * The component menu dropdown.
@@ -163,120 +171,142 @@ function CategorySubmenus() {
  */
 export const ComponentEditor = ReactRedux.connect(state => ({
   editorTab: state.editorTab,
-}))((props: {locale: string, editorTab: EditorTab}) => {
-  const page = props.editorTab === 'page';
-  return (
-    <div className="component-editor">
-      <Nav tabs className="pt-2 bg-black">
-        <NavItem>
-          <NavLink
-            active={!page}
-            onClick={() =>
-              store.dispatch(StoreActions.setEditorTab.create('entity'))
-            }>
-            <FormattedMessage id="editor.entity" defaultMessage="Entities" />
-          </NavLink>
-        </NavItem>
-        <NavItem>
-          <NavLink
-            active={page}
-            onClick={() =>
-              store.dispatch(StoreActions.setEditorTab.create('page'))
-            }>
-            <FormattedMessage id="editor.page" defaultMessage="Page" />
-          </NavLink>
-        </NavItem>
-      </Nav>
-      <EntityEditor locale={props.locale} page={page} />
-    </div>
-  );
-});
+}))(
+  (props: {
+    locale: string,
+    preferences: UserGetPreferencesResponse,
+    setPreferences: UserGetPreferencesResponse => void,
+    editorTab: EditorTab,
+  }) => {
+    const page = props.editorTab === 'page';
+    return (
+      <div className="component-editor">
+        <Nav tabs className="pt-2 bg-black">
+          <NavItem>
+            <NavLink
+              active={!page}
+              onClick={() =>
+                store.dispatch(StoreActions.setEditorTab.create('entity'))
+              }>
+              <FormattedMessage id="editor.entity" defaultMessage="Entities" />
+            </NavLink>
+          </NavItem>
+          <NavItem>
+            <NavLink
+              active={page}
+              onClick={() =>
+                store.dispatch(StoreActions.setEditorTab.create('page'))
+              }>
+              <FormattedMessage id="editor.page" defaultMessage="Page" />
+            </NavLink>
+          </NavItem>
+        </Nav>
+        <EntityEditor
+          locale={props.locale}
+          preferences={props.preferences}
+          setPreferences={props.setPreferences}
+          page={page}
+        />
+      </div>
+    );
+  },
+);
 
 const EntityEditor = ReactRedux.connect(state => ({
   entities: state.editorEntities,
-}))((props: {locale: string, page: boolean, entities: Entity[]}) => {
-  // get intersection state
-  let original: ?Object;
-  let intersection: ?Object;
-  for (const entity of props.entities) {
-    if (!(original && intersection)) {
-      original = entity.state;
-      intersection = entity.state;
-    } else {
-      intersection = intersectState(original, intersection, entity.state);
-    }
-  }
-  let components: [string, any][] = [];
-  let previousOrder: number = 0;
-  let highestOrder: number = 0;
-  if (intersection) {
-    components = (Object.entries(intersection): [string, any][]).filter(
-      ([key, value]) => Components[key],
-    );
-    // special handling for our built-in components
-    const automaticComponent = props.page ? 'background' : 'transform';
-    if (!intersection[automaticComponent]) {
-      components.unshift([automaticComponent, {}]);
-    }
-    if (components.length > 0) {
-      components.sort(
-        ([keyA, valueA], [keyB, valueB]) =>
-          (valueA.order || 0) - (valueB.order || 0),
-      );
-      previousOrder = (components[0][1].order || 0) - 2;
-      highestOrder = components[components.length - 1][1].order || 0;
-    }
-  }
-  const editEntities = (values: Object) => {
-    const map = {};
+}))(
+  (props: {
+    locale: string,
+    preferences: UserGetPreferencesResponse,
+    setPreferences: UserGetPreferencesResponse => void,
+    page: boolean,
+    entities: Entity[],
+  }) => {
+    // get intersection state
+    let original: ?Object;
+    let intersection: ?Object;
     for (const entity of props.entities) {
-      map[entity.id] = values;
+      if (!(original && intersection)) {
+        original = entity.state;
+        intersection = entity.state;
+      } else {
+        intersection = intersectState(original, intersection, entity.state);
+      }
     }
-    store.dispatch(SceneActions.editEntities.create(map));
-  };
-  return (
-    <div className="entity-editor border-left border-secondary flex-grow-1 p-2">
-      <Form>
-        <NameEditor
-          locale={props.locale}
-          entities={props.entities}
-          editEntities={editEntities}
-        />
-        {components.map(([key, value]) => {
-          const componentOrder = value.order || 0;
-          const preOrder = (previousOrder + componentOrder) / 2;
-          previousOrder = componentOrder;
-          return (
-            <ComponentPanel
-              key={key}
-              id={key}
-              value={value}
-              editEntities={editEntities}
-              components={components}
-              preOrder={preOrder}
-              postOrder={
-                componentOrder === highestOrder ? highestOrder + 1 : null
-              }
-            />
-          );
-        })}
-      </Form>
-      {props.entities.length > 0 ? (
-        <ButtonMenu
-          label={
-            <FormattedMessage
-              id="component.add"
-              defaultMessage="Add Component"
-            />
-          }
-          direction="left"
-          omitChildrenWhenClosed={true}>
-          <CategorySubmenus />
-        </ButtonMenu>
-      ) : null}
-    </div>
-  );
-});
+    let components: [string, any][] = [];
+    let previousOrder: number = 0;
+    let highestOrder: number = 0;
+    if (intersection) {
+      components = (Object.entries(intersection): [string, any][]).filter(
+        ([key, value]) => Components[key],
+      );
+      // special handling for our built-in components
+      const automaticComponent = props.page ? 'background' : 'transform';
+      if (!intersection[automaticComponent]) {
+        components.unshift([automaticComponent, {}]);
+      }
+      if (components.length > 0) {
+        components.sort(
+          ([keyA, valueA], [keyB, valueB]) =>
+            (valueA.order || 0) - (valueB.order || 0),
+        );
+        previousOrder = (components[0][1].order || 0) - 2;
+        highestOrder = components[components.length - 1][1].order || 0;
+      }
+    }
+    const editEntities = (values: Object) => {
+      const map = {};
+      for (const entity of props.entities) {
+        map[entity.id] = values;
+      }
+      store.dispatch(SceneActions.editEntities.create(map));
+    };
+    return (
+      <div className="entity-editor border-left border-secondary flex-grow-1 p-2">
+        <Form>
+          <NameEditor
+            locale={props.locale}
+            entities={props.entities}
+            editEntities={editEntities}
+          />
+          {components.map(([key, value]) => {
+            const componentOrder = value.order || 0;
+            const preOrder = (previousOrder + componentOrder) / 2;
+            previousOrder = componentOrder;
+            return (
+              <ComponentPanel
+                key={key}
+                id={key}
+                value={value}
+                editEntities={editEntities}
+                components={components}
+                preOrder={preOrder}
+                postOrder={
+                  componentOrder === highestOrder ? highestOrder + 1 : null
+                }
+                preferences={props.preferences}
+                setPreferences={props.setPreferences}
+              />
+            );
+          })}
+        </Form>
+        {props.entities.length > 0 ? (
+          <ButtonMenu
+            label={
+              <FormattedMessage
+                id="component.add"
+                defaultMessage="Add Component"
+              />
+            }
+            direction="left"
+            omitChildrenWhenClosed={true}>
+            <CategorySubmenus />
+          </ButtonMenu>
+        ) : null}
+      </div>
+    );
+  },
+);
 
 function intersectState(
   original: Object,
@@ -361,6 +391,8 @@ const ComponentPanel = ReactRedux.connect(state => ({
     components: [string, any][],
     preOrder: number,
     postOrder: ?number,
+    preferences: UserGetPreferencesResponse,
+    setPreferences: UserGetPreferencesResponse => void,
   }) => {
     const component = Components[props.id];
     if (!component) {
@@ -413,6 +445,8 @@ const ComponentPanel = ReactRedux.connect(state => ({
             setValue={(key, value) =>
               props.editEntities({[props.id]: {[key]: value}})
             }
+            preferences={props.preferences}
+            setPreferences={props.setPreferences}
           />
         </CardBody>
         {props.draggingComponent && props.postOrder != null ? (
@@ -441,6 +475,8 @@ const ComponentPanel = ReactRedux.connect(state => ({
  * @param [props.rightAlign=false] whether or not to right-align editors.
  * @param props.values the object containing the values.
  * @param props.setValue the function to set a value.
+ * @param props.preferences the preferences object.
+ * @param props.setPreferences the function to set the preferences.
  * @return an array containing the editor elements.
  */
 export function PropertyEditorGroup(props: {
@@ -451,6 +487,8 @@ export function PropertyEditorGroup(props: {
   rightAlign?: boolean,
   values: any,
   setValue: (string, any) => void,
+  preferences: UserGetPreferencesResponse,
+  setPreferences: UserGetPreferencesResponse => void,
 }) {
   const labelSize = props.labelSize || 4;
   const properties: [string, PropertyData][] = (Object.entries(
@@ -474,6 +512,8 @@ export function PropertyEditorGroup(props: {
           rightAlign={props.rightAlign}
           value={props.values[key]}
           setValue={value => props.setValue(key, value)}
+          preferences={props.preferences}
+          setPreferences={props.setPreferences}
         />
       </FormGroup>
     );
@@ -535,6 +575,8 @@ const PropertyEditors = {
     rightAlign: ?boolean,
     value: ?string,
     setValue: string => void,
+    preferences: UserGetPreferencesResponse,
+    setPreferences: UserGetPreferencesResponse => void,
   }) => {
     return (
       <div className={`col-sm-${props.sm}${props.classSuffix}`}>
@@ -557,6 +599,8 @@ const PropertyEditors = {
     rightAlign: ?boolean,
     value: ?boolean,
     setValue: boolean => void,
+    preferences: UserGetPreferencesResponse,
+    setPreferences: UserGetPreferencesResponse => void,
   }) => {
     return (
       <div className={`col-sm-${props.sm}${props.classSuffix}`}>
@@ -582,6 +626,8 @@ const PropertyEditors = {
     rightAlign: ?boolean,
     value: ?number,
     setValue: number => void,
+    preferences: UserGetPreferencesResponse,
+    setPreferences: UserGetPreferencesResponse => void,
   }) => {
     return (
       <div className={`col-sm-${props.sm}${props.classSuffix}`}>
@@ -610,6 +656,8 @@ const PropertyEditors = {
     rightAlign: ?boolean,
     value: ?number,
     setValue: number => void,
+    preferences: UserGetPreferencesResponse,
+    setPreferences: UserGetPreferencesResponse => void,
   }) => {
     return (
       <div className={`col-sm-${props.sm}${props.classSuffix}`}>
@@ -632,6 +680,8 @@ const PropertyEditors = {
     rightAlign: ?boolean,
     value: ?string,
     setValue: string => void,
+    preferences: UserGetPreferencesResponse,
+    setPreferences: UserGetPreferencesResponse => void,
   }) => {
     return (
       <div className={`col-sm-${props.sm}${props.classSuffix}`}>
@@ -652,6 +702,8 @@ const PropertyEditors = {
     rightAlign: ?boolean,
     value: ?number,
     setValue: number => void,
+    preferences: UserGetPreferencesResponse,
+    setPreferences: UserGetPreferencesResponse => void,
   }) => {
     return (
       <div className={`col-sm-${props.sm}${props.classSuffix}`}>
@@ -682,26 +734,66 @@ const PropertyEditors = {
     rightAlign: ?boolean,
     value: ?Object,
     setValue: Object => void,
+    preferences: UserGetPreferencesResponse,
+    setPreferences: UserGetPreferencesResponse => void,
   }) => {
     const vector =
       props.value || props.property.defaultValue || DefaultValues.vector;
-    const halfSm = props.sm / 2;
-    return [
-      <VectorComponent
-        key="x"
-        className={`col-sm-${halfSm} pr-1${props.classSuffix}`}
-        name="x"
-        vector={vector}
-        setVector={props.setValue}
-      />,
-      <VectorComponent
-        key="y"
-        className={`col-sm-${halfSm} pl-0`}
-        name="y"
-        vector={vector}
-        setVector={props.setValue}
-      />,
-    ];
+    const unlinkKey = props.property.unlinkKey;
+    if (!unlinkKey) {
+      const halfSm = props.sm / 2;
+      return [
+        <VectorComponent
+          key="x"
+          className={`col-sm-${halfSm} pr-1${props.classSuffix}`}
+          name="x"
+          vector={vector}
+          setVector={props.setValue}
+        />,
+        <VectorComponent
+          key="y"
+          className={`col-sm-${halfSm} pl-0`}
+          name="y"
+          vector={vector}
+          setVector={props.setValue}
+        />,
+      ];
+    }
+    const linked = !props.preferences[unlinkKey];
+    return (
+      <div className={`col-sm-${props.sm} d-flex`}>
+        <VectorComponent
+          className={`flex-grow-1`}
+          name="x"
+          vector={vector}
+          setVector={
+            linked
+              ? value => props.setValue({x: value.x, y: value.x})
+              : props.setValue
+          }
+        />
+        <Button
+          color="link"
+          className="link-button px-1"
+          onClick={() =>
+            props.setPreferences(
+              Object.assign({}, props.preferences, {[unlinkKey]: linked}),
+            )
+          }>
+          <FontAwesomeIcon icon={linked ? 'link' : 'unlink'} />
+        </Button>
+        <VectorComponent
+          className={`flex-grow-1`}
+          name="y"
+          vector={vector}
+          setVector={
+            linked
+              ? value => props.setValue({x: value.y, y: value.y})
+              : props.setValue
+          }
+        />
+      </div>
+    );
   },
   array: (props: {
     id: string,
@@ -711,6 +803,8 @@ const PropertyEditors = {
     rightAlign: ?boolean,
     value: ?Array<any>,
     setValue: (Array<any>) => void,
+    preferences: UserGetPreferencesResponse,
+    setPreferences: UserGetPreferencesResponse => void,
   }) => {
     const elementProperty = props.property.elements;
     const PropertyEditor = PropertyEditors[elementProperty.type];
@@ -732,6 +826,8 @@ const PropertyEditors = {
                 newArray[index] = value;
                 props.setValue(newArray);
               }}
+              preferences={props.preferences}
+              setPreferences={props.setPreferences}
             />
           </Row>
         ))}
@@ -773,6 +869,8 @@ const PropertyEditors = {
     rightAlign: ?boolean,
     value: ?any,
     setValue: any => void,
+    preferences: UserGetPreferencesResponse,
+    setPreferences: UserGetPreferencesResponse => void,
   }) => {
     const options = props.property.options || [];
     const value = getValue(props.value, props.property.defaultValue);
@@ -885,6 +983,7 @@ const Components: {[string]: ComponentData} = {
           <FormattedMessage id="transform.scale" defaultMessage="Scale:" />
         ),
         defaultValue: vec2(1.0, 1.0),
+        unlinkKey: 'unlinkScale',
       },
     },
     actions: [
