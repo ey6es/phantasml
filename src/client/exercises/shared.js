@@ -373,6 +373,7 @@ export class AbstractSbrrnExercise extends React.Component<
     } else {
       this._model && this._model.dispose();
       const model = (this._model = this._createModel());
+      model.step(0.0); // step once to make frame buffer valid
       this._visualizer = new StateVisualizer(
         model,
         [{x: Math.floor(this.state.width / 2), y: 0}],

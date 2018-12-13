@@ -59,34 +59,32 @@ export class AbstractSbrrn {
   _floatTextures: boolean;
 
   _probabilityLimit: number;
-  _historyDecayRate: number;
 
   _connectionTexture: WebGLTexture;
   _stateTextures: WebGLTexture[] = [];
   _probabilityTextures: WebGLTexture[] = [];
-  _historyTextures: WebGLTexture[] = [];
   _noiseTextures: WebGLTexture[] = [];
   _textures: WebGLTexture[] = [];
 
   _textureIndex = 0;
 
   _rewardBuffers: WebGLFramebuffer[] = [];
-  _recordBuffers: WebGLFramebuffer[] = [];
   _transitionBuffers: WebGLFramebuffer[] = [];
   _framebuffers: WebGLFramebuffer[] = [];
 
   _buffer: WebGLBuffer;
 
+  _uvScaleSnippet: string;
+  _nextStateSnippet: string;
+
   _vertexShader: WebGLShader;
   _rewardShader: WebGLShader;
-  _recordShader: WebGLShader;
   _transitionShader: WebGLShader;
   _outputShader: WebGLShader;
   _swizzleShader: WebGLShader;
   _shaders: WebGLShader[] = [];
 
   _rewardProgram: WebGLProgram;
-  _recordProgram: WebGLProgram;
   _transitionProgram: WebGLProgram;
   _outputProgram: WebGLProgram;
   _swizzleProgram: WebGLProgram;
@@ -95,10 +93,6 @@ export class AbstractSbrrn {
   _rewardLocations: {
     reward: WebGLUniformLocation,
     probabilityLimit: WebGLUniformLocation,
-  };
-  _recordLocations: {
-    probabilityLimit: WebGLUniformLocation,
-    historyDecayRate: WebGLUniformLocation,
   };
   _transitionLocations: {
     probabilityLimit: WebGLUniformLocation,
@@ -138,63 +132,7 @@ export class AbstractSbrrn {
     this._probabilityLimit =
       options.probabilityLimit || DEFAULT_PROBABILITY_LIMIT;
 
-    const DEFAULT_HISTORY_DECAY_RATE = 0.01;
-    this._historyDecayRate =
-      options.historyDecayRate || DEFAULT_HISTORY_DECAY_RATE;
-
-    // the connection texture holds the addresses of each node's inputs
-    {
-      this._connectionTexture = gl.createTexture();
-      this._textures.push(this._connectionTexture);
-      gl.bindTexture(gl.TEXTURE_2D, this._connectionTexture);
-      const data = new Uint8Array(options.width * options.height * 4);
-      for (let yy = 0, ii = 0; yy < options.height; yy++) {
-        const [v0, v1, v2, v3, v4, v5, v6, v7] =
-          yy & 1
-            ? [128, 0, 128, 255, 0, 128, 255, 128]
-            : [0, 128, 255, 128, 128, 0, 128, 255];
-        for (let xx = 0; xx < options.width; xx += 2) {
-          data[ii++] = v0;
-          data[ii++] = v1;
-          data[ii++] = v2;
-          data[ii++] = v3;
-
-          if (xx + 1 < options.width) {
-            data[ii++] = v4;
-            data[ii++] = v5;
-            data[ii++] = v6;
-            data[ii++] = v7;
-          }
-        }
-      }
-      gl.texImage2D(
-        gl.TEXTURE_2D,
-        0,
-        gl.RGBA,
-        options.width,
-        options.height,
-        0,
-        gl.RGBA,
-        gl.UNSIGNED_BYTE,
-        data,
-      );
-    }
-
-    // the state textures hold the boolean node states
-    this._createStateTexture(true);
-    this._createStateTexture(false);
-
-    // the probability textures hold the result probabilities
-    this._createProbabilityTexture(false);
-    this._createProbabilityTexture(true);
-
-    // the history textures hold the decision history sums
-    this._createHistoryTexture();
-    this._createHistoryTexture();
-
-    // the noise textures hold the last randomly generated values
-    this._createNoiseTexture(true);
-    this._createNoiseTexture(false);
+    this._createTextures();
 
     // no linear resampling
     this._textures.forEach(texture => {
@@ -206,10 +144,6 @@ export class AbstractSbrrn {
     this._rewardBuffers.push(
       this._createFramebuffer(this._probabilityTextures[0]),
       this._createFramebuffer(this._probabilityTextures[1]),
-    );
-    this._recordBuffers.push(
-      this._createFramebuffer(this._historyTextures[0]),
-      this._createFramebuffer(this._historyTextures[1]),
     );
     this._transitionBuffers.push(
       this._createFramebuffer(this._stateTextures[0], this._noiseTextures[0]),
@@ -238,7 +172,7 @@ export class AbstractSbrrn {
     );
 
     // fragment for defining the uv scale
-    const UV_SCALE_SNIPPET = `
+    this._uvScaleSnippet = `
       const vec2 UV_SCALE = vec2(
         ${1.0 / options.width},
         ${1.0 / options.height}
@@ -247,47 +181,11 @@ export class AbstractSbrrn {
 
     this._rewardShader = this._createShader(
       gl.FRAGMENT_SHADER,
-      `
-      #extension GL_EXT_draw_buffers : require
-      precision highp float;
-      uniform sampler2D history;
-      uniform sampler2D probability;
-      uniform float reward;
-      uniform float probabilityLimit;
-      ${UV_SCALE_SNIPPET}
-      varying vec2 uv;
-      void main(void) {
-        // move probability based on reward and rule history
-        vec2 historyOffset = UV_SCALE * vec2(0.0, 0.25);
-        vec4 history0 = texture2D(history, uv - historyOffset);
-        vec4 history1 = texture2D(history, uv + historyOffset);
-        float probabilityLimit2 = probabilityLimit * 2.0;
-        vec4 oldProbs =
-          (texture2D(probability, uv) - vec4(0.5)) * probabilityLimit2;
-        vec4 diffs =
-          vec4(history0.yw, history1.yw) - vec4(history0.xz, history1.xz);
-        vec4 sums =
-          vec4(history0.yw, history1.yw) + vec4(history0.xz, history1.xz);
-        
-        // positive reward reinforces the rules we've been applying
-        vec4 newProbs = oldProbs + max(reward, 0.0) * diffs;
-        
-        // negative reward ("punishment") causes a reversion to the center
-        vec4 punishmentSums = min(reward, 0.0) * sums;
-        newProbs +=
-          max(-max(newProbs, 0.0), punishmentSums) -
-          max(min(newProbs, 0.0), punishmentSums);
-          
-        // clamp to our limit so that we can "unlearn" reasonably rapidly
-        gl_FragData[0] =
-          clamp(newProbs, -probabilityLimit, probabilityLimit) /
-          probabilityLimit2 + vec4(0.5);
-      }
-    `,
+      this._getRewardShaderSource(),
     );
 
     // snippet for determining the next state of the cell
-    const NEXT_STATE_SNIPPET = `
+    this._nextStateSnippet = `
       // use our input addresses to get the states of this cell and inputs
       vec4 connections = texture2D(connection, uv) * 2.0 - vec4(1.0);
       vec3 inputStates = vec3(
@@ -323,48 +221,6 @@ export class AbstractSbrrn {
       float nextState = step(randomValue, threshold);
     `;
 
-    this._recordShader = this._createShader(
-      gl.FRAGMENT_SHADER,
-      `
-      #extension GL_EXT_draw_buffers : require
-      precision highp float;
-      uniform sampler2D connection;
-      uniform sampler2D state;
-      uniform sampler2D probability;
-      uniform sampler2D history;
-      uniform sampler2D noise;
-      uniform float probabilityLimit;
-      uniform float historyDecayRate;
-      ${UV_SCALE_SNIPPET}
-      varying vec2 uv;
-      void main(void) {
-        ${NEXT_STATE_SNIPPET}
-        
-        // use the input and next states to locate the history entry to update
-        vec4 decision = vec4(inputStates, nextState);
-        vec4 notDecision = vec4(1.0) - decision;
-        vec4 history0 = vec4(
-          notDecision.z * notDecision.w,
-          notDecision.z * decision.w,
-          decision.z * notDecision.w,
-          decision.z * decision.w
-        );
-        vec2 location = step(vec2(0.5, 0.5), fract(uv / UV_SCALE));
-        vec2 notLocation = vec2(1.0) - location;
-        vec2 active = vec2(
-          (decision.x * location.x) + (notDecision.x * notLocation.x),
-          (decision.y * location.y) + (notDecision.y * notLocation.y)
-        );
-        // the decay rate controls how long historical decisions linger
-        gl_FragData[0] = mix(
-          texture2D(history, uv),
-          active.x * active.y * history0,
-          historyDecayRate
-        );
-      }
-    `,
-    );
-
     this._transitionShader = this._createShader(
       gl.FRAGMENT_SHADER,
       `
@@ -375,10 +231,10 @@ export class AbstractSbrrn {
       uniform sampler2D probability;
       uniform sampler2D noise;
       uniform float probabilityLimit;
-      ${UV_SCALE_SNIPPET}
+      ${this._uvScaleSnippet}
       varying vec2 uv;
       void main(void) {
-        ${NEXT_STATE_SNIPPET}
+        ${this._nextStateSnippet}
         gl_FragData[0] = vec4(nextState);
         
         ivec4 noiseInt = ivec4(noiseValues * 255.0);
@@ -434,18 +290,6 @@ export class AbstractSbrrn {
       ),
     };
 
-    this._recordProgram = this._createProgram(this._recordShader, RECORD_UNITS);
-    this._recordLocations = {
-      probabilityLimit: gl.getUniformLocation(
-        this._recordProgram,
-        'probabilityLimit',
-      ),
-      historyDecayRate: gl.getUniformLocation(
-        this._recordProgram,
-        'historyDecayRate',
-      ),
-    };
-
     this._transitionProgram = this._createProgram(
       this._transitionShader,
       TRANSITION_UNITS,
@@ -473,15 +317,67 @@ export class AbstractSbrrn {
     };
   }
 
+  _createTextures() {
+    // the connection texture holds the addresses of each node's inputs
+    {
+      const gl = this._gl;
+      this._connectionTexture = gl.createTexture();
+      this._textures.push(this._connectionTexture);
+      gl.bindTexture(gl.TEXTURE_2D, this._connectionTexture);
+      const data = new Uint8Array(this.options.width * this.options.height * 4);
+      for (let yy = 0, ii = 0; yy < this.options.height; yy++) {
+        const [v0, v1, v2, v3, v4, v5, v6, v7] =
+          yy & 1
+            ? [128, 0, 128, 255, 0, 128, 255, 128]
+            : [0, 128, 255, 128, 128, 0, 128, 255];
+        for (let xx = 0; xx < this.options.width; xx += 2) {
+          data[ii++] = v0;
+          data[ii++] = v1;
+          data[ii++] = v2;
+          data[ii++] = v3;
+
+          if (xx + 1 < this.options.width) {
+            data[ii++] = v4;
+            data[ii++] = v5;
+            data[ii++] = v6;
+            data[ii++] = v7;
+          }
+        }
+      }
+      gl.texImage2D(
+        gl.TEXTURE_2D,
+        0,
+        gl.RGBA,
+        this.options.width,
+        this.options.height,
+        0,
+        gl.RGBA,
+        gl.UNSIGNED_BYTE,
+        data,
+      );
+    }
+
+    // the state textures hold the boolean node states
+    this._createStateTexture(true);
+    this._createStateTexture(false);
+
+    // the probability textures hold the result probabilities
+    this._createProbabilityTexture(false);
+    this._createProbabilityTexture(true);
+
+    // the noise textures hold the last randomly generated values
+    this._createNoiseTexture(true);
+    this._createNoiseTexture(false);
+  }
+
   _createStateTexture(initialize: boolean) {
     const gl = this._gl;
     const texture = gl.createTexture();
     this._stateTextures.push(texture);
     this._textures.push(texture);
     gl.bindTexture(gl.TEXTURE_2D, texture);
-    let data: ?Uint8Array = null;
+    const data = new Uint8Array(this.options.width * this.options.height * 3);
     if (initialize) {
-      data = new Uint8Array(this.options.width * this.options.height * 3);
       for (let ii = 0; ii < data.length; ) {
         const value = (Math.random() * INTEGER_MAX) | 0;
         for (let jj = 0; jj < 32 && ii < data.length; jj++) {
@@ -548,25 +444,6 @@ export class AbstractSbrrn {
     }
   }
 
-  _createHistoryTexture() {
-    const gl = this._gl;
-    const texture = gl.createTexture();
-    this._historyTextures.push(texture);
-    this._textures.push(texture);
-    gl.bindTexture(gl.TEXTURE_2D, texture);
-    gl.texImage2D(
-      gl.TEXTURE_2D,
-      0,
-      gl.RGBA,
-      this.options.width * 2,
-      this.options.height * 2,
-      0,
-      gl.RGBA,
-      this._floatTextures ? gl.FLOAT : gl.UNSIGNED_BYTE,
-      null,
-    );
-  }
-
   _createNoiseTexture(initialize: boolean) {
     const gl = this._gl;
     const texture = gl.createTexture();
@@ -629,6 +506,10 @@ export class AbstractSbrrn {
     }
     ext.drawBuffersWEBGL(drawBuffers);
     return buffer;
+  }
+
+  _getRewardShaderSource(): string {
+    throw new Error('Not implemented.');
   }
 
   _createShader(type: number, source: string): WebGLShader {
@@ -734,33 +615,11 @@ export class AbstractSbrrn {
     gl.bindFramebuffer(gl.FRAMEBUFFER, this._rewardBuffers[firstIndex]);
     gl.viewport(0, 0, this.options.width * 2, this.options.height);
     gl.useProgram(this._rewardProgram);
-    gl.uniform1f(this._rewardLocations.reward, reward);
     gl.uniform1f(
       this._rewardLocations.probabilityLimit,
       this._probabilityLimit,
     );
-    this._bindTexture(gl.TEXTURE0, this._historyTextures[secondIndex]);
-    this._bindTexture(gl.TEXTURE1, this._probabilityTextures[secondIndex]);
-    gl.drawArrays(gl.TRIANGLE_FAN, 0, 4);
-
-    // record the state transition that we're going to perform to history
-    gl.bindFramebuffer(gl.FRAMEBUFFER, this._recordBuffers[firstIndex]);
-    gl.viewport(0, 0, this.options.width * 2, this.options.height * 2);
-    gl.useProgram(this._recordProgram);
-    gl.uniform1f(
-      this._recordLocations.probabilityLimit,
-      this._probabilityLimit,
-    );
-    gl.uniform1f(
-      this._recordLocations.historyDecayRate,
-      this._historyDecayRate,
-    );
-    this._bindTexture(gl.TEXTURE0, this._connectionTexture);
-    this._bindTexture(gl.TEXTURE1, this._stateTextures[firstIndex]);
-    this._bindTexture(gl.TEXTURE2, this._probabilityTextures[firstIndex]);
-    this._bindTexture(gl.TEXTURE3, this._historyTextures[secondIndex]);
-    this._bindTexture(gl.TEXTURE4, this._noiseTextures[firstIndex]);
-    gl.drawArrays(gl.TRIANGLE_FAN, 0, 4);
+    this._applyReward(reward, firstIndex, secondIndex);
 
     // apply the actual transition and update the noise state
     gl.bindFramebuffer(gl.FRAMEBUFFER, this._transitionBuffers[secondIndex]);
@@ -779,6 +638,10 @@ export class AbstractSbrrn {
 
     // render the states to the output so that we can sample them
     this.renderStateTexture();
+  }
+
+  _applyReward(reward: number, firstIndex: number, secondIndex: number) {
+    throw new Error('Not implemented.');
   }
 
   /**
@@ -850,14 +713,7 @@ export class AbstractSbrrn {
    * @param offsetT the texture coordinate offset to use on the T axis.
    */
   renderHistoryTexture(swizzle: boolean, offsetS: number, offsetT: number) {
-    this._renderTexture(
-      this._historyTextures[this._textureIndex],
-      swizzle,
-      0.5,
-      0.5,
-      offsetS,
-      offsetT,
-    );
+    throw new Error('Not implemented.');
   }
 
   /**
@@ -915,7 +771,194 @@ export class AbstractSbrrn {
  * @param options the options for the model.
  * @param [canvas] an existing canvas to use rather than creating a new one.
  */
-export class Sbrrn extends AbstractSbrrn {}
+export class Sbrrn extends AbstractSbrrn {
+  _historyDecayRate: number;
+  _historyTextures: WebGLTexture[];
+  _recordBuffers: WebGLFramebuffer[] = [];
+  _recordShader: WebGLShader;
+  _recordProgram: WebGLProgram;
+  _recordLocations: {
+    probabilityLimit: WebGLUniformLocation,
+    historyDecayRate: WebGLUniformLocation,
+  };
+
+  constructor(options: SbrrnOptions, canvas?: ?HTMLCanvasElement) {
+    super(options, canvas);
+
+    const DEFAULT_HISTORY_DECAY_RATE = 0.01;
+    this._historyDecayRate =
+      options.historyDecayRate || DEFAULT_HISTORY_DECAY_RATE;
+
+    this._recordBuffers.push(
+      this._createFramebuffer(this._historyTextures[0]),
+      this._createFramebuffer(this._historyTextures[1]),
+    );
+
+    const gl = this._gl;
+    this._recordShader = this._createShader(
+      gl.FRAGMENT_SHADER,
+      `
+      #extension GL_EXT_draw_buffers : require
+      precision highp float;
+      uniform sampler2D connection;
+      uniform sampler2D state;
+      uniform sampler2D probability;
+      uniform sampler2D history;
+      uniform sampler2D noise;
+      uniform float probabilityLimit;
+      uniform float historyDecayRate;
+      ${this._uvScaleSnippet}
+      varying vec2 uv;
+      void main(void) {
+        ${this._nextStateSnippet}
+        
+        // use the input and next states to locate the history entry to update
+        vec4 decision = vec4(inputStates, nextState);
+        vec4 notDecision = vec4(1.0) - decision;
+        vec4 history0 = vec4(
+          notDecision.z * notDecision.w,
+          notDecision.z * decision.w,
+          decision.z * notDecision.w,
+          decision.z * decision.w
+        );
+        vec2 location = step(vec2(0.5, 0.5), fract(uv / UV_SCALE));
+        vec2 notLocation = vec2(1.0) - location;
+        vec2 active = vec2(
+          (decision.x * location.x) + (notDecision.x * notLocation.x),
+          (decision.y * location.y) + (notDecision.y * notLocation.y)
+        );
+        // the decay rate controls how long historical decisions linger
+        gl_FragData[0] = mix(
+          texture2D(history, uv),
+          active.x * active.y * history0,
+          historyDecayRate
+        );
+      }
+    `,
+    );
+
+    this._recordProgram = this._createProgram(this._recordShader, RECORD_UNITS);
+    this._recordLocations = {
+      probabilityLimit: gl.getUniformLocation(
+        this._recordProgram,
+        'probabilityLimit',
+      ),
+      historyDecayRate: gl.getUniformLocation(
+        this._recordProgram,
+        'historyDecayRate',
+      ),
+    };
+  }
+
+  renderHistoryTexture(swizzle: boolean, offsetS: number, offsetT: number) {
+    this._renderTexture(
+      this._historyTextures[this._textureIndex],
+      swizzle,
+      0.5,
+      0.5,
+      offsetS,
+      offsetT,
+    );
+  }
+
+  _createTextures() {
+    super._createTextures();
+
+    // the history textures hold the decision history sums
+    this._historyTextures = [];
+    this._createHistoryTexture();
+    this._createHistoryTexture();
+  }
+
+  _createHistoryTexture() {
+    const gl = this._gl;
+    const texture = gl.createTexture();
+    this._historyTextures.push(texture);
+    this._textures.push(texture);
+    gl.bindTexture(gl.TEXTURE_2D, texture);
+    const data = this._floatTextures
+      ? new Float32Array(this.options.width * this.options.height * 4 * 4)
+      : new Uint8Array(this.options.width * this.options.height * 4 * 4);
+    gl.texImage2D(
+      gl.TEXTURE_2D,
+      0,
+      gl.RGBA,
+      this.options.width * 2,
+      this.options.height * 2,
+      0,
+      gl.RGBA,
+      this._floatTextures ? gl.FLOAT : gl.UNSIGNED_BYTE,
+      data,
+    );
+  }
+
+  _getRewardShaderSource(): string {
+    return `
+      #extension GL_EXT_draw_buffers : require
+      precision highp float;
+      uniform sampler2D history;
+      uniform sampler2D probability;
+      uniform float reward;
+      uniform float probabilityLimit;
+      ${this._uvScaleSnippet}
+      varying vec2 uv;
+      void main(void) {
+        // move probability based on reward and rule history
+        vec2 historyOffset = UV_SCALE * vec2(0.0, 0.25);
+        vec4 history0 = texture2D(history, uv - historyOffset);
+        vec4 history1 = texture2D(history, uv + historyOffset);
+        float probabilityLimit2 = probabilityLimit * 2.0;
+        vec4 oldProbs =
+          (texture2D(probability, uv) - vec4(0.5)) * probabilityLimit2;
+        vec4 diffs =
+          vec4(history0.yw, history1.yw) - vec4(history0.xz, history1.xz);
+        vec4 sums =
+          vec4(history0.yw, history1.yw) + vec4(history0.xz, history1.xz);
+        
+        // positive reward reinforces the rules we've been applying
+        vec4 newProbs = oldProbs + max(reward, 0.0) * diffs;
+        
+        // negative reward ("punishment") causes a reversion to the center
+        vec4 punishmentSums = min(reward, 0.0) * sums;
+        newProbs +=
+          max(-max(newProbs, 0.0), punishmentSums) -
+          max(min(newProbs, 0.0), punishmentSums);
+          
+        // clamp to our limit so that we can "unlearn" reasonably rapidly
+        gl_FragData[0] =
+          clamp(newProbs, -probabilityLimit, probabilityLimit) /
+          probabilityLimit2 + vec4(0.5);
+      }
+    `;
+  }
+
+  _applyReward(reward: number, firstIndex: number, secondIndex: number) {
+    const gl = this._gl;
+    gl.uniform1f(this._rewardLocations.reward, reward);
+    this._bindTexture(gl.TEXTURE0, this._historyTextures[secondIndex]);
+    this._bindTexture(gl.TEXTURE1, this._probabilityTextures[secondIndex]);
+    gl.drawArrays(gl.TRIANGLE_FAN, 0, 4);
+
+    // record the state transition that we're going to perform to history
+    gl.bindFramebuffer(gl.FRAMEBUFFER, this._recordBuffers[firstIndex]);
+    gl.viewport(0, 0, this.options.width * 2, this.options.height * 2);
+    gl.useProgram(this._recordProgram);
+    gl.uniform1f(
+      this._recordLocations.probabilityLimit,
+      this._probabilityLimit,
+    );
+    gl.uniform1f(
+      this._recordLocations.historyDecayRate,
+      this._historyDecayRate,
+    );
+    this._bindTexture(gl.TEXTURE0, this._connectionTexture);
+    this._bindTexture(gl.TEXTURE1, this._stateTextures[firstIndex]);
+    this._bindTexture(gl.TEXTURE2, this._probabilityTextures[firstIndex]);
+    this._bindTexture(gl.TEXTURE3, this._historyTextures[secondIndex]);
+    this._bindTexture(gl.TEXTURE4, this._noiseTextures[firstIndex]);
+    gl.drawArrays(gl.TRIANGLE_FAN, 0, 4);
+  }
+}
 
 /**
  * Second iteration of SBRRN model.
@@ -923,7 +966,14 @@ export class Sbrrn extends AbstractSbrrn {}
  * @param options the options for the model.
  * @param [canvas] an existing canvas to use rather than creating a new one.
  */
-export class Sbrrn2 extends AbstractSbrrn {}
+export class Sbrrn2 extends AbstractSbrrn {
+  _getRewardShaderSource(): string {
+    return `
+    `;
+  }
+
+  _applyReward(reward: number, firstIndex: number, secondIndex: number) {}
+}
 
 type TextureVisualizerMode = 'connection' | 'probability' | 'history';
 
