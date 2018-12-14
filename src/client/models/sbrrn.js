@@ -376,7 +376,7 @@ export class AbstractSbrrn {
     this._stateTextures.push(texture);
     this._textures.push(texture);
     gl.bindTexture(gl.TEXTURE_2D, texture);
-    const data = new Uint8Array(this.options.width * this.options.height * 3);
+    const data = new Uint8Array(this.options.width * this.options.height * 4);
     if (initialize) {
       for (let ii = 0; ii < data.length; ) {
         const value = (Math.random() * INTEGER_MAX) | 0;
@@ -385,17 +385,18 @@ export class AbstractSbrrn {
           data[ii++] = level;
           data[ii++] = level;
           data[ii++] = level;
+          data[ii++] = 255;
         }
       }
     }
     gl.texImage2D(
       gl.TEXTURE_2D,
       0,
-      gl.RGB,
+      gl.RGBA,
       this.options.width,
       this.options.height,
       0,
-      gl.RGB,
+      gl.RGBA,
       gl.UNSIGNED_BYTE,
       data,
     );
@@ -969,10 +970,33 @@ export class Sbrrn extends AbstractSbrrn {
 export class Sbrrn2 extends AbstractSbrrn {
   _getRewardShaderSource(): string {
     return `
+      #extension GL_EXT_draw_buffers : require
+      precision highp float;
+      uniform sampler2D probability;
+      uniform float reward;
+      uniform float probabilityLimit;
+      ${this._uvScaleSnippet}
+      varying vec2 uv;
+      void main(void) {
+        float probabilityLimit2 = probabilityLimit * 2.0;
+        vec4 oldProbs =
+          (texture2D(probability, uv) - vec4(0.5)) * probabilityLimit2;
+        vec4 newProbs = oldProbs;
+          
+        // clamp to our limit so that we can "unlearn" reasonably rapidly
+        gl_FragData[0] =
+          clamp(newProbs, -probabilityLimit, probabilityLimit) /
+          probabilityLimit2 + vec4(0.5);
+      }
     `;
   }
 
-  _applyReward(reward: number, firstIndex: number, secondIndex: number) {}
+  _applyReward(reward: number, firstIndex: number, secondIndex: number) {
+    const gl = this._gl;
+    this._bindTexture(gl.TEXTURE0, null);
+    this._bindTexture(gl.TEXTURE1, this._probabilityTextures[secondIndex]);
+    gl.drawArrays(gl.TRIANGLE_FAN, 0, 4);
+  }
 }
 
 type TextureVisualizerMode = 'connection' | 'probability' | 'history';
