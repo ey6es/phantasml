@@ -222,6 +222,15 @@ const PreferenceProperties: {[string]: PropertyData} = {
     ],
     defaultValue: DEFAULT_AUTO_SAVE_MINUTES,
   },
+  showStats: {
+    type: 'boolean',
+    label: (
+      <FormattedMessage
+        id="preferences.show_stats"
+        defaultMessage="Show Stats:"
+      />
+    ),
+  },
 };
 
 class PreferencesDialog extends React.Component<

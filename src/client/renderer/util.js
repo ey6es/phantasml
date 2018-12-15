@@ -361,6 +361,10 @@ export class Renderer {
 
   _renderCallbacks: [(Renderer) => void, number][] = [];
   _frameDirty = false;
+  _lastFrameTime = 0;
+  _frameDurations: number[] = [];
+  _frameDurationTotal = 0;
+  _frameDurationIndex = 0;
 
   _boundArrayBuffer: ?WebGLBuffer;
   _boundElementArrayBuffer: ?WebGLBuffer;
@@ -380,6 +384,13 @@ export class Renderer {
   /** Returns the ratio of pixels to world units. */
   get pixelsToWorldUnits(): number {
     return this._camera.size / this.canvas.clientHeight;
+  }
+
+  /** Returns an estimate of the FPS rate. */
+  get framesPerSecond(): number {
+    return this._frameDurationTotal === 0.0
+      ? 0.0
+      : (this._frameDurations.length * 1000) / this._frameDurationTotal;
   }
 
   constructor(canvas: HTMLCanvasElement, fontImage: HTMLImageElement) {
@@ -583,6 +594,23 @@ export class Renderer {
    * Renders a frame by calling all of our render callbacks in order.
    */
   renderFrame() {
+    const frameTime = Date.now();
+    const duration = frameTime - this._lastFrameTime;
+    if (duration < 500) {
+      this._frameDurationTotal += duration;
+      if (this._frameDurations.length < 60) {
+        this._frameDurations.push(duration);
+      } else {
+        this._frameDurationTotal -= this._frameDurations[
+          this._frameDurationIndex
+        ];
+        this._frameDurations[this._frameDurationIndex] = duration;
+        this._frameDurationIndex =
+          (this._frameDurationIndex + 1) % this._frameDurations.length;
+      }
+    }
+    this._lastFrameTime = frameTime;
+
     for (const [callback, order] of this._renderCallbacks) {
       callback(this);
     }

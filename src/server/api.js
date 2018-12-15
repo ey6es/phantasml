@@ -121,6 +121,7 @@ export const UserGetPreferencesRequestType = (reify: Type<
 >);
 type PreferencesData = {
   autoSaveMinutes?: ?number,
+  showStats?: ?boolean,
   gridSnap?: ?boolean,
   featureSnap?: ?boolean,
   local?: ?boolean,
@@ -221,6 +222,7 @@ export type HelpReportBugRequest = ApiRequest & {
   url: string,
   buildTime: string,
   recentLogEntries: string[],
+  stats: ?{[string]: number},
   screenshot: ?string,
 };
 export const HelpReportBugRequestType = (reify: Type<HelpReportBugRequest>);

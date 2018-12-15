@@ -22,6 +22,7 @@ import {
 } from './util/ui';
 import {RenderCanvas} from './renderer/canvas';
 import type {Renderer} from './renderer/util';
+import type {UserGetPreferencesResponse} from '../server/api';
 import type {Resource} from '../server/store/resource';
 import type {EntityHierarchyNode} from '../server/store/scene';
 import {Scene, SceneActions} from '../server/store/scene';
@@ -120,6 +121,7 @@ function PanShortcutHandler(props: {keyCode: number, dx: number, dy: number}) {
 export class SceneView extends React.Component<
   {
     locale: string,
+    preferences: UserGetPreferencesResponse,
     setRenderer: (?Renderer) => void,
     fontImage: HTMLImageElement,
   },
@@ -134,6 +136,7 @@ export class SceneView extends React.Component<
             'flex-grow-1 border-left border-secondary position-relative'
           }>
           <RenderCanvas
+            preferences={this.props.preferences}
             setRenderer={this.props.setRenderer}
             fontImage={this.props.fontImage}
           />

@@ -84,6 +84,14 @@ Client Build: ${getTimeString(request.buildTime)}
 Server Build: ${getTimeString(BUILD_TIME)}
 
 ${
+        request.stats
+          ? Object.entries(request.stats)
+              .map(([key, value]) => `${key}: ${String(value)}`)
+              .join('\n')
+          : ''
+      }
+
+${
         screenshot
           ? `--${boundary}
 Content-Type: image/png; name="screenshot.png"

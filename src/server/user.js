@@ -783,6 +783,7 @@ export function getPreferences(
         autoSaveMinutes:
           preferences.autoSaveMinutes &&
           parseInt(preferences.autoSaveMinutes.N),
+        showStats: preferences.showStats && preferences.showStats.BOOL,
         gridSnap: preferences.gridSnap && preferences.gridSnap.BOOL,
         featureSnap: preferences.featureSnap && preferences.featureSnap.BOOL,
         local: preferences.local && preferences.local.BOOL,
@@ -812,6 +813,9 @@ export function putPreferences(
       const settings = {};
       if (request.autoSaveMinutes != null) {
         settings.autoSaveMinutes = {N: String(request.autoSaveMinutes)};
+      }
+      if (request.showStats != null) {
+        settings.showStats = {BOOL: request.showStats};
       }
       if (request.gridSnap != null) {
         settings.gridSnap = {BOOL: request.gridSnap};

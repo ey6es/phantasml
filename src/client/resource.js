@@ -582,6 +582,7 @@ export class ResourceContent extends React.Component<
             <div className="flex-grow-1 d-flex flex-column">
               <SceneView
                 locale={this.props.locale}
+                preferences={this.props.preferences}
                 setRenderer={this.props.setRenderer}
                 fontImage={(this.state.fontImage: any)}
               />

@@ -7,16 +7,18 @@
 
 import * as React from 'react';
 import * as ReactRedux from 'react-redux';
+import {FormattedMessage} from 'react-intl';
 import {Tooltip} from 'reactstrap';
 import {renderBackground} from './background';
 import {Renderer} from './util';
 import {ComponentRenderers} from './renderers';
 import type {PageState, ToolType, HoverState, TooltipData} from '../store';
 import {DEFAULT_PAGE_SIZE, store} from '../store';
+import type {UserGetPreferencesResponse} from '../../server/api';
 import type {Resource, Entity} from '../../server/store/resource';
 import type {IdTreeNode} from '../../server/store/scene';
 import {Scene, currentVisit} from '../../server/store/scene';
-import {vec2, roundEquals} from '../../server/store/math';
+import {vec2, roundEquals, roundToPrecision} from '../../server/store/math';
 
 const cameraBounds = {min: vec2(), max: vec2()};
 
@@ -106,7 +108,11 @@ export function getEntityRenderer(
  * Renders the scene.
  */
 export class RenderCanvas extends React.Component<
-  {setRenderer: (?Renderer) => void, fontImage: HTMLImageElement},
+  {
+    preferences: UserGetPreferencesResponse,
+    setRenderer: (?Renderer) => void,
+    fontImage: HTMLImageElement,
+  },
   {renderer: ?Renderer},
 > {
   state = {renderer: null};
@@ -122,6 +128,9 @@ export class RenderCanvas extends React.Component<
         ref={this._setCanvas}
         className="render-canvas"
       />,
+      this.props.preferences.showStats ? (
+        <CanvasStats key="stats" renderer={this.state.renderer} />
+      ) : null,
       <CanvasTooltip key="tooltip" renderer={this.state.renderer} />,
     ];
   }
@@ -251,6 +260,102 @@ export class RenderCanvas extends React.Component<
 
     // clear for next time
     entityZOrders.splice(0, entityZOrders.length);
+  };
+}
+
+class CanvasStats extends React.Component<
+  {renderer: ?Renderer},
+  {
+    framesPerSecond: number,
+    arrayBuffers: number,
+    elementArrayBuffers: number,
+    vertexShaders: number,
+    fragmentShaders: number,
+    programs: number,
+  },
+> {
+  state = {
+    framesPerSecond: 0,
+    arrayBuffers: 0,
+    elementArrayBuffers: 0,
+    vertexShaders: 0,
+    fragmentShaders: 0,
+    programs: 0,
+  };
+
+  _updateIntervalID: IntervalID;
+
+  render() {
+    return (
+      <div className="canvas-stats">
+        <div>
+          <FormattedMessage
+            id="stats.frames_per_second"
+            defaultMessage="FPS: {value}"
+            values={{value: Math.round(this.state.framesPerSecond)}}
+          />
+        </div>
+        <div>
+          <FormattedMessage
+            id="stats.array_buffers"
+            defaultMessage="Array Buffers: {value}"
+            values={{value: this.state.arrayBuffers}}
+          />
+        </div>
+        <div>
+          <FormattedMessage
+            id="stats.element_array_buffers"
+            defaultMessage="Element Array Buffers: {value}"
+            values={{value: this.state.elementArrayBuffers}}
+          />
+        </div>
+        <div>
+          <FormattedMessage
+            id="stats.vertex_shaders"
+            defaultMessage="Vertex Shaders: {value}"
+            values={{value: this.state.vertexShaders}}
+          />
+        </div>
+        <div>
+          <FormattedMessage
+            id="stats.fragment_shaders"
+            defaultMessage="Fragment Shaders: {value}"
+            values={{value: this.state.fragmentShaders}}
+          />
+        </div>
+        <div>
+          <FormattedMessage
+            id="stats.programs"
+            defaultMessage="Programs: {value}"
+            values={{value: this.state.programs}}
+          />
+        </div>
+      </div>
+    );
+  }
+
+  componentDidMount() {
+    this._updateState();
+    this._updateIntervalID = setInterval(this._updateState, 1000);
+  }
+
+  componentWillUnmount() {
+    clearInterval(this._updateIntervalID);
+  }
+
+  _updateState = () => {
+    const renderer = this.props.renderer;
+    if (!renderer) {
+      return;
+    }
+    this.setState({
+      framesPerSecond: renderer.framesPerSecond,
+      arrayBuffers: renderer.arrayBuffers.size,
+      elementArrayBuffers: renderer.elementArrayBuffers.size,
+      vertexShaders: renderer.vertexShaders.size,
+      fragmentShaders: renderer.fragmentShaders.size,
+      programs: renderer.programs.size,
+    });
   };
 }
 

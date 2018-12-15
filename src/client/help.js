@@ -126,8 +126,17 @@ class ReportBugDialogImpl extends React.Component<
   _makeRequest = async () => {
     // get the screenshot if we have a renderer
     const renderer = this.props.renderer;
+    let stats: ?{[string]: number};
     let screenshot: ?string;
     if (renderer) {
+      stats = {
+        framesPerSecond: Math.round(renderer.framesPerSecond),
+        arrayBuffers: renderer.arrayBuffers.size,
+        elementArrayBuffers: renderer.elementArrayBuffers.size,
+        vertexShaders: renderer.vertexShaders.size,
+        fragmentShaders: renderer.fragmentShaders.size,
+        programs: renderer.programs.size,
+      };
       screenshot = await new Promise(resolve => {
         const callback = renderer => {
           resolve(renderer.canvas.toDataURL());
@@ -143,6 +152,7 @@ class ReportBugDialogImpl extends React.Component<
       url: location.href,
       buildTime,
       recentLogEntries,
+      stats,
       screenshot,
     };
     return await postToApi('/help/bug', request);
