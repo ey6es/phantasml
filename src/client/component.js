@@ -125,13 +125,25 @@ function CategorySubmenus() {
             const map = {};
             for (const entity of entities) {
               let highestOrder = 0;
+              const edit = {};
               for (const key in entity.state) {
-                highestOrder = Math.max(
-                  highestOrder,
-                  entity.state[key].order || 0,
-                );
+                const component = Components[key];
+                if (
+                  component &&
+                  component.category &&
+                  component.category === (data: any).category
+                ) {
+                  // remove existing component in same category
+                  edit[key] = null;
+                } else {
+                  highestOrder = Math.max(
+                    highestOrder,
+                    entity.state[key].order || 0,
+                  );
+                }
               }
-              map[entity.id] = {[name]: {order: highestOrder + 1}};
+              edit[name] = {order: highestOrder + 1};
+              map[entity.id] = edit;
             }
             store.dispatch(SceneActions.editEntities.create(map));
           }}>
