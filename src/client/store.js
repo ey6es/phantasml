@@ -65,6 +65,8 @@ export type TooltipData = {
   entityId: string,
   label: React.Element<any>,
   position: Vector2,
+  secondaryLabel: ?React.Element<any>,
+  secondaryPosition: ?Vector2,
 };
 
 type PlayState = 'stopped' | 'playing' | 'paused';

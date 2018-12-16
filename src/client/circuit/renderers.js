@@ -117,6 +117,8 @@ ComponentRenderers.moduleRenderer = {
               let index = oldHoverState.part - 1;
               let label: React.Element<any>;
               const position = vec2();
+              let secondaryLabel: ?React.Element<any>;
+              let secondaryPosition: ?Vector2;
               if (index < inputKeys.length) {
                 label = inputs[inputKeys[index]].label;
                 vec2(
@@ -127,13 +129,48 @@ ComponentRenderers.moduleRenderer = {
                 );
               } else {
                 index -= inputKeys.length;
-                label = outputs[outputKeys[index]].label;
+                const outputKey = outputKeys[index];
+                label = outputs[outputKey].label;
                 vec2(
                   MODULE_WIDTH * 0.5 + MODULE_HEIGHT_PER_TERMINAL * 0.5,
                   ((outputKeys.length - 1) * 0.5 - index + 0.25) *
                     MODULE_HEIGHT_PER_TERMINAL,
                   position,
                 );
+                const output = data[outputKey];
+                const targetEntity =
+                  output &&
+                  output.ref &&
+                  state.resource &&
+                  state.resource.getEntity(output.ref);
+                if (targetEntity) {
+                  const targetModuleKey = getModuleKey(targetEntity);
+                  const targetModule =
+                    targetModuleKey && ComponentModules[targetModuleKey];
+                  const targetInputs =
+                    targetModule &&
+                    targetModule.getInputs(targetEntity.state[targetModuleKey]);
+                  const targetInput =
+                    targetInputs && targetInputs[output.input];
+                  if (targetInputs && targetInput) {
+                    secondaryLabel = targetInput.label;
+                    const targetInputKeys = Object.keys(targetInputs);
+                    const targetIndex = targetInputKeys.indexOf(output.input);
+                    secondaryPosition = vec2(
+                      MODULE_WIDTH * -0.5 - MODULE_HEIGHT_PER_TERMINAL * 0.5,
+                      ((targetInputKeys.length - 1) * 0.5 -
+                        targetIndex +
+                        0.25) *
+                        MODULE_HEIGHT_PER_TERMINAL,
+                    );
+                    transformPointEquals(
+                      secondaryPosition,
+                      getTransformMatrix(
+                        targetEntity.getLastCachedValue('worldTransform'),
+                      ),
+                    );
+                  }
+                }
               }
               store.dispatch(
                 StoreActions.setTooltip.create({
@@ -145,6 +182,8 @@ ComponentRenderers.moduleRenderer = {
                       entity.getLastCachedValue('worldTransform'),
                     ),
                   ),
+                  secondaryLabel,
+                  secondaryPosition,
                 }),
               );
               break;

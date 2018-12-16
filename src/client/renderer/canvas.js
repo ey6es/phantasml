@@ -18,6 +18,7 @@ import type {UserGetPreferencesResponse} from '../../server/api';
 import type {Resource, Entity} from '../../server/store/resource';
 import type {IdTreeNode} from '../../server/store/scene';
 import {Scene, currentVisit} from '../../server/store/scene';
+import type {Vector2} from '../../server/store/math';
 import {vec2, roundEquals, roundToPrecision} from '../../server/store/math';
 
 const cameraBounds = {min: vec2(), max: vec2()};
@@ -131,7 +132,7 @@ export class RenderCanvas extends React.Component<
       this.props.preferences.showStats ? (
         <CanvasStats key="stats" renderer={this.state.renderer} />
       ) : null,
-      <CanvasTooltip key="tooltip" renderer={this.state.renderer} />,
+      <CanvasTooltips key="tooltips" renderer={this.state.renderer} />,
     ];
   }
 
@@ -359,7 +360,7 @@ class CanvasStats extends React.Component<
   };
 }
 
-const CanvasTooltip = ReactRedux.connect(state => ({
+const CanvasTooltips = ReactRedux.connect(state => ({
   tooltip: state.tooltip,
 }))((props: {renderer: ?Renderer, tooltip: ?TooltipData}) => {
   const tooltip = props.tooltip;
@@ -367,8 +368,31 @@ const CanvasTooltip = ReactRedux.connect(state => ({
   if (!(tooltip && renderer)) {
     return null;
   }
-  const offset = roundEquals(renderer.getCanvasPosition(tooltip.position));
-  offset.x -= renderer.canvas.clientWidth / 2;
+  return [
+    <CanvasTooltip
+      key="primary"
+      renderer={renderer}
+      label={tooltip.label}
+      position={tooltip.position}
+    />,
+    tooltip.secondaryLabel && tooltip.secondaryPosition ? (
+      <CanvasTooltip
+        key="secondary"
+        renderer={renderer}
+        label={tooltip.secondaryLabel}
+        position={tooltip.secondaryPosition}
+      />
+    ) : null,
+  ];
+});
+
+function CanvasTooltip(props: {
+  renderer: Renderer,
+  label: React.Element<any>,
+  position: Vector2,
+}) {
+  const offset = roundEquals(props.renderer.getCanvasPosition(props.position));
+  offset.x -= props.renderer.canvas.clientWidth / 2;
   return (
     <Tooltip
       isOpen={true}
@@ -381,7 +405,7 @@ const CanvasTooltip = ReactRedux.connect(state => ({
         arrow: {enabled: false},
         offset: {offset: `${offset.x}, ${-offset.y}`},
       }}>
-      {tooltip.label}
+      {props.label}
     </Tooltip>
   );
-});
+}
