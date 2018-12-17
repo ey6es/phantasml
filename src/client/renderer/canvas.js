@@ -10,7 +10,7 @@ import * as ReactRedux from 'react-redux';
 import {FormattedMessage} from 'react-intl';
 import {Tooltip} from 'reactstrap';
 import {renderBackground} from './background';
-import {Renderer} from './util';
+import {Renderer, renderMinimap} from './util';
 import {ComponentRenderers} from './renderers';
 import type {PageState, ToolType, HoverState, TooltipData} from '../store';
 import {DEFAULT_PAGE_SIZE, store} from '../store';
@@ -121,6 +121,8 @@ export class RenderCanvas extends React.Component<
   _renderer: ?Renderer;
   _unsubscribeFromStore: ?() => void;
 
+  _pageStateChangeTime = 0;
+
   render() {
     return [
       <canvas
@@ -150,10 +152,11 @@ export class RenderCanvas extends React.Component<
     this._unsubscribeFromStore = store.subscribe(() => {
       const state = store.getState();
       const pageState = state.pageStates.get(state.page);
+      const pageStateChanged = pageState !== lastPageState;
       if (
         state.resource !== lastResource ||
         state.page !== lastPage ||
-        pageState !== lastPageState ||
+        pageStateChanged ||
         state.selection !== lastSelection ||
         state.hoverStates !== lastHoverStates ||
         state.tool !== lastTool ||
@@ -167,6 +170,9 @@ export class RenderCanvas extends React.Component<
         lastTool = state.tool;
         lastTempTool = state.tempTool;
         this._renderer && this._renderer.requestFrameRender();
+        if (pageStateChanged) {
+          this._pageStateChangeTime = Date.now();
+        }
       }
     });
   }
@@ -194,7 +200,7 @@ export class RenderCanvas extends React.Component<
   };
 
   _renderFrame = () => {
-    this._renderer && this._renderer.renderFrame();
+    this._renderer && this._renderer.requestFrameRender();
   };
 
   _renderScene = (renderer: Renderer) => {
@@ -203,8 +209,7 @@ export class RenderCanvas extends React.Component<
     const width = Math.round(renderer.canvas.clientWidth * pixelRatio);
     const height = Math.round(renderer.canvas.clientHeight * pixelRatio);
     if (renderer.canvas.width !== width || renderer.canvas.height !== height) {
-      renderer.canvas.width = width;
-      renderer.canvas.height = height;
+      renderer.setCanvasSize(width, height);
     }
     renderer.setViewport(0, 0, width, height);
     const state = store.getState();
@@ -261,6 +266,20 @@ export class RenderCanvas extends React.Component<
 
     // clear for next time
     entityZOrders.splice(0, entityZOrders.length);
+
+    // perhaps render the minimap
+    const MINIMAP_LINGER_DURATION = 1000;
+    const MINIMAP_FADE_DURATION = 150;
+    const elapsed = Date.now() - this._pageStateChangeTime;
+    if (elapsed >= MINIMAP_LINGER_DURATION + MINIMAP_FADE_DURATION) {
+      return;
+    }
+    const alpha = Math.min(
+      1.0,
+      1.0 - (elapsed - MINIMAP_LINGER_DURATION) / MINIMAP_FADE_DURATION,
+    );
+    renderMinimap(renderer, renderer.minimapTexture, alpha);
+    renderer.requestFrameRender();
   };
 }
 

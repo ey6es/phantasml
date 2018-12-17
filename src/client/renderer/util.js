@@ -341,6 +341,8 @@ function getViewProjectionMatrix(camera: Camera): number[] {
   ];
 }
 
+const MINIMAP_SIZE = 1.0 / 5.0;
+
 /**
  * Minimal wrapper around GL context providing caching and state tracking.
  *
@@ -358,6 +360,7 @@ export class Renderer {
   levelOfDetail = 1.0 / 8.0;
 
   fontTexture: WebGLTexture;
+  minimapTexture: WebGLTexture;
 
   _renderCallbacks: [(Renderer) => void, number][] = [];
   _frameDirty = false;
@@ -375,6 +378,8 @@ export class Renderer {
   _blendFunc: {sfactor?: number, dfactor?: number} = {};
   _viewport: {x?: number, y?: number, width?: number, height?: number} = {};
   _camera: Camera = {x: 0.0, y: 0.0, size: 1.0, aspect: 1.0};
+
+  _minimapBuffer: WebGLFramebuffer;
 
   /** Returns a reference to the camera state. */
   get camera(): Camera {
@@ -421,6 +426,59 @@ export class Renderer {
       gl.LINEAR_MIPMAP_LINEAR,
     );
     gl.generateMipmap(gl.TEXTURE_2D);
+
+    // create the minimap texture and frame buffer
+    this.bindTexture((this.minimapTexture = gl.createTexture()));
+    gl.texImage2D(
+      gl.TEXTURE_2D,
+      0,
+      gl.RGB,
+      canvas.width,
+      canvas.height,
+      0,
+      gl.RGB,
+      gl.UNSIGNED_BYTE,
+      null,
+    );
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    this.bindTexture(null);
+
+    this._minimapBuffer = gl.createFramebuffer();
+    gl.bindFramebuffer(gl.FRAMEBUFFER, this._minimapBuffer);
+    gl.framebufferTexture2D(
+      gl.FRAMEBUFFER,
+      gl.COLOR_ATTACHMENT0,
+      gl.TEXTURE_2D,
+      this.minimapTexture,
+      0,
+    );
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  }
+
+  /**
+   * Sets the canvas dimensions.
+   *
+   * @param width the width to use.
+   * @param height the height to use.
+   */
+  setCanvasSize(width: number, height: number) {
+    this.canvas.width = width;
+    this.canvas.height = height;
+
+    this.bindTexture(this.minimapTexture);
+    this.gl.texImage2D(
+      this.gl.TEXTURE_2D,
+      0,
+      this.gl.RGB,
+      width,
+      height,
+      0,
+      this.gl.RGB,
+      this.gl.UNSIGNED_BYTE,
+      null,
+    );
     this.bindTexture(null);
   }
 
@@ -444,6 +502,8 @@ export class Renderer {
       this.gl.deleteBuffer(buffer);
     }
     this.gl.deleteTexture(this.fontTexture);
+    this.gl.deleteFramebuffer(this._minimapBuffer);
+    this.gl.deleteTexture(this.minimapTexture);
     this._frameDirty = false;
   }
 
@@ -611,10 +671,11 @@ export class Renderer {
     }
     this._lastFrameTime = frameTime;
 
+    // clear the dirty flag first so that callbacks can request another frame
+    this._frameDirty = false;
     for (const [callback, order] of this._renderCallbacks) {
       callback(this);
     }
-    this._frameDirty = false;
   }
 
   /**
@@ -914,3 +975,63 @@ export class Renderer {
     }
   }
 }
+
+/**
+ * Renders the minimap.
+ *
+ * @param renderer the renderer to use.
+ * @param texture the minimap texture.
+ * @param alpha the alpha value.
+ */
+export function renderMinimap(
+  renderer: Renderer,
+  texture: WebGLTexture,
+  alpha: number,
+) {
+  const program = renderer.getProgram(
+    renderMinimap,
+    renderer.getVertexShader(renderMinimap, MINIMAP_VERTEX_SHADER),
+    renderer.getFragmentShader(renderMinimap, MINIMAP_FRAGMENT_SHADER),
+  );
+  program.setUniformInt('texture', 0);
+  program.setUniformFloat('alpha', alpha);
+  renderer.setEnabled(renderer.gl.BLEND, true);
+  renderer.bindTexture(texture);
+  MinimapGeometry.draw(program);
+  renderer.bindTexture(null);
+}
+
+const MINIMAP_EDGE = 1.0 - MINIMAP_SIZE * 2.0;
+
+const MinimapGeometry = new Geometry(
+  // prettier-ignore
+  new Float32Array([
+    MINIMAP_EDGE, MINIMAP_EDGE, 0, 0,
+    1, MINIMAP_EDGE, 1, 0,
+    1, 1, 1, 1,
+    MINIMAP_EDGE, 1, 0, 1,
+  ]),
+  new Uint16Array([0, 1, 2, 2, 3, 0]),
+  {vertex: 2, uv: 2},
+);
+
+const MINIMAP_VERTEX_SHADER = `
+  attribute vec2 vertex;
+  attribute vec2 uv;
+  varying vec2 interpolatedUv;
+  void main(void) {
+    interpolatedUv = uv;
+    gl_Position = vec4(vertex.xy, 0.0, 1.0);
+  }
+`;
+
+const MINIMAP_FRAGMENT_SHADER = `
+  precision mediump float;
+  uniform sampler2D texture;
+  uniform float alpha;
+  varying vec2 interpolatedUv;
+  void main(void) {
+    vec3 color = texture2D(texture, interpolatedUv).rgb;
+    gl_FragColor = vec4(color, alpha);
+  }
+`;
