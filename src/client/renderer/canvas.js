@@ -278,7 +278,7 @@ export class RenderCanvas extends React.Component<
       1.0,
       1.0 - (elapsed - MINIMAP_LINGER_DURATION) / MINIMAP_FADE_DURATION,
     );
-    renderMinimap(renderer, renderer.minimapTexture, alpha);
+    renderMinimap(renderer, null, alpha);
     renderer.requestFrameRender();
   };
 }
@@ -292,6 +292,8 @@ class CanvasStats extends React.Component<
     vertexShaders: number,
     fragmentShaders: number,
     programs: number,
+    textures: number,
+    framebuffers: number,
   },
 > {
   state = {
@@ -301,6 +303,8 @@ class CanvasStats extends React.Component<
     vertexShaders: 0,
     fragmentShaders: 0,
     programs: 0,
+    textures: 0,
+    framebuffers: 0,
   };
 
   _updateIntervalID: IntervalID;
@@ -350,6 +354,20 @@ class CanvasStats extends React.Component<
             values={{value: this.state.programs}}
           />
         </div>
+        <div>
+          <FormattedMessage
+            id="stats.textures"
+            defaultMessage="Textures: {value}"
+            values={{value: this.state.textures}}
+          />
+        </div>
+        <div>
+          <FormattedMessage
+            id="stats.framebuffers"
+            defaultMessage="Framebuffers: {value}"
+            values={{value: this.state.framebuffers}}
+          />
+        </div>
       </div>
     );
   }
@@ -375,6 +393,8 @@ class CanvasStats extends React.Component<
       vertexShaders: renderer.vertexShaders.size,
       fragmentShaders: renderer.fragmentShaders.size,
       programs: renderer.programs.size,
+      textures: renderer.textures.size,
+      framebuffers: renderer.framebuffers.size,
     });
   };
 }

@@ -20,6 +20,7 @@ import {
   boundsValid,
   boundsContain,
   boundsIntersect,
+  boundsUnion,
   transformBoundsEquals,
   expandBoundsEquals,
 } from './math';
@@ -463,12 +464,19 @@ const MAX_DEPTH = 16;
  */
 class QuadtreeNode {
   _halfSize: ?number;
+  _totalBounds: ?Bounds;
   _entityBounds: Map<Entity, Bounds> = new Map();
   _children: (?QuadtreeNode)[] = [];
 
-  constructor(halfSize?: ?number) {
+  /** Returns the total bounds of the (root) node. */
+  get totalBounds(): ?Bounds {
+    return this._totalBounds;
+  }
+
+  constructor(halfSize?: ?number, totalBounds?: ?Bounds) {
     if (halfSize != null) {
       this._halfSize = halfSize;
+      this._totalBounds = totalBounds || emptyBounds();
     }
   }
 
@@ -495,7 +503,10 @@ class QuadtreeNode {
   }
 
   _addEntity(entity: Entity, bounds: Bounds, depth: number): QuadtreeNode {
-    const newNode = new QuadtreeNode(this._halfSize);
+    const newNode = new QuadtreeNode(
+      this._halfSize,
+      this._totalBounds ? boundsUnion(this._totalBounds, bounds) : null,
+    );
     newNode._entityBounds = this._entityBounds;
     newNode._children = this._children;
     if (depth === 0) {
@@ -547,7 +558,7 @@ class QuadtreeNode {
   }
 
   _removeEntity(entity: Entity, bounds: Bounds, depth: number): QuadtreeNode {
-    const newNode = new QuadtreeNode(this._halfSize);
+    const newNode = new QuadtreeNode(this._halfSize, this._totalBounds);
     newNode._entityBounds = this._entityBounds;
     newNode._children = this._children;
     if (depth === 0) {
@@ -705,7 +716,7 @@ class QuadtreeNode {
     }
     // redistribute current children amongst new children
     const newHalfSize = halfSize * 2;
-    const newParent = new QuadtreeNode(newHalfSize);
+    const newParent = new QuadtreeNode(newHalfSize, this._totalBounds);
     for (let ii = 0; ii < 4; ii++) {
       const child = this._children[ii];
       if (child) {

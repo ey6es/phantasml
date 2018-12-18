@@ -326,6 +326,122 @@ export class Geometry extends RefCounted {
   }
 }
 
+/**
+ * A reference-counted texture.
+ *
+ * @param width the width of the texture.
+ * @param height the height of the texture.
+ */
+export class Texture extends RefCounted {
+  _width: number;
+  _height: number;
+  _renderers: Set<Renderer> = new Set();
+
+  constructor(width: number, height: number) {
+    super();
+    this._width = width;
+    this._height = height;
+  }
+
+  /**
+   * Binds the texture on the specified renderer.
+   *
+   * @param renderer the renderer on which to bind the texture.
+   */
+  bind(renderer: Renderer) {
+    renderer.bindTexture(this.get(renderer));
+  }
+
+  /**
+   * Returns the actual WebGL texture, creating it if necessary.
+   *
+   * @param renderer the renderer to use.
+   * @return the texture object.
+   */
+  get(renderer: Renderer): WebGLTexture {
+    this._renderers.add(renderer);
+    return renderer.getTexture(this, this._create);
+  }
+
+  _create = (renderer: Renderer) => {
+    const gl = renderer.gl;
+    const texture = gl.createTexture();
+    renderer.bindTexture(texture);
+    gl.texImage2D(
+      gl.TEXTURE_2D,
+      0,
+      gl.RGB,
+      this._width,
+      this._height,
+      0,
+      gl.RGB,
+      gl.UNSIGNED_BYTE,
+      null,
+    );
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    renderer.bindTexture(null);
+    return texture;
+  };
+
+  _dispose() {
+    for (const renderer of this._renderers) {
+      renderer.clearTexture(this);
+    }
+    this._renderers = new Set();
+  }
+}
+
+/**
+ * A reference-counted framebuffer.
+ *
+ * @param texture the texture to render to.
+ */
+export class Framebuffer extends RefCounted {
+  _texture: Texture;
+  _renderers: Set<Renderer> = new Set();
+
+  constructor(texture: Texture) {
+    super();
+    this._texture = texture;
+    texture.ref();
+  }
+
+  /**
+   * Binds the framebuffer on the specified renderer.
+   *
+   * @param renderer the renderer on which to bind the framebuffer.
+   */
+  bind(renderer: Renderer) {
+    this._renderers.add(renderer);
+    renderer.bindFramebuffer(renderer.getFramebuffer(this, this._create));
+  }
+
+  _create = (renderer: Renderer) => {
+    const gl = renderer.gl;
+    const framebuffer = gl.createFramebuffer();
+    renderer.bindFramebuffer(framebuffer);
+    gl.framebufferTexture2D(
+      gl.FRAMEBUFFER,
+      gl.COLOR_ATTACHMENT0,
+      gl.TEXTURE_2D,
+      this._texture.get(renderer),
+      0,
+    );
+    renderer.bindFramebuffer(null);
+    return framebuffer;
+  };
+
+  _dispose() {
+    this._texture.deref();
+    for (const renderer of this._renderers) {
+      renderer.clearFramebuffer(this);
+    }
+    this._renderers = new Set();
+  }
+}
+
 export type Camera = {x: number, y: number, size: number, aspect: number};
 
 function getViewProjectionMatrix(camera: Camera): number[] {
@@ -357,10 +473,11 @@ export class Renderer {
   vertexShaders: Map<mixed, WebGLShader> = new Map();
   fragmentShaders: Map<mixed, WebGLShader> = new Map();
   programs: Map<mixed, Program> = new Map();
+  textures: Map<mixed, WebGLTexture> = new Map();
+  framebuffers: Map<mixed, WebGLFramebuffer> = new Map();
   levelOfDetail = 1.0 / 8.0;
 
   fontTexture: WebGLTexture;
-  minimapTexture: WebGLTexture;
 
   _renderCallbacks: [(Renderer) => void, number][] = [];
   _frameDirty = false;
@@ -373,13 +490,12 @@ export class Renderer {
   _boundElementArrayBuffer: ?WebGLBuffer;
   _boundProgram: ?Program;
   _boundTexture: ?WebGLTexture;
+  _boundFramebuffer: ?WebGLFramebuffer;
   _vertexAttribArraysEnabled: Set<number> = new Set();
   _capsEnabled: Set<number> = new Set();
   _blendFunc: {sfactor?: number, dfactor?: number} = {};
   _viewport: {x?: number, y?: number, width?: number, height?: number} = {};
   _camera: Camera = {x: 0.0, y: 0.0, size: 1.0, aspect: 1.0};
-
-  _minimapBuffer: WebGLFramebuffer;
 
   /** Returns a reference to the camera state. */
   get camera(): Camera {
@@ -426,35 +542,6 @@ export class Renderer {
       gl.LINEAR_MIPMAP_LINEAR,
     );
     gl.generateMipmap(gl.TEXTURE_2D);
-
-    // create the minimap texture and frame buffer
-    this.bindTexture((this.minimapTexture = gl.createTexture()));
-    gl.texImage2D(
-      gl.TEXTURE_2D,
-      0,
-      gl.RGB,
-      canvas.width,
-      canvas.height,
-      0,
-      gl.RGB,
-      gl.UNSIGNED_BYTE,
-      null,
-    );
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-    this.bindTexture(null);
-
-    this._minimapBuffer = gl.createFramebuffer();
-    gl.bindFramebuffer(gl.FRAMEBUFFER, this._minimapBuffer);
-    gl.framebufferTexture2D(
-      gl.FRAMEBUFFER,
-      gl.COLOR_ATTACHMENT0,
-      gl.TEXTURE_2D,
-      this.minimapTexture,
-      0,
-    );
-    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
   }
 
   /**
@@ -466,20 +553,6 @@ export class Renderer {
   setCanvasSize(width: number, height: number) {
     this.canvas.width = width;
     this.canvas.height = height;
-
-    this.bindTexture(this.minimapTexture);
-    this.gl.texImage2D(
-      this.gl.TEXTURE_2D,
-      0,
-      this.gl.RGB,
-      width,
-      height,
-      0,
-      this.gl.RGB,
-      this.gl.UNSIGNED_BYTE,
-      null,
-    );
-    this.bindTexture(null);
   }
 
   /**
@@ -501,9 +574,13 @@ export class Renderer {
     for (const buffer of this.elementArrayBuffers.values()) {
       this.gl.deleteBuffer(buffer);
     }
+    for (const texture of this.textures.values()) {
+      this.gl.deleteTexture(texture);
+    }
+    for (const framebuffer of this.framebuffers.values()) {
+      this.gl.deleteFramebuffer(framebuffer);
+    }
     this.gl.deleteTexture(this.fontTexture);
-    this.gl.deleteFramebuffer(this._minimapBuffer);
-    this.gl.deleteTexture(this.minimapTexture);
     this._frameDirty = false;
   }
 
@@ -739,10 +816,20 @@ export class Renderer {
     return buffer;
   }
 
+  /**
+   * Removes an array buffer from the map and deletes it.
+   *
+   * @param key the array buffer key.
+   */
   clearArrayBuffer(key: mixed) {
     this._clearBuffer(this.arrayBuffers, key);
   }
 
+  /**
+   * Removes an element array buffer from the map and deletes it.
+   *
+   * @param key the element array buffer key.
+   */
   clearElementArrayBuffer(key: mixed) {
     this._clearBuffer(this.elementArrayBuffers, key);
   }
@@ -800,6 +887,18 @@ export class Renderer {
     if (this._boundTexture !== texture) {
       this.gl.bindTexture(this.gl.TEXTURE_2D, texture);
       this._boundTexture = texture;
+    }
+  }
+
+  /**
+   * Binds a framebuffer.
+   *
+   * @param framebuffer the framebuffer to bind.
+   */
+  bindFramebuffer(framebuffer: ?WebGLFramebuffer) {
+    if (this._boundFramebuffer !== framebuffer) {
+      this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, framebuffer);
+      this._boundFramebuffer = framebuffer;
     }
   }
 
@@ -880,6 +979,65 @@ export class Renderer {
       throw new Error(gl.getShaderInfoLog(shader));
     }
     return shader;
+  }
+
+  /**
+   * Retrieves a texture through the cache.
+   *
+   * @param key the texture key.
+   * @param create the function to use to create the texture.
+   * @return the texture object.
+   */
+  getTexture<T>(key: T, create: (Renderer, T) => WebGLTexture): WebGLTexture {
+    let texture = this.textures.get(key);
+    if (!texture) {
+      this.textures.set(key, (texture = create(this, key)));
+    }
+    return texture;
+  }
+
+  /**
+   * Retrieves a framebuffer through the cache.
+   *
+   * @param key the framebuffer key.
+   * @param create the function to use to create the framebuffer.
+   * @return the framebuffer object.
+   */
+  getFramebuffer<T>(
+    key: T,
+    create: (Renderer, T) => WebGLFramebuffer,
+  ): WebGLFramebuffer {
+    let framebuffer = this.framebuffers.get(key);
+    if (!framebuffer) {
+      this.framebuffers.set(key, (framebuffer = create(this, key)));
+    }
+    return framebuffer;
+  }
+
+  /**
+   * Removes a texture from the map and deletes it.
+   *
+   * @param key the texture key.
+   */
+  clearTexture(key: mixed) {
+    const texture = this.textures.get(key);
+    if (texture) {
+      this.textures.delete(key);
+      this.gl.deleteTexture(texture);
+    }
+  }
+
+  /**
+   * Removes a framebuffer from the map and deletes it.
+   *
+   * @param key the framebuffer key.
+   */
+  clearFramebuffer(key: mixed) {
+    const framebuffer = this.framebuffers.get(key);
+    if (framebuffer) {
+      this.framebuffers.delete(key);
+      this.gl.deleteFramebuffer(framebuffer);
+    }
   }
 
   /**
@@ -985,7 +1143,7 @@ export class Renderer {
  */
 export function renderMinimap(
   renderer: Renderer,
-  texture: WebGLTexture,
+  texture: ?WebGLTexture,
   alpha: number,
 ) {
   const program = renderer.getProgram(

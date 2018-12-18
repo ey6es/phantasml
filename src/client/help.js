@@ -136,6 +136,8 @@ class ReportBugDialogImpl extends React.Component<
         vertexShaders: renderer.vertexShaders.size,
         fragmentShaders: renderer.fragmentShaders.size,
         programs: renderer.programs.size,
+        textures: renderer.textures.size,
+        framebuffers: renderer.framebuffers.size,
       };
       screenshot = await new Promise(resolve => {
         const callback = renderer => {
