@@ -78,7 +78,9 @@ class IdTreeLeafNode extends IdTreeNode {
   constructor(entities: Map<string, Entity> = new Map()) {
     super();
     this._entities = entities;
-    for (const entity of entities.values()) {
+  }
+  _init() {
+    for (const entity of this._entities.values()) {
       entity.ref();
     }
   }
@@ -149,8 +151,10 @@ class IdTreeInternalNode extends IdTreeNode {
     super();
     this._even = even;
     this._odd = odd;
-    even.ref();
-    odd.ref();
+  }
+  _init() {
+    this._even.ref();
+    this._odd.ref();
   }
   _dispose() {
     this._even.deref();
@@ -903,6 +907,9 @@ export class Scene extends Resource {
       // create the initial entities that don't yet exist
       this._createEntities(this._getInitialEntities(), storedEntities);
     }
+  }
+
+  _init() {
     this._idTree.ref();
   }
 

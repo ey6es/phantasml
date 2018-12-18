@@ -405,7 +405,6 @@ export class Framebuffer extends RefCounted {
   constructor(texture: Texture) {
     super();
     this._texture = texture;
-    texture.ref();
   }
 
   /**
@@ -432,6 +431,10 @@ export class Framebuffer extends RefCounted {
     renderer.bindFramebuffer(null);
     return framebuffer;
   };
+
+  _init() {
+    this._texture.ref();
+  }
 
   _dispose() {
     this._texture.deref();

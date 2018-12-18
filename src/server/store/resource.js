@@ -55,10 +55,13 @@ export class RefCounted {
   _refCount = 0;
 
   /**
-   * Increments the object's reference count.
+   * Increments the object's reference count.  When the reference count reaches
+   * one, the object is initialized.
    */
   ref() {
-    this._refCount++;
+    if (++this._refCount === 1) {
+      this._init();
+    }
   }
 
   /**
@@ -69,6 +72,10 @@ export class RefCounted {
     if (--this._refCount === 0) {
       this._dispose();
     }
+  }
+
+  _init() {
+    // nothing by default
   }
 
   _dispose() {
@@ -169,10 +176,13 @@ export class TransferableValue<T> extends RefCounted {
   constructor(value: T, canTransfer: Entity => ?boolean) {
     super();
     this.value = value;
-    if (value instanceof RefCounted) {
-      value.ref();
-    }
     this.canTransfer = canTransfer;
+  }
+
+  _init() {
+    if (this.value instanceof RefCounted) {
+      this.value.ref();
+    }
   }
 
   _dispose() {
@@ -189,7 +199,10 @@ class ConditionallyTransferableValue extends RefCounted {
   constructor(value: TransferableValue<mixed>) {
     super();
     this.value = value;
-    this.value.ref();
+  }
+
+  _init() {
+    this.value && this.value.ref();
   }
 
   _dispose() {
@@ -228,12 +241,10 @@ export class Entity extends RefCounted {
             }
             if (canTransfer === true) {
               this._cachedValues.set(key, value);
-              value.ref();
             } else {
               // canTransfer == null
               const condValue = new ConditionallyTransferableValue(value);
               this._cachedValues.set(key, condValue);
-              condValue.ref();
             }
           }
         } else if (
@@ -244,7 +255,6 @@ export class Entity extends RefCounted {
             this._cachedValues = new Map();
           }
           this._cachedValues.set(key, value);
-          value.ref();
         }
       }
     }
@@ -323,10 +333,12 @@ export class Entity extends RefCounted {
           if (canTransfer === true) {
             // promote to fully transferable
             cachedValues.set(key, transferableValue);
-            transferableValue.ref();
-            value.deref();
+            if (this._refCount > 0) {
+              transferableValue.ref();
+              value.deref();
+            }
             return (transferableValue.value: any);
-          } else {
+          } else if (this._refCount > 0) {
             // fall through to normal handling
             value.deref();
           }
@@ -340,7 +352,7 @@ export class Entity extends RefCounted {
     const value = fn(...args);
     // don't store undefined, else we can't tell whether a value is stored
     cachedValues.set(key, value === undefined ? null : value);
-    if (value instanceof RefCounted) {
+    if (this._refCount > 0 && value instanceof RefCounted) {
       value.ref();
     }
     return value instanceof TransferableValue ? value.value : value;
@@ -357,6 +369,17 @@ export class Entity extends RefCounted {
       simplifyTransform(this.state.transform, true);
     }
     return this.state;
+  }
+
+  _init() {
+    const cachedValues = this._cachedValues;
+    if (cachedValues) {
+      for (const value of cachedValues.values()) {
+        if (value instanceof RefCounted) {
+          value.ref();
+        }
+      }
+    }
   }
 
   _dispose() {
