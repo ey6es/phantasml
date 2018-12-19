@@ -15,12 +15,14 @@ import type {ResourceAction} from './resource';
 import type {Transform, Bounds} from './math';
 import {
   vec2,
+  equals,
   composeTransforms,
   emptyBounds,
   boundsValid,
   boundsContain,
   boundsIntersect,
   boundsUnion,
+  boundsUnionEquals,
   transformBoundsEquals,
   expandBoundsEquals,
 } from './math';
@@ -758,6 +760,7 @@ function addToQuadtrees(
   idTree: IdTreeNode,
   quadtrees: Map<string, QuadtreeNode>,
   lineage: Entity[],
+  dirtyBounds?: Map<string, Bounds>,
 ): Map<string, QuadtreeNode> {
   if (lineage.length < 2) {
     return quadtrees;
@@ -765,13 +768,16 @@ function addToQuadtrees(
   const newQuadtrees = new Map(quadtrees);
   const page = lineage[0].id;
   const root = newQuadtrees.get(page) || new QuadtreeNode(8);
-  newQuadtrees.set(
-    page,
-    root.addEntity(
-      lineage[lineage.length - 1],
-      getWorldBounds(idTree, lineage),
-    ),
-  );
+  const bounds = getWorldBounds(idTree, lineage);
+  newQuadtrees.set(page, root.addEntity(lineage[lineage.length - 1], bounds));
+  if (dirtyBounds) {
+    const pageBounds = dirtyBounds.get(page);
+    if (pageBounds) {
+      boundsUnionEquals(pageBounds, bounds);
+    } else {
+      dirtyBounds.set(page, {min: equals(bounds.min), max: equals(bounds.max)});
+    }
+  }
   return newQuadtrees;
 }
 
@@ -779,6 +785,7 @@ function removeFromQuadtrees(
   idTree: IdTreeNode,
   quadtrees: Map<string, QuadtreeNode>,
   lineage: Entity[],
+  dirtyBounds?: Map<string, Bounds>,
 ): Map<string, QuadtreeNode> {
   if (lineage.length < 2) {
     return quadtrees;
@@ -787,14 +794,23 @@ function removeFromQuadtrees(
   const page = lineage[0].id;
   let root = newQuadtrees.get(page);
   if (root) {
-    root = root.removeEntity(
-      lineage[lineage.length - 1],
-      getWorldBounds(idTree, lineage),
-    );
+    const bounds = getWorldBounds(idTree, lineage);
+    root = root.removeEntity(lineage[lineage.length - 1], bounds);
     if (root.isEmpty()) {
       newQuadtrees.delete(page);
     } else {
       newQuadtrees.set(page, root);
+    }
+    if (dirtyBounds) {
+      const pageBounds = dirtyBounds.get(page);
+      if (pageBounds) {
+        boundsUnionEquals(pageBounds, bounds);
+      } else {
+        dirtyBounds.set(page, {
+          min: equals(bounds.min),
+          max: equals(bounds.max),
+        });
+      }
     }
   }
   return newQuadtrees;
@@ -871,6 +887,7 @@ export class Scene extends Resource {
   _idTree: IdTreeNode;
   _entityHierarchy: EntityHierarchyNode;
   _quadtrees: Map<string, QuadtreeNode>;
+  _dirtyBounds: ?Map<string, Bounds>;
 
   /** Returns a reference to the id tree root node. */
   get idTree(): IdTreeNode {
@@ -886,6 +903,7 @@ export class Scene extends Resource {
     jsonOrIdTree: Object,
     entityHierarchy?: EntityHierarchyNode,
     quadtrees?: Map<string, QuadtreeNode>,
+    dirtyBounds?: Map<string, Bounds>,
   ) {
     super();
     if (jsonOrIdTree instanceof IdTreeNode) {
@@ -898,6 +916,7 @@ export class Scene extends Resource {
         throw new Error('Missing quadtrees.');
       }
       this._quadtrees = quadtrees;
+      this._dirtyBounds = dirtyBounds;
     } else {
       this._idTree = new IdTreeLeafNode();
       this._entityHierarchy = new EntityHierarchyNode();
@@ -907,6 +926,28 @@ export class Scene extends Resource {
       // create the initial entities that don't yet exist
       this._createEntities(this._getInitialEntities(), storedEntities);
     }
+  }
+
+  /**
+   * Returns the overall bounds of the identified page.
+   *
+   * @param page the id of the page of interest.
+   * @return the total bounds, if any.
+   */
+  getTotalBounds(page: string): ?Bounds {
+    const quadtree = this._quadtrees.get(page);
+    return quadtree && quadtree.totalBounds;
+  }
+
+  /**
+   * Retrieves the dirty bounds of the identified page (the region affected by
+   * the last edit, if any).
+   *
+   * @param page the id of the page of interest.
+   * @return the dirty bounds, if any.
+   */
+  getDirtyBounds(page: string): ?Bounds {
+    return this._dirtyBounds && this._dirtyBounds.get(page);
   }
 
   _init() {
@@ -1209,9 +1250,15 @@ export class Scene extends Resource {
       newEntityHierarchy = newEntityHierarchy.removeEntity(lineage);
     }
     let newQuadtrees = this._quadtrees;
+    const dirtyBounds: Map<string, Bounds> = new Map();
     for (const entity of removeFromQuadtree) {
       const lineage = this._idTree.getEntityLineage(entity);
-      newQuadtrees = removeFromQuadtrees(this._idTree, newQuadtrees, lineage);
+      newQuadtrees = removeFromQuadtrees(
+        this._idTree,
+        newQuadtrees,
+        lineage,
+        dirtyBounds,
+      );
     }
 
     // then the additions with the new one
@@ -1221,9 +1268,19 @@ export class Scene extends Resource {
     }
     for (const entity of addToQuadtree) {
       const lineage = newIdTree.getEntityLineage(entity);
-      newQuadtrees = addToQuadtrees(newIdTree, newQuadtrees, lineage);
+      newQuadtrees = addToQuadtrees(
+        newIdTree,
+        newQuadtrees,
+        lineage,
+        dirtyBounds,
+      );
     }
-    return new this.constructor(newIdTree, newEntityHierarchy, newQuadtrees);
+    return new this.constructor(
+      newIdTree,
+      newEntityHierarchy,
+      newQuadtrees,
+      dirtyBounds,
+    );
   }
 
   _createEntities(states: Object, except: Object = {}) {

@@ -328,28 +328,46 @@ export class Geometry extends RefCounted {
 
 /**
  * A reference-counted texture.
- *
- * @param width the width of the texture.
- * @param height the height of the texture.
  */
 export class Texture extends RefCounted {
-  _width: number;
-  _height: number;
+  _width: ?number;
+  _height: ?number;
   _renderers: Set<Renderer> = new Set();
 
-  constructor(width: number, height: number) {
-    super();
-    this._width = width;
-    this._height = height;
+  /** Returns the width of the texture, if initialized. */
+  get width(): ?number {
+    return this._width;
+  }
+
+  /** Returns the height of the texture, if initialized. */
+  get height(): ?number {
+    return this._height;
   }
 
   /**
-   * Binds the texture on the specified renderer.
+   * (Re)creates the texture with the specified dimensions.
    *
-   * @param renderer the renderer on which to bind the texture.
+   * @param renderer the renderer to use.
+   * @param width the texture width.
+   * @param height the texture height.
    */
-  bind(renderer: Renderer) {
+  setSize(renderer: Renderer, width: number, height: number) {
+    this._width = width;
+    this._height = height;
     renderer.bindTexture(this.get(renderer));
+    const gl = renderer.gl;
+    gl.texImage2D(
+      gl.TEXTURE_2D,
+      0,
+      gl.RGB,
+      width,
+      height,
+      0,
+      gl.RGB,
+      gl.UNSIGNED_BYTE,
+      null,
+    );
+    renderer.bindTexture(null);
   }
 
   /**
@@ -367,17 +385,6 @@ export class Texture extends RefCounted {
     const gl = renderer.gl;
     const texture = gl.createTexture();
     renderer.bindTexture(texture);
-    gl.texImage2D(
-      gl.TEXTURE_2D,
-      0,
-      gl.RGB,
-      this._width,
-      this._height,
-      0,
-      gl.RGB,
-      gl.UNSIGNED_BYTE,
-      null,
-    );
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
@@ -402,19 +409,25 @@ export class Framebuffer extends RefCounted {
   _texture: Texture;
   _renderers: Set<Renderer> = new Set();
 
+  /** Returns a reference to the framebuffer texture. */
+  get texture(): Texture {
+    return this._texture;
+  }
+
   constructor(texture: Texture) {
     super();
     this._texture = texture;
   }
 
   /**
-   * Binds the framebuffer on the specified renderer.
+   * Returns the actual WebGL framebuffer, creating it if necessary.
    *
-   * @param renderer the renderer on which to bind the framebuffer.
+   * @param renderer the renderer to use.
+   * @return the framebuffer object.
    */
-  bind(renderer: Renderer) {
+  get(renderer: Renderer): WebGLFramebuffer {
     this._renderers.add(renderer);
-    renderer.bindFramebuffer(renderer.getFramebuffer(this, this._create));
+    return renderer.getFramebuffer(this, this._create);
   }
 
   _create = (renderer: Renderer) => {
@@ -459,8 +472,6 @@ function getViewProjectionMatrix(camera: Camera): number[] {
     -camera.x * scaleX, -camera.y * scaleY, 1.0,
   ];
 }
-
-const MINIMAP_SIZE = 1.0 / 5.0;
 
 /**
  * Minimal wrapper around GL context providing caching and state tracking.
@@ -1161,6 +1172,9 @@ export function renderMinimap(
   MinimapGeometry.draw(program);
   renderer.bindTexture(null);
 }
+
+/** The proportional size of the minimap. */
+export const MINIMAP_SIZE = 1.0 / 5.0;
 
 const MINIMAP_EDGE = 1.0 - MINIMAP_SIZE * 2.0;
 

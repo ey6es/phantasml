@@ -10,12 +10,19 @@ import * as ReactRedux from 'react-redux';
 import {FormattedMessage} from 'react-intl';
 import {Tooltip} from 'reactstrap';
 import {renderBackground} from './background';
-import {Renderer, renderMinimap} from './util';
+import {
+  MINIMAP_SIZE,
+  Framebuffer,
+  Texture,
+  Renderer,
+  renderMinimap,
+} from './util';
 import {ComponentRenderers} from './renderers';
 import type {PageState, ToolType, HoverState, TooltipData} from '../store';
 import {DEFAULT_PAGE_SIZE, store} from '../store';
 import type {UserGetPreferencesResponse} from '../../server/api';
 import type {Resource, Entity} from '../../server/store/resource';
+import {TransferableValue} from '../../server/store/resource';
 import type {IdTreeNode} from '../../server/store/scene';
 import {Scene, currentVisit} from '../../server/store/scene';
 import type {Vector2} from '../../server/store/math';
@@ -139,7 +146,7 @@ export class RenderCanvas extends React.Component<
   }
 
   componentDidMount() {
-    window.addEventListener('resize', this._renderFrame);
+    window.addEventListener('resize', this._onResize);
 
     const state = store.getState();
     let lastResource = state.resource;
@@ -151,10 +158,11 @@ export class RenderCanvas extends React.Component<
     let lastTempTool = state.tempTool;
     this._unsubscribeFromStore = store.subscribe(() => {
       const state = store.getState();
+      const resourceChanged = state.resource !== lastResource;
       const pageState = state.pageStates.get(state.page);
       const pageStateChanged = pageState !== lastPageState;
       if (
-        state.resource !== lastResource ||
+        resourceChanged ||
         state.page !== lastPage ||
         pageStateChanged ||
         state.selection !== lastSelection ||
@@ -169,6 +177,7 @@ export class RenderCanvas extends React.Component<
         lastHoverStates = state.hoverStates;
         lastTool = state.tool;
         lastTempTool = state.tempTool;
+        resourceChanged && this._renderMinimaps();
         this._renderer && this._renderer.requestFrameRender();
         if (pageStateChanged) {
           this._pageStateChangeTime = Date.now();
@@ -178,7 +187,7 @@ export class RenderCanvas extends React.Component<
   }
 
   componentWillUnmount() {
-    window.removeEventListener('resize', this._renderFrame);
+    window.removeEventListener('resize', this._onResize);
     this._unsubscribeFromStore && this._unsubscribeFromStore();
   }
 
@@ -195,13 +204,51 @@ export class RenderCanvas extends React.Component<
       this.setState({renderer});
       renderer.addRenderCallback(this._renderScene);
       this.props.setRenderer(renderer);
-      renderer.renderFrame();
+      this._renderMinimaps();
+      renderer.requestFrameRender();
     }
   };
 
-  _renderFrame = () => {
+  _onResize = () => {
+    this._renderMinimaps();
     this._renderer && this._renderer.requestFrameRender();
   };
+
+  _renderMinimaps() {
+    const state = store.getState();
+    const resource = state.resource;
+    const renderer = this._renderer;
+    if (!(resource instanceof Scene && renderer)) {
+      return;
+    }
+    const pixelRatio = window.devicePixelRatio || 1.0;
+    const width = Math.round(
+      renderer.canvas.clientWidth * pixelRatio * MINIMAP_SIZE,
+    );
+    const height = Math.round(
+      renderer.canvas.clientHeight * pixelRatio * MINIMAP_SIZE,
+    );
+    for (const node of resource.entityHierarchy.children) {
+      const entity = node.id && resource.getEntity(node.id);
+      if (!entity) {
+        continue;
+      }
+      const framebuffer = entity.getCachedValue(
+        'framebuffer',
+        createFramebuffer,
+        entity,
+      );
+      const texture = framebuffer.texture;
+      if (texture.width !== width || texture.height !== height) {
+        texture.setSize(renderer, width, height);
+      }
+      renderer.bindFramebuffer(framebuffer.get(renderer));
+      const gl = renderer.gl;
+      gl.clearColor(0.5, 0.5, 0.5, 1.0);
+      gl.clear(gl.COLOR_BUFFER_BIT);
+      renderer.bindFramebuffer(null);
+    }
+  }
 
   _renderScene = (renderer: Renderer) => {
     // make sure canvas/viewport dimensions match layout ones
@@ -271,16 +318,25 @@ export class RenderCanvas extends React.Component<
     const MINIMAP_LINGER_DURATION = 1000;
     const MINIMAP_FADE_DURATION = 150;
     const elapsed = Date.now() - this._pageStateChangeTime;
-    if (elapsed >= MINIMAP_LINGER_DURATION + MINIMAP_FADE_DURATION) {
+    const framebuffer =
+      pageEntity && pageEntity.getLastCachedValue('framebuffer');
+    if (
+      elapsed >= MINIMAP_LINGER_DURATION + MINIMAP_FADE_DURATION ||
+      !framebuffer
+    ) {
       return;
     }
     const alpha = Math.min(
       1.0,
       1.0 - (elapsed - MINIMAP_LINGER_DURATION) / MINIMAP_FADE_DURATION,
     );
-    renderMinimap(renderer, null, alpha);
+    renderMinimap(renderer, framebuffer.texture.get(renderer), alpha);
     renderer.requestFrameRender();
   };
+}
+
+function createFramebuffer(entity: Entity): TransferableValue<Framebuffer> {
+  return new TransferableValue(new Framebuffer(new Texture()), entity => true);
 }
 
 class CanvasStats extends React.Component<
