@@ -17,6 +17,7 @@ import {
   Renderer,
   renderMinimap,
 } from './util';
+import {RendererComponents} from './components';
 import {ComponentRenderers} from './renderers';
 import type {PageState, ToolType, HoverState, TooltipData} from '../store';
 import {DEFAULT_PAGE_SIZE, store} from '../store';
@@ -25,8 +26,13 @@ import type {Resource, Entity} from '../../server/store/resource';
 import {TransferableValue} from '../../server/store/resource';
 import type {IdTreeNode} from '../../server/store/scene';
 import {Scene, currentVisit} from '../../server/store/scene';
-import type {Vector2} from '../../server/store/math';
-import {vec2, roundEquals, roundToPrecision} from '../../server/store/math';
+import type {Vector2, Bounds} from '../../server/store/math';
+import {
+  vec2,
+  roundEquals,
+  roundToPrecision,
+  boundsValid,
+} from '../../server/store/math';
 
 const cameraBounds = {min: vec2(), max: vec2()};
 
@@ -228,6 +234,7 @@ export class RenderCanvas extends React.Component<
     const height = Math.round(
       renderer.canvas.clientHeight * pixelRatio * MINIMAP_SIZE,
     );
+    const aspect = width / height;
     for (const node of resource.entityHierarchy.children) {
       const entity = node.id && resource.getEntity(node.id);
       if (!entity) {
@@ -239,13 +246,67 @@ export class RenderCanvas extends React.Component<
         entity,
       );
       const texture = framebuffer.texture;
+      let renderBounds: ?Bounds;
+      const totalBounds = resource.getTotalBounds(entity.id);
       if (texture.width !== width || texture.height !== height) {
         texture.setSize(renderer, width, height);
+        renderBounds = totalBounds;
+      } else {
+        renderBounds = resource.getDirtyBounds(entity.id);
+        if (!renderBounds) {
+          continue;
+        }
       }
       renderer.bindFramebuffer(framebuffer.get(renderer));
+      const background = entity.state.background || {};
+      renderer.setClearColor(
+        background.gridColor ||
+          RendererComponents.background.properties.gridColor.defaultValue,
+      );
       const gl = renderer.gl;
-      gl.clearColor(0.5, 0.5, 0.5, 1.0);
       gl.clear(gl.COLOR_BUFFER_BIT);
+
+      if (totalBounds && boundsValid(totalBounds)) {
+        const boundsWidth = totalBounds.max.x - totalBounds.min.x;
+        const boundsHeight = totalBounds.max.y - totalBounds.min.y;
+        const boundsAspect = boundsWidth / boundsHeight;
+        if (boundsAspect > aspect) {
+          const innerHeight = width / boundsAspect;
+          renderer.setViewport(
+            0,
+            Math.round((height - innerHeight) / 2),
+            width,
+            innerHeight,
+          );
+        } else {
+          const innerWidth = height * boundsAspect;
+          renderer.setViewport(
+            Math.round((width - innerWidth) / 2),
+            0,
+            innerWidth,
+            height,
+          );
+        }
+        renderer.setCamera(
+          (totalBounds.min.x + totalBounds.max.x) / 2,
+          (totalBounds.min.y + totalBounds.max.y) / 2,
+          boundsHeight,
+          boundsAspect,
+        );
+        renderer.getCameraBounds(cameraBounds);
+        resource.applyToEntities(entity.id, cameraBounds, collectZOrdersOp);
+
+        for (const entityZOrder of entityZOrders) {
+          const entity = entityZOrder.entity;
+          entity.getCachedValue(
+            'entityRenderer',
+            getEntityRenderer,
+            resource.idTree,
+            entity,
+          )(renderer, false, false);
+        }
+        entityZOrders.splice(0, entityZOrders.length);
+      }
       renderer.bindFramebuffer(null);
     }
   }

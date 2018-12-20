@@ -508,7 +508,9 @@ export class Renderer {
   _vertexAttribArraysEnabled: Set<number> = new Set();
   _capsEnabled: Set<number> = new Set();
   _blendFunc: {sfactor?: number, dfactor?: number} = {};
+  _clearColor: ?string;
   _viewport: {x?: number, y?: number, width?: number, height?: number} = {};
+  _scissor: {x?: number, y?: number, width?: number, height?: number} = {};
   _camera: Camera = {x: 0.0, y: 0.0, size: 1.0, aspect: 1.0};
 
   /** Returns a reference to the camera state. */
@@ -1129,6 +1131,26 @@ export class Renderer {
   }
 
   /**
+   * Sets the scissor parameters.
+   *
+   * @param x the x coordinate of the scissor region.
+   * @param y the y coordinate of the scissor region.
+   * @param width the width of the scissor region.
+   * @param height the height of the scissor region.
+   */
+  setScissor(x: number, y: number, width: number, height: number) {
+    if (
+      this._scissor.x !== x ||
+      this._scissor.y !== y ||
+      this._scissor.width !== width ||
+      this._scissor.height !== height
+    ) {
+      this.gl.scissor(x, y, width, height);
+      this._scissor = {x, y, width, height};
+    }
+  }
+
+  /**
    * Sets the camera parameters.
    *
    * @param x the x coordinate of the camera position.
@@ -1144,6 +1166,18 @@ export class Renderer {
       this._camera.aspect !== aspect
     ) {
       this._camera = {x, y, size, aspect};
+    }
+  }
+
+  /**
+   * Sets the clear color.
+   *
+   * @param color the color as a hex string.
+   */
+  setClearColor(color: string) {
+    if (this._clearColor !== color) {
+      const array = getColorArray((this._clearColor = color));
+      this.gl.clearColor(array[0], array[1], array[2], 1.0);
     }
   }
 }
