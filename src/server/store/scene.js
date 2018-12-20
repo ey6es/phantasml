@@ -511,7 +511,11 @@ class QuadtreeNode {
   _addEntity(entity: Entity, bounds: Bounds, depth: number): QuadtreeNode {
     const newNode = new QuadtreeNode(
       this._halfSize,
-      this._totalBounds ? boundsUnion(this._totalBounds, bounds) : null,
+      this._totalBounds
+        ? boundsContain(this._totalBounds, bounds)
+          ? this._totalBounds
+          : boundsUnion(this._totalBounds, bounds)
+        : null,
     );
     newNode._entityBounds = this._entityBounds;
     newNode._children = this._children;

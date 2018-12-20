@@ -406,6 +406,9 @@ export class Texture extends RefCounted {
  * @param texture the texture to render to.
  */
 export class Framebuffer extends RefCounted {
+  /** Used by the minimap renderer to store the total bounds. */
+  bounds: ?Bounds;
+
   _texture: Texture;
   _renderers: Set<Renderer> = new Set();
 
@@ -459,6 +462,7 @@ export class Framebuffer extends RefCounted {
 }
 
 export type Camera = {x: number, y: number, size: number, aspect: number};
+export type Viewport = {x: number, y: number, width: number, height: number};
 
 function getViewProjectionMatrix(camera: Camera): number[] {
   const halfSize = camera.size * 0.5;
@@ -509,9 +513,14 @@ export class Renderer {
   _capsEnabled: Set<number> = new Set();
   _blendFunc: {sfactor?: number, dfactor?: number} = {};
   _clearColor: ?string;
-  _viewport: {x?: number, y?: number, width?: number, height?: number} = {};
-  _scissor: {x?: number, y?: number, width?: number, height?: number} = {};
+  _viewport: Viewport = {x: 0.0, y: 0.0, width: 0.0, height: 0.0};
+  _scissor: Viewport = {x: 0.0, y: 0.0, width: 0.0, height: 0.0};
   _camera: Camera = {x: 0.0, y: 0.0, size: 1.0, aspect: 1.0};
+
+  /** Returns a reference to the viewport state. */
+  get viewport(): Viewport {
+    return this._viewport;
+  }
 
   /** Returns a reference to the camera state. */
   get camera(): Camera {

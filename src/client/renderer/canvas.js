@@ -32,6 +32,7 @@ import {
   roundEquals,
   roundToPrecision,
   boundsValid,
+  boundsContain,
 } from '../../server/store/math';
 
 const cameraBounds = {min: vec2(), max: vec2()};
@@ -227,7 +228,7 @@ export class RenderCanvas extends React.Component<
     if (!(resource instanceof Scene && renderer)) {
       return;
     }
-    const pixelRatio = window.devicePixelRatio || 1.0;
+    const pixelRatio = 2.0;
     const width = Math.round(
       renderer.canvas.clientWidth * pixelRatio * MINIMAP_SIZE,
     );
@@ -246,10 +247,13 @@ export class RenderCanvas extends React.Component<
         entity,
       );
       const texture = framebuffer.texture;
-      let renderBounds: ?Bounds;
+      let renderBounds: Bounds;
       const totalBounds = resource.getTotalBounds(entity.id);
       if (texture.width !== width || texture.height !== height) {
         texture.setSize(renderer, width, height);
+        renderBounds = totalBounds;
+      } else if (totalBounds !== framebuffer.bounds) {
+        framebuffer.bounds = totalBounds;
         renderBounds = totalBounds;
       } else {
         renderBounds = resource.getDirtyBounds(entity.id);
@@ -264,14 +268,12 @@ export class RenderCanvas extends React.Component<
           RendererComponents.background.properties.gridColor.defaultValue,
       );
       const gl = renderer.gl;
-      gl.clear(gl.COLOR_BUFFER_BIT);
-
       if (totalBounds && boundsValid(totalBounds)) {
         const boundsWidth = totalBounds.max.x - totalBounds.min.x;
         const boundsHeight = totalBounds.max.y - totalBounds.min.y;
         const boundsAspect = boundsWidth / boundsHeight;
         if (boundsAspect > aspect) {
-          const innerHeight = width / boundsAspect;
+          const innerHeight = Math.round(width / boundsAspect);
           renderer.setViewport(
             0,
             Math.round((height - innerHeight) / 2),
@@ -279,7 +281,7 @@ export class RenderCanvas extends React.Component<
             innerHeight,
           );
         } else {
-          const innerWidth = height * boundsAspect;
+          const innerWidth = Math.round(height * boundsAspect);
           renderer.setViewport(
             Math.round((width - innerWidth) / 2),
             0,
@@ -293,8 +295,36 @@ export class RenderCanvas extends React.Component<
           boundsHeight,
           boundsAspect,
         );
-        renderer.getCameraBounds(cameraBounds);
+        if (!boundsContain(renderBounds, totalBounds)) {
+          renderer.setEnabled(gl.SCISSOR_TEST, true);
+
+          const sx = (renderBounds.min.x - totalBounds.min.x) / boundsWidth;
+          const sy = (renderBounds.min.y - totalBounds.min.y) / boundsHeight;
+          const dx = (renderBounds.max.x - totalBounds.min.x) / boundsWidth;
+          const dy = (renderBounds.max.y - totalBounds.min.y) / boundsHeight;
+          const vp = renderer.viewport;
+
+          const lx = Math.floor(sx * vp.width + vp.x);
+          const ly = Math.floor(sy * vp.height + vp.y);
+          const ux = Math.ceil(dx * vp.width + vp.x);
+          const uy = Math.ceil(dy * vp.height + vp.y);
+
+          renderer.setScissor(lx, ly, ux - lx, uy - ly);
+
+          cameraBounds.min.x =
+            totalBounds.min.x + ((lx - vp.x) * boundsWidth) / vp.width;
+          cameraBounds.min.y =
+            totalBounds.min.y + ((ly - vp.y) * boundsHeight) / vp.height;
+          cameraBounds.max.x =
+            totalBounds.min.x + ((ux - vp.x) * boundsWidth) / vp.width;
+          cameraBounds.max.y =
+            totalBounds.min.y + ((uy - vp.y) * boundsHeight) / vp.height;
+        } else {
+          renderer.getCameraBounds(cameraBounds);
+        }
         resource.applyToEntities(entity.id, cameraBounds, collectZOrdersOp);
+
+        gl.clear(gl.COLOR_BUFFER_BIT);
 
         for (const entityZOrder of entityZOrders) {
           const entity = entityZOrder.entity;
@@ -305,7 +335,10 @@ export class RenderCanvas extends React.Component<
             entity,
           )(renderer, false, false);
         }
+        renderer.setEnabled(gl.SCISSOR_TEST, false);
         entityZOrders.splice(0, entityZOrders.length);
+      } else {
+        gl.clear(gl.COLOR_BUFFER_BIT);
       }
       renderer.bindFramebuffer(null);
     }
