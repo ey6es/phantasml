@@ -53,7 +53,8 @@ const RECTANGLE_FRAGMENT_SHADER = `
   }
 `;
 
-const RectangleGeometry = new Geometry(
+/** Generic rectangle geometry. */
+export const RectangleGeometry = new Geometry(
   new Float32Array([0, 0, 1, 0, 1, 1, 0, 1]),
   new Uint16Array([0, 1, 2, 2, 3, 0]),
   {vertex: 2},

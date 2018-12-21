@@ -10,15 +10,10 @@ import * as ReactRedux from 'react-redux';
 import {FormattedMessage} from 'react-intl';
 import {Tooltip} from 'reactstrap';
 import {renderBackground} from './background';
-import {
-  MINIMAP_SIZE,
-  Framebuffer,
-  Texture,
-  Renderer,
-  renderMinimap,
-} from './util';
+import {Geometry, Framebuffer, Texture, Renderer} from './util';
 import {RendererComponents} from './components';
 import {ComponentRenderers} from './renderers';
+import {RectangleGeometry} from './helpers';
 import type {PageState, ToolType, HoverState, TooltipData} from '../store';
 import {DEFAULT_PAGE_SIZE, store} from '../store';
 import type {UserGetPreferencesResponse} from '../../server/api';
@@ -31,6 +26,8 @@ import {
   vec2,
   roundEquals,
   roundToPrecision,
+  mix,
+  clamp,
   boundsValid,
   boundsContain,
 } from '../../server/store/math';
@@ -251,6 +248,7 @@ export class RenderCanvas extends React.Component<
       const totalBounds = resource.getTotalBounds(entity.id);
       if (texture.width !== width || texture.height !== height) {
         texture.setSize(renderer, width, height);
+        framebuffer.bounds = totalBounds;
         renderBounds = totalBounds;
       } else if (totalBounds !== framebuffer.bounds) {
         framebuffer.bounds = totalBounds;
@@ -280,6 +278,11 @@ export class RenderCanvas extends React.Component<
             width,
             innerHeight,
           );
+          const inset = MINIMAP_SIZE * (1.0 - innerHeight / height);
+          framebuffer.windowBounds = {
+            min: vec2(MINIMAP_EDGE, MINIMAP_EDGE + inset),
+            max: vec2(1.0, 1.0 - inset),
+          };
         } else {
           const innerWidth = Math.round(height * boundsAspect);
           renderer.setViewport(
@@ -288,6 +291,11 @@ export class RenderCanvas extends React.Component<
             innerWidth,
             height,
           );
+          const inset = MINIMAP_SIZE * (1.0 - innerWidth / width);
+          framebuffer.windowBounds = {
+            min: vec2(MINIMAP_EDGE + inset, MINIMAP_EDGE),
+            max: vec2(1.0 - inset, 1.0),
+          };
         }
         renderer.setCamera(
           (totalBounds.min.x + totalBounds.max.x) / 2,
@@ -416,7 +424,9 @@ export class RenderCanvas extends React.Component<
       pageEntity && pageEntity.getLastCachedValue('framebuffer');
     if (
       elapsed >= MINIMAP_LINGER_DURATION + MINIMAP_FADE_DURATION ||
-      !framebuffer
+      !framebuffer ||
+      !framebuffer.bounds ||
+      boundsContain(cameraBounds, framebuffer.bounds)
     ) {
       return;
     }
@@ -425,13 +435,149 @@ export class RenderCanvas extends React.Component<
       1.0 - (elapsed - MINIMAP_LINGER_DURATION) / MINIMAP_FADE_DURATION,
     );
     renderMinimap(renderer, framebuffer.texture.get(renderer), alpha);
+    const windowBounds = framebuffer.windowBounds;
+    const lx = windowBounds.min.x;
+    const ly = windowBounds.min.y;
+    const ux = windowBounds.max.x;
+    const uy = windowBounds.max.y;
+    const totalBounds = framebuffer.bounds;
+    const tx = totalBounds.min.x;
+    const ty = totalBounds.min.y;
+    const twidth = totalBounds.max.x - tx;
+    const theight = totalBounds.max.y - ty;
+    const lb = MINIMAP_EDGE;
+    const ub = 1.0;
+    renderRectangle(
+      renderer,
+      vec2(
+        clamp(mix(lx, ux, (cameraBounds.min.x - tx) / twidth), lb, ub),
+        clamp(mix(ly, uy, (cameraBounds.min.y - ty) / theight), lb, ub),
+      ),
+      vec2(
+        clamp(mix(lx, ux, (cameraBounds.max.x - tx) / twidth), lb, ub),
+        clamp(mix(ly, uy, (cameraBounds.max.y - ty) / theight), lb, ub),
+      ),
+      RECTANGLE_COLOR,
+      alpha,
+    );
     renderer.requestFrameRender();
   };
 }
 
+const RECTANGLE_COLOR = '#375a7f';
+
 function createFramebuffer(entity: Entity): TransferableValue<Framebuffer> {
   return new TransferableValue(new Framebuffer(new Texture()), entity => true);
 }
+
+function renderMinimap(
+  renderer: Renderer,
+  texture: ?WebGLTexture,
+  alpha: number,
+) {
+  const program = renderer.getProgram(
+    renderMinimap,
+    renderer.getVertexShader(renderMinimap, MINIMAP_VERTEX_SHADER),
+    renderer.getFragmentShader(renderMinimap, MINIMAP_FRAGMENT_SHADER),
+  );
+  program.setUniformInt('texture', 0);
+  program.setUniformFloat('alpha', alpha);
+  renderer.setEnabled(renderer.gl.BLEND, true);
+  renderer.bindTexture(texture);
+  MinimapGeometry.draw(program);
+  renderer.bindTexture(null);
+}
+
+const MINIMAP_SIZE = 1.0 / 5.0;
+
+const MINIMAP_EDGE = 1.0 - MINIMAP_SIZE * 2.0;
+
+const MinimapGeometry = new Geometry(
+  // prettier-ignore
+  new Float32Array([
+    MINIMAP_EDGE, MINIMAP_EDGE, 0, 0,
+    1, MINIMAP_EDGE, 1, 0,
+    1, 1, 1, 1,
+    MINIMAP_EDGE, 1, 0, 1,
+  ]),
+  new Uint16Array([0, 1, 2, 2, 3, 0]),
+  {vertex: 2, uv: 2},
+);
+
+const MINIMAP_VERTEX_SHADER = `
+  attribute vec2 vertex;
+  attribute vec2 uv;
+  varying vec2 interpolatedUv;
+  void main(void) {
+    interpolatedUv = uv;
+    gl_Position = vec4(vertex.xy, 0.0, 1.0);
+  }
+`;
+
+const MINIMAP_FRAGMENT_SHADER = `
+  precision mediump float;
+  uniform sampler2D texture;
+  uniform float alpha;
+  varying vec2 interpolatedUv;
+  void main(void) {
+    vec3 color = texture2D(texture, interpolatedUv).rgb;
+    gl_FragColor = vec4(color, alpha);
+  }
+`;
+
+function renderRectangle(
+  renderer: Renderer,
+  start: Vector2,
+  end: Vector2,
+  color: string,
+  alpha: number,
+) {
+  const program = renderer.getProgram(
+    renderRectangle,
+    renderer.getVertexShader(renderRectangle, RECTANGLE_VERTEX_SHADER),
+    renderer.getFragmentShader(renderRectangle, RECTANGLE_FRAGMENT_SHADER),
+  );
+  program.setUniformVector('start', start);
+  program.setUniformVector('end', end);
+  program.setUniformFloat('pixelSize', 2.0 / renderer.canvas.clientHeight);
+  program.setUniformFloat('aspect', renderer.camera.aspect);
+  program.setUniformColor('color', color);
+  program.setUniformFloat('alpha', alpha);
+  renderer.setEnabled(renderer.gl.BLEND, true);
+  RectangleGeometry.draw(program);
+}
+
+const RECTANGLE_VERTEX_SHADER = `
+  attribute vec2 vertex;
+  uniform vec2 start;
+  uniform vec2 end;
+  varying vec2 size;
+  varying vec2 modelPosition;
+  void main(void) {
+    size = end - start;
+    modelPosition = vertex.xy;
+    gl_Position = vec4(mix(start, end, vertex.xy), 0.0, 1.0);
+  }
+`;
+
+const RECTANGLE_FRAGMENT_SHADER = `
+  precision mediump float;
+  uniform float pixelSize;
+  uniform float aspect;
+  uniform vec3 color;
+  uniform float alpha;
+  varying vec2 size;
+  varying vec2 modelPosition;
+  void main(void) {
+    vec2 edgeSize = (2.0 * vec2(pixelSize / aspect, pixelSize)) / size;
+    vec2 edge0 = step(edgeSize, modelPosition);
+    vec2 edge1 = step(modelPosition, vec2(1.0, 1.0) - edgeSize);
+    gl_FragColor = vec4(
+      color,
+      mix(1.0, 0.0, edge0.x * edge0.y * edge1.x * edge1.y) * alpha
+    );
+  }
+`;
 
 class CanvasStats extends React.Component<
   {renderer: ?Renderer},

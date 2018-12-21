@@ -409,6 +409,9 @@ export class Framebuffer extends RefCounted {
   /** Used by the minimap renderer to store the total bounds. */
   bounds: ?Bounds;
 
+  /** Used by the minimap renderer to store the window bounds. */
+  windowBounds: ?Bounds;
+
   _texture: Texture;
   _renderers: Set<Renderer> = new Set();
 
@@ -1190,66 +1193,3 @@ export class Renderer {
     }
   }
 }
-
-/**
- * Renders the minimap.
- *
- * @param renderer the renderer to use.
- * @param texture the minimap texture.
- * @param alpha the alpha value.
- */
-export function renderMinimap(
-  renderer: Renderer,
-  texture: ?WebGLTexture,
-  alpha: number,
-) {
-  const program = renderer.getProgram(
-    renderMinimap,
-    renderer.getVertexShader(renderMinimap, MINIMAP_VERTEX_SHADER),
-    renderer.getFragmentShader(renderMinimap, MINIMAP_FRAGMENT_SHADER),
-  );
-  program.setUniformInt('texture', 0);
-  program.setUniformFloat('alpha', alpha);
-  renderer.setEnabled(renderer.gl.BLEND, true);
-  renderer.bindTexture(texture);
-  MinimapGeometry.draw(program);
-  renderer.bindTexture(null);
-}
-
-/** The proportional size of the minimap. */
-export const MINIMAP_SIZE = 1.0 / 5.0;
-
-const MINIMAP_EDGE = 1.0 - MINIMAP_SIZE * 2.0;
-
-const MinimapGeometry = new Geometry(
-  // prettier-ignore
-  new Float32Array([
-    MINIMAP_EDGE, MINIMAP_EDGE, 0, 0,
-    1, MINIMAP_EDGE, 1, 0,
-    1, 1, 1, 1,
-    MINIMAP_EDGE, 1, 0, 1,
-  ]),
-  new Uint16Array([0, 1, 2, 2, 3, 0]),
-  {vertex: 2, uv: 2},
-);
-
-const MINIMAP_VERTEX_SHADER = `
-  attribute vec2 vertex;
-  attribute vec2 uv;
-  varying vec2 interpolatedUv;
-  void main(void) {
-    interpolatedUv = uv;
-    gl_Position = vec4(vertex.xy, 0.0, 1.0);
-  }
-`;
-
-const MINIMAP_FRAGMENT_SHADER = `
-  precision mediump float;
-  uniform sampler2D texture;
-  uniform float alpha;
-  varying vec2 interpolatedUv;
-  void main(void) {
-    vec3 color = texture2D(texture, interpolatedUv).rgb;
-    gl_FragColor = vec4(color, alpha);
-  }
-`;
