@@ -15,7 +15,7 @@ import {RendererComponents} from './components';
 import {ComponentRenderers} from './renderers';
 import {RectangleGeometry} from './helpers';
 import type {PageState, ToolType, HoverState, TooltipData} from '../store';
-import {DEFAULT_PAGE_SIZE, store} from '../store';
+import {DEFAULT_PAGE_SIZE, StoreActions, store} from '../store';
 import type {UserGetPreferencesResponse} from '../../server/api';
 import type {Resource, Entity} from '../../server/store/resource';
 import {TransferableValue} from '../../server/store/resource';
@@ -116,6 +116,10 @@ export function getEntityRenderer(
   return renderFn || (() => {});
 }
 
+const MINIMAP_LINGER_DURATION = 3000;
+const MINIMAP_FADE_DURATION = 150;
+const MINIMAP_TOTAL_DURATION = MINIMAP_LINGER_DURATION + MINIMAP_FADE_DURATION;
+
 /**
  * Renders the scene.
  */
@@ -133,6 +137,9 @@ export class RenderCanvas extends React.Component<
   _unsubscribeFromStore: ?() => void;
 
   _pageStateChangeTime = 0;
+  _minimapBounds: ?Bounds;
+  _minimapWindowBounds: ?Bounds;
+  _dragging = false;
 
   render() {
     return [
@@ -197,7 +204,12 @@ export class RenderCanvas extends React.Component<
 
   _setCanvas = (canvas: ?HTMLCanvasElement) => {
     if (this._renderer) {
-      this._renderer.dispose();
+      const renderer = this._renderer;
+      renderer.canvas.removeEventListener('mousedown', this._onMouseDown);
+      renderer.canvas.removeEventListener('mousemove', this._onMouseMove);
+      renderer.canvas.removeEventListener('mouseleave', this._onMouseUp);
+      renderer.canvas.removeEventListener('mouseup', this._onMouseUp);
+      renderer.dispose();
       this.props.setRenderer((this._renderer = null));
     }
     if (canvas) {
@@ -207,11 +219,72 @@ export class RenderCanvas extends React.Component<
       ));
       this.setState({renderer});
       renderer.addRenderCallback(this._renderScene);
+      canvas.addEventListener('mousedown', this._onMouseDown);
+      canvas.addEventListener('mousemove', this._onMouseMove);
+      canvas.addEventListener('mouseleave', this._onMouseUp);
+      canvas.addEventListener('mouseup', this._onMouseUp);
       this.props.setRenderer(renderer);
       this._renderMinimaps();
       renderer.requestFrameRender();
     }
   };
+
+  _onMouseDown = (event: MouseEvent) => {
+    if (!(this._minimapBounds && event.button === 0)) {
+      return;
+    }
+    const canvas: HTMLCanvasElement = (event.target: any);
+    const vx = (2.0 * event.offsetX) / canvas.clientWidth - 1.0;
+    const vy = 1.0 - (2.0 * event.offsetY) / canvas.clientHeight;
+    if (vx < MINIMAP_EDGE || vy < MINIMAP_EDGE) {
+      return;
+    }
+    event.stopImmediatePropagation();
+    this._dragging = true;
+    canvas.style.cursor = 'all-scroll';
+    this._setPagePosition(vx, vy);
+  };
+
+  _onMouseMove = (event: MouseEvent) => {
+    if (!this._dragging) {
+      return;
+    }
+    event.stopImmediatePropagation();
+    const canvas: HTMLCanvasElement = (event.target: any);
+    const vx = (2.0 * event.offsetX) / canvas.clientWidth - 1.0;
+    const vy = 1.0 - (2.0 * event.offsetY) / canvas.clientHeight;
+    this._setPagePosition(vx, vy);
+  };
+
+  _onMouseUp = (event: MouseEvent) => {
+    if (this._dragging) {
+      this._dragging = false;
+      this._pageStateChangeTime = Date.now();
+      (this._renderer: any).canvas.style.cursor = null;
+    }
+  };
+
+  _setPagePosition(vx: number, vy: number) {
+    const bounds = this._minimapBounds;
+    const windowBounds = this._minimapWindowBounds;
+    if (!(bounds && windowBounds)) {
+      return;
+    }
+    store.dispatch(
+      StoreActions.setPagePosition.create(
+        mix(
+          bounds.min.x,
+          bounds.max.x,
+          (vx - windowBounds.min.x) / (windowBounds.max.x - windowBounds.min.x),
+        ),
+        mix(
+          bounds.min.y,
+          bounds.max.y,
+          (vy - windowBounds.min.y) / (windowBounds.max.y - windowBounds.min.y),
+        ),
+      ),
+    );
+  }
 
   _onResize = () => {
     this._renderMinimaps();
@@ -417,19 +490,21 @@ export class RenderCanvas extends React.Component<
     entityZOrders.splice(0, entityZOrders.length);
 
     // perhaps render the minimap
-    const MINIMAP_LINGER_DURATION = 1000;
-    const MINIMAP_FADE_DURATION = 150;
-    const elapsed = Date.now() - this._pageStateChangeTime;
+    const elapsed = this._dragging ? 0 : Date.now() - this._pageStateChangeTime;
     const framebuffer =
       pageEntity && pageEntity.getLastCachedValue('framebuffer');
     if (
-      elapsed >= MINIMAP_LINGER_DURATION + MINIMAP_FADE_DURATION ||
+      elapsed >= MINIMAP_TOTAL_DURATION ||
       !framebuffer ||
       !framebuffer.bounds ||
-      boundsContain(cameraBounds, framebuffer.bounds)
+      (boundsContain(cameraBounds, framebuffer.bounds) && !this._dragging)
     ) {
+      this._minimapBounds = null;
+      this._minimapWindowBounds = null;
       return;
     }
+    this._minimapBounds = framebuffer.bounds;
+    this._minimapWindowBounds = framebuffer.windowBounds;
     const alpha = Math.min(
       1.0,
       1.0 - (elapsed - MINIMAP_LINGER_DURATION) / MINIMAP_FADE_DURATION,
