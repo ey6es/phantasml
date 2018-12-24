@@ -68,3 +68,18 @@ export function getColorArray(value: string): number[] {
     parseInt(value.substring(5, 7), 16) / 255.0,
   ];
 }
+
+/**
+ * Creates an object with the specified prototype and the supplied properties.
+ *
+ * @param prototype the object prototype.
+ * @param properties the object properties.
+ * @return the extended object.
+ */
+export function extend(prototype: Object, properties: Object): Object {
+  const extended = Object.create(prototype);
+  for (let key in properties) {
+    extended[key] = properties[key];
+  }
+  return extended;
+}

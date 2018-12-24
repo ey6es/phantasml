@@ -6,7 +6,7 @@
  */
 
 import * as React from 'react';
-import {ComponentModules} from './modules';
+import {MODULE_HEIGHT_PER_TERMINAL, ComponentModules} from './modules';
 import type {HoverState} from '../store';
 import {ComponentEditCallbacks, StoreActions, store} from '../store';
 import {
@@ -65,38 +65,44 @@ ComponentRenderers.moduleRenderer = {
   getZOrder: (data: Object) => data.zOrder || 0,
   createRenderFn: (idTree: IdTreeNode, entity: Entity) => {
     const shapeList = getShapeList(idTree, entity);
-    if (!shapeList) {
-      return () => {};
-    }
-    const inputCount = getInputCount(entity);
-    const outputCount = getOutputCount(entity);
-    return createShapeListRenderFn(
-      entity,
-      shapeList,
-      (
-        renderer: Renderer,
-        transform: Transform,
-        pathColor: string,
-        fillColor: string,
-        geometry: Geometry,
-        selected: boolean,
-        hoverState: HoverState,
-      ) => {
-        renderModule(
-          renderer,
-          transform,
-          pathColor,
-          fillColor,
-          geometry,
-          selected,
-          hoverState,
-          inputCount,
-          outputCount,
+    for (const key in entity.state) {
+      const module = ComponentModules[key];
+      if (module && shapeList) {
+        const data = entity.state[key];
+        const inputCount = Object.keys(module.getInputs(data)).length;
+        const outputCount = Object.keys(module.getOutputs(data)).length;
+        const width = module.getWidth(data);
+        return createShapeListRenderFn(
+          entity,
+          shapeList,
+          (
+            renderer: Renderer,
+            transform: Transform,
+            pathColor: string,
+            fillColor: string,
+            geometry: Geometry,
+            selected: boolean,
+            hoverState: HoverState,
+          ) => {
+            renderModule(
+              renderer,
+              transform,
+              pathColor,
+              fillColor,
+              geometry,
+              selected,
+              hoverState,
+              inputCount,
+              outputCount,
+              width,
+            );
+          },
+          '#ffffff',
+          '#ffffff',
         );
-      },
-      '#ffffff',
-      '#ffffff',
-    );
+      }
+    }
+    return () => {};
   },
   onMove: onModuleMove,
   onFrame: entity => {
@@ -114,6 +120,7 @@ ComponentRenderers.moduleRenderer = {
               const inputKeys = Object.keys(inputs);
               const outputs = module.getOutputs(data);
               const outputKeys = Object.keys(outputs);
+              const width = module.getWidth(data);
               let index = oldHoverState.part - 1;
               let label: React.Element<any>;
               const position = vec2();
@@ -122,7 +129,7 @@ ComponentRenderers.moduleRenderer = {
               if (index < inputKeys.length) {
                 label = inputs[inputKeys[index]].label;
                 vec2(
-                  MODULE_WIDTH * -0.5 - MODULE_HEIGHT_PER_TERMINAL * 0.5,
+                  width * -0.5 - MODULE_HEIGHT_PER_TERMINAL * 0.5,
                   ((inputKeys.length - 1) * 0.5 - index + 0.25) *
                     MODULE_HEIGHT_PER_TERMINAL,
                   position,
@@ -132,7 +139,7 @@ ComponentRenderers.moduleRenderer = {
                 const outputKey = outputKeys[index];
                 label = outputs[outputKey].label;
                 vec2(
-                  MODULE_WIDTH * 0.5 + MODULE_HEIGHT_PER_TERMINAL * 0.5,
+                  width * 0.5 + MODULE_HEIGHT_PER_TERMINAL * 0.5,
                   ((outputKeys.length - 1) * 0.5 - index + 0.25) *
                     MODULE_HEIGHT_PER_TERMINAL,
                   position,
@@ -157,7 +164,7 @@ ComponentRenderers.moduleRenderer = {
                     const targetInputKeys = Object.keys(targetInputs);
                     const targetIndex = targetInputKeys.indexOf(output.input);
                     secondaryPosition = vec2(
-                      MODULE_WIDTH * -0.5 - MODULE_HEIGHT_PER_TERMINAL * 0.5,
+                      width * -0.5 - MODULE_HEIGHT_PER_TERMINAL * 0.5,
                       ((targetInputKeys.length - 1) * 0.5 -
                         targetIndex +
                         0.25) *
@@ -569,10 +576,8 @@ function getModuleKey(entity: Entity): ?string {
   }
 }
 
-const MODULE_WIDTH = 3.0;
 const MODULE_THICKNESS = 0.15;
 const TERMINAL_WIDTH = 1.125;
-const MODULE_HEIGHT_PER_TERMINAL = 1.5;
 const MODULE_BODY_ATTRIBUTES = {
   thickness: 0.15,
   pathColor: [1.0, 1.0, 1.0],
@@ -609,8 +614,8 @@ ComponentGeometry.moduleRenderer = {
       const inputCount = Object.keys(inputs).length;
       const outputs = module.getOutputs(data);
       const outputCount = Object.keys(outputs).length;
-      const height =
-        MODULE_HEIGHT_PER_TERMINAL * Math.max(inputCount, outputCount);
+      const width = module.getWidth(data);
+      const height = module.getHeight(data, inputCount, outputCount);
       const shapeList = new ShapeList().lower();
       shapeList.omitCollisionAttributes.add('pathColor');
       shapeList.omitCollisionAttributes.add('fillColor');
@@ -631,7 +636,7 @@ ComponentGeometry.moduleRenderer = {
           color = WireColorArrays[index % WireColorArrays.length];
         }
         shapeList
-          .move(MODULE_WIDTH * -0.5, y, 180)
+          .move(width * -0.5, y, 180)
           .penDown(false, {
             thickness: MODULE_THICKNESS,
             pathColor: color,
@@ -652,7 +657,7 @@ ComponentGeometry.moduleRenderer = {
       for (const output in outputs) {
         const wireColor = WireColorArrays[color];
         color = (color + 1) % WireColorArrays.length;
-        shapeList.move(MODULE_WIDTH * 0.5, y, 0).penDown(false, {
+        shapeList.move(width * 0.5, y, 0).penDown(false, {
           thickness: MODULE_THICKNESS,
           pathColor: wireColor,
           fillColor: wireColor,
@@ -670,7 +675,7 @@ ComponentGeometry.moduleRenderer = {
           );
           const index = targetInputKeys.indexOf(target.input);
           const inputPosition = vec2(
-            MODULE_WIDTH * -0.5 - MODULE_HEIGHT_PER_TERMINAL * 0.5,
+            width * -0.5 - MODULE_HEIGHT_PER_TERMINAL * 0.5,
             ((targetInputKeys.length - 1) * 0.5 - index) *
               MODULE_HEIGHT_PER_TERMINAL,
           );
@@ -686,7 +691,7 @@ ComponentGeometry.moduleRenderer = {
               getWorldTransform(idTree.getEntityLineage(entity)),
             ),
           );
-          vec2(MODULE_WIDTH * 0.5, y, outputPosition);
+          vec2(width * 0.5, y, outputPosition);
           const halfSpan = distance(outputPosition, inputPosition) * 0.5;
           outputPosition.x += halfSpan;
           inputPosition.x -= halfSpan;
@@ -713,13 +718,13 @@ ComponentGeometry.moduleRenderer = {
       }
       shapeList
         .raise()
-        .move(MODULE_WIDTH * -0.5, height * -0.5, 0, MODULE_BODY_ATTRIBUTES)
+        .move(width * -0.5, height * -0.5, 0, MODULE_BODY_ATTRIBUTES)
         .penDown(true)
-        .advance(MODULE_WIDTH)
+        .advance(width)
         .pivot(90)
         .advance(height)
         .pivot(90)
-        .advance(MODULE_WIDTH)
+        .advance(width)
         .pivot(90)
         .advance(height)
         .penUp();
@@ -735,7 +740,7 @@ ComponentGeometry.moduleRenderer = {
   createControlPointEdit: (entity, indexPositions, mirrored) => ({}),
 };
 
-const start = vec2(MODULE_WIDTH * 0.5);
+const start = vec2();
 
 function renderModule(
   renderer: Renderer,
@@ -747,6 +752,7 @@ function renderModule(
   hoverState: HoverState,
   inputCount: number,
   outputCount: number,
+  width: number,
 ) {
   const partHover = hoverState && hoverState.part;
   if (!partHover) {
@@ -798,6 +804,7 @@ function renderModule(
   }
   if (hoverState.dragging) {
     const index = hoverState.part - inputCount - 1;
+    start.x = width * 0.5;
     start.y = ((outputCount - 1) * 0.5 - index) * MODULE_HEIGHT_PER_TERMINAL;
     if (selected) {
       renderWireHelper(

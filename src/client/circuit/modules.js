@@ -7,8 +7,9 @@
 
 import * as React from 'react';
 import {FormattedMessage} from 'react-intl';
-import {InputsProperty, OutputsProperty} from './components';
+import {InputsProperty, OutputsProperty, CircuitComponents} from './components';
 import {ShapeList} from '../../server/store/shape';
+import {getValue, extend} from '../../server/store/util';
 
 type InputData = {
   label: React.Element<any>,
@@ -22,6 +23,8 @@ type ModuleData = {
   getIcon: Object => ShapeList,
   getInputs: Object => {[string]: InputData},
   getOutputs: Object => {[string]: OutputData},
+  getWidth: Object => number,
+  getHeight: (Object, number, number) => number,
 };
 
 const SingleInput = {
@@ -87,21 +90,36 @@ const PushButtonIcon = new ShapeList().penDown(false, {
 
 const NoIcon = new ShapeList();
 
+const DEFAULT_MODULE_WIDTH = 3.0;
+
+/** The height of each terminal. */
+export const MODULE_HEIGHT_PER_TERMINAL = 1.5;
+
+const BaseModule = {
+  getIcon: data => NoIcon,
+  getInputs: data => ({}),
+  getOutputs: data => ({}),
+  getWidth: data => DEFAULT_MODULE_WIDTH,
+  getHeight: (data, inputCount, outputCount) => {
+    return Math.max(inputCount, outputCount) * MODULE_HEIGHT_PER_TERMINAL;
+  },
+};
+
 /**
  * Circuit component functions mapped by component name.
  */
 export const ComponentModules: {[string]: ModuleData} = {
-  split: {
+  split: extend(BaseModule, {
     getIcon: data => SplitIcon,
     getInputs: data => SingleInput,
     getOutputs: createMultipleOutputs,
-  },
-  invert: {
+  }),
+  invert: extend(BaseModule, {
     getIcon: data => InvertIcon,
     getInputs: data => SingleInput,
     getOutputs: data => SingleOutput,
-  },
-  add: {
+  }),
+  add: extend(BaseModule, {
     getIcon: data => AddIcon,
     getInputs: data =>
       createMultipleInputs(data, index => (
@@ -116,8 +134,8 @@ export const ComponentModules: {[string]: ModuleData} = {
         label: <FormattedMessage id="add.sum" defaultMessage="Sum" />,
       },
     }),
-  },
-  multiply: {
+  }),
+  multiply: extend(BaseModule, {
     getIcon: data => MultiplyIcon,
     getInputs: data =>
       createMultipleInputs(data, index => (
@@ -134,27 +152,27 @@ export const ComponentModules: {[string]: ModuleData} = {
         ),
       },
     }),
-  },
-  pushButton: {
+  }),
+  pushButton: extend(BaseModule, {
     getIcon: data => PushButtonIcon,
     getInputs: data => ({}),
     getOutputs: data => SingleOutput,
-  },
-  pseudo3d: {
-    getIcon: data => NoIcon,
-    getInputs: data => ({}),
-    getOutputs: data => ({}),
-  },
-  inputBus: {
-    getIcon: data => NoIcon,
-    getInputs: data => ({}),
-    getOutputs: data => ({}),
-  },
-  outputBus: {
-    getIcon: data => NoIcon,
-    getInputs: data => ({}),
-    getOutputs: data => ({}),
-  },
+    getHeight: data => DEFAULT_MODULE_WIDTH,
+  }),
+  pseudo3d: extend(BaseModule, {
+    getWidth: data =>
+      getValue(
+        data.width,
+        CircuitComponents.pseudo3d.properties.width.defaultValue,
+      ),
+    getHeight: data =>
+      getValue(
+        data.height,
+        CircuitComponents.pseudo3d.properties.height.defaultValue,
+      ),
+  }),
+  inputBus: extend(BaseModule, {}),
+  outputBus: extend(BaseModule, {}),
 };
 
 function createMultipleInputs(
