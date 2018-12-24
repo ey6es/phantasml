@@ -51,6 +51,8 @@ import {GeometryCategory, GeometryComponents} from './geometry/components';
 import {RendererCategory, RendererComponents} from './renderer/components';
 import {CollisionCategory, CollisionComponents} from './collision/components';
 import {PhysicsCategory, PhysicsComponents} from './physics/components';
+import {SensorCategory, SensorComponents} from './sensor/components';
+import {EffectorCategory, EffectorComponents} from './effector/components';
 import {CircuitCategories, CircuitComponents} from './circuit/components';
 import type {UserGetPreferencesResponse} from '../server/api';
 import type {Resource, Entity} from '../server/store/resource';
@@ -1013,6 +1015,8 @@ const Components: {[string]: ComponentData} = {
   ...RendererComponents,
   ...CollisionComponents,
   ...PhysicsComponents,
+  ...SensorComponents,
+  ...EffectorComponents,
   ...CircuitComponents,
 };
 
@@ -1026,5 +1030,7 @@ const Categories: {[string]: CategoryData} = {
   ...RendererCategory,
   ...CollisionCategory,
   ...PhysicsCategory,
+  ...SensorCategory,
+  ...EffectorCategory,
   ...CircuitCategories,
 };

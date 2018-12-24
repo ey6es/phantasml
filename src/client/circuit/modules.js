@@ -80,6 +80,13 @@ const MultiplyIcon = new ShapeList()
   .penDown()
   .advance(0.6708);
 
+const PushButtonIcon = new ShapeList().penDown(false, {
+  thickness: 0.375,
+  pathColor: [1.0, 1.0, 1.0],
+});
+
+const NoIcon = new ShapeList();
+
 /**
  * Circuit component functions mapped by component name.
  */
@@ -127,6 +134,26 @@ export const ComponentModules: {[string]: ModuleData} = {
         ),
       },
     }),
+  },
+  pushButton: {
+    getIcon: data => PushButtonIcon,
+    getInputs: data => ({}),
+    getOutputs: data => SingleOutput,
+  },
+  pseudo3d: {
+    getIcon: data => NoIcon,
+    getInputs: data => ({}),
+    getOutputs: data => ({}),
+  },
+  inputBus: {
+    getIcon: data => NoIcon,
+    getInputs: data => ({}),
+    getOutputs: data => ({}),
+  },
+  outputBus: {
+    getIcon: data => NoIcon,
+    getInputs: data => ({}),
+    getOutputs: data => ({}),
   },
 };
 

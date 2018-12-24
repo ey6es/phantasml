@@ -84,6 +84,20 @@ export const FillProperty = {
 };
 
 /**
+ * A shared label for width.
+ */
+export const WidthLabel = (
+  <FormattedMessage id="geometry.width" defaultMessage="Width:" />
+);
+
+/**
+ * A shared label for height.
+ */
+export const HeightLabel = (
+  <FormattedMessage id="geometry.height" defaultMessage="Height:" />
+);
+
+/**
  * Geometry component metadata mapped by component name.
  */
 export const GeometryComponents: {[string]: ComponentData} = {
@@ -136,9 +150,7 @@ export const GeometryComponents: {[string]: ComponentData} = {
       ...ThicknessProperty,
       width: {
         type: 'number',
-        label: (
-          <FormattedMessage id="rectangle.width" defaultMessage="Width:" />
-        ),
+        label: WidthLabel,
         defaultValue: DEFAULT_RECTANGLE_WIDTH,
         step: 0.01,
         wheelStep: 0.1,
@@ -147,9 +159,7 @@ export const GeometryComponents: {[string]: ComponentData} = {
       },
       height: {
         type: 'number',
-        label: (
-          <FormattedMessage id="rectangle.height" defaultMessage="Height:" />
-        ),
+        label: HeightLabel,
         defaultValue: DEFAULT_RECTANGLE_HEIGHT,
         step: 0.01,
         wheelStep: 0.1,

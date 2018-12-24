@@ -605,7 +605,6 @@ ComponentGeometry.moduleRenderer = {
         continue;
       }
       const data = entity.state[key];
-      const icon = module.getIcon(data);
       const inputs = module.getInputs(data);
       const inputCount = Object.keys(inputs).length;
       const outputs = module.getOutputs(data);
