@@ -8,7 +8,15 @@
 import * as React from 'react';
 import {FormattedMessage} from 'react-intl';
 import {InputsProperty, OutputsProperty, CircuitComponents} from './components';
+import type {HoverState} from '../store';
+import {store} from '../store';
+import type {Renderer} from '../renderer/util';
+import {renderPointHelper} from '../renderer/helpers';
 import {ShapeList} from '../../server/store/shape';
+import type {Entity} from '../../server/store/resource';
+import type {IdTreeNode} from '../../server/store/scene';
+import type {Vector2} from '../../server/store/math';
+import {length} from '../../server/store/math';
 import {getValue, extend} from '../../server/store/util';
 
 type InputData = {
@@ -25,6 +33,13 @@ type ModuleData = {
   getOutputs: Object => {[string]: OutputData},
   getWidth: Object => number,
   getHeight: (Object, number, number) => number,
+  createRenderFn: (
+    IdTreeNode,
+    Entity,
+    (Renderer, boolean, HoverState) => void,
+  ) => (Renderer, boolean, HoverState) => void,
+  onMove: (Entity, Vector2) => HoverState,
+  onPress: (Entity, Vector2, Vector2) => HoverState,
 };
 
 const SingleInput = {
@@ -83,11 +98,6 @@ const MultiplyIcon = new ShapeList()
   .penDown()
   .advance(0.6708);
 
-const PushButtonIcon = new ShapeList().penDown(false, {
-  thickness: 0.375,
-  pathColor: [1.0, 1.0, 1.0],
-});
-
 const NoIcon = new ShapeList();
 
 const DEFAULT_MODULE_WIDTH = 3.0;
@@ -103,7 +113,12 @@ const BaseModule = {
   getHeight: (data, inputCount, outputCount) => {
     return Math.max(inputCount, outputCount) * MODULE_HEIGHT_PER_TERMINAL;
   },
+  createRenderFn: (idTree, entity, baseFn) => baseFn,
+  onMove: (entity, position) => true,
+  onPress: (entity, position, offset) => ({dragging: position, offset}),
 };
+
+const PUSH_BUTTON_RADIUS = 1.0;
 
 /**
  * Circuit component functions mapped by component name.
@@ -154,10 +169,50 @@ export const ComponentModules: {[string]: ModuleData} = {
     }),
   }),
   pushButton: extend(BaseModule, {
-    getIcon: data => PushButtonIcon,
     getInputs: data => ({}),
     getOutputs: data => SingleOutput,
     getHeight: data => DEFAULT_MODULE_WIDTH,
+    createRenderFn: (idTree, entity, baseFn) => {
+      const transform = entity.getLastCachedValue('worldTransform');
+      return (renderer, selected, hoverState) => {
+        const hoverObject = hoverState && typeof hoverState === 'object';
+        const buttonHover = hoverObject && hoverState.button;
+        const buttonPressed = buttonHover && hoverState.pressed;
+        baseFn(renderer, selected, buttonHover ? undefined : hoverState);
+        if (buttonPressed) {
+          renderPointHelper(
+            renderer,
+            transform,
+            PUSH_BUTTON_RADIUS * 1.1,
+            '#00bfbf',
+            false,
+          );
+        }
+        renderPointHelper(
+          renderer,
+          transform,
+          PUSH_BUTTON_RADIUS,
+          buttonHover ? (buttonPressed ? '#00ffff' : '#00bfbf') : '#009999',
+          hoverObject &&
+            !(hoverState.part || hoverState.dragging || buttonHover),
+        );
+      };
+    },
+    onMove: (entity, position) => {
+      if (length(position) > PUSH_BUTTON_RADIUS) {
+        return true;
+      }
+      const oldHoverState = store.getState().hoverStates.get(entity.id);
+      return oldHoverState && oldHoverState.button
+        ? oldHoverState
+        : {button: true};
+    },
+    onPress: (entity, position, offset) => {
+      const oldHoverState = store.getState().hoverStates.get(entity.id);
+      return oldHoverState && oldHoverState.button
+        ? {button: true, pressed: true}
+        : {dragging: position, offset};
+    },
   }),
   pseudo3d: extend(BaseModule, {
     getWidth: data =>

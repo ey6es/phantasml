@@ -72,33 +72,37 @@ ComponentRenderers.moduleRenderer = {
         const inputCount = Object.keys(module.getInputs(data)).length;
         const outputCount = Object.keys(module.getOutputs(data)).length;
         const width = module.getWidth(data);
-        return createShapeListRenderFn(
+        return module.createRenderFn(
+          idTree,
           entity,
-          shapeList,
-          (
-            renderer: Renderer,
-            transform: Transform,
-            pathColor: string,
-            fillColor: string,
-            geometry: Geometry,
-            selected: boolean,
-            hoverState: HoverState,
-          ) => {
-            renderModule(
-              renderer,
-              transform,
-              pathColor,
-              fillColor,
-              geometry,
-              selected,
-              hoverState,
-              inputCount,
-              outputCount,
-              width,
-            );
-          },
-          '#ffffff',
-          '#ffffff',
+          createShapeListRenderFn(
+            entity,
+            shapeList,
+            (
+              renderer: Renderer,
+              transform: Transform,
+              pathColor: string,
+              fillColor: string,
+              geometry: Geometry,
+              selected: boolean,
+              hoverState: HoverState,
+            ) => {
+              renderModule(
+                renderer,
+                transform,
+                pathColor,
+                fillColor,
+                geometry,
+                selected,
+                hoverState,
+                inputCount,
+                outputCount,
+                width,
+              );
+            },
+            '#ffffff',
+            '#ffffff',
+          ),
         );
       }
     }
@@ -226,7 +230,12 @@ ComponentRenderers.moduleRenderer = {
       }
       return {dragging: position, offset, part};
     } else if (oldHoverState) {
-      return {dragging: position, offset};
+      for (const key in entity.state) {
+        const module = ComponentModules[key];
+        if (module) {
+          return module.onPress(entity, position, offset);
+        }
+      }
     }
     return oldHoverState;
   },
@@ -504,13 +513,13 @@ function onModuleMove(entity: Entity, position: Vector2): HoverState {
     results[0].fromIndex,
     'part',
   );
-  if (part === 0) {
-    return true;
-  }
   for (const key in entity.state) {
     const module = ComponentModules[key];
     if (module) {
       const data = entity.state[key];
+      if (part === 0) {
+        return module.onMove(entity, position);
+      }
       const inputKeys = Object.keys(module.getInputs(data));
       const inputKey = inputKeys[part - 1];
       if (inputKey && data[inputKey]) {
