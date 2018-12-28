@@ -216,22 +216,28 @@ export const ComponentModules: {[string]: ModuleData} = {
         return {dragging: position, offset};
       }
       store.dispatch(
-        SceneActions.editEntities.create({
-          [entity.id]: {
-            pushButton: {pressed: true},
+        SceneActions.editEntities.create(
+          {
+            [entity.id]: {
+              pushButton: {pressed: true},
+            },
           },
-        }),
+          false,
+        ),
       );
       return oldHoverState;
     },
     onRelease: (entity, position) => {
       if (entity.state.pushButton.pressed) {
         store.dispatch(
-          SceneActions.editEntities.create({
-            [entity.id]: {
-              pushButton: {pressed: null},
+          SceneActions.editEntities.create(
+            {
+              [entity.id]: {
+                pushButton: {pressed: null},
+              },
             },
-          }),
+            false,
+          ),
         );
       }
     },
@@ -254,8 +260,17 @@ export const ComponentModules: {[string]: ModuleData} = {
     },
   }),
   dial: extend(BaseModule, {
+    getIcon: data => PushButtonIcon,
     getOutputs: data => SingleOutput,
     getHeight: data => DEFAULT_MODULE_WIDTH,
+    createRenderFn: (idTree, entity, baseFn) => {
+      const transform = entity.getLastCachedValue('worldTransform');
+      return (renderer, selected, hoverState) => {
+        const hoverObject = hoverState && typeof hoverState === 'object';
+        const dialHover = hoverObject && hoverState.angle;
+        baseFn(renderer, selected, dialHover ? undefined : hoverState);
+      };
+    },
   }),
   pseudo3d: extend(BaseModule, {
     getWidth: data =>

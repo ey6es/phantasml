@@ -1444,10 +1444,15 @@ export function mergeEntityEdits(first: Object, second: Object): Object {
  */
 export const SceneActions = {
   editEntities: {
-    create: (map: Object, editNumber: number = currentEditNumber) => ({
+    create: (
+      map: Object,
+      undoable: boolean = true,
+      editNumber: number = currentEditNumber,
+    ) => ({
       type: 'editEntities',
-      editNumber,
       map,
+      undoable,
+      editNumber,
     }),
     reduce: (state: Scene, action: ResourceAction) => {
       return state.applyEdit(action.map);
@@ -1457,6 +1462,9 @@ export const SceneActions = {
       undoStack: ResourceAction[],
       action: ResourceAction,
     ) => {
+      if (!action.undoable) {
+        return undoStack;
+      }
       const reverseEdit = state.createReverseEdit(action.map);
       const undoIndex = undoStack.length - 1;
       if (undoIndex >= 0) {
@@ -1473,7 +1481,7 @@ export const SceneActions = {
         }
       }
       return (undoStack.concat([
-        SceneActions.editEntities.create(reverseEdit, action.editNumber),
+        SceneActions.editEntities.create(reverseEdit, true, action.editNumber),
       ]): ResourceAction[]);
     },
   },
