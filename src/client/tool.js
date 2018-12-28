@@ -831,7 +831,7 @@ class SelectPanToolImpl extends ToolImpl {
           for (const key in entity.state) {
             const renderer = ComponentRenderers[key];
             if (renderer) {
-              const newHoverState = renderer.onPress(
+              const [newHoverState, select] = renderer.onPress(
                 entity,
                 transformPoint(
                   eventPosition,
@@ -847,11 +847,13 @@ class SelectPanToolImpl extends ToolImpl {
                 }
                 hoverStates.set(id, newHoverState);
               }
+              if (select) {
+                map[id] = event.ctrlKey ? !this.props.selection.has(id) : true;
+              }
               break;
             }
           }
         }
-        map[id] = event.ctrlKey ? !this.props.selection.has(id) : true;
       }
       if (hoverStates !== this.props.hoverStates) {
         store.dispatch(StoreActions.setHoverStates.create(hoverStates));

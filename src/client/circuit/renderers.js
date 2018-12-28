@@ -228,7 +228,7 @@ ComponentRenderers.moduleRenderer = {
       if (part <= getInputCount(entity)) {
         part = 0;
       }
-      return {dragging: position, offset, part};
+      return [{dragging: position, offset, part}, false];
     } else if (oldHoverState) {
       for (const key in entity.state) {
         const module = ComponentModules[key];
@@ -237,7 +237,7 @@ ComponentRenderers.moduleRenderer = {
         }
       }
     }
-    return oldHoverState;
+    return [oldHoverState, true];
   },
   onDrag: (entity, position, setHoverState) => {
     const state = store.getState();

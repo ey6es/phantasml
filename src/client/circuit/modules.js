@@ -40,7 +40,7 @@ type ModuleData = {
     (Renderer, boolean, HoverState) => void,
   ) => (Renderer, boolean, HoverState) => void,
   onMove: (Entity, Vector2) => HoverState,
-  onPress: (Entity, Vector2, Vector2) => HoverState,
+  onPress: (Entity, Vector2, Vector2) => [HoverState, boolean],
   onDrag: (Entity, Vector2, (string, HoverState) => void) => HoverState,
   onRelease: (Entity, Vector2) => HoverState,
 };
@@ -123,7 +123,7 @@ const BaseModule = {
   },
   createRenderFn: (idTree, entity, baseFn) => baseFn,
   onMove: (entity, position) => true,
-  onPress: (entity, position, offset) => ({dragging: position, offset}),
+  onPress: (entity, position, offset) => [{dragging: position, offset}, true],
   onDrag: (entity, position, setHoverState) => {
     return store.getState().hoverStates.get(entity.id);
   },
@@ -213,7 +213,7 @@ export const ComponentModules: {[string]: ModuleData} = {
     onPress: (entity, position, offset) => {
       const oldHoverState = store.getState().hoverStates.get(entity.id);
       if (!(oldHoverState && oldHoverState.button)) {
-        return {dragging: position, offset};
+        return [{dragging: position, offset}, true];
       }
       store.dispatch(
         SceneActions.editEntities.create(
@@ -225,7 +225,7 @@ export const ComponentModules: {[string]: ModuleData} = {
           false,
         ),
       );
-      return oldHoverState;
+      return [oldHoverState, false];
     },
     onRelease: (entity, position) => {
       if (entity.state.pushButton.pressed) {
@@ -256,7 +256,7 @@ export const ComponentModules: {[string]: ModuleData} = {
       return true;
     },
     onPress: (entity, position, offset) => {
-      return {dragging: position, offset};
+      return [{dragging: position, offset}, true];
     },
   }),
   dial: extend(BaseModule, {

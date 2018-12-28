@@ -63,7 +63,7 @@ type RendererData = {
   ) => (Renderer, boolean, HoverState) => void,
   onMove: (Entity, Vector2) => HoverState,
   onFrame: Entity => HoverState,
-  onPress: (Entity, Vector2) => HoverState,
+  onPress: (Entity, Vector2) => [HoverState, boolean],
   onDrag: (Entity, Vector2, (string, HoverState) => void) => HoverState,
   onDragOver: (Entity, Entity, Transform) => HoverState,
   onRelease: (Entity, Vector2) => HoverState,
@@ -209,14 +209,17 @@ function onShapeMove(entity: Entity, position: Vector2): HoverState {
   }
 }
 
-function onShapePress(entity: Entity, position: Vector2): HoverState {
+function onShapePress(
+  entity: Entity,
+  position: Vector2,
+): [HoverState, boolean] {
   const state = store.getState();
   const oldHoverState = state.hoverStates.get(entity.id);
   if (!oldHoverState) {
-    return oldHoverState;
+    return [oldHoverState, true];
   }
   if (oldHoverState.point !== undefined) {
-    return {dragging: position, point: oldHoverState.point};
+    return [{dragging: position, point: oldHoverState.point}, true];
   }
   const parentPosition = transformPoint(
     position,
@@ -226,7 +229,7 @@ function onShapePress(entity: Entity, position: Vector2): HoverState {
     getTransformTranslation(entity.state.transform),
     parentPosition,
   );
-  return {dragging: position, offset};
+  return [{dragging: position, offset}, true];
 }
 
 function onShapeDrag(entity: Entity, position: Vector2): HoverState {
