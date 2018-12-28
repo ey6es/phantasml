@@ -306,6 +306,8 @@ export class RenderCanvas extends React.Component<
       renderer.canvas.clientHeight * pixelRatio * MINIMAP_SIZE,
     );
     const aspect = width / height;
+
+    const savedCamera = renderer._camera;
     for (const node of resource.entityHierarchy.children) {
       const entity = node.id && resource.getEntity(node.id);
       if (!entity) {
@@ -423,6 +425,7 @@ export class RenderCanvas extends React.Component<
       }
       renderer.bindFramebuffer(null);
     }
+    renderer._camera = savedCamera;
   }
 
   _renderScene = (renderer: Renderer) => {

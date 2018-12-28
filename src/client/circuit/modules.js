@@ -15,6 +15,7 @@ import {renderPointHelper} from '../renderer/helpers';
 import {ShapeList} from '../../server/store/shape';
 import type {Entity} from '../../server/store/resource';
 import type {IdTreeNode} from '../../server/store/scene';
+import {SceneActions} from '../../server/store/scene';
 import type {Vector2} from '../../server/store/math';
 import {length} from '../../server/store/math';
 import {getValue, extend} from '../../server/store/util';
@@ -188,13 +189,13 @@ export const ComponentModules: {[string]: ModuleData} = {
       return (renderer, selected, hoverState) => {
         const hoverObject = hoverState && typeof hoverState === 'object';
         const buttonHover = hoverObject && hoverState.button;
-        const buttonPressed = buttonHover && hoverState.pressed;
+        const buttonPressed = entity.state.pushButton.pressed;
         baseFn(renderer, selected, buttonHover ? undefined : hoverState);
         renderPointHelper(
           renderer,
           transform,
           PUSH_BUTTON_RADIUS,
-          buttonHover ? (buttonPressed ? '#00ffff' : '#00bfbf') : '#009999',
+          buttonPressed ? '#00ffff' : buttonHover ? '#00bfbf' : '#009999',
           hoverObject &&
             !(hoverState.part || hoverState.dragging || buttonHover),
         );
@@ -211,13 +212,46 @@ export const ComponentModules: {[string]: ModuleData} = {
     },
     onPress: (entity, position, offset) => {
       const oldHoverState = store.getState().hoverStates.get(entity.id);
-      return oldHoverState && oldHoverState.button
-        ? {button: true, pressed: true}
-        : {dragging: position, offset};
+      if (!(oldHoverState && oldHoverState.button)) {
+        return {dragging: position, offset};
+      }
+      store.dispatch(
+        SceneActions.editEntities.create({
+          [entity.id]: {
+            pushButton: {pressed: true},
+          },
+        }),
+      );
+      return oldHoverState;
+    },
+    onRelease: (entity, position) => {
+      if (entity.state.pushButton.pressed) {
+        store.dispatch(
+          SceneActions.editEntities.create({
+            [entity.id]: {
+              pushButton: {pressed: null},
+            },
+          }),
+        );
+      }
     },
   }),
   toggleSwitch: extend(BaseModule, {
     getOutputs: data => SingleOutput,
+    createRenderFn: (idTree, entity, baseFn) => {
+      const transform = entity.getLastCachedValue('worldTransform');
+      return (renderer, selected, hoverState) => {
+        const hoverObject = hoverState && typeof hoverState === 'object';
+        const switchHover = hoverObject && hoverState.switch;
+        baseFn(renderer, selected, switchHover ? undefined : hoverState);
+      };
+    },
+    onMove: (entity, position) => {
+      return true;
+    },
+    onPress: (entity, position, offset) => {
+      return {dragging: position, offset};
+    },
   }),
   dial: extend(BaseModule, {
     getOutputs: data => SingleOutput,
