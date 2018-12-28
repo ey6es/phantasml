@@ -246,6 +246,12 @@ ComponentRenderers.moduleRenderer = {
     if (
       !(oldHoverState && oldHoverState.dragging && resource instanceof Scene)
     ) {
+      for (const key in entity.state) {
+        const module = ComponentModules[key];
+        if (module) {
+          return module.onDrag(entity, position, setHoverState);
+        }
+      }
       return oldHoverState;
     }
     if (oldHoverState.part) {
@@ -365,6 +371,12 @@ ComponentRenderers.moduleRenderer = {
         oldHoverState.part
       )
     ) {
+      for (const key in entity.state) {
+        const module = ComponentModules[key];
+        if (module) {
+          return module.onRelease(entity, position);
+        }
+      }
       return;
     }
     const moduleKey = getModuleKey(entity);

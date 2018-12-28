@@ -58,6 +58,44 @@ export const OutputsProperty = {
   },
 };
 
+const OffProperty = {
+  off: {
+    type: 'number',
+    label: <FormattedMessage id="control.off" defaultMessage="Off:" />,
+    step: 0.01,
+    precision: 2,
+  },
+};
+
+const OnProperty = {
+  on: {
+    type: 'number',
+    label: <FormattedMessage id="control.on" defaultMessage="On:" />,
+    step: 0.01,
+    precision: 2,
+    defaultValue: 1.0,
+  },
+};
+
+const MinProperty = {
+  min: {
+    type: 'number',
+    label: <FormattedMessage id="control.min" defaultMessage="Min:" />,
+    step: 0.01,
+    precision: 2,
+  },
+};
+
+const MaxProperty = {
+  max: {
+    type: 'number',
+    label: <FormattedMessage id="control.max" defaultMessage="Max:" />,
+    step: 0.01,
+    precision: 2,
+    defaultValue: 1.0,
+  },
+};
+
 /**
  * Circuit component metadata mapped by component name.
  */
@@ -93,29 +131,29 @@ export const CircuitComponents: {[string]: ComponentData} = {
       <FormattedMessage id="push_button.title" defaultMessage="Push Button" />
     ),
     properties: {
-      unpressed: {
-        type: 'number',
-        label: (
-          <FormattedMessage
-            id="push_button.unpressed"
-            defaultMessage="Unpressed:"
-          />
-        ),
-        step: 0.01,
-        precision: 2,
-      },
-      pressed: {
-        type: 'number',
-        label: (
-          <FormattedMessage
-            id="push_button.pressed"
-            defaultMessage="Pressed:"
-          />
-        ),
-        step: 0.01,
-        precision: 2,
-        defaultValue: 1.0,
-      },
+      ...OffProperty,
+      ...OnProperty,
+    },
+    category: 'control',
+  },
+  toggleSwitch: {
+    label: (
+      <FormattedMessage
+        id="toggle_switch.title"
+        defaultMessage="Toggle Switch"
+      />
+    ),
+    properties: {
+      ...OffProperty,
+      ...OnProperty,
+    },
+    category: 'control',
+  },
+  dial: {
+    label: <FormattedMessage id="dial.title" defaultMessage="Dial" />,
+    properties: {
+      ...MinProperty,
+      ...MaxProperty,
     },
     category: 'control',
   },

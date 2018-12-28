@@ -40,6 +40,8 @@ type ModuleData = {
   ) => (Renderer, boolean, HoverState) => void,
   onMove: (Entity, Vector2) => HoverState,
   onPress: (Entity, Vector2, Vector2) => HoverState,
+  onDrag: (Entity, Vector2, (string, HoverState) => void) => HoverState,
+  onRelease: (Entity, Vector2) => HoverState,
 };
 
 const SingleInput = {
@@ -98,6 +100,11 @@ const MultiplyIcon = new ShapeList()
   .penDown()
   .advance(0.6708);
 
+const PushButtonIcon = new ShapeList().penDown(false, {
+  thickness: 1.2,
+  pathColor: [1.0, 1.0, 1.0],
+});
+
 const NoIcon = new ShapeList();
 
 const DEFAULT_MODULE_WIDTH = 3.0;
@@ -116,9 +123,13 @@ const BaseModule = {
   createRenderFn: (idTree, entity, baseFn) => baseFn,
   onMove: (entity, position) => true,
   onPress: (entity, position, offset) => ({dragging: position, offset}),
+  onDrag: (entity, position, setHoverState) => {
+    return store.getState().hoverStates.get(entity.id);
+  },
+  onRelease: (entity, position) => {},
 };
 
-const PUSH_BUTTON_RADIUS = 1.0;
+const PUSH_BUTTON_RADIUS = 0.9;
 
 /**
  * Circuit component functions mapped by component name.
@@ -169,7 +180,7 @@ export const ComponentModules: {[string]: ModuleData} = {
     }),
   }),
   pushButton: extend(BaseModule, {
-    getInputs: data => ({}),
+    getIcon: data => PushButtonIcon,
     getOutputs: data => SingleOutput,
     getHeight: data => DEFAULT_MODULE_WIDTH,
     createRenderFn: (idTree, entity, baseFn) => {
@@ -179,15 +190,6 @@ export const ComponentModules: {[string]: ModuleData} = {
         const buttonHover = hoverObject && hoverState.button;
         const buttonPressed = buttonHover && hoverState.pressed;
         baseFn(renderer, selected, buttonHover ? undefined : hoverState);
-        if (buttonPressed) {
-          renderPointHelper(
-            renderer,
-            transform,
-            PUSH_BUTTON_RADIUS * 1.1,
-            '#00bfbf',
-            false,
-          );
-        }
         renderPointHelper(
           renderer,
           transform,
@@ -213,6 +215,13 @@ export const ComponentModules: {[string]: ModuleData} = {
         ? {button: true, pressed: true}
         : {dragging: position, offset};
     },
+  }),
+  toggleSwitch: extend(BaseModule, {
+    getOutputs: data => SingleOutput,
+  }),
+  dial: extend(BaseModule, {
+    getOutputs: data => SingleOutput,
+    getHeight: data => DEFAULT_MODULE_WIDTH,
   }),
   pseudo3d: extend(BaseModule, {
     getWidth: data =>

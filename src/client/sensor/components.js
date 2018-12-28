@@ -24,7 +24,39 @@ export const SensorCategory: {[string]: CategoryData} = {
 export const SensorComponents: {[string]: ComponentData} = {
   eye: {
     label: <FormattedMessage id="eye.title" defaultMessage="Eye" />,
-    properties: {},
+    properties: {
+      fov: {
+        type: 'number',
+        label: <FormattedMessage id="eye.fov" defaultMessage="FOV:" />,
+        min: 0,
+        max: 180,
+        defaultValue: 60,
+      },
+      resolution: {
+        type: 'number',
+        label: (
+          <FormattedMessage id="eye.resolution" defaultMessage="Resolution:" />
+        ),
+        min: 0,
+        defaultValue: 256,
+      },
+      minDepth: {
+        type: 'number',
+        label: (
+          <FormattedMessage id="eye.min_depth" defaultMessage="Min Depth:" />
+        ),
+        min: 0,
+        defaultValue: 1,
+      },
+      maxDepth: {
+        type: 'number',
+        label: (
+          <FormattedMessage id="eye.max_depth" defaultMessage="Max Depth:" />
+        ),
+        min: 0,
+        defaultValue: 30,
+      },
+    },
     category: 'sensor',
   },
 };

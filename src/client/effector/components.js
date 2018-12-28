@@ -24,7 +24,24 @@ export const EffectorCategory: {[string]: CategoryData} = {
 export const EffectorComponents: {[string]: ComponentData} = {
   velocity: {
     label: <FormattedMessage id="velocity.title" defaultMessage="Velocity" />,
-    properties: {},
+    properties: {
+      linear: {
+        type: 'number',
+        label: (
+          <FormattedMessage id="velocity.linear" defaultMessage="Linear:" />
+        ),
+        step: 0.1,
+        precision: 1,
+        defaultValue: 5,
+      },
+      angular: {
+        type: 'number',
+        label: (
+          <FormattedMessage id="velocity.angular" defaultMessage="Angular:" />
+        ),
+        defaultValue: 45,
+      },
+    },
     category: 'effector',
   },
 };
