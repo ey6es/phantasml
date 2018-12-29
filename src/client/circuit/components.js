@@ -157,6 +157,32 @@ export const CircuitComponents: {[string]: ComponentData} = {
     },
     category: 'control',
   },
+  slider: {
+    label: <FormattedMessage id="slider.title" defaultMessage="Slider" />,
+    properties: {
+      ...MinProperty,
+      ...MaxProperty,
+    },
+    category: 'control',
+  },
+  joystick: {
+    label: <FormattedMessage id="joystick.title" defaultMessage="Joystick" />,
+    properties: {
+      ...MinProperty,
+      ...MaxProperty,
+      autocenter: {
+        type: 'boolean',
+        label: (
+          <FormattedMessage
+            id="joystick.autocenter"
+            defaultMessage="Autocenter:"
+          />
+        ),
+        defaultValue: true,
+      },
+    },
+    category: 'control',
+  },
   pseudo3d: {
     label: <FormattedMessage id="pseudo3d.title" defaultMessage="Pseudo 3D" />,
     properties: {

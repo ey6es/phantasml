@@ -17,7 +17,13 @@ import type {Entity} from '../../server/store/resource';
 import type {IdTreeNode} from '../../server/store/scene';
 import {SceneActions} from '../../server/store/scene';
 import type {Vector2} from '../../server/store/math';
-import {length} from '../../server/store/math';
+import {
+  vec2,
+  equals,
+  length,
+  composeTransforms,
+  clamp,
+} from '../../server/store/math';
 import {getValue, extend} from '../../server/store/util';
 
 type InputData = {
@@ -105,6 +111,24 @@ const PushButtonIcon = new ShapeList().penDown(false, {
   thickness: 1.2,
   pathColor: [1.0, 1.0, 1.0],
 });
+
+const JOYSTICK_SIZE = 2.0;
+const HALF_JOYSTICK_SIZE = JOYSTICK_SIZE * 0.5;
+
+const JoystickIcon = new ShapeList()
+  .move(-HALF_JOYSTICK_SIZE, -HALF_JOYSTICK_SIZE)
+  .penDown(true, {
+    thickness: 0.15,
+    pathColor: [1.0, 1.0, 1.0],
+    fillColor: [0.25, 0.25, 0.25],
+  })
+  .advance(JOYSTICK_SIZE)
+  .pivot(90)
+  .advance(JOYSTICK_SIZE)
+  .pivot(90)
+  .advance(JOYSTICK_SIZE)
+  .pivot(90)
+  .advance(JOYSTICK_SIZE);
 
 const NoIcon = new ShapeList();
 
@@ -270,6 +294,123 @@ export const ComponentModules: {[string]: ModuleData} = {
         const dialHover = hoverObject && hoverState.angle;
         baseFn(renderer, selected, dialHover ? undefined : hoverState);
       };
+    },
+  }),
+  slider: extend(BaseModule, {
+    getOutputs: data => SingleOutput,
+  }),
+  joystick: extend(BaseModule, {
+    getIcon: data => JoystickIcon,
+    getOutputs: data => ({
+      leftRight: {
+        label: (
+          <FormattedMessage
+            id="joystick.left_right"
+            defaultMessage="Left/Right"
+          />
+        ),
+      },
+      upDown: {
+        label: (
+          <FormattedMessage id="joystick.up_down" defaultMessage="Up/Down" />
+        ),
+      },
+    }),
+    createRenderFn: (idTree, entity, baseFn) => {
+      const transform = entity.getLastCachedValue('worldTransform');
+      return (renderer, selected, hoverState) => {
+        const hoverObject = hoverState && typeof hoverState === 'object';
+        const joystickHover = hoverObject && hoverState.position;
+        const joystickPosition = entity.state.joystick.position;
+        baseFn(renderer, selected, joystickHover ? undefined : hoverState);
+        renderPointHelper(
+          renderer,
+          composeTransforms(transform, {translation: joystickPosition}),
+          0.3,
+          '#ffffff',
+          hoverObject &&
+            !(hoverState.part || hoverState.dragging || joystickHover),
+        );
+        if (joystickHover) {
+          renderPointHelper(
+            renderer,
+            composeTransforms(transform, {translation: hoverState.position}),
+            0.3,
+            '#ffffff',
+            true,
+          );
+        }
+      };
+    },
+    onMove: (entity, position) => {
+      if (
+        Math.abs(position.x) > HALF_JOYSTICK_SIZE ||
+        Math.abs(position.y) > HALF_JOYSTICK_SIZE
+      ) {
+        return true;
+      }
+      const oldHoverState = store.getState().hoverStates.get(entity.id);
+      return oldHoverState &&
+        oldHoverState.position &&
+        oldHoverState.position.x === position.x &&
+        oldHoverState.position.y === position.y
+        ? oldHoverState
+        : {position: equals(position)};
+    },
+    onPress: (entity, position, offset) => {
+      const oldHoverState = store.getState().hoverStates.get(entity.id);
+      if (!(oldHoverState && oldHoverState.position)) {
+        return [{dragging: position, offset}, true];
+      }
+      store.dispatch(
+        SceneActions.editEntities.create(
+          {
+            [entity.id]: {
+              joystick: {position: equals(position)},
+            },
+          },
+          entity.state.joystick.autocenter === false,
+        ),
+      );
+      return [oldHoverState, false];
+    },
+    onDrag: (entity, position, setHoverState) => {
+      const oldHoverState = store.getState().hoverStates.get(entity.id);
+      if (!(oldHoverState && oldHoverState.position)) {
+        return oldHoverState;
+      }
+      const clampedPosition = vec2(
+        clamp(position.x, -HALF_JOYSTICK_SIZE, HALF_JOYSTICK_SIZE),
+        clamp(position.y, -HALF_JOYSTICK_SIZE, HALF_JOYSTICK_SIZE),
+      );
+      store.dispatch(
+        SceneActions.editEntities.create(
+          {
+            [entity.id]: {
+              joystick: {position: clampedPosition},
+            },
+          },
+          entity.state.joystick.autocenter === false,
+        ),
+      );
+      return {position: clampedPosition};
+    },
+    onRelease: (entity, position) => {
+      if (
+        entity.state.joystick.position &&
+        entity.state.joystick.autocenter !== false
+      ) {
+        store.dispatch(
+          SceneActions.editEntities.create(
+            {
+              [entity.id]: {
+                joystick: {position: null},
+              },
+            },
+            false,
+          ),
+        );
+      }
     },
   }),
   pseudo3d: extend(BaseModule, {
