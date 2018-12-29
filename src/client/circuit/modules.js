@@ -112,6 +112,15 @@ const PushButtonIcon = new ShapeList().penDown(false, {
   pathColor: [1.0, 1.0, 1.0],
 });
 
+const SLIDER_SIZE = 4.5;
+const HALF_SLIDER_SIZE = SLIDER_SIZE * 0.5;
+const SLIDER_KNOB_THICKNESS = 0.4;
+
+const SliderIcon = new ShapeList()
+  .move(-HALF_SLIDER_SIZE, 0)
+  .penDown(false, IconAttributes)
+  .advance(SLIDER_SIZE);
+
 const JOYSTICK_SIZE = 2.0;
 const HALF_JOYSTICK_SIZE = JOYSTICK_SIZE * 0.5;
 
@@ -297,7 +306,85 @@ export const ComponentModules: {[string]: ModuleData} = {
     },
   }),
   slider: extend(BaseModule, {
+    getIcon: data => SliderIcon,
+    getWidth: data => DEFAULT_MODULE_WIDTH * 2.0,
     getOutputs: data => SingleOutput,
+    createRenderFn: (idTree, entity, baseFn) => {
+      const transform = entity.getLastCachedValue('worldTransform');
+      return (renderer, selected, hoverState) => {
+        const hoverObject = hoverState && typeof hoverState === 'object';
+        const sliderHover = hoverObject && hoverState.position != null;
+        const sliderPosition = getValue(
+          entity.state.slider.position,
+          -HALF_SLIDER_SIZE,
+        );
+        baseFn(renderer, selected, sliderHover ? undefined : hoverState);
+        renderPointHelper(
+          renderer,
+          composeTransforms(transform, {translation: vec2(sliderPosition)}),
+          SLIDER_KNOB_THICKNESS,
+          '#ffffff',
+          hoverObject &&
+            !(hoverState.part || hoverState.dragging || sliderHover),
+        );
+        if (sliderHover) {
+          renderPointHelper(
+            renderer,
+            composeTransforms(transform, {
+              translation: vec2(hoverState.position),
+            }),
+            SLIDER_KNOB_THICKNESS,
+            '#ffffff',
+            true,
+          );
+        }
+      };
+    },
+    onMove: (entity, position) => {
+      if (
+        Math.abs(position.x) > HALF_SLIDER_SIZE ||
+        Math.abs(position.y) > SLIDER_KNOB_THICKNESS
+      ) {
+        return true;
+      }
+      const oldHoverState = store.getState().hoverStates.get(entity.id);
+      return oldHoverState && oldHoverState.position == position.x
+        ? oldHoverState
+        : {position: position.x};
+    },
+    onPress: (entity, position, offset) => {
+      const oldHoverState = store.getState().hoverStates.get(entity.id);
+      if (!(oldHoverState && oldHoverState.position != null)) {
+        return [{dragging: position, offset}, true];
+      }
+      store.dispatch(
+        SceneActions.editEntities.create({
+          [entity.id]: {
+            slider: {position: position.x},
+          },
+        }),
+      );
+      return [oldHoverState, false];
+    },
+    onDrag: (entity, position, setHoverState) => {
+      const oldHoverState = store.getState().hoverStates.get(entity.id);
+      if (!(oldHoverState && oldHoverState.position != null)) {
+        return oldHoverState;
+      }
+      const clampedPosition = clamp(
+        position.x,
+        -HALF_SLIDER_SIZE,
+        HALF_SLIDER_SIZE,
+      );
+      store.dispatch(
+        SceneActions.editEntities.create({
+          [entity.id]: {
+            slider: {position: clampedPosition},
+          },
+        }),
+      );
+      return {position: clampedPosition};
+    },
   }),
   joystick: extend(BaseModule, {
     getIcon: data => JoystickIcon,
