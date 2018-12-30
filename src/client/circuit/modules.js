@@ -11,7 +11,7 @@ import {InputsProperty, OutputsProperty, CircuitComponents} from './components';
 import type {HoverState} from '../store';
 import {store} from '../store';
 import type {Renderer} from '../renderer/util';
-import {renderPointHelper} from '../renderer/helpers';
+import {renderPointHelper, renderLineHelper} from '../renderer/helpers';
 import {ShapeList} from '../../server/store/shape';
 import type {Entity} from '../../server/store/resource';
 import type {IdTreeNode} from '../../server/store/scene';
@@ -21,6 +21,7 @@ import {
   vec2,
   equals,
   length,
+  rotateEquals,
   composeTransforms,
   clamp,
 } from '../../server/store/math';
@@ -107,7 +108,7 @@ const MultiplyIcon = new ShapeList()
   .penDown()
   .advance(0.6708);
 
-const PushButtonIcon = new ShapeList().penDown(false, {
+const ButtonDialIcon = new ShapeList().penDown(false, {
   thickness: 1.2,
   pathColor: [1.0, 1.0, 1.0],
 });
@@ -163,7 +164,7 @@ const BaseModule = {
   onRelease: (entity, position) => {},
 };
 
-const PUSH_BUTTON_RADIUS = 0.9;
+const BUTTON_DIAL_RADIUS = 0.9;
 
 /**
  * Circuit component functions mapped by component name.
@@ -214,7 +215,7 @@ export const ComponentModules: {[string]: ModuleData} = {
     }),
   }),
   pushButton: extend(BaseModule, {
-    getIcon: data => PushButtonIcon,
+    getIcon: data => ButtonDialIcon,
     getOutputs: data => SingleOutput,
     getHeight: data => DEFAULT_MODULE_WIDTH,
     createRenderFn: (idTree, entity, baseFn) => {
@@ -227,7 +228,7 @@ export const ComponentModules: {[string]: ModuleData} = {
         renderPointHelper(
           renderer,
           transform,
-          PUSH_BUTTON_RADIUS,
+          BUTTON_DIAL_RADIUS,
           buttonPressed ? '#00ffff' : buttonHover ? '#00bfbf' : '#009999',
           hoverObject &&
             !(hoverState.part || hoverState.dragging || buttonHover),
@@ -235,7 +236,7 @@ export const ComponentModules: {[string]: ModuleData} = {
       };
     },
     onMove: (entity, position) => {
-      if (length(position) > PUSH_BUTTON_RADIUS) {
+      if (length(position) > BUTTON_DIAL_RADIUS) {
         return true;
       }
       const oldHoverState = store.getState().hoverStates.get(entity.id);
@@ -293,16 +294,88 @@ export const ComponentModules: {[string]: ModuleData} = {
     },
   }),
   dial: extend(BaseModule, {
-    getIcon: data => PushButtonIcon,
+    getIcon: data => ButtonDialIcon,
     getOutputs: data => SingleOutput,
     getHeight: data => DEFAULT_MODULE_WIDTH,
     createRenderFn: (idTree, entity, baseFn) => {
       const transform = entity.getLastCachedValue('worldTransform');
       return (renderer, selected, hoverState) => {
         const hoverObject = hoverState && typeof hoverState === 'object';
-        const dialHover = hoverObject && hoverState.angle;
+        const dialHover = hoverObject && hoverState.angle != null;
+        const angle = getValue(entity.state.dial.angle, Math.PI * -0.5);
         baseFn(renderer, selected, dialHover ? undefined : hoverState);
+        renderPointHelper(
+          renderer,
+          transform,
+          BUTTON_DIAL_RADIUS,
+          '#404040',
+          hoverObject && !(hoverState.part || hoverState.dragging || dialHover),
+        );
+        renderLineHelper(
+          renderer,
+          composeTransforms(transform, {
+            translation: rotateEquals(vec2(0.7, 0), angle),
+            rotation: angle,
+          }),
+          0.2,
+          '#ffffff',
+          0.4,
+          hoverObject && !(hoverState.part || hoverState.dragging || dialHover),
+        );
+        if (dialHover) {
+          renderLineHelper(
+            renderer,
+            composeTransforms(transform, {
+              translation: rotateEquals(vec2(0.7, 0), hoverState.angle),
+              rotation: hoverState.angle,
+            }),
+            0.2,
+            '#ffffff',
+            0.4,
+            true,
+          );
+        }
       };
+    },
+    onMove: (entity, position) => {
+      if (length(position) > BUTTON_DIAL_RADIUS) {
+        return true;
+      }
+      const angle = Math.atan2(position.y, position.x);
+      const oldHoverState = store.getState().hoverStates.get(entity.id);
+      return oldHoverState && oldHoverState.angle === angle
+        ? oldHoverState
+        : {angle};
+    },
+    onPress: (entity, position, offset) => {
+      const oldHoverState = store.getState().hoverStates.get(entity.id);
+      if (!(oldHoverState && oldHoverState.angle != null)) {
+        return [{dragging: position, offset}, true];
+      }
+      const angle = Math.atan2(position.y, position.x);
+      store.dispatch(
+        SceneActions.editEntities.create({
+          [entity.id]: {
+            dial: {angle},
+          },
+        }),
+      );
+      return [oldHoverState, false];
+    },
+    onDrag: (entity, position, setHoverState) => {
+      const oldHoverState = store.getState().hoverStates.get(entity.id);
+      if (!(oldHoverState && oldHoverState.angle != null)) {
+        return oldHoverState;
+      }
+      const angle = Math.atan2(position.y, position.x);
+      store.dispatch(
+        SceneActions.editEntities.create({
+          [entity.id]: {
+            dial: {angle},
+          },
+        }),
+      );
+      return {angle};
     },
   }),
   slider: extend(BaseModule, {
@@ -342,25 +415,35 @@ export const ComponentModules: {[string]: ModuleData} = {
     },
     onMove: (entity, position) => {
       if (
-        Math.abs(position.x) > HALF_SLIDER_SIZE ||
+        Math.abs(position.x) > HALF_SLIDER_SIZE + SLIDER_KNOB_THICKNESS ||
         Math.abs(position.y) > SLIDER_KNOB_THICKNESS
       ) {
         return true;
       }
+      const clampedPosition = clamp(
+        position.x,
+        -HALF_SLIDER_SIZE,
+        HALF_SLIDER_SIZE,
+      );
       const oldHoverState = store.getState().hoverStates.get(entity.id);
-      return oldHoverState && oldHoverState.position == position.x
+      return oldHoverState && oldHoverState.position == clampedPosition
         ? oldHoverState
-        : {position: position.x};
+        : {position: clampedPosition};
     },
     onPress: (entity, position, offset) => {
       const oldHoverState = store.getState().hoverStates.get(entity.id);
       if (!(oldHoverState && oldHoverState.position != null)) {
         return [{dragging: position, offset}, true];
       }
+      const clampedPosition = clamp(
+        position.x,
+        -HALF_SLIDER_SIZE,
+        HALF_SLIDER_SIZE,
+      );
       store.dispatch(
         SceneActions.editEntities.create({
           [entity.id]: {
-            slider: {position: position.x},
+            slider: {position: clampedPosition},
           },
         }),
       );
