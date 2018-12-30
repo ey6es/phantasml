@@ -113,23 +113,31 @@ const ButtonDialIcon = new ShapeList().penDown(false, {
   pathColor: [1.0, 1.0, 1.0],
 });
 
+const TOGGLE_SWITCH_SIZE = 0.6;
+const HALF_TOGGLE_SWITCH_SIZE = TOGGLE_SWITCH_SIZE * 0.5;
+const KNOB_THICKNESS = 0.4;
+
+const ToggleSwitchIcon = new ShapeList()
+  .move(-HALF_TOGGLE_SWITCH_SIZE, 0.0)
+  .penDown(false, {thickness: KNOB_THICKNESS, pathColor: [0.25, 0.25, 0.25]})
+  .advance(TOGGLE_SWITCH_SIZE);
+
 const SLIDER_SIZE = 4.5;
 const HALF_SLIDER_SIZE = SLIDER_SIZE * 0.5;
-const SLIDER_KNOB_THICKNESS = 0.4;
 
 const SliderIcon = new ShapeList()
   .move(-HALF_SLIDER_SIZE, 0)
-  .penDown(false, IconAttributes)
+  .penDown(false, {thickness: 0.15, pathColor: [0.25, 0.25, 0.25]})
   .advance(SLIDER_SIZE);
 
-const JOYSTICK_SIZE = 2.0;
+const JOYSTICK_SIZE = 1.5;
 const HALF_JOYSTICK_SIZE = JOYSTICK_SIZE * 0.5;
 
 const JoystickIcon = new ShapeList()
   .move(-HALF_JOYSTICK_SIZE, -HALF_JOYSTICK_SIZE)
   .penDown(true, {
     thickness: 0.15,
-    pathColor: [1.0, 1.0, 1.0],
+    pathColor: [0.25, 0.25, 0.25],
     fillColor: [0.25, 0.25, 0.25],
   })
   .advance(JOYSTICK_SIZE)
@@ -277,6 +285,7 @@ export const ComponentModules: {[string]: ModuleData} = {
     },
   }),
   toggleSwitch: extend(BaseModule, {
+    getIcon: data => ToggleSwitchIcon,
     getOutputs: data => SingleOutput,
     createRenderFn: (idTree, entity, baseFn) => {
       const transform = entity.getLastCachedValue('worldTransform');
@@ -284,6 +293,16 @@ export const ComponentModules: {[string]: ModuleData} = {
         const hoverObject = hoverState && typeof hoverState === 'object';
         const switchHover = hoverObject && hoverState.switch;
         baseFn(renderer, selected, switchHover ? undefined : hoverState);
+        renderPointHelper(
+          renderer,
+          composeTransforms(transform, {
+            translation: vec2(-HALF_TOGGLE_SWITCH_SIZE),
+          }),
+          KNOB_THICKNESS,
+          '#ffffff',
+          hoverObject &&
+            !(hoverState.part || hoverState.dragging || switchHover),
+        );
       };
     },
     onMove: (entity, position) => {
@@ -395,7 +414,7 @@ export const ComponentModules: {[string]: ModuleData} = {
         renderPointHelper(
           renderer,
           composeTransforms(transform, {translation: vec2(sliderPosition)}),
-          SLIDER_KNOB_THICKNESS,
+          KNOB_THICKNESS,
           '#ffffff',
           hoverObject &&
             !(hoverState.part || hoverState.dragging || sliderHover),
@@ -406,7 +425,7 @@ export const ComponentModules: {[string]: ModuleData} = {
             composeTransforms(transform, {
               translation: vec2(hoverState.position),
             }),
-            SLIDER_KNOB_THICKNESS,
+            KNOB_THICKNESS,
             '#ffffff',
             true,
           );
@@ -415,8 +434,8 @@ export const ComponentModules: {[string]: ModuleData} = {
     },
     onMove: (entity, position) => {
       if (
-        Math.abs(position.x) > HALF_SLIDER_SIZE + SLIDER_KNOB_THICKNESS ||
-        Math.abs(position.y) > SLIDER_KNOB_THICKNESS
+        Math.abs(position.x) > HALF_SLIDER_SIZE + KNOB_THICKNESS ||
+        Math.abs(position.y) > KNOB_THICKNESS
       ) {
         return true;
       }
@@ -496,7 +515,7 @@ export const ComponentModules: {[string]: ModuleData} = {
         renderPointHelper(
           renderer,
           composeTransforms(transform, {translation: joystickPosition}),
-          0.3,
+          KNOB_THICKNESS,
           '#ffffff',
           hoverObject &&
             !(hoverState.part || hoverState.dragging || joystickHover),
@@ -505,7 +524,7 @@ export const ComponentModules: {[string]: ModuleData} = {
           renderPointHelper(
             renderer,
             composeTransforms(transform, {translation: hoverState.position}),
-            0.3,
+            KNOB_THICKNESS,
             '#ffffff',
             true,
           );
@@ -514,29 +533,37 @@ export const ComponentModules: {[string]: ModuleData} = {
     },
     onMove: (entity, position) => {
       if (
-        Math.abs(position.x) > HALF_JOYSTICK_SIZE ||
-        Math.abs(position.y) > HALF_JOYSTICK_SIZE
+        Math.abs(position.x) > HALF_JOYSTICK_SIZE + KNOB_THICKNESS ||
+        Math.abs(position.y) > HALF_JOYSTICK_SIZE + KNOB_THICKNESS
       ) {
         return true;
       }
+      const clampedPosition = vec2(
+        clamp(position.x, -HALF_JOYSTICK_SIZE, HALF_JOYSTICK_SIZE),
+        clamp(position.y, -HALF_JOYSTICK_SIZE, HALF_JOYSTICK_SIZE),
+      );
       const oldHoverState = store.getState().hoverStates.get(entity.id);
       return oldHoverState &&
         oldHoverState.position &&
-        oldHoverState.position.x === position.x &&
-        oldHoverState.position.y === position.y
+        oldHoverState.position.x === clampedPosition.x &&
+        oldHoverState.position.y === clampedPosition.y
         ? oldHoverState
-        : {position: equals(position)};
+        : {position: clampedPosition};
     },
     onPress: (entity, position, offset) => {
       const oldHoverState = store.getState().hoverStates.get(entity.id);
       if (!(oldHoverState && oldHoverState.position)) {
         return [{dragging: position, offset}, true];
       }
+      const clampedPosition = vec2(
+        clamp(position.x, -HALF_JOYSTICK_SIZE, HALF_JOYSTICK_SIZE),
+        clamp(position.y, -HALF_JOYSTICK_SIZE, HALF_JOYSTICK_SIZE),
+      );
       store.dispatch(
         SceneActions.editEntities.create(
           {
             [entity.id]: {
-              joystick: {position: equals(position)},
+              joystick: {position: clampedPosition},
             },
           },
           entity.state.joystick.autocenter === false,
