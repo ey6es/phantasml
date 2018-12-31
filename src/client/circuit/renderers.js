@@ -158,17 +158,26 @@ ComponentRenderers.moduleRenderer = {
                   const targetModuleKey = getModuleKey(targetEntity);
                   const targetModule =
                     targetModuleKey && ComponentModules[targetModuleKey];
+                  const targetData =
+                    targetModuleKey && targetEntity.state[targetModuleKey];
                   const targetInputs =
                     targetModule &&
-                    targetModule.getInputs(targetEntity.state[targetModuleKey]);
+                    targetData &&
+                    targetModule.getInputs(targetData);
                   const targetInput =
                     targetInputs && targetInputs[output.input];
-                  if (targetInputs && targetInput) {
+                  if (
+                    targetInputs &&
+                    targetInput &&
+                    targetModule &&
+                    targetData
+                  ) {
                     secondaryLabel = targetInput.label;
                     const targetInputKeys = Object.keys(targetInputs);
                     const targetIndex = targetInputKeys.indexOf(output.input);
+                    const targetWidth = targetModule.getWidth(targetData);
                     secondaryPosition = vec2(
-                      width * -0.5 - MODULE_HEIGHT_PER_TERMINAL * 0.5,
+                      targetWidth * -0.5 - MODULE_HEIGHT_PER_TERMINAL * 0.5,
                       ((targetInputKeys.length - 1) * 0.5 -
                         targetIndex +
                         0.25) *
