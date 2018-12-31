@@ -354,11 +354,12 @@ ComponentRenderers.moduleRenderer = {
     if (
       oldHoverState &&
       oldHoverState.part === part &&
-      oldHoverState.color === color
+      oldHoverState.color === color &&
+      oldHoverState.over
     ) {
       return oldHoverState;
     }
-    return {part, color, moveTime: Date.now()};
+    return {part, color, over: true, moveTime: Date.now()};
   },
   onRelease: (entity, position) => {
     const state = store.getState();
@@ -689,14 +690,15 @@ ComponentGeometry.moduleRenderer = {
         const targetModuleKey = targetEntity && getModuleKey(targetEntity);
         if (targetEntity && targetModuleKey) {
           connected = true;
+          const targetModule = ComponentModules[targetModuleKey];
+          const targetData = targetEntity.state[targetModuleKey];
           const targetInputKeys = Object.keys(
-            ComponentModules[targetModuleKey].getInputs(
-              targetEntity.state[targetModuleKey],
-            ),
+            targetModule.getInputs(targetData),
           );
+          const targetWidth = targetModule.getWidth(targetData);
           const index = targetInputKeys.indexOf(target.input);
           const inputPosition = vec2(
-            width * -0.5 - MODULE_HEIGHT_PER_TERMINAL * 0.5,
+            targetWidth * -0.5 - MODULE_HEIGHT_PER_TERMINAL * 0.5,
             ((targetInputKeys.length - 1) * 0.5 - index) *
               MODULE_HEIGHT_PER_TERMINAL,
           );

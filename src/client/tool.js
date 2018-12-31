@@ -987,6 +987,9 @@ class SelectPanToolImpl extends ToolImpl {
         }
       };
       for (const [id, hoverState] of this.props.hoverStates) {
+        if (hoverState && hoverState.over) {
+          continue; // dragged-over, not dragged
+        }
         const entity = resource.getEntity(id);
         if (entity) {
           for (const key in entity.state) {
