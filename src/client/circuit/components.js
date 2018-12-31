@@ -20,8 +20,14 @@ export const CircuitCategories: {[string]: CategoryData} = {
   circuit: {
     label: <FormattedMessage id="circuit.title" defaultMessage="Circuit" />,
   },
-  basic: {
-    label: <FormattedMessage id="basic.title" defaultMessage="Basic" />,
+  layout: {
+    label: <FormattedMessage id="layout.title" defaultMessage="Layout" />,
+    parent: 'circuit',
+  },
+  arithmetic: {
+    label: (
+      <FormattedMessage id="arithmetic.title" defaultMessage="Arithmetic" />
+    ),
     parent: 'circuit',
   },
   control: {
@@ -55,6 +61,13 @@ export const OutputsProperty = {
     label: <FormattedMessage id="circuit.outputs" defaultMessage="Outputs:" />,
     min: 1,
     defaultValue: 2,
+  },
+};
+
+const UnaryProperty = {
+  unary: {
+    type: 'boolean',
+    label: <FormattedMessage id="circuit.unary" defaultMessage="Unary:" />,
   },
 };
 
@@ -100,31 +113,40 @@ const MaxProperty = {
  * Circuit component metadata mapped by component name.
  */
 export const CircuitComponents: {[string]: ComponentData} = {
-  split: {
-    label: <FormattedMessage id="split.title" defaultMessage="Split" />,
+  fork: {
+    label: <FormattedMessage id="fork.title" defaultMessage="Fork" />,
     properties: {
       ...OutputsProperty,
     },
-    category: 'basic',
-  },
-  invert: {
-    label: <FormattedMessage id="invert.title" defaultMessage="Invert" />,
-    properties: {},
-    category: 'basic',
+    category: 'layout',
   },
   add: {
     label: <FormattedMessage id="add.title" defaultMessage="Add" />,
     properties: {
       ...InputsProperty,
     },
-    category: 'basic',
+    category: 'arithmetic',
+  },
+  subtract: {
+    label: <FormattedMessage id="subtract.title" defaultMessage="Subtract" />,
+    properties: {
+      ...UnaryProperty,
+    },
+    category: 'arithmetic',
   },
   multiply: {
     label: <FormattedMessage id="multiply.title" defaultMessage="Multiply" />,
     properties: {
       ...InputsProperty,
     },
-    category: 'basic',
+    category: 'arithmetic',
+  },
+  divide: {
+    label: <FormattedMessage id="divide.title" defaultMessage="Divide" />,
+    properties: {
+      ...UnaryProperty,
+    },
+    category: 'arithmetic',
   },
   pushButton: {
     label: (

@@ -78,7 +78,7 @@ const IconAttributes = {
   fillColor: White,
 };
 
-const SplitIcon = new ShapeList()
+const ForkIcon = new ShapeList()
   .move(-0.375, 0.0)
   .penDown(false, IconAttributes)
   .advance(0.375)
@@ -89,11 +89,6 @@ const SplitIcon = new ShapeList()
   .penDown()
   .advance(Math.SQRT1_2 * 0.75);
 
-const InvertIcon = new ShapeList()
-  .move(-0.375, 0)
-  .penDown(false, IconAttributes)
-  .advance(0.75);
-
 const AddIcon = new ShapeList()
   .move(-0.375, 0)
   .penDown(false, IconAttributes)
@@ -101,6 +96,11 @@ const AddIcon = new ShapeList()
   .penUp()
   .move(0, -0.375, 90)
   .penDown()
+  .advance(0.75);
+
+const SubtractIcon = new ShapeList()
+  .move(-0.375, 0)
+  .penDown(false, IconAttributes)
   .advance(0.75);
 
 const MultiplyIcon = new ShapeList()
@@ -115,6 +115,17 @@ const MultiplyIcon = new ShapeList()
   .move(-0.3, 0.15, -26.565)
   .penDown()
   .advance(0.6708);
+
+const DivideIcon = new ShapeList()
+  .move(-0.375, 0)
+  .penDown(false, IconAttributes)
+  .advance(0.75)
+  .penUp()
+  .move(0.0, 0.375)
+  .penDown()
+  .penUp()
+  .move(0.0, -0.375)
+  .penDown();
 
 const ButtonDialIcon = new ShapeList().penDown(false, {
   thickness: 1.2,
@@ -225,15 +236,10 @@ const BUTTON_DIAL_RADIUS = 0.9;
  * Circuit component functions mapped by component name.
  */
 export const ComponentModules: {[string]: ModuleData} = {
-  split: extend(BaseModule, {
-    getIcon: data => SplitIcon,
+  fork: extend(BaseModule, {
+    getIcon: data => ForkIcon,
     getInputs: data => SingleInput,
     getOutputs: createMultipleOutputs,
-  }),
-  invert: extend(BaseModule, {
-    getIcon: data => InvertIcon,
-    getInputs: data => SingleInput,
-    getOutputs: data => SingleOutput,
   }),
   add: extend(BaseModule, {
     getIcon: data => AddIcon,
@@ -251,6 +257,42 @@ export const ComponentModules: {[string]: ModuleData} = {
       },
     }),
   }),
+  subtract: extend(BaseModule, {
+    getIcon: data => SubtractIcon,
+    getInputs: data => {
+      const subtrahend = {
+        input2: {
+          label: (
+            <FormattedMessage
+              id="subtract.subtrahend"
+              defaultMessage="Subtrahend"
+            />
+          ),
+        },
+      };
+      if (data.unary) {
+        return subtrahend;
+      }
+      return {
+        input1: {
+          label: (
+            <FormattedMessage id="subtract.minuend" defaultMessage="Minuend" />
+          ),
+        },
+        ...subtrahend,
+      };
+    },
+    getOutputs: data => ({
+      output: {
+        label: (
+          <FormattedMessage
+            id="subtract.difference"
+            defaultMessage="Difference"
+          />
+        ),
+      },
+    }),
+  }),
   multiply: extend(BaseModule, {
     getIcon: data => MultiplyIcon,
     getInputs: data =>
@@ -265,6 +307,36 @@ export const ComponentModules: {[string]: ModuleData} = {
       output: {
         label: (
           <FormattedMessage id="multiply.product" defaultMessage="Product" />
+        ),
+      },
+    }),
+  }),
+  divide: extend(BaseModule, {
+    getIcon: data => DivideIcon,
+    getInputs: data => {
+      const divisor = {
+        input2: {
+          label: (
+            <FormattedMessage id="divide.divisor" defaultMessage="Divisor" />
+          ),
+        },
+      };
+      if (data.unary) {
+        return divisor;
+      }
+      return {
+        input1: {
+          label: (
+            <FormattedMessage id="divide.dividend" defaultMessage="Dividend" />
+          ),
+        },
+        ...divisor,
+      };
+    },
+    getOutputs: data => ({
+      output: {
+        label: (
+          <FormattedMessage id="divide.quotient" defaultMessage="Quotient" />
         ),
       },
     }),
