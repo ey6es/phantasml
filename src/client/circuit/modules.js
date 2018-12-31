@@ -16,12 +16,17 @@ import {ShapeList} from '../../server/store/shape';
 import type {Entity} from '../../server/store/resource';
 import type {IdTreeNode} from '../../server/store/scene';
 import {SceneActions} from '../../server/store/scene';
-import type {Vector2} from '../../server/store/math';
+import type {Transform, Vector2} from '../../server/store/math';
 import {
+  TWO_PI,
+  HALF_PI,
   vec2,
   equals,
   length,
   rotateEquals,
+  times,
+  normalize,
+  cross,
   composeTransforms,
   clamp,
 } from '../../server/store/math';
@@ -64,10 +69,13 @@ const SingleOutput = {
   },
 };
 
+const White = [1.0, 1.0, 1.0];
+const DarkGray = [0.25, 0.25, 0.25];
+
 const IconAttributes = {
   thickness: 0.15,
-  pathColor: [1.0, 1.0, 1.0],
-  fillColor: [1.0, 1.0, 1.0],
+  pathColor: White,
+  fillColor: White,
 };
 
 const SplitIcon = new ShapeList()
@@ -110,35 +118,74 @@ const MultiplyIcon = new ShapeList()
 
 const ButtonDialIcon = new ShapeList().penDown(false, {
   thickness: 1.2,
-  pathColor: [1.0, 1.0, 1.0],
+  pathColor: White,
 });
+
+function getDialValue(position: Vector2): number {
+  return Math.atan2(position.x, position.y) / TWO_PI + 0.5;
+}
+
+function getDialTransform(value: ?number): Transform {
+  const rotation = getDialRotation(value);
+  return {
+    translation: rotateEquals(vec2(0.7, 0), rotation),
+    rotation,
+  };
+}
+
+function getDialRotation(value: ?number): number {
+  return HALF_PI - ((value || 0.0) - 0.5) * TWO_PI;
+}
 
 const TOGGLE_SWITCH_SIZE = 0.6;
 const HALF_TOGGLE_SWITCH_SIZE = TOGGLE_SWITCH_SIZE * 0.5;
 const KNOB_THICKNESS = 0.4;
 
+function getToggleSwitchPosition(value: ?boolean): Vector2 {
+  return vec2((value ? 1 : -1) * HALF_TOGGLE_SWITCH_SIZE, 0.0);
+}
+
 const ToggleSwitchIcon = new ShapeList()
   .move(-HALF_TOGGLE_SWITCH_SIZE, 0.0)
-  .penDown(false, {thickness: KNOB_THICKNESS, pathColor: [0.25, 0.25, 0.25]})
+  .penDown(false, {thickness: KNOB_THICKNESS, pathColor: DarkGray})
   .advance(TOGGLE_SWITCH_SIZE);
 
 const SLIDER_SIZE = 4.5;
 const HALF_SLIDER_SIZE = SLIDER_SIZE * 0.5;
 
+function getSliderValue(position: Vector2): number {
+  return clamp(position.x / SLIDER_SIZE + 0.5, 0.0, 1.0);
+}
+
+function getSliderPosition(value: ?number): Vector2 {
+  return vec2(((value || 0.0) - 0.5) * SLIDER_SIZE, 0.0);
+}
+
 const SliderIcon = new ShapeList()
   .move(-HALF_SLIDER_SIZE, 0)
-  .penDown(false, {thickness: 0.15, pathColor: [0.25, 0.25, 0.25]})
+  .penDown(false, {thickness: 0.15, pathColor: DarkGray})
   .advance(SLIDER_SIZE);
 
 const JOYSTICK_SIZE = 1.5;
 const HALF_JOYSTICK_SIZE = JOYSTICK_SIZE * 0.5;
 
+function getJoystickValue(position: Vector2): Vector2 {
+  return vec2(
+    clamp(position.x / HALF_JOYSTICK_SIZE, -1.0, 1.0),
+    clamp(position.y / HALF_JOYSTICK_SIZE, -1.0, 1.0),
+  );
+}
+
+function getJoystickPosition(value: ?Vector2): ?Vector2 {
+  return value && times(value, HALF_JOYSTICK_SIZE);
+}
+
 const JoystickIcon = new ShapeList()
   .move(-HALF_JOYSTICK_SIZE, -HALF_JOYSTICK_SIZE)
   .penDown(true, {
     thickness: 0.15,
-    pathColor: [0.25, 0.25, 0.25],
-    fillColor: [0.25, 0.25, 0.25],
+    pathColor: DarkGray,
+    fillColor: DarkGray,
   })
   .advance(JOYSTICK_SIZE)
   .pivot(90)
@@ -230,14 +277,17 @@ export const ComponentModules: {[string]: ModuleData} = {
       const transform = entity.getLastCachedValue('worldTransform');
       return (renderer, selected, hoverState) => {
         const hoverObject = hoverState && typeof hoverState === 'object';
-        const buttonHover = hoverObject && hoverState.button;
-        const buttonPressed = entity.state.pushButton.pressed;
+        const buttonHover = hoverObject && hoverState.value;
         baseFn(renderer, selected, buttonHover ? undefined : hoverState);
         renderPointHelper(
           renderer,
           transform,
           BUTTON_DIAL_RADIUS,
-          buttonPressed ? '#00ffff' : buttonHover ? '#00bfbf' : '#009999',
+          entity.state.pushButton.value
+            ? '#00ffff'
+            : buttonHover
+              ? '#00bfbf'
+              : '#009999',
           hoverObject &&
             !(hoverState.part || hoverState.dragging || buttonHover),
         );
@@ -248,20 +298,20 @@ export const ComponentModules: {[string]: ModuleData} = {
         return true;
       }
       const oldHoverState = store.getState().hoverStates.get(entity.id);
-      return oldHoverState && oldHoverState.button
+      return oldHoverState && oldHoverState.value
         ? oldHoverState
-        : {button: true};
+        : {value: true};
     },
     onPress: (entity, position, offset) => {
       const oldHoverState = store.getState().hoverStates.get(entity.id);
-      if (!(oldHoverState && oldHoverState.button)) {
+      if (!(oldHoverState && oldHoverState.value)) {
         return [{dragging: position, offset}, true];
       }
       store.dispatch(
         SceneActions.editEntities.create(
           {
             [entity.id]: {
-              pushButton: {pressed: true},
+              pushButton: {value: true},
             },
           },
           false,
@@ -270,12 +320,12 @@ export const ComponentModules: {[string]: ModuleData} = {
       return [oldHoverState, false];
     },
     onRelease: (entity, position) => {
-      if (entity.state.pushButton.pressed) {
+      if (entity.state.pushButton.value) {
         store.dispatch(
           SceneActions.editEntities.create(
             {
               [entity.id]: {
-                pushButton: {pressed: null},
+                pushButton: {value: null},
               },
             },
             false,
@@ -291,25 +341,58 @@ export const ComponentModules: {[string]: ModuleData} = {
       const transform = entity.getLastCachedValue('worldTransform');
       return (renderer, selected, hoverState) => {
         const hoverObject = hoverState && typeof hoverState === 'object';
-        const switchHover = hoverObject && hoverState.switch;
+        const switchHover = hoverObject && hoverState.value != null;
         baseFn(renderer, selected, switchHover ? undefined : hoverState);
         renderPointHelper(
           renderer,
           composeTransforms(transform, {
-            translation: vec2(-HALF_TOGGLE_SWITCH_SIZE),
+            translation: getToggleSwitchPosition(
+              entity.state.toggleSwitch.value,
+            ),
           }),
           KNOB_THICKNESS,
           '#ffffff',
           hoverObject &&
             !(hoverState.part || hoverState.dragging || switchHover),
         );
+        if (switchHover) {
+          renderLineHelper(
+            renderer,
+            transform,
+            KNOB_THICKNESS,
+            '#ffffff',
+            TOGGLE_SWITCH_SIZE,
+            true,
+          );
+        }
       };
     },
     onMove: (entity, position) => {
-      return true;
+      if (
+        Math.abs(position.x) > HALF_TOGGLE_SWITCH_SIZE + KNOB_THICKNESS ||
+        Math.abs(position.y) > KNOB_THICKNESS
+      ) {
+        return true;
+      }
+      const oldHoverState = store.getState().hoverStates.get(entity.id);
+      const value = !entity.state.toggleSwitch.value;
+      return oldHoverState && oldHoverState.value === value
+        ? oldHoverState
+        : {value};
     },
     onPress: (entity, position, offset) => {
-      return [{dragging: position, offset}, true];
+      const oldHoverState = store.getState().hoverStates.get(entity.id);
+      if (!(oldHoverState && oldHoverState.value != null)) {
+        return [{dragging: position, offset}, true];
+      }
+      store.dispatch(
+        SceneActions.editEntities.create({
+          [entity.id]: {
+            toggleSwitch: {value: !entity.state.toggleSwitch.value},
+          },
+        }),
+      );
+      return [oldHoverState, false];
     },
   }),
   dial: extend(BaseModule, {
@@ -320,8 +403,7 @@ export const ComponentModules: {[string]: ModuleData} = {
       const transform = entity.getLastCachedValue('worldTransform');
       return (renderer, selected, hoverState) => {
         const hoverObject = hoverState && typeof hoverState === 'object';
-        const dialHover = hoverObject && hoverState.angle != null;
-        const angle = getValue(entity.state.dial.angle, Math.PI * -0.5);
+        const dialHover = hoverObject && hoverState.value != null;
         baseFn(renderer, selected, dialHover ? undefined : hoverState);
         renderPointHelper(
           renderer,
@@ -332,10 +414,10 @@ export const ComponentModules: {[string]: ModuleData} = {
         );
         renderLineHelper(
           renderer,
-          composeTransforms(transform, {
-            translation: rotateEquals(vec2(0.7, 0), angle),
-            rotation: angle,
-          }),
+          composeTransforms(
+            transform,
+            getDialTransform(entity.state.dial.value),
+          ),
           0.2,
           '#ffffff',
           0.4,
@@ -344,10 +426,7 @@ export const ComponentModules: {[string]: ModuleData} = {
         if (dialHover) {
           renderLineHelper(
             renderer,
-            composeTransforms(transform, {
-              translation: rotateEquals(vec2(0.7, 0), hoverState.angle),
-              rotation: hoverState.angle,
-            }),
+            composeTransforms(transform, getDialTransform(hoverState.value)),
             0.2,
             '#ffffff',
             0.4,
@@ -360,22 +439,17 @@ export const ComponentModules: {[string]: ModuleData} = {
       if (length(position) > BUTTON_DIAL_RADIUS) {
         return true;
       }
-      const angle = Math.atan2(position.y, position.x);
-      const oldHoverState = store.getState().hoverStates.get(entity.id);
-      return oldHoverState && oldHoverState.angle === angle
-        ? oldHoverState
-        : {angle};
+      return {value: getDialValue(position)};
     },
     onPress: (entity, position, offset) => {
       const oldHoverState = store.getState().hoverStates.get(entity.id);
-      if (!(oldHoverState && oldHoverState.angle != null)) {
+      if (!(oldHoverState && oldHoverState.value != null)) {
         return [{dragging: position, offset}, true];
       }
-      const angle = Math.atan2(position.y, position.x);
       store.dispatch(
         SceneActions.editEntities.create({
           [entity.id]: {
-            dial: {angle},
+            dial: {value: getDialValue(position)},
           },
         }),
       );
@@ -383,18 +457,23 @@ export const ComponentModules: {[string]: ModuleData} = {
     },
     onDrag: (entity, position, setHoverState) => {
       const oldHoverState = store.getState().hoverStates.get(entity.id);
-      if (!(oldHoverState && oldHoverState.angle != null)) {
+      if (!(oldHoverState && oldHoverState.value != null)) {
         return oldHoverState;
       }
-      const angle = Math.atan2(position.y, position.x);
+      // use vectors to compute delta in order to enforce dial limits
+      const oldValue = entity.state.dial.value || 0.0;
+      const oldVector = rotateEquals(vec2(1.0, 0.0), getDialRotation(oldValue));
+      const newVector = normalize(position);
+      const delta = Math.asin(cross(newVector, oldVector)) / TWO_PI;
+      const value = clamp(oldValue + delta, 0.0, 1.0);
       store.dispatch(
         SceneActions.editEntities.create({
           [entity.id]: {
-            dial: {angle},
+            dial: {value},
           },
         }),
       );
-      return {angle};
+      return {value};
     },
   }),
   slider: extend(BaseModule, {
@@ -405,15 +484,13 @@ export const ComponentModules: {[string]: ModuleData} = {
       const transform = entity.getLastCachedValue('worldTransform');
       return (renderer, selected, hoverState) => {
         const hoverObject = hoverState && typeof hoverState === 'object';
-        const sliderHover = hoverObject && hoverState.position != null;
-        const sliderPosition = getValue(
-          entity.state.slider.position,
-          -HALF_SLIDER_SIZE,
-        );
+        const sliderHover = hoverObject && hoverState.value != null;
         baseFn(renderer, selected, sliderHover ? undefined : hoverState);
         renderPointHelper(
           renderer,
-          composeTransforms(transform, {translation: vec2(sliderPosition)}),
+          composeTransforms(transform, {
+            translation: getSliderPosition(entity.state.slider.value),
+          }),
           KNOB_THICKNESS,
           '#ffffff',
           hoverObject &&
@@ -423,7 +500,7 @@ export const ComponentModules: {[string]: ModuleData} = {
           renderPointHelper(
             renderer,
             composeTransforms(transform, {
-              translation: vec2(hoverState.position),
+              translation: getSliderPosition(hoverState.value),
             }),
             KNOB_THICKNESS,
             '#ffffff',
@@ -439,30 +516,17 @@ export const ComponentModules: {[string]: ModuleData} = {
       ) {
         return true;
       }
-      const clampedPosition = clamp(
-        position.x,
-        -HALF_SLIDER_SIZE,
-        HALF_SLIDER_SIZE,
-      );
-      const oldHoverState = store.getState().hoverStates.get(entity.id);
-      return oldHoverState && oldHoverState.position == clampedPosition
-        ? oldHoverState
-        : {position: clampedPosition};
+      return {value: getSliderValue(position)};
     },
     onPress: (entity, position, offset) => {
       const oldHoverState = store.getState().hoverStates.get(entity.id);
-      if (!(oldHoverState && oldHoverState.position != null)) {
+      if (!(oldHoverState && oldHoverState.value != null)) {
         return [{dragging: position, offset}, true];
       }
-      const clampedPosition = clamp(
-        position.x,
-        -HALF_SLIDER_SIZE,
-        HALF_SLIDER_SIZE,
-      );
       store.dispatch(
         SceneActions.editEntities.create({
           [entity.id]: {
-            slider: {position: clampedPosition},
+            slider: {value: getSliderValue(position)},
           },
         }),
       );
@@ -470,22 +534,18 @@ export const ComponentModules: {[string]: ModuleData} = {
     },
     onDrag: (entity, position, setHoverState) => {
       const oldHoverState = store.getState().hoverStates.get(entity.id);
-      if (!(oldHoverState && oldHoverState.position != null)) {
+      if (!(oldHoverState && oldHoverState.value != null)) {
         return oldHoverState;
       }
-      const clampedPosition = clamp(
-        position.x,
-        -HALF_SLIDER_SIZE,
-        HALF_SLIDER_SIZE,
-      );
+      const value = getSliderValue(position);
       store.dispatch(
         SceneActions.editEntities.create({
           [entity.id]: {
-            slider: {position: clampedPosition},
+            slider: {value},
           },
         }),
       );
-      return {position: clampedPosition};
+      return {value};
     },
   }),
   joystick: extend(BaseModule, {
@@ -509,12 +569,13 @@ export const ComponentModules: {[string]: ModuleData} = {
       const transform = entity.getLastCachedValue('worldTransform');
       return (renderer, selected, hoverState) => {
         const hoverObject = hoverState && typeof hoverState === 'object';
-        const joystickHover = hoverObject && hoverState.position;
-        const joystickPosition = entity.state.joystick.position;
+        const joystickHover = hoverObject && hoverState.value;
         baseFn(renderer, selected, joystickHover ? undefined : hoverState);
         renderPointHelper(
           renderer,
-          composeTransforms(transform, {translation: joystickPosition}),
+          composeTransforms(transform, {
+            translation: getJoystickPosition(entity.state.joystick.value),
+          }),
           KNOB_THICKNESS,
           '#ffffff',
           hoverObject &&
@@ -523,7 +584,9 @@ export const ComponentModules: {[string]: ModuleData} = {
         if (joystickHover) {
           renderPointHelper(
             renderer,
-            composeTransforms(transform, {translation: hoverState.position}),
+            composeTransforms(transform, {
+              translation: getJoystickPosition(hoverState.value),
+            }),
             KNOB_THICKNESS,
             '#ffffff',
             true,
@@ -538,32 +601,18 @@ export const ComponentModules: {[string]: ModuleData} = {
       ) {
         return true;
       }
-      const clampedPosition = vec2(
-        clamp(position.x, -HALF_JOYSTICK_SIZE, HALF_JOYSTICK_SIZE),
-        clamp(position.y, -HALF_JOYSTICK_SIZE, HALF_JOYSTICK_SIZE),
-      );
-      const oldHoverState = store.getState().hoverStates.get(entity.id);
-      return oldHoverState &&
-        oldHoverState.position &&
-        oldHoverState.position.x === clampedPosition.x &&
-        oldHoverState.position.y === clampedPosition.y
-        ? oldHoverState
-        : {position: clampedPosition};
+      return {value: getJoystickValue(position)};
     },
     onPress: (entity, position, offset) => {
       const oldHoverState = store.getState().hoverStates.get(entity.id);
-      if (!(oldHoverState && oldHoverState.position)) {
+      if (!(oldHoverState && oldHoverState.value)) {
         return [{dragging: position, offset}, true];
       }
-      const clampedPosition = vec2(
-        clamp(position.x, -HALF_JOYSTICK_SIZE, HALF_JOYSTICK_SIZE),
-        clamp(position.y, -HALF_JOYSTICK_SIZE, HALF_JOYSTICK_SIZE),
-      );
       store.dispatch(
         SceneActions.editEntities.create(
           {
             [entity.id]: {
-              joystick: {position: clampedPosition},
+              joystick: {value: getJoystickValue(position)},
             },
           },
           entity.state.joystick.autocenter === false,
@@ -573,35 +622,32 @@ export const ComponentModules: {[string]: ModuleData} = {
     },
     onDrag: (entity, position, setHoverState) => {
       const oldHoverState = store.getState().hoverStates.get(entity.id);
-      if (!(oldHoverState && oldHoverState.position)) {
+      if (!(oldHoverState && oldHoverState.value)) {
         return oldHoverState;
       }
-      const clampedPosition = vec2(
-        clamp(position.x, -HALF_JOYSTICK_SIZE, HALF_JOYSTICK_SIZE),
-        clamp(position.y, -HALF_JOYSTICK_SIZE, HALF_JOYSTICK_SIZE),
-      );
+      const value = getJoystickValue(position);
       store.dispatch(
         SceneActions.editEntities.create(
           {
             [entity.id]: {
-              joystick: {position: clampedPosition},
+              joystick: {value},
             },
           },
           entity.state.joystick.autocenter === false,
         ),
       );
-      return {position: clampedPosition};
+      return {value};
     },
     onRelease: (entity, position) => {
       if (
-        entity.state.joystick.position &&
+        entity.state.joystick.value &&
         entity.state.joystick.autocenter !== false
       ) {
         store.dispatch(
           SceneActions.editEntities.create(
             {
               [entity.id]: {
-                joystick: {position: null},
+                joystick: {value: null},
               },
             },
             false,

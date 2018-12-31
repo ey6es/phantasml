@@ -1082,7 +1082,11 @@ export function roundToPrecision(value: number, precision: number): number {
   return Math.round(value * multiplier) / multiplier;
 }
 
-const TWO_PI = Math.PI * 2.0;
+/** Two times pi. */
+export const TWO_PI = Math.PI * 2.0;
+
+/** Half pi. */
+export const HALF_PI = Math.PI * 0.5;
 
 /**
  * Normalizes an angle to (-pi, pi].
