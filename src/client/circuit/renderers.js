@@ -47,6 +47,7 @@ import {
   getTransformVectorMatrix,
   getTransformInverseMatrix,
   getTransformTranslation,
+  getTransformRotation,
   composeTransforms,
   invertTransform,
   transformPoint,
@@ -71,6 +72,7 @@ ComponentRenderers.moduleRenderer = {
         const data = entity.state[key];
         const inputCount = Object.keys(module.getInputs(data)).length;
         const outputCount = Object.keys(module.getOutputs(data)).length;
+        const outputTransform = module.getOutputTransform(data);
         const width = module.getWidth(data);
         return module.createRenderFn(
           idTree,
@@ -97,6 +99,7 @@ ComponentRenderers.moduleRenderer = {
                 hoverState,
                 inputCount,
                 outputCount,
+                outputTransform,
                 width,
               );
             },
@@ -134,7 +137,7 @@ ComponentRenderers.moduleRenderer = {
                 label = inputs[inputKeys[index]].label;
                 vec2(
                   width * -0.5 - MODULE_HEIGHT_PER_TERMINAL * 0.5,
-                  ((inputKeys.length - 1) * 0.5 - index + 0.25) *
+                  ((inputKeys.length - 1) * 0.5 - index) *
                     MODULE_HEIGHT_PER_TERMINAL,
                   position,
                 );
@@ -142,11 +145,14 @@ ComponentRenderers.moduleRenderer = {
                 index -= inputKeys.length;
                 const outputKey = outputKeys[index];
                 label = outputs[outputKey].label;
-                vec2(
-                  width * 0.5 + MODULE_HEIGHT_PER_TERMINAL * 0.5,
-                  ((outputKeys.length - 1) * 0.5 - index + 0.25) *
-                    MODULE_HEIGHT_PER_TERMINAL,
-                  position,
+                transformPointEquals(
+                  vec2(
+                    width * 0.5 + MODULE_HEIGHT_PER_TERMINAL * 0.5,
+                    ((outputKeys.length - 1) * 0.5 - index) *
+                      MODULE_HEIGHT_PER_TERMINAL,
+                    position,
+                  ),
+                  getTransformMatrix(module.getOutputTransform(data)),
                 );
                 const output = data[outputKey];
                 const targetEntity =
@@ -178,9 +184,7 @@ ComponentRenderers.moduleRenderer = {
                     const targetWidth = targetModule.getWidth(targetData);
                     secondaryPosition = vec2(
                       targetWidth * -0.5 - MODULE_HEIGHT_PER_TERMINAL * 0.5,
-                      ((targetInputKeys.length - 1) * 0.5 -
-                        targetIndex +
-                        0.25) *
+                      ((targetInputKeys.length - 1) * 0.5 - targetIndex) *
                         MODULE_HEIGHT_PER_TERMINAL,
                     );
                     transformPointEquals(
@@ -189,19 +193,20 @@ ComponentRenderers.moduleRenderer = {
                         targetEntity.getLastCachedValue('worldTransform'),
                       ),
                     );
+                    secondaryPosition.y += MODULE_HEIGHT_PER_TERMINAL * 0.25;
                   }
                 }
               }
+              transformPointEquals(
+                position,
+                getTransformMatrix(entity.getLastCachedValue('worldTransform')),
+              );
+              position.y += MODULE_HEIGHT_PER_TERMINAL * 0.25;
               store.dispatch(
                 StoreActions.setTooltip.create({
                   entityId: entity.id,
                   label,
-                  position: transformPointEquals(
-                    position,
-                    getTransformMatrix(
-                      entity.getLastCachedValue('worldTransform'),
-                    ),
-                  ),
+                  position,
                   secondaryLabel,
                   secondaryPosition,
                 }),
@@ -685,15 +690,25 @@ ComponentGeometry.moduleRenderer = {
       const outputPosition = vec2();
       let color = 0;
       let connected = false;
+      const outputTransform = module.getOutputTransform(data);
+      const outputMatrix = getTransformMatrix(outputTransform);
+      const outputInverseMatrix = getTransformInverseMatrix(outputTransform);
+      const outputRotation = getTransformRotation(outputTransform);
       for (const output in outputs) {
         const wireColor = WireColorArrays[color];
         color = (color + 1) % WireColorArrays.length;
-        shapeList.move(width * 0.5, y, 0).penDown(false, {
-          thickness: MODULE_THICKNESS,
-          pathColor: wireColor,
-          fillColor: wireColor,
-          part,
-        });
+        transformPointEquals(
+          vec2(width * 0.5, y, outputPosition),
+          outputMatrix,
+        );
+        shapeList
+          .jump(outputPosition.x, outputPosition.y, outputRotation)
+          .penDown(false, {
+            thickness: MODULE_THICKNESS,
+            pathColor: wireColor,
+            fillColor: wireColor,
+            part,
+          });
         const target = data[output];
         const targetEntity = target && idTree.getEntity(target.ref);
         const targetModuleKey = targetEntity && getModuleKey(targetEntity);
@@ -724,6 +739,7 @@ ComponentGeometry.moduleRenderer = {
             ),
           );
           vec2(width * 0.5, y, outputPosition);
+          transformPointEquals(inputPosition, outputInverseMatrix);
           const halfSpan = distance(outputPosition, inputPosition) * 0.5;
           outputPosition.x += halfSpan;
           inputPosition.x -= halfSpan;
@@ -748,18 +764,8 @@ ComponentGeometry.moduleRenderer = {
         y -= MODULE_HEIGHT_PER_TERMINAL;
         part++;
       }
-      shapeList
-        .raise()
-        .move(width * -0.5, height * -0.5, 0, MODULE_BODY_ATTRIBUTES)
-        .penDown(true)
-        .advance(width)
-        .pivot(90)
-        .advance(height)
-        .pivot(90)
-        .advance(width)
-        .pivot(90)
-        .advance(height)
-        .penUp();
+      shapeList.raise().setAttributes(MODULE_BODY_ATTRIBUTES);
+      module.drawBody(data, width, height, shapeList);
       shapeList.add(module.getIcon(data));
       return new TransferableValue(shapeList, newEntity => {
         // we can transfer if we have the same module component
@@ -773,6 +779,7 @@ ComponentGeometry.moduleRenderer = {
 };
 
 const start = vec2();
+const end = vec2();
 
 function renderModule(
   renderer: Renderer,
@@ -784,6 +791,7 @@ function renderModule(
   hoverState: HoverState,
   inputCount: number,
   outputCount: number,
+  outputTransform: Transform,
   width: number,
 ) {
   const partHover = hoverState && hoverState.part;
@@ -838,23 +846,29 @@ function renderModule(
     const index = hoverState.part - inputCount - 1;
     start.x = width * 0.5;
     start.y = ((outputCount - 1) * 0.5 - index) * MODULE_HEIGHT_PER_TERMINAL;
+    const wireTransform = composeTransforms(transform, outputTransform);
+    transformPoint(
+      hoverState.dragging,
+      getTransformInverseMatrix(outputTransform),
+      end,
+    );
     if (selected) {
       renderWireHelper(
         renderer,
-        transform,
+        wireTransform,
         MODULE_THICKNESS + renderer.pixelsToWorldUnits * 3.0,
         SELECT_COLOR,
         start,
-        hoverState.dragging,
+        end,
       );
     }
     renderWireHelper(
       renderer,
-      transform,
+      wireTransform,
       MODULE_THICKNESS,
       WireColors[index % WireColors.length],
       start,
-      hoverState.dragging,
+      end,
     );
   }
   geometry.draw(program);

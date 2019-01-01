@@ -7,7 +7,12 @@
 
 import * as React from 'react';
 import {FormattedMessage} from 'react-intl';
-import {InputsProperty, OutputsProperty, CircuitComponents} from './components';
+import {
+  InputsProperty,
+  OutputsProperty,
+  ElementsProperty,
+  CircuitComponents,
+} from './components';
 import type {HoverState} from '../store';
 import {store} from '../store';
 import type {Renderer} from '../renderer/util';
@@ -44,8 +49,10 @@ type ModuleData = {
   getIcon: Object => ShapeList,
   getInputs: Object => {[string]: InputData},
   getOutputs: Object => {[string]: OutputData},
+  getOutputTransform: Object => Transform,
   getWidth: Object => number,
   getHeight: (Object, number, number) => number,
+  drawBody: (Object, number, number, ShapeList) => void,
   createRenderFn: (
     IdTreeNode,
     Entity,
@@ -117,15 +124,9 @@ const MultiplyIcon = new ShapeList()
   .advance(0.6708);
 
 const DivideIcon = new ShapeList()
-  .move(-0.375, 0)
+  .move(-0.144, -0.346, 67.5)
   .penDown(false, IconAttributes)
-  .advance(0.75)
-  .penUp()
-  .move(0.0, 0.375)
-  .penDown()
-  .penUp()
-  .move(0.0, -0.375)
-  .penDown();
+  .advance(0.75);
 
 const ButtonDialIcon = new ShapeList().penDown(false, {
   thickness: 1.2,
@@ -221,6 +222,20 @@ const BaseModule = {
   getHeight: (data, inputCount, outputCount) => {
     return Math.max(inputCount, outputCount) * MODULE_HEIGHT_PER_TERMINAL;
   },
+  getOutputTransform: data => null,
+  drawBody: (data, width, height, shapeList) => {
+    shapeList
+      .move(width * -0.5, height * -0.5, 0)
+      .penDown(true)
+      .advance(width)
+      .pivot(90)
+      .advance(height)
+      .pivot(90)
+      .advance(width)
+      .pivot(90)
+      .advance(height)
+      .penUp();
+  },
   createRenderFn: (idTree, entity, baseFn) => baseFn,
   onMove: (entity, position) => true,
   onPress: (entity, position, offset) => [{dragging: position, offset}, true],
@@ -240,6 +255,36 @@ export const ComponentModules: {[string]: ModuleData} = {
     getIcon: data => ForkIcon,
     getInputs: data => SingleInput,
     getOutputs: createMultipleOutputs,
+  }),
+  bundle: extend(BaseModule, {
+    getWidth: data => MODULE_HEIGHT_PER_TERMINAL,
+    getInputs: createElementInputs,
+    getOutputs: createElementOutputs,
+  }),
+  bend: extend(BaseModule, {
+    getWidth: data => {
+      const elementCount =
+        data.elements || ElementsProperty.elements.defaultValue;
+      return MODULE_HEIGHT_PER_TERMINAL * elementCount;
+    },
+    getInputs: createElementInputs,
+    getOutputs: createElementOutputs,
+    getOutputTransform: data => ({rotation: data.left ? HALF_PI : -HALF_PI}),
+    drawBody: (data, width, height, shapeList) => {
+      if (data.left) {
+        shapeList.move(width * -0.5, height * 0.5, -90);
+      } else {
+        shapeList.move(width * -0.5, height * -0.5, 0);
+      }
+      shapeList
+        .penDown(true)
+        .advance(width)
+        .pivot(135)
+        .advance(Math.sqrt(width * width + height * height))
+        .pivot(135)
+        .advance(height)
+        .penUp();
+    },
   }),
   add: extend(BaseModule, {
     getIcon: data => AddIcon,
@@ -771,4 +816,34 @@ function createMultipleOutputs(data: Object): {[string]: OutputData} {
     };
   }
   return outputs;
+}
+
+function createElementInputs(data: Object): {[string]: InputData} {
+  const inputs = {};
+  const elementCount = data.elements || ElementsProperty.elements.defaultValue;
+  for (let ii = 1; ii <= elementCount; ii++) {
+    inputs['input' + ii] = createElement(ii);
+  }
+  return inputs;
+}
+
+function createElementOutputs(data: Object): {[string]: OutputData} {
+  const outputs = {};
+  const elementCount = data.elements || ElementsProperty.elements.defaultValue;
+  for (let ii = 1; ii <= elementCount; ii++) {
+    outputs['output' + ii] = createElement(ii);
+  }
+  return outputs;
+}
+
+function createElement(index: number) {
+  return {
+    label: (
+      <FormattedMessage
+        id="circuit.element.n"
+        defaultMessage="Element {number}"
+        values={{number: index}}
+      />
+    ),
+  };
 }

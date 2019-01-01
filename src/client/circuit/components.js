@@ -64,6 +64,20 @@ export const OutputsProperty = {
   },
 };
 
+/**
+ * The shared element count property.
+ */
+export const ElementsProperty = {
+  elements: {
+    type: 'number',
+    label: (
+      <FormattedMessage id="circuit.elements" defaultMessage="Elements:" />
+    ),
+    min: 1,
+    defaultValue: 2,
+  },
+};
+
 const UnaryProperty = {
   unary: {
     type: 'boolean',
@@ -120,6 +134,24 @@ export const CircuitComponents: {[string]: ComponentData} = {
     },
     category: 'layout',
   },
+  bundle: {
+    label: <FormattedMessage id="bundle.title" defaultMessage="Bundle" />,
+    properties: {
+      ...ElementsProperty,
+    },
+    category: 'layout',
+  },
+  bend: {
+    label: <FormattedMessage id="bend.title" defaultMessage="L-Bend" />,
+    properties: {
+      ...ElementsProperty,
+      left: {
+        type: 'boolean',
+        label: <FormattedMessage id="bend.left" defaultMessage="Left:" />,
+      },
+    },
+    category: 'layout',
+  },
   add: {
     label: <FormattedMessage id="add.title" defaultMessage="Add" />,
     properties: {
@@ -150,7 +182,7 @@ export const CircuitComponents: {[string]: ComponentData} = {
   },
   pushButton: {
     label: (
-      <FormattedMessage id="push_button.title" defaultMessage="Push Button" />
+      <FormattedMessage id="push_button.title" defaultMessage="Push-Button" />
     ),
     properties: {
       ...OffProperty,
