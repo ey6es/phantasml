@@ -194,6 +194,30 @@ export const RendererComponents: {[string]: ComponentData} = {
     },
     category: 'renderer',
   },
+  sensorRenderer: {
+    label: (
+      <FormattedMessage
+        id="sensor_renderer.title"
+        defaultMessage="Sensor Renderer"
+      />
+    ),
+    properties: {
+      ...ZOrderProperty,
+    },
+    category: 'renderer',
+  },
+  effectorRenderer: {
+    label: (
+      <FormattedMessage
+        id="effector_renderer.title"
+        defaultMessage="Effector Renderer"
+      />
+    ),
+    properties: {
+      ...ZOrderProperty,
+    },
+    category: 'renderer',
+  },
   moduleRenderer: {
     label: (
       <FormattedMessage

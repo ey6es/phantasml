@@ -37,6 +37,7 @@ import {
   minus,
   distance,
 } from '../../server/store/math';
+import {extend} from '../../server/store/util';
 import * as FontData from '../font/Lato-Regular.json';
 
 const FontCharacters: Map<string, Object> = new Map();
@@ -70,11 +71,24 @@ type RendererData = {
 };
 
 /**
+ * Base renderer object.
+ */
+export const BaseRenderer = {
+  getZOrder: (data: Object) => data.zOrder || 0,
+  createRenderFn: () => () => {},
+  onMove: getCurrentHoverState,
+  onFrame: getCurrentHoverState,
+  onPress: getCurrentHoverState,
+  onDrag: getCurrentHoverState,
+  onDragOver: getCurrentHoverState,
+  onRelease: getCurrentHoverState,
+};
+
+/**
  * Renderer component functions mapped by component name.
  */
 export const ComponentRenderers: {[string]: RendererData} = {
-  shapeRenderer: {
-    getZOrder: (data: Object) => data.zOrder || 0,
+  shapeRenderer: extend(BaseRenderer, {
     createRenderFn: (idTree: IdTreeNode, entity: Entity) => {
       const data = entity.state.shapeRenderer;
       const props = RendererComponents.shapeRenderer.properties;
@@ -147,13 +161,10 @@ export const ComponentRenderers: {[string]: RendererData} = {
       };
     },
     onMove: onShapeMove,
-    onFrame: getCurrentHoverState,
     onPress: onShapePress,
     onDrag: onShapeDrag,
-    onDragOver: getCurrentHoverState,
-    onRelease: getCurrentHoverState,
-  },
-  textRenderer: {
+  }),
+  textRenderer: extend(BaseRenderer, {
     getZOrder: (data: Object) => data.zOrder || 0,
     createRenderFn: (idTree: IdTreeNode, entity: Entity) => {
       const data = entity.state.textRenderer;
@@ -167,12 +178,9 @@ export const ComponentRenderers: {[string]: RendererData} = {
       };
     },
     onMove: onShapeMove,
-    onFrame: getCurrentHoverState,
     onPress: onShapePress,
     onDrag: onShapeDrag,
-    onDragOver: getCurrentHoverState,
-    onRelease: getCurrentHoverState,
-  },
+  }),
 };
 
 function onShapeMove(entity: Entity, position: Vector2): HoverState {
