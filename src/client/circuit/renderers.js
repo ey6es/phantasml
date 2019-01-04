@@ -36,11 +36,12 @@ import {
 import {ShapeList} from '../../server/store/shape';
 import {
   ComponentGeometry,
+  BaseGeometry,
   getCollisionGeometry,
   getShapeList,
 } from '../../server/store/geometry';
 import type {PenetrationResult} from '../../server/store/collision';
-import {ComponentBounds} from '../../server/store/bounds';
+import {ComponentBounds, BaseBounds} from '../../server/store/bounds';
 import type {Vector2, Transform, Bounds} from '../../server/store/math';
 import {
   getTransformMatrix,
@@ -60,7 +61,7 @@ import {
   plusEquals,
   distance,
 } from '../../server/store/math';
-import {getColorArray} from '../../server/store/util';
+import {extend, getColorArray} from '../../server/store/util';
 
 ComponentRenderers.moduleRenderer = {
   getZOrder: (data: Object) => data.zOrder || 0,
@@ -631,14 +632,9 @@ const WireColors = [
 ];
 const WireColorArrays = WireColors.map(getColorArray);
 
-ComponentBounds.moduleRenderer = {
-  addToBounds: (idTree: IdTreeNode, entity: Entity, bounds: Bounds) => {
-    const shapeList = getShapeList(idTree, entity);
-    return shapeList ? shapeList.addToBounds(bounds) : 0.0;
-  },
-};
+ComponentBounds.moduleRenderer = BaseBounds;
 
-ComponentGeometry.moduleRenderer = {
+ComponentGeometry.moduleRenderer = extend(BaseGeometry, {
   createShapeList: (idTree, entity) => {
     for (const key in entity.state) {
       const module = ComponentModules[key];
@@ -774,9 +770,7 @@ ComponentGeometry.moduleRenderer = {
     }
     return new ShapeList();
   },
-  getControlPoints: data => [],
-  createControlPointEdit: (entity, indexPositions, mirrored) => ({}),
-};
+});
 
 const start = vec2();
 const end = vec2();

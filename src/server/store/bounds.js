@@ -27,6 +27,16 @@ type BoundsData = {
 };
 
 /**
+ * Base bounds object.
+ */
+export const BaseBounds: BoundsData = {
+  addToBounds: (idTree, entity, bounds) => {
+    const shapeList = getShapeList(idTree, entity);
+    return shapeList ? shapeList.addToBounds(bounds) : 0.0;
+  },
+};
+
+/**
  * Bounds component functions mapped by component name.
  */
 export const ComponentBounds: {[string]: BoundsData} = {
@@ -103,12 +113,7 @@ export const ComponentBounds: {[string]: BoundsData} = {
       return addShapeListToBounds(idTree, entity, bounds, 'shape');
     },
   },
-  shapeList: {
-    addToBounds: (idTree: IdTreeNode, entity: Entity, bounds: Bounds) => {
-      const shapeList = getShapeList(idTree, entity);
-      return shapeList ? shapeList.addToBounds(bounds) : 0.0;
-    },
-  },
+  shapeList: BaseBounds,
 };
 
 function addShapeListToBounds(

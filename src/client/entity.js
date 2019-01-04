@@ -11,6 +11,8 @@ import {FormattedMessage} from 'react-intl';
 import {StoreActions, store, createUuid, centerPageOnSelection} from './store';
 import type {ComponentData} from './component';
 import {GeometryComponents} from './geometry/components';
+import {SensorCategory, SensorComponents} from './sensor/components';
+import {EffectorCategory, EffectorComponents} from './effector/components';
 import {CircuitCategories, CircuitComponents} from './circuit/components';
 import type {Renderer} from './renderer/util';
 import {Menu, MenuItem, Submenu, renderText} from './util/ui';
@@ -54,6 +56,8 @@ export class EntityDropdown extends React.Component<{locale: string}, {}> {
         </MenuItem>
         <ShapeMenu createEntity={this._createEntity} />
         <ModuleMenu createEntity={this._createEntity} />
+        <SensorMenu createEntity={this._createEntity} />
+        <EffectorMenu createEntity={this._createEntity} />
       </Menu>
     );
   }
@@ -97,9 +101,72 @@ function ShapeMenu(props: {
   );
 }
 
+function SensorMenu(props: {
+  createEntity: (React.Element<any>, Object) => void,
+}) {
+  if (store.getState().page !== 'exterior') {
+    return null;
+  }
+  const entries: [string, ComponentData][] = (Object.entries(
+    SensorComponents,
+  ): [string, any][]);
+  return (
+    <Submenu label={SensorCategory.sensor.label}>
+      {entries.map(
+        ([name, data]) =>
+          data.category ? (
+            <MenuItem
+              key={name}
+              onClick={() =>
+                props.createEntity(data.label, {
+                  [name]: {order: 1},
+                  sensorRenderer: {order: 2},
+                })
+              }>
+              {data.label}
+            </MenuItem>
+          ) : null,
+      )}
+    </Submenu>
+  );
+}
+
+function EffectorMenu(props: {
+  createEntity: (React.Element<any>, Object) => void,
+}) {
+  if (store.getState().page !== 'exterior') {
+    return null;
+  }
+  const entries: [string, ComponentData][] = (Object.entries(
+    EffectorComponents,
+  ): [string, any][]);
+  return (
+    <Submenu label={EffectorCategory.effector.label}>
+      {entries.map(
+        ([name, data]) =>
+          data.category ? (
+            <MenuItem
+              key={name}
+              onClick={() =>
+                props.createEntity(data.label, {
+                  [name]: {order: 1},
+                  effectorRenderer: {order: 2},
+                })
+              }>
+              {data.label}
+            </MenuItem>
+          ) : null,
+      )}
+    </Submenu>
+  );
+}
+
 function ModuleMenu(props: {
   createEntity: (React.Element<any>, Object) => void,
 }) {
+  if (store.getState().page !== 'interior') {
+    return null;
+  }
   const entries: [string, ComponentData][] = (Object.entries(
     CircuitComponents,
   ): [string, any][]);

@@ -18,6 +18,7 @@ import {Scene, SceneActions} from '../../server/store/scene';
 import {Path, Shape, ShapeList} from '../../server/store/shape';
 import {
   ComponentGeometry,
+  BaseGeometry,
   getCollisionGeometry,
   getShapeList,
 } from '../../server/store/geometry';
@@ -73,8 +74,8 @@ type RendererData = {
 /**
  * Base renderer object.
  */
-export const BaseRenderer = {
-  getZOrder: (data: Object) => data.zOrder || 0,
+export const BaseRenderer: RendererData = {
+  getZOrder: data => data.zOrder || 0,
   createRenderFn: () => () => {},
   onMove: getCurrentHoverState,
   onFrame: getCurrentHoverState,
@@ -372,7 +373,7 @@ ComponentBounds.textRenderer = {
   },
 };
 
-ComponentGeometry.textRenderer = {
+ComponentGeometry.textRenderer = extend(BaseGeometry, {
   createShapeList: (idTree, entity) => {
     const data = entity.state.textRenderer;
     const bounds = getTextBounds(data);
@@ -384,9 +385,7 @@ ComponentGeometry.textRenderer = {
       .lineTo(bounds.min);
     return new ShapeList([new Shape(path)]);
   },
-  getControlPoints: data => [],
-  createControlPointEdit: (entity, indexPositions, mirrored) => ({}),
-};
+});
 
 function getTextBounds(data: Object): Bounds {
   const text = data.text || '';

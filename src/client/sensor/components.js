@@ -9,6 +9,9 @@ import * as React from 'react';
 import {FormattedMessage} from 'react-intl';
 import type {ComponentData, CategoryData} from '../component';
 
+// ensure that renderers are included in build
+import './renderers';
+
 /**
  * The sensor component category.
  */

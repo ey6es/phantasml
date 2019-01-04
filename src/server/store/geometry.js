@@ -181,6 +181,15 @@ function createShapeList(
 }
 
 /**
+ * Base geometry object.
+ */
+export const BaseGeometry: GeometryData = {
+  createShapeList: (idTree, entity) => new ShapeList(),
+  getControlPoints: data => [],
+  createControlPointEdit: (entity, indexPositions, mirrored) => ({}),
+};
+
+/**
  * Geometry component functions mapped by component name.
  */
 export const ComponentGeometry: {[string]: GeometryData} = {
