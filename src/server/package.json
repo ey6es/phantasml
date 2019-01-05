@@ -9,7 +9,7 @@
     "flow-runtime": "^0.17.0",
     "google-auth-library": "^1.6.1",
     "react": "^16.4.1",
-    "react-dom": ">=16.4.2",
+    "react-dom": "^16.4.1",
     "react-intl": "^2.4.0",
     "uuid": "^3.3.2"
   },
