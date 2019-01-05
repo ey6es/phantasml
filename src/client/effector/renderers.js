@@ -13,6 +13,7 @@ import {
   createShapeListRenderFn,
   renderShapeList,
 } from '../renderer/renderers';
+import {TransferableValue} from '../../server/store/resource';
 import {ComponentBounds, BaseBounds} from '../../server/store/bounds';
 import {
   ComponentGeometry,
@@ -29,7 +30,11 @@ ComponentGeometry.effectorRenderer = extend(BaseGeometry, {
     for (const key in entity.state) {
       const effector = ComponentEffectors[key];
       if (effector) {
-        return effector.createShapeList(entity.state[key]);
+        const data = entity.state[key];
+        return new TransferableValue(
+          effector.createShapeList(data),
+          newEntity => newEntity.state[key] === data,
+        );
       }
     }
     return new ShapeList();

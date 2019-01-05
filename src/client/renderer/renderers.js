@@ -77,10 +77,10 @@ type RendererData = {
 export const BaseRenderer: RendererData = {
   getZOrder: data => data.zOrder || 0,
   createRenderFn: () => () => {},
-  onMove: getCurrentHoverState,
+  onMove: onShapeMove,
   onFrame: getCurrentHoverState,
-  onPress: getCurrentHoverState,
-  onDrag: getCurrentHoverState,
+  onPress: onShapePress,
+  onDrag: onShapeDrag,
   onDragOver: getCurrentHoverState,
   onRelease: getCurrentHoverState,
 };
@@ -161,12 +161,8 @@ export const ComponentRenderers: {[string]: RendererData} = {
         }
       };
     },
-    onMove: onShapeMove,
-    onPress: onShapePress,
-    onDrag: onShapeDrag,
   }),
   textRenderer: extend(BaseRenderer, {
-    getZOrder: (data: Object) => data.zOrder || 0,
     createRenderFn: (idTree: IdTreeNode, entity: Entity) => {
       const data = entity.state.textRenderer;
       const transform: Transform = entity.getLastCachedValue('worldTransform');
@@ -178,9 +174,6 @@ export const ComponentRenderers: {[string]: RendererData} = {
         renderText(renderer, transform, color, geometry, selected, hoverState);
       };
     },
-    onMove: onShapeMove,
-    onPress: onShapePress,
-    onDrag: onShapeDrag,
   }),
 };
 
@@ -757,50 +750,30 @@ function renderShape(
   geometry.draw(program);
 }
 
-const SHAPE_VERTEX_SHADER = `
-  uniform mat3 modelMatrix;
-  uniform mat2 vectorMatrix;
-  uniform mat3 viewProjectionMatrix;
-  uniform float pixelsToWorldUnits;
-  attribute vec2 vertex;
-  attribute vec2 vector;
-  attribute float joint;
-  attribute float thickness;
-  varying vec2 interpolatedVector;
-  varying float interpolatedJoint;
-  varying float stepSize;
-  void main(void) {
-    interpolatedVector = vector;
-    interpolatedJoint = joint;
-    stepSize = pixelsToWorldUnits / thickness;
-    vec3 point =
-      modelMatrix * vec3(vertex, 1.0) +
-      vec3(vectorMatrix * vector, 0.0) * thickness;
-    vec3 position = viewProjectionMatrix * point;
-    gl_Position = vec4(position.xy, 0.0, 1.0);
-  }
-`;
+const SHAPE_VERTEX_SHADER = createVertexShader(
+  `
+    attribute float thickness;
+  `,
+);
 
 /**
  * Fragment shader used for general shapes.
  */
-export const SHAPE_FRAGMENT_SHADER = `
-  precision mediump float;
-  uniform vec3 pathColor;
-  uniform vec3 fillColor;
-  varying vec2 interpolatedVector;
-  varying float interpolatedJoint;
-  varying float stepSize;
-  void main(void) {
-    float dist = length(interpolatedVector);
-    float filled = 1.0 - step(dist, 0.0);
-    float inside = 1.0 - smoothstep(1.0 - stepSize, 1.0, dist);
-    // joints are drawn twice, so adjust alpha accordingly
-    float joint = smoothstep(0.0, stepSize, interpolatedJoint);
-    float alpha = mix(2.0 * inside - inside * inside, inside, joint);
-    gl_FragColor = vec4(mix(fillColor, pathColor, filled), alpha);
-  }
-`;
+export const SHAPE_FRAGMENT_SHADER = createShapeFragmentShader('baseAlpha');
+
+function createShapeFragmentShader(alpha: string): string {
+  return createFragmentShader(
+    `
+      uniform vec3 pathColor;
+      uniform vec3 fillColor;
+    `,
+    `
+      float filled = 1.0 - step(dist, 0.0);
+      vec3 color = mix(fillColor, pathColor, filled);
+    `,
+    `vec4(color, ${alpha})`,
+  );
+}
 
 function renderTranslucentShape(
   renderer: Renderer,
@@ -827,23 +800,64 @@ function renderTranslucentShape(
   geometry.draw(program);
 }
 
-export const TRANSLUCENT_SHAPE_FRAGMENT_SHADER = `
-  precision mediump float;
-  uniform vec3 pathColor;
-  uniform vec3 fillColor;
-  varying vec2 interpolatedVector;
-  varying float interpolatedJoint;
-  varying float stepSize;
-  void main(void) {
-    float dist = length(interpolatedVector);
-    float filled = 1.0 - step(dist, 0.0);
-    float inside = 1.0 - smoothstep(1.0 - stepSize, 1.0, dist);
-    // joints are drawn twice, so adjust alpha accordingly
-    float joint = smoothstep(0.0, stepSize, interpolatedJoint);
-    float alpha = mix(2.0 * inside - inside * inside, inside, joint);
-    gl_FragColor = vec4(mix(fillColor, pathColor, filled), alpha * 0.25);
+export const TRANSLUCENT_SHAPE_FRAGMENT_SHADER = createShapeFragmentShader(
+  'baseAlpha * 0.25',
+);
+
+/**
+ * Renders a shape list with the filled parts translucent.
+ *
+ * @param renderer the renderer to use.
+ * @param transform the shape list transform.
+ * @param pathColor the path color to use.
+ * @param fillColor the fill color to use.
+ * @param geometry the shape list geometry.
+ * @param selected whether or not the list is selected.
+ * @param hoverState the shape list hover state.
+ */
+export function renderTranslucentFilledShapeList(
+  renderer: Renderer,
+  transform: Transform,
+  pathColor: string,
+  fillColor: string,
+  geometry: Geometry,
+  selected: boolean,
+  hoverState: HoverState,
+) {
+  if (isHoverStateTransform(hoverState)) {
+    renderTranslucentShapeList(
+      renderer,
+      composeTransforms(hoverState, transform),
+      pathColor,
+      fillColor,
+      geometry,
+    );
+    return;
   }
-`;
+  if (selected || hoverState) {
+    renderBackdrop(renderer, transform, geometry, selected, hoverState);
+  }
+  const program = renderer.getProgram(
+    renderTranslucentFilledShapeList,
+    renderer.getVertexShader(renderShapeList, SHAPE_LIST_VERTEX_SHADER),
+    renderer.getFragmentShader(
+      renderTranslucentFilledShapeList,
+      TRANSLUCENT_FILLED_SHAPE_LIST_FRAGMENT_SHADER,
+    ),
+  );
+  program.setUniformViewProjectionMatrix('viewProjectionMatrix');
+  program.setUniformMatrix('modelMatrix', transform, getTransformMatrix);
+  program.setUniformMatrix('vectorMatrix', getTransformVectorMatrix(transform));
+  program.setUniformFloat('pixelsToWorldUnits', renderer.pixelsToWorldUnits);
+  program.setUniformColor('pathColorScale', pathColor);
+  program.setUniformColor('fillColorScale', fillColor);
+  renderer.setEnabled(renderer.gl.BLEND, true);
+  geometry.draw(program);
+}
+
+const TRANSLUCENT_FILLED_SHAPE_LIST_FRAGMENT_SHADER = createShapeListFragmentShader(
+  'baseAlpha * mix(0.25, 1.0, filled)',
+);
 
 /**
  * Renders a shape list.
@@ -900,58 +914,37 @@ function isHoverStateTransform(hoverState: HoverState): boolean {
   );
 }
 
-const SHAPE_LIST_VERTEX_SHADER = `
-  uniform mat3 modelMatrix;
-  uniform mat2 vectorMatrix;
-  uniform mat3 viewProjectionMatrix;
-  uniform float pixelsToWorldUnits;
-  uniform vec3 pathColorScale;
-  uniform vec3 fillColorScale;
-  attribute vec2 vertex;
-  attribute vec2 vector;
-  attribute float joint;
-  attribute float thickness;
-  attribute vec3 pathColor;
-  attribute vec3 fillColor;
-  varying vec2 interpolatedVector;
-  varying float interpolatedJoint;
-  varying float stepSize;
-  varying vec3 interpolatedPathColor;
-  varying vec3 interpolatedFillColor;
-  void main(void) {
-    interpolatedVector = vector;
-    interpolatedJoint = joint;
+const SHAPE_LIST_VERTEX_SHADER = createVertexShader(
+  `
+    uniform vec3 pathColorScale;
+    uniform vec3 fillColorScale;
+    attribute float thickness;
+    attribute vec3 pathColor;
+    attribute vec3 fillColor;
+    varying vec3 interpolatedPathColor;
+    varying vec3 interpolatedFillColor;
+  `,
+  `
     interpolatedPathColor = pathColor * pathColorScale;
     interpolatedFillColor = fillColor * fillColorScale;
-    stepSize = pixelsToWorldUnits / thickness;
-    vec3 point =
-      modelMatrix * vec3(vertex, 1.0) +
-      vec3(vectorMatrix * vector, 0.0) * thickness;
-    vec3 position = viewProjectionMatrix * point;
-    gl_Position = vec4(position.xy, 0.0, 1.0);
-  }
-`;
+  `,
+);
 
-const SHAPE_LIST_FRAGMENT_SHADER = `
-  precision mediump float;
-  varying vec2 interpolatedVector;
-  varying float interpolatedJoint;
-  varying float stepSize;
-  varying vec3 interpolatedPathColor;
-  varying vec3 interpolatedFillColor;
-  void main(void) {
-    float dist = length(interpolatedVector);
-    float filled = 1.0 - step(dist, 0.0);
-    float inside = 1.0 - smoothstep(1.0 - stepSize, 1.0, dist);
-    // joints are drawn twice, so adjust alpha accordingly
-    float joint = smoothstep(0.0, stepSize, interpolatedJoint);
-    float alpha = mix(2.0 * inside - inside * inside, inside, joint);
-    gl_FragColor = vec4(
-      mix(interpolatedFillColor, interpolatedPathColor, filled),
-      alpha
-    );
-  }
-`;
+const SHAPE_LIST_FRAGMENT_SHADER = createShapeListFragmentShader('baseAlpha');
+
+function createShapeListFragmentShader(alpha: string): string {
+  return createFragmentShader(
+    `
+      varying vec3 interpolatedPathColor;
+      varying vec3 interpolatedFillColor;
+    `,
+    `
+      float filled = 1.0 - step(dist, 0.0);
+      vec3 color = mix(interpolatedFillColor, interpolatedPathColor, filled);
+    `,
+    `vec4(color, ${alpha})`,
+  );
+}
 
 function renderTranslucentShapeList(
   renderer: Renderer,
@@ -981,26 +974,9 @@ function renderTranslucentShapeList(
   geometry.draw(program);
 }
 
-export const TRANSLUCENT_SHAPE_LIST_FRAGMENT_SHADER = `
-  precision mediump float;
-  varying vec2 interpolatedVector;
-  varying float interpolatedJoint;
-  varying float stepSize;
-  varying vec3 interpolatedPathColor;
-  varying vec3 interpolatedFillColor;
-  void main(void) {
-    float dist = length(interpolatedVector);
-    float filled = 1.0 - step(dist, 0.0);
-    float inside = 1.0 - smoothstep(1.0 - stepSize, 1.0, dist);
-    // joints are drawn twice, so adjust alpha accordingly
-    float joint = smoothstep(0.0, stepSize, interpolatedJoint);
-    float alpha = mix(2.0 * inside - inside * inside, inside, joint);
-    gl_FragColor = vec4(
-      mix(interpolatedFillColor, interpolatedPathColor, filled),
-      alpha * 0.25
-    );
-  }
-`;
+const TRANSLUCENT_SHAPE_LIST_FRAGMENT_SHADER = createShapeListFragmentShader(
+  'baseAlpha * 0.25',
+);
 
 /** The color used to indicate general hovering/selection. */
 export const SELECT_COLOR = '#00bc8c';
@@ -1033,45 +1009,96 @@ function renderBackdrop(
   geometry.draw(program);
 }
 
-const BACKDROP_VERTEX_SHADER = `
-  uniform mat3 modelMatrix;
-  uniform mat2 vectorMatrix;
-  uniform mat3 viewProjectionMatrix;
-  uniform float pixelsToWorldUnits;
-  uniform float expansion;
-  attribute vec2 vertex;
-  attribute vec2 vector;
-  attribute float joint;
-  attribute float thickness;
-  varying vec2 interpolatedVector;
-  varying float interpolatedJoint;
-  varying float stepSize;
-  void main(void) {
-    interpolatedVector = vector;
-    interpolatedJoint = joint;
-    float expandedThickness = thickness + pixelsToWorldUnits * 3.0;
-    stepSize = pixelsToWorldUnits / expandedThickness;
-    vec3 point =
-      modelMatrix * vec3(vertex, 1.0) +
-      vec3(vectorMatrix * vector, 0.0) * expandedThickness;
-    vec3 position = viewProjectionMatrix * point;
-    gl_Position = vec4(position.xy, 0.0, 1.0);
-  }
-`;
+const BACKDROP_VERTEX_SHADER = createVertexShader(
+  `
+    attribute float thickness;
+  `,
+  ``,
+  `thickness + pixelsToWorldUnits * 3.0`,
+);
 
-const BACKDROP_FRAGMENT_SHADER = `
-  precision mediump float;
-  uniform vec3 color;
-  uniform float alpha;
-  varying vec2 interpolatedVector;
-  varying float interpolatedJoint;
-  varying float stepSize;
-  void main(void) {
-    float dist = length(interpolatedVector);
-    float inside = 1.0 - smoothstep(1.0 - stepSize, 1.0, dist);
-    // joints are drawn twice, so adjust alpha accordingly
-    float joint = smoothstep(0.0, stepSize, interpolatedJoint);
-    float baseAlpha = mix(2.0 * inside - inside * inside, inside, joint);
-    gl_FragColor = vec4(color, baseAlpha * alpha);
-  }
-`;
+const BACKDROP_FRAGMENT_SHADER = createFragmentShader(
+  `
+    uniform vec3 color;
+    uniform float alpha;
+  `,
+  `
+    float filled = 1.0 - step(dist, 0.0);
+  `,
+  `vec4(color, baseAlpha * alpha * filled)`,
+);
+
+/**
+ * Creates a vertex shader for shapes/shape lists.
+ *
+ * @param definitions the definitions to include.
+ * @param [assignments=''] the assignments to include.
+ * @param [thickness='thickness'] the expression to use for the thickness.
+ * @param [vertex='vertex'] the expression to use for the vertex.
+ * @param [vector='vector'] the expression to use for the vector.
+ * @return the vertex shader string.
+ */
+export function createVertexShader(
+  definitions: string,
+  assignments: string = '',
+  thickness: string = 'thickness',
+  vertex: string = 'vertex',
+  vector: string = 'vector',
+): string {
+  return `
+    ${definitions}
+    uniform mat3 modelMatrix;
+    uniform mat2 vectorMatrix;
+    uniform mat3 viewProjectionMatrix;
+    uniform float pixelsToWorldUnits;
+    attribute vec2 vertex;
+    attribute vec2 vector;
+    attribute float joint;
+    varying vec2 interpolatedVector;
+    varying float interpolatedJoint;
+    varying float stepSize;
+    void main(void) {
+      interpolatedVector = vector;
+      interpolatedJoint = joint;
+      ${assignments}
+      float expandedThickness = ${thickness};
+      stepSize = pixelsToWorldUnits / expandedThickness;
+      vec3 point =
+        modelMatrix * vec3(${vertex}, 1.0) +
+        vec3(vectorMatrix * ${vector}, 0.0) * expandedThickness;
+      vec3 position = viewProjectionMatrix * point;
+      gl_Position = vec4(position.xy, 0.0, 1.0);
+    }
+  `;
+}
+
+/**
+ * Creates a fragment shader for shapes/shape lists.
+ *
+ * @param definitions the definitions to include.
+ * @param assignments the assignments to include.
+ * @param fragColor the expression to use for gl_FragColor, using baseAlpha.
+ * @return the fragment shader string.
+ */
+export function createFragmentShader(
+  definitions: string,
+  assignments: string,
+  fragColor: string,
+): string {
+  return `
+    precision mediump float;
+    ${definitions}
+    varying vec2 interpolatedVector;
+    varying float interpolatedJoint;
+    varying float stepSize;
+    void main(void) {
+      float dist = length(interpolatedVector);
+      float inside = 1.0 - smoothstep(1.0 - stepSize, 1.0, dist);
+      // joints are drawn twice, so adjust alpha accordingly
+      float joint = smoothstep(0.0, stepSize, interpolatedJoint);
+      float baseAlpha = mix(2.0 * inside - inside * inside, inside, joint);
+      ${assignments}
+      gl_FragColor = ${fragColor};
+    }
+  `;
+}

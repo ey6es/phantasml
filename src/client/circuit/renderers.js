@@ -14,6 +14,8 @@ import {
   ComponentRenderers,
   createShapeListRenderFn,
   renderShapeList,
+  createVertexShader,
+  createFragmentShader,
 } from '../renderer/renderers';
 import {
   WireArrowBounds,
@@ -868,34 +870,24 @@ function renderModule(
   geometry.draw(program);
 }
 
-const MODULE_VERTEX_SHADER = `
-  uniform mat3 modelMatrix;
-  uniform mat2 vectorMatrix;
-  uniform mat3 viewProjectionMatrix;
-  uniform float pixelsToWorldUnits;
-  uniform float hoverPart;
-  uniform float replacePart;
-  uniform vec3 replaceColor;
-  uniform float replaceAlpha;
-  uniform float alpha;
-  uniform float outline;
-  uniform vec3 outlineColor;
-  attribute vec2 vertex;
-  attribute vec2 vector;
-  attribute float joint;
-  attribute float thickness;
-  attribute vec3 pathColor;
-  attribute vec3 fillColor;
-  attribute float part;
-  varying vec2 interpolatedVector;
-  varying float interpolatedJoint;
-  varying float stepSize;
-  varying vec3 interpolatedPathColor;
-  varying vec3 interpolatedFillColor;
-  varying float interpolatedAlpha;
-  void main(void) {
-    interpolatedVector = vector;
-    interpolatedJoint = joint;
+const MODULE_VERTEX_SHADER = createVertexShader(
+  `
+    uniform float hoverPart;
+    uniform float replacePart;
+    uniform vec3 replaceColor;
+    uniform float replaceAlpha;
+    uniform float alpha;
+    uniform float outline;
+    uniform vec3 outlineColor;
+    attribute float thickness;
+    attribute vec3 pathColor;
+    attribute vec3 fillColor;
+    attribute float part;
+    varying vec3 interpolatedPathColor;
+    varying vec3 interpolatedFillColor;
+    varying float interpolatedAlpha;
+  `,
+  `
     float replace =
       step(replacePart - 0.5, part) * step(part, replacePart + 0.5);
     vec3 basePathColor = mix(pathColor, replaceColor, replace);
@@ -904,35 +896,19 @@ const MODULE_VERTEX_SHADER = `
     interpolatedFillColor = mix(baseFillColor, outlineColor, outline);
     interpolatedAlpha = alpha * mix(1.0, replaceAlpha, replace);
     float hovered = step(hoverPart - 0.5, part) * step(part, hoverPart + 0.5);
-    float adjustedThickness =
-      thickness + (hovered * 2.0 + outline * 3.0) * pixelsToWorldUnits;
-    stepSize = pixelsToWorldUnits / adjustedThickness;
-    vec3 point =
-      modelMatrix * vec3(vertex, 1.0) +
-      vec3(vectorMatrix * vector, 0.0) * adjustedThickness;
-    vec3 position = viewProjectionMatrix * point;
-    gl_Position = vec4(position.xy, 0.0, 1.0);
-  }
-`;
+  `,
+  `thickness + (hovered * 2.0 + outline * 3.0) * pixelsToWorldUnits`,
+);
 
-export const MODULE_FRAGMENT_SHADER = `
-  precision mediump float;
-  varying vec2 interpolatedVector;
-  varying float interpolatedJoint;
-  varying float stepSize;
-  varying vec3 interpolatedPathColor;
-  varying vec3 interpolatedFillColor;
-  varying float interpolatedAlpha;
-  void main(void) {
-    float dist = length(interpolatedVector);
+export const MODULE_FRAGMENT_SHADER = createFragmentShader(
+  `
+    varying vec3 interpolatedPathColor;
+    varying vec3 interpolatedFillColor;
+    varying float interpolatedAlpha;
+  `,
+  `
     float filled = 1.0 - step(dist, 0.0);
-    float inside = 1.0 - smoothstep(1.0 - stepSize, 1.0, dist);
-    // joints are drawn twice, so adjust alpha accordingly
-    float joint = smoothstep(0.0, stepSize, interpolatedJoint);
-    float alpha = mix(2.0 * inside - inside * inside, inside, joint);
-    gl_FragColor = vec4(
-      mix(interpolatedFillColor, interpolatedPathColor, filled),
-      alpha * interpolatedAlpha
-    );
-  }
-`;
+    vec3 color = mix(interpolatedFillColor, interpolatedPathColor, filled);
+  `,
+  `vec4(color, baseAlpha * interpolatedAlpha)`,
+);

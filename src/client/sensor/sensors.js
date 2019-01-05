@@ -23,7 +23,22 @@ export const ComponentSensors: {[string]: SensorData} = {
       const fov = getValue(data.fov, props.fov.defaultValue);
       const minDepth = getValue(data.minDepth, props.minDepth.defaultValue);
       const maxDepth = getValue(data.maxDepth, props.maxDepth.defaultValue);
-      return new ShapeList();
+      return new ShapeList()
+        .setAttributes({
+          thickness: 0.15,
+          pathColor: [1.0, 1.0, 1.0],
+          fillColor: [0.5, 0.5, 0.5],
+        })
+        .pivot(fov * -0.5)
+        .advance(minDepth)
+        .penDown(true)
+        .advance(maxDepth - minDepth)
+        .pivot(90)
+        .turn(fov, maxDepth)
+        .pivot(90)
+        .advance(maxDepth - minDepth)
+        .pivot(90)
+        .turn(-fov, -minDepth);
     },
   },
 };

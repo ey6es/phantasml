@@ -7,7 +7,11 @@
 
 import type {Renderer} from './util';
 import {Geometry} from './util';
-import {SHAPE_FRAGMENT_SHADER} from './renderers';
+import {
+  SHAPE_FRAGMENT_SHADER,
+  createVertexShader,
+  createFragmentShader,
+} from './renderers';
 import type {Vector2, LineSegment, Transform} from '../../server/store/math';
 import {
   getTransformMatrix,
@@ -104,45 +108,22 @@ export function renderRectangle(
   RectangleGeometry.draw(program);
 }
 
-const AXES_VERTEX_SHADER = `
-  uniform mat3 modelMatrix;
-  uniform mat2 vectorMatrix;
-  uniform mat3 viewProjectionMatrix;
-  uniform float pixelsToWorldUnits;
-  attribute vec2 vertex;
-  attribute vec2 vector;
-  attribute float joint;
-  attribute float part;
-  varying vec2 interpolatedVector;
-  varying float interpolatedJoint;
-  varying float interpolatedPart;
-  varying float stepSize;
-  void main(void) {
-    interpolatedVector = vector;
-    interpolatedJoint = joint;
+const AXES_VERTEX_SHADER = createVertexShader(
+  `
+    attribute float part;
+    varying float interpolatedPart;
+  `,
+  `
     interpolatedPart = part;
-    float thickness = 2.0 * pixelsToWorldUnits;
-    stepSize = pixelsToWorldUnits / thickness;
-    vec3 point =
-      modelMatrix * vec3(vertex, 1.0) +
-      vec3(vectorMatrix * vector, 0.0) * thickness;
-    vec3 position = viewProjectionMatrix * point;
-    gl_Position = vec4(position.xy, 0.0, 1.0);
-  }
-`;
+  `,
+  `2.0 * pixelsToWorldUnits`,
+);
 
-const AXES_FRAGMENT_SHADER = `
-  precision mediump float;
-  varying vec2 interpolatedVector;
-  varying float interpolatedJoint;
-  varying float interpolatedPart;
-  varying float stepSize;
-  void main(void) {
-    float dist = length(interpolatedVector);
-    float inside = 1.0 - smoothstep(1.0 - stepSize, 1.0, dist);
-    // joints are drawn twice, so adjust alpha accordingly
-    float joint = smoothstep(0.0, stepSize, interpolatedJoint);
-    float alpha = mix(2.0 * inside - inside * inside, inside, joint);
+const AXES_FRAGMENT_SHADER = createFragmentShader(
+  `
+    varying float interpolatedPart; 
+  `,
+  `
     vec3 color = mix(
       vec3(0.8, 0.8, 0.0),
       mix(
@@ -152,9 +133,9 @@ const AXES_FRAGMENT_SHADER = `
       ),
       step(0.25, interpolatedPart)
     );
-    gl_FragColor = vec4(color, alpha);
-  }
-`;
+  `,
+  `vec4(color, baseAlpha)`,
+);
 
 const axesShapeList = new ShapeList()
   .penDown(false, {part: 0.0})
@@ -321,26 +302,16 @@ export function renderScaleHandle(
   renderHandle(renderer, transform, hover, pressed, ScaleHandleGeometry);
 }
 
-const HANDLE_VERTEX_SHADER = `
-  uniform mat3 modelMatrix;
-  uniform mat2 vectorMatrix;
-  uniform mat3 viewProjectionMatrix;
-  uniform float pixelsToWorldUnits;
-  uniform vec3 hoverParts;
-  uniform float pressed;
-  attribute vec2 vertex;
-  attribute vec2 vector;
-  attribute float joint;
-  attribute float part;
-  varying vec2 interpolatedVector;
-  varying float interpolatedJoint;
-  varying float interpolatedPart;
-  varying float interpolatedActive;
-  varying float inner;
-  varying float stepSize;
-  void main(void) {
-    interpolatedVector = vector;
-    interpolatedJoint = joint;
+const HANDLE_VERTEX_SHADER = createVertexShader(
+  `
+    uniform vec3 hoverParts;
+    uniform float pressed;
+    attribute float part;
+    varying float interpolatedPart;
+    varying float interpolatedActive;
+    varying float inner;
+  `,
+  `
     interpolatedPart = part;
     float hover = mix(
       hoverParts.x,
@@ -350,14 +321,8 @@ const HANDLE_VERTEX_SHADER = `
     interpolatedActive = mix(0.73, mix(0.80, 1.0, pressed), hover);
     float thickness = mix(1.0, 1.5, hover * pressed) * pixelsToWorldUnits;
     inner = 1.0 / thickness;
-    stepSize = pixelsToWorldUnits / thickness;
-    vec3 point =
-      modelMatrix * vec3(vertex, 1.0) +
-      vec3(vectorMatrix * vector, 0.0) * thickness;
-    vec3 position = viewProjectionMatrix * point;
-    gl_Position = vec4(position.xy, 0.0, 1.0);
-  }
-`;
+  `,
+);
 
 const HANDLE_FRAGMENT_SHADER = `
   precision mediump float;
@@ -455,48 +420,23 @@ export function renderPointHelper(
   PointHelperGeometry.draw(program);
 }
 
-const POINT_HELPER_VERTEX_SHADER = `
-  uniform mat3 modelMatrix;
-  uniform mat2 vectorMatrix;
-  uniform mat3 viewProjectionMatrix;
-  uniform float pixelsToWorldUnits;
-  uniform float thickness;
-  attribute vec2 vertex;
-  attribute vec2 vector;
-  attribute float joint;
-  varying vec2 interpolatedVector;
-  varying float interpolatedJoint;
-  varying float stepSize;
-  void main(void) {
-    interpolatedVector = vector;
-    interpolatedJoint = joint;
-    stepSize = pixelsToWorldUnits / thickness;
-    vec3 point =
-      modelMatrix * vec3(vertex, 1.0) +
-      vec3(vectorMatrix * vector, 0.0) * thickness;
-    vec3 position = viewProjectionMatrix * point;
-    gl_Position = vec4(position.xy, 0.0, 1.0);
-  }
-`;
+const POINT_HELPER_VERTEX_SHADER = createVertexShader(
+  `
+    uniform float thickness;
+  `,
+);
 
-const SHAPE_HELPER_FRAGMENT_SHADER = `
-  precision mediump float;
-  uniform vec3 pathColor;
-  uniform vec3 fillColor;
-  uniform float alphaScale;
-  varying vec2 interpolatedVector;
-  varying float interpolatedJoint;
-  varying float stepSize;
-  void main(void) {
-    float dist = length(interpolatedVector);
+const SHAPE_HELPER_FRAGMENT_SHADER = createFragmentShader(
+  `
+    uniform vec3 pathColor;
+    uniform vec3 fillColor;
+    uniform float alphaScale;
+  `,
+  `
     float filled = 1.0 - step(dist, 0.0);
-    float inside = 1.0 - smoothstep(1.0 - stepSize, 1.0, dist);
-    // joints are drawn twice, so adjust alpha accordingly
-    float joint = smoothstep(0.0, stepSize, interpolatedJoint);
-    float alpha = mix(2.0 * inside - inside * inside, inside, joint);
-    gl_FragColor = vec4(mix(fillColor, pathColor, filled), alpha * alphaScale);
-  }
-`;
+  `,
+  `vec4(mix(fillColor, pathColor, filled), baseAlpha * alphaScale)`,
+);
 
 const LineHelperGeometry = new Geometry(
   ...new ShapeList()
@@ -541,31 +481,17 @@ export function renderLineHelper(
   LineHelperGeometry.draw(program);
 }
 
-const LINE_HELPER_VERTEX_SHADER = `
-  uniform mat3 modelMatrix;
-  uniform mat2 vectorMatrix;
-  uniform mat3 viewProjectionMatrix;
-  uniform float pixelsToWorldUnits;
-  uniform float thickness;
-  uniform float lineLength;
-  attribute vec2 vertex;
-  attribute vec2 vector;
-  attribute float joint;
-  varying vec2 interpolatedVector;
-  varying float interpolatedJoint;
-  varying float stepSize;
-  void main(void) {
-    interpolatedVector = vector;
-    interpolatedJoint = joint;
-    stepSize = pixelsToWorldUnits / thickness;
+const LINE_HELPER_VERTEX_SHADER = createVertexShader(
+  `
+    uniform float thickness;
+    uniform float lineLength;
+  `,
+  `
     vec2 scaledVertex = vertex * vec2(lineLength, 1.0);
-    vec3 point =
-      modelMatrix * vec3(scaledVertex, 1.0) +
-      vec3(vectorMatrix * vector, 0.0) * thickness;
-    vec3 position = viewProjectionMatrix * point;
-    gl_Position = vec4(position.xy, 0.0, 1.0);
-  }
-`;
+  `,
+  'thickness',
+  'scaledVertex',
+);
 
 /**
  * Renders a polygon helper (used for drawing tools).
@@ -601,29 +527,11 @@ export function renderPolygonHelper(
   geometry.draw(program);
 }
 
-const POLYGON_HELPER_VERTEX_SHADER = `
-  uniform mat3 modelMatrix;
-  uniform mat2 vectorMatrix;
-  uniform mat3 viewProjectionMatrix;
-  uniform float pixelsToWorldUnits;
-  uniform float thickness;
-  attribute vec2 vertex;
-  attribute vec2 vector;
-  attribute float joint;
-  varying vec2 interpolatedVector;
-  varying float interpolatedJoint;
-  varying float stepSize;
-  void main(void) {
-    interpolatedVector = vector;
-    interpolatedJoint = joint;
-    stepSize = pixelsToWorldUnits / thickness;
-    vec3 point =
-      modelMatrix * vec3(vertex, 1.0) +
-      vec3(vectorMatrix * vector, 0.0) * thickness;
-    vec3 position = viewProjectionMatrix * point;
-    gl_Position = vec4(position.xy, 0.0, 1.0);
-  }
-`;
+const POLYGON_HELPER_VERTEX_SHADER = createVertexShader(
+  `
+    uniform float thickness;
+  `,
+);
 
 const RectangleHelperGeometry = new Geometry(
   ...createRectangleShapeList(false).createGeometry(),
@@ -691,32 +599,18 @@ export function renderRectangleHelper(
   );
 }
 
-const RECTANGLE_HELPER_VERTEX_SHADER = `
-  uniform mat3 modelMatrix;
-  uniform mat2 vectorMatrix;
-  uniform mat3 viewProjectionMatrix;
-  uniform float pixelsToWorldUnits;
-  uniform float thickness;
-  uniform float rectangleWidth;
-  uniform float rectangleHeight;
-  attribute vec2 vertex;
-  attribute vec2 vector;
-  attribute float joint;
-  varying vec2 interpolatedVector;
-  varying float interpolatedJoint;
-  varying float stepSize;
-  void main(void) {
-    interpolatedVector = vector;
-    interpolatedJoint = joint;
-    stepSize = pixelsToWorldUnits / thickness;
+const RECTANGLE_HELPER_VERTEX_SHADER = createVertexShader(
+  `
+    uniform float thickness;
+    uniform float rectangleWidth;
+    uniform float rectangleHeight;
+  `,
+  `
     vec2 scaledVertex = vertex * vec2(rectangleWidth, rectangleHeight);
-    vec3 point =
-      modelMatrix * vec3(scaledVertex, 1.0) +
-      vec3(vectorMatrix * vector, 0.0) * thickness;
-    vec3 position = viewProjectionMatrix * point;
-    gl_Position = vec4(position.xy, 0.0, 1.0);
-  }
-`;
+  `,
+  'thickness',
+  'scaledVertex',
+);
 
 const ArcHelperGeometry = new Geometry(
   ...createArcShapeList(false).createGeometry(64.0),
@@ -796,27 +690,16 @@ export function renderArcHelper(
   ).draw(program);
 }
 
-const ARC_HELPER_VERTEX_SHADER = `
-  uniform mat3 modelMatrix;
-  uniform mat2 vectorMatrix;
-  uniform mat3 viewProjectionMatrix;
-  uniform float pixelsToWorldUnits;
-  uniform float thickness;
-  uniform float radius;
-  uniform float startAngle;
-  uniform float endAngle;
-  attribute vec2 vertex;
-  attribute vec2 vector;
-  attribute float joint;
-  attribute float t;
-  varying vec2 interpolatedVector;
-  varying float interpolatedJoint;
-  varying float stepSize;
-  const float PI = 3.141592654;
-  void main(void) {
-    interpolatedVector = vector;
-    interpolatedJoint = joint;
-    stepSize = pixelsToWorldUnits / thickness;
+const ARC_HELPER_VERTEX_SHADER = createVertexShader(
+  `
+    uniform float thickness;
+    uniform float radius;
+    uniform float startAngle;
+    uniform float endAngle;
+    attribute float t;
+    const float PI = 3.141592654;
+  `,
+  `
     float angle = mix(startAngle, endAngle, t);
     float baseAngle = t * PI;
     float cr = cos(angle - baseAngle);
@@ -826,13 +709,11 @@ const ARC_HELPER_VERTEX_SHADER = `
       vector.x * sr + vector.y * cr
     );
     vec2 scaledVertex = vec2(cos(angle), sin(angle)) * radius * length(vertex);
-    vec3 point =
-      modelMatrix * vec3(scaledVertex, 1.0) +
-      vec3(vectorMatrix * rotatedVector, 0.0) * thickness;
-    vec3 position = viewProjectionMatrix * point;
-    gl_Position = vec4(position.xy, 0.0, 1.0);
-  }
-`;
+  `,
+  'thickness',
+  'scaledVertex',
+  'rotatedVector',
+);
 
 const curvePath = new Path()
   .moveTo(vec2(-0.5, 0), 0, {t: 0.0})
@@ -879,26 +760,15 @@ export function renderCurveHelper(
   CurveHelperGeometry.draw(program);
 }
 
-const CURVE_HELPER_VERTEX_SHADER = `
-  uniform mat3 modelMatrix;
-  uniform mat2 vectorMatrix;
-  uniform mat3 viewProjectionMatrix;
-  uniform float pixelsToWorldUnits;
-  uniform float thickness;
-  uniform float span;
-  uniform vec2 c1;
-  uniform vec2 c2;
-  attribute vec2 vertex;
-  attribute vec2 vector;
-  attribute float joint;
-  attribute float t;
-  varying vec2 interpolatedVector;
-  varying float interpolatedJoint;
-  varying float stepSize;
-  void main(void) {
-    interpolatedVector = vector;
-    interpolatedJoint = joint;
-    stepSize = pixelsToWorldUnits / thickness;
+const CURVE_HELPER_VERTEX_SHADER = createVertexShader(
+  `
+    uniform float thickness;
+    uniform float span;
+    uniform vec2 c1;
+    uniform vec2 c2;
+    attribute float t;
+  `,
+  `
     vec2 d = vec2(span * -0.5, 0.0);
     vec2 c = 3.0 * (c1 - d);
     vec2 b = 3.0 * (d - 2.0 * c1 + c2);
@@ -910,13 +780,11 @@ const CURVE_HELPER_VERTEX_SHADER = `
       tangent.y * vector.x + bitangent.y * vector.y
     );
     vec2 curveVertex = t * (t * (t * a + b) + c) + d;
-    vec3 point =
-      modelMatrix * vec3(curveVertex, 1.0) +
-      vec3(vectorMatrix * rotatedVector, 0.0) * thickness;
-    vec3 position = viewProjectionMatrix * point;
-    gl_Position = vec4(position.xy, 0.0, 1.0);
-  }
-`;
+  `,
+  'thickness',
+  'curveVertex',
+  'rotatedVector',
+);
 
 /**
  * Draws the arrow for the end of a wire.

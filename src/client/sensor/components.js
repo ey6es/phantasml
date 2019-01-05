@@ -57,7 +57,7 @@ export const SensorComponents: {[string]: ComponentData} = {
           <FormattedMessage id="eye.max_depth" defaultMessage="Max Depth:" />
         ),
         min: 0,
-        defaultValue: 30,
+        defaultValue: 20,
       },
     },
     category: 'sensor',

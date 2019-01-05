@@ -6,6 +6,7 @@
  */
 
 import {EffectorComponents} from './components';
+import {drawWireArrow} from '../renderer/helpers';
 import {ShapeList} from '../../server/store/shape';
 import {getValue} from '../../server/store/util';
 
@@ -22,16 +23,31 @@ export const ComponentEffectors: {[string]: EffectorData} = {
       const props = EffectorComponents.velocity.properties;
       const linear = getValue(data.linear, props.linear.defaultValue);
       const angular = getValue(data.angular, props.angular.defaultValue);
-      return new ShapeList()
-        .setAttributes({thickness: 0.2, pathColor: [1.0, 1.0, 1.0]})
-        .move(linear * -0.5, 0.0)
+      const shapeList = new ShapeList()
+        .move(linear * -0.5, 0.0, 180)
+        .setAttributes({pathColor: [1.0, 1.0, 1.0]});
+      drawWireArrow(shapeList)
+        .move(linear * -0.5, 0.0, 0)
         .penDown(false)
         .advance(linear)
-        .penUp()
+        .penUp();
+      drawWireArrow(shapeList).move(0.0, linear * -0.5, -90);
+      drawWireArrow(shapeList)
         .move(0.0, linear * -0.5, 90)
         .penDown(false)
         .advance(linear)
         .penUp();
+      drawWireArrow(shapeList)
+        .move(linear * 0.375, 0.0, 90)
+        .penDown()
+        .turn(angular * 0.5, linear * 0.375)
+        .penUp();
+      drawWireArrow(shapeList)
+        .move(linear * 0.375, 0.0, -90)
+        .penDown()
+        .turn(-angular * 0.5, -linear * 0.375)
+        .penUp();
+      return drawWireArrow(shapeList);
     },
   },
 };

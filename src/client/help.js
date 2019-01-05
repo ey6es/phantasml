@@ -176,7 +176,7 @@ function AboutDialog(props: {onClosed: () => void}) {
       <div className="text-center text-muted">
         <FormattedMessage
           id="about.copyright"
-          defaultMessage="Copyright &copy; 2018, Andrzej Kapolka"
+          defaultMessage="Copyright &copy; 2018-2019, Andrzej Kapolka"
         />
       </div>
       <div className="text-center pt-3">

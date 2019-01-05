@@ -11,8 +11,9 @@ import {
   ComponentRenderers,
   BaseRenderer,
   createShapeListRenderFn,
-  renderShapeList,
+  renderTranslucentFilledShapeList,
 } from '../renderer/renderers';
+import {TransferableValue} from '../../server/store/resource';
 import {ComponentBounds, BaseBounds} from '../../server/store/bounds';
 import {
   ComponentGeometry,
@@ -29,7 +30,11 @@ ComponentGeometry.sensorRenderer = extend(BaseGeometry, {
     for (const key in entity.state) {
       const sensor = ComponentSensors[key];
       if (sensor) {
-        return sensor.createShapeList(entity.state[key]);
+        const data = entity.state[key];
+        return new TransferableValue(
+          sensor.createShapeList(data),
+          newEntity => newEntity.state[key] === data,
+        );
       }
     }
     return new ShapeList();
@@ -45,7 +50,7 @@ ComponentRenderers.sensorRenderer = extend(BaseRenderer, {
     return createShapeListRenderFn(
       entity,
       shapeList,
-      renderShapeList,
+      renderTranslucentFilledShapeList,
       '#ffffff',
       '#ffffff',
     );
