@@ -8,9 +8,9 @@
     "fb": "^2.0.0",
     "flow-runtime": "^0.17.0",
     "google-auth-library": "^1.6.1",
-    "react": "^16.4.1",
-    "react-dom": "^16.4.1",
-    "react-intl": "^2.4.0",
+    "react": "^16.7.0",
+    "react-dom": "^16.7.0",
+    "react-intl": "^2.7.2",
     "uuid": "^3.3.2"
   },
   "//": "Note: to add a new dependency, use npm install --save-prod --package-lock-only",
