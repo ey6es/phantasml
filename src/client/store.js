@@ -1006,6 +1006,11 @@ export function isResourceDirty(state: StoreState): boolean {
   return state.savedEditNumber !== (lastAction ? lastAction.editNumber : 0);
 }
 
+/**
+ * Adjusts the page position and size so that the selection is entirely visible.
+ *
+ * @param renderer the renderer to use.
+ */
 export function centerPageOnSelection(renderer: Renderer) {
   const state = store.getState();
   const resource = state.resource;

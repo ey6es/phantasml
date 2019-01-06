@@ -630,6 +630,10 @@ export class Shortcut {
     switch (this.keyCode) {
       case 46:
         return <FormattedMessage id="key.delete" defaultMessage="Del" />;
+      case 107:
+        return <FormattedMessage id="key.numpad_add" defaultMessage="+" />;
+      case 109:
+        return <FormattedMessage id="key.numpad_subtract" defaultMessage="-" />;
       case 192:
         return <FormattedMessage id="key.backtick" defaultMessage="~" />;
       default:

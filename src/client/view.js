@@ -8,7 +8,7 @@
 import * as React from 'react';
 import * as ReactRedux from 'react-redux';
 import {FormattedMessage} from 'react-intl';
-import {Nav, NavItem, NavLink, Button} from 'reactstrap';
+import {Nav, NavItem, NavLink, Button, DropdownItem} from 'reactstrap';
 import {DEFAULT_PAGE_SIZE, StoreActions, store, createUuid} from './store';
 import {EntityName} from './entity';
 import {
@@ -26,11 +26,12 @@ import type {UserGetPreferencesResponse} from '../server/api';
 import type {Resource} from '../server/store/resource';
 import type {EntityHierarchyNode} from '../server/store/scene';
 import {Scene, SceneActions} from '../server/store/scene';
+import {timesEquals, plus, boundsContain} from '../server/store/math';
 
 /**
  * The view menu dropdown.
  */
-export class ViewDropdown extends React.Component<{}, {}> {
+export class ViewDropdown extends React.Component<{renderer: ?Renderer}, {}> {
   render() {
     return (
       <Menu label={<FormattedMessage id="view.title" defaultMessage="View" />}>
@@ -43,6 +44,50 @@ export class ViewDropdown extends React.Component<{}, {}> {
         </MenuItem>
         <Submenu
           label={<FormattedMessage id="view.zoom" defaultMessage="Zoom" />}>
+          <MenuItem
+            shortcut={new Shortcut(109, 0, [new Shortcut(173)])}
+            onClick={() => zoomPage(1)}>
+            <FormattedMessage id="view.zoom_out" defaultMessage="Zoom Out" />
+          </MenuItem>
+          <MenuItem
+            shortcut={new Shortcut(107, 0, [new Shortcut(61, Shortcut.SHIFT)])}
+            onClick={() => zoomPage(-1)}>
+            <FormattedMessage id="view.zoom_in" defaultMessage="Zoom In" />
+          </MenuItem>
+          <MenuItem
+            shortcut={new Shortcut('J', Shortcut.CTRL | Shortcut.SHIFT)}
+            onClick={() => {
+              const renderer = this.props.renderer;
+              const state = store.getState();
+              const resource = state.resource;
+              if (!(renderer && resource instanceof Scene)) {
+                return;
+              }
+              const totalBounds = resource.getTotalBounds(state.page);
+              if (!totalBounds) {
+                return;
+              }
+              const cameraBounds = renderer.getCameraBounds();
+              if (boundsContain(cameraBounds, totalBounds)) {
+                return;
+              }
+              const center = timesEquals(
+                plus(totalBounds.min, totalBounds.max),
+                0.5,
+              );
+              const size = Math.max(
+                totalBounds.max.y - totalBounds.min.y,
+                (totalBounds.max.x - totalBounds.min.x) /
+                  renderer.camera.aspect,
+              );
+              store.dispatch(
+                StoreActions.setPagePosition.create(center.x, center.y),
+              );
+              store.dispatch(StoreActions.setPageSize.create(size));
+            }}>
+            <FormattedMessage id="view.fit_all" defaultMessage="Fit" />
+          </MenuItem>
+          <DropdownItem divider />
           <MenuItem
             shortcut={new Shortcut('3')}
             onClick={() =>
@@ -94,6 +139,19 @@ export class ViewDropdown extends React.Component<{}, {}> {
       </Menu>
     );
   }
+}
+
+/**
+ * Zooms the current page in or out by the specified amount.
+ *
+ * @param amount the amount to zoom (positive for "out").
+ */
+export function zoomPage(amount: number) {
+  const state = store.getState();
+  const pageState = state.pageStates.get(state.page);
+  const oldSize = (pageState && pageState.size) || DEFAULT_PAGE_SIZE;
+  const newSize = oldSize * Math.pow(1.01, amount * 3);
+  store.dispatch(StoreActions.setPageSize.create(newSize));
 }
 
 function PanShortcutHandler(props: {keyCode: number, dx: number, dy: number}) {

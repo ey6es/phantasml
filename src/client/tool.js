@@ -48,6 +48,7 @@ import {
 import type {PropertyData} from './component';
 import {PropertyEditorGroup} from './component';
 import {createEntity} from './entity';
+import {zoomPage} from './view';
 import type {EntityZOrder} from './renderer/canvas';
 import {
   getEntityZOrder,
@@ -1026,15 +1027,7 @@ class SelectPanToolImpl extends ToolImpl {
   }
 
   _onWheel = (event: WheelEvent) => {
-    const renderer = this.props.renderer;
-    if (!renderer) {
-      return;
-    }
-    store.dispatch(
-      StoreActions.setPageSize.create(
-        renderer.camera.size * Math.pow(1.01, event.deltaY > 0 ? 3 : -3),
-      ),
-    );
+    zoomPage(event.deltaY > 0 ? 1 : -1);
   };
 
   _updatePointHover(clientX: number, clientY: number) {
@@ -1258,6 +1251,11 @@ class HandleToolImpl extends ToolImpl {
 
   get _local(): boolean {
     return !!this.props.options.local;
+  }
+
+  componentDidUpdate(prevProps: ToolProps, prevState: Object) {
+    super.componentDidUpdate(prevProps, prevState);
+    this.props.renderer && this.props.renderer.requestFrameRender();
   }
 
   _renderHelpers = (renderer: Renderer) => {

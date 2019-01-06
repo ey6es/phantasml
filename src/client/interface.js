@@ -130,7 +130,7 @@ export class Interface extends React.Component<
                     key="selection"
                     locale={this.props.locale}
                   />,
-                  <ViewDropdown key="view" />,
+                  <ViewDropdown key="view" renderer={this.state.renderer} />,
                   <EntityDropdown key="entity" locale={this.props.locale} />,
                   <ComponentDropdown key="component" />,
                 ]
