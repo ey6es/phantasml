@@ -492,6 +492,7 @@ ComponentEditCallbacks.moduleRenderer = {
         const otherEntity = scene.getEntity(value.ref);
         const otherModuleKey = otherEntity && getModuleKey(otherEntity);
         if (otherModuleKey && newMap[value.ref] !== null) {
+          // remove reference on other side
           newMap = mergeEntityEdits(newMap, {
             [value.ref]: {
               [otherModuleKey]: {
@@ -509,14 +510,44 @@ ComponentEditCallbacks.moduleRenderer = {
     if (!moduleKey) {
       return map;
     }
+    const module = ComponentModules[moduleKey];
+    const moduleData = mergeEntityEdits(
+      entity.state[moduleKey],
+      map[entity.id][moduleKey] || {},
+    );
+    const inputs = module.getInputs(moduleData);
+    const outputs = module.getOutputs(moduleData);
     let newMap = map;
-    const moduleData = entity.state[moduleKey];
     for (const key in moduleData) {
+      // remove any connections that are no longer valid
       const value = moduleData[key];
-      if (value && value.ref && value.output) {
-        if (scene.getEntity(value.ref) && newMap[value.ref] !== null) {
-          // touch the source to trigger an update
-          newMap = mergeEntityEdits(newMap, {[value.ref]: {}});
+      if (value && value.ref) {
+        let remove: ?string;
+        if (value.input) {
+          if (!outputs[key]) {
+            remove = value.input;
+          }
+        } else if (value.output) {
+          if (!inputs[key]) {
+            remove = value.output;
+          } else if (scene.getEntity(value.ref) && newMap[value.ref] !== null) {
+            // touch the source to trigger an update
+            newMap = mergeEntityEdits(newMap, {[value.ref]: {}});
+          }
+        }
+        if (remove) {
+          const otherEntity = scene.getEntity(value.ref);
+          const otherModuleKey = otherEntity && getModuleKey(otherEntity);
+          if (otherModuleKey) {
+            newMap = mergeEntityEdits(newMap, {
+              [entity.id]: {
+                [moduleKey]: {[key]: null},
+              },
+              [value.ref]: {
+                [otherModuleKey]: {[remove]: null},
+              },
+            });
+          }
         }
       }
     }
