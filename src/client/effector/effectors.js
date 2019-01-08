@@ -5,13 +5,17 @@
  * @flow
  */
 
+import * as React from 'react';
+import {FormattedMessage} from 'react-intl';
 import {EffectorComponents} from './components';
+import type {InputData} from '../circuit/modules';
 import {drawWireArrow} from '../renderer/helpers';
 import {ShapeList} from '../../server/store/shape';
 import {getValue} from '../../server/store/util';
 
 type EffectorData = {
   createShapeList: Object => ShapeList,
+  getInputs: Object => {[string]: InputData},
 };
 
 /**
@@ -49,5 +53,28 @@ export const ComponentEffectors: {[string]: EffectorData} = {
         .penUp();
       return drawWireArrow(shapeList);
     },
+    getInputs: data => ({
+      backForward: {
+        label: (
+          <FormattedMessage
+            id="velocity.back_forward"
+            defaultMessage="Back/Forward"
+          />
+        ),
+      },
+      leftRight: {
+        label: (
+          <FormattedMessage
+            id="velocity.left_right"
+            defaultMessage="Left/Right"
+          />
+        ),
+      },
+      cwCCW: {
+        label: (
+          <FormattedMessage id="velocity.cw_ccw" defaultMessage="CW/CCW" />
+        ),
+      },
+    }),
   },
 };

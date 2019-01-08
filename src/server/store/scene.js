@@ -1345,7 +1345,27 @@ class Organism extends Scene {
     return 'organism';
   }
   _getInitialEntities(): Object {
-    return {exterior: {}, interior: {order: 1}};
+    return {
+      exterior: {},
+      interior: {order: 1},
+      inputBus: {
+        parent: {ref: 'interior'},
+        transform: {
+          translation: vec2(-20.0),
+        },
+        inputBus: {order: 1},
+        moduleRenderer: {order: 2},
+      },
+      outputBus: {
+        parent: {ref: 'interior'},
+        order: 1,
+        transform: {
+          translation: vec2(20.0),
+        },
+        outputBus: {order: 1},
+        moduleRenderer: {order: 2},
+      },
+    };
   }
 }
 

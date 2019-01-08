@@ -80,22 +80,21 @@ function ShapeMenu(props: {
   return (
     <Submenu
       label={<FormattedMessage id="entity.shape" defaultMessage="Shape" />}>
-      {entries.map(
-        ([name, data]) =>
-          data.category ? (
-            <MenuItem
-              key={name}
-              onClick={() =>
-                props.createEntity(data.label, {
-                  [name]: {order: 1},
-                  shapeRenderer: {order: 2},
-                  shapeCollider: {order: 3},
-                  rigidBody: {order: 4},
-                })
-              }>
-              {data.label}
-            </MenuItem>
-          ) : null,
+      {entries.map(([name, data]) =>
+        data.category ? (
+          <MenuItem
+            key={name}
+            onClick={() =>
+              props.createEntity(data.label, {
+                [name]: {order: 1},
+                shapeRenderer: {order: 2},
+                shapeCollider: {order: 3},
+                rigidBody: {order: 4},
+              })
+            }>
+            {data.label}
+          </MenuItem>
+        ) : null,
       )}
     </Submenu>
   );
@@ -112,20 +111,19 @@ function SensorMenu(props: {
   ): [string, any][]);
   return (
     <Submenu label={SensorCategory.sensor.label}>
-      {entries.map(
-        ([name, data]) =>
-          data.category ? (
-            <MenuItem
-              key={name}
-              onClick={() =>
-                props.createEntity(data.label, {
-                  [name]: {order: 1},
-                  sensorRenderer: {order: 2},
-                })
-              }>
-              {data.label}
-            </MenuItem>
-          ) : null,
+      {entries.map(([name, data]) =>
+        data.category ? (
+          <MenuItem
+            key={name}
+            onClick={() =>
+              props.createEntity(data.label, {
+                [name]: {order: 1},
+                sensorRenderer: {order: 2},
+              })
+            }>
+            {data.label}
+          </MenuItem>
+        ) : null,
       )}
     </Submenu>
   );
@@ -142,20 +140,19 @@ function EffectorMenu(props: {
   ): [string, any][]);
   return (
     <Submenu label={EffectorCategory.effector.label}>
-      {entries.map(
-        ([name, data]) =>
-          data.category ? (
-            <MenuItem
-              key={name}
-              onClick={() =>
-                props.createEntity(data.label, {
-                  [name]: {order: 1},
-                  effectorRenderer: {order: 2},
-                })
-              }>
-              {data.label}
-            </MenuItem>
-          ) : null,
+      {entries.map(([name, data]) =>
+        data.category ? (
+          <MenuItem
+            key={name}
+            onClick={() =>
+              props.createEntity(data.label, {
+                [name]: {order: 1},
+                effectorRenderer: {order: 2},
+              })
+            }>
+            {data.label}
+          </MenuItem>
+        ) : null,
       )}
     </Submenu>
   );
@@ -270,6 +267,10 @@ export function EntityName(props: {entity: Entity}) {
       return (
         <FormattedMessage id="entity.name.interior" defaultMessage="Interior" />
       );
+    case 'inputBus':
+      return CircuitComponents.inputBus.label;
+    case 'outputBus':
+      return CircuitComponents.outputBus.label;
     default:
       return props.entity.id;
   }

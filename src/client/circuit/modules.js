@@ -37,11 +37,13 @@ import {
 } from '../../server/store/math';
 import {getValue, extend} from '../../server/store/util';
 
-type InputData = {
+/** Data associated with a single input. */
+export type InputData = {
   label: React.Element<any>,
 };
 
-type OutputData = {
+/** Data associated with a single output. */
+export type OutputData = {
   label: React.Element<any>,
 };
 
@@ -289,7 +291,7 @@ export const ComponentModules: {[string]: ModuleData} = {
   add: extend(BaseModule, {
     getIcon: data => AddIcon,
     getInputs: data =>
-      createMultipleInputs(data, index => (
+      createMultipleInputs(data, 'summand', index => (
         <FormattedMessage
           id="add.summand.n"
           defaultMessage="Summand {number}"
@@ -297,7 +299,7 @@ export const ComponentModules: {[string]: ModuleData} = {
         />
       )),
     getOutputs: data => ({
-      output: {
+      sum: {
         label: <FormattedMessage id="add.sum" defaultMessage="Sum" />,
       },
     }),
@@ -306,7 +308,7 @@ export const ComponentModules: {[string]: ModuleData} = {
     getIcon: data => SubtractIcon,
     getInputs: data => {
       const subtrahend = {
-        input2: {
+        subtrahend: {
           label: (
             <FormattedMessage
               id="subtract.subtrahend"
@@ -319,7 +321,7 @@ export const ComponentModules: {[string]: ModuleData} = {
         return subtrahend;
       }
       return {
-        input1: {
+        minuend: {
           label: (
             <FormattedMessage id="subtract.minuend" defaultMessage="Minuend" />
           ),
@@ -328,7 +330,7 @@ export const ComponentModules: {[string]: ModuleData} = {
       };
     },
     getOutputs: data => ({
-      output: {
+      difference: {
         label: (
           <FormattedMessage
             id="subtract.difference"
@@ -341,7 +343,7 @@ export const ComponentModules: {[string]: ModuleData} = {
   multiply: extend(BaseModule, {
     getIcon: data => MultiplyIcon,
     getInputs: data =>
-      createMultipleInputs(data, index => (
+      createMultipleInputs(data, 'factor', index => (
         <FormattedMessage
           id="multiply.factor.n"
           defaultMessage="Factor {number}"
@@ -349,7 +351,7 @@ export const ComponentModules: {[string]: ModuleData} = {
         />
       )),
     getOutputs: data => ({
-      output: {
+      product: {
         label: (
           <FormattedMessage id="multiply.product" defaultMessage="Product" />
         ),
@@ -360,7 +362,7 @@ export const ComponentModules: {[string]: ModuleData} = {
     getIcon: data => DivideIcon,
     getInputs: data => {
       const divisor = {
-        input2: {
+        divisor: {
           label: (
             <FormattedMessage id="divide.divisor" defaultMessage="Divisor" />
           ),
@@ -370,7 +372,7 @@ export const ComponentModules: {[string]: ModuleData} = {
         return divisor;
       }
       return {
-        input1: {
+        dividend: {
           label: (
             <FormattedMessage id="divide.dividend" defaultMessage="Dividend" />
           ),
@@ -379,7 +381,7 @@ export const ComponentModules: {[string]: ModuleData} = {
       };
     },
     getOutputs: data => ({
-      output: {
+      quotient: {
         label: (
           <FormattedMessage id="divide.quotient" defaultMessage="Quotient" />
         ),
@@ -403,8 +405,8 @@ export const ComponentModules: {[string]: ModuleData} = {
           entity.state.pushButton.value
             ? '#00ffff'
             : buttonHover
-              ? '#00bfbf'
-              : '#009999',
+            ? '#00bfbf'
+            : '#009999',
           hoverObject &&
             !(hoverState.part || hoverState.dragging || buttonHover),
         );
@@ -676,9 +678,9 @@ export const ComponentModules: {[string]: ModuleData} = {
           />
         ),
       },
-      upDown: {
+      downUp: {
         label: (
-          <FormattedMessage id="joystick.up_down" defaultMessage="Up/Down" />
+          <FormattedMessage id="joystick.down_up" defaultMessage="Down/Up" />
         ),
       },
     }),
@@ -785,18 +787,29 @@ export const ComponentModules: {[string]: ModuleData} = {
         CircuitComponents.pseudo3d.properties.height.defaultValue,
       ),
   }),
-  inputBus: extend(BaseModule, {}),
-  outputBus: extend(BaseModule, {}),
+  inputBus: extend(BaseModule, {
+    getWidth: data => MODULE_HEIGHT_PER_TERMINAL,
+    getHeight: (data, inputCount, outputCount) => {
+      return Math.max(inputCount, outputCount, 1) * MODULE_HEIGHT_PER_TERMINAL;
+    },
+  }),
+  outputBus: extend(BaseModule, {
+    getWidth: data => MODULE_HEIGHT_PER_TERMINAL,
+    getHeight: (data, inputCount, outputCount) => {
+      return Math.max(inputCount, outputCount, 1) * MODULE_HEIGHT_PER_TERMINAL;
+    },
+  }),
 };
 
 function createMultipleInputs(
   data: Object,
+  keyBase: string,
   getLabel: number => React.Element<any>,
 ): {[string]: InputData} {
   const inputs = {};
   const inputCount = data.inputs || InputsProperty.inputs.defaultValue;
   for (let ii = 1; ii <= inputCount; ii++) {
-    inputs['input' + ii] = {label: getLabel(ii)};
+    inputs[keyBase + ii] = {label: getLabel(ii)};
   }
   return inputs;
 }
