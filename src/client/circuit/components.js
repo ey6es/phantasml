@@ -133,6 +133,7 @@ export const CircuitComponents: {[string]: ComponentData} = {
       ...OutputsProperty,
     },
     category: 'layout',
+    removable: false,
   },
   bundle: {
     label: <FormattedMessage id="bundle.title" defaultMessage="Bundle" />,
@@ -140,6 +141,7 @@ export const CircuitComponents: {[string]: ComponentData} = {
       ...ElementsProperty,
     },
     category: 'layout',
+    removable: false,
   },
   bend: {
     label: <FormattedMessage id="bend.title" defaultMessage="L-Bend" />,
@@ -151,6 +153,7 @@ export const CircuitComponents: {[string]: ComponentData} = {
       },
     },
     category: 'layout',
+    removable: false,
   },
   add: {
     label: <FormattedMessage id="add.title" defaultMessage="Add" />,
@@ -158,6 +161,7 @@ export const CircuitComponents: {[string]: ComponentData} = {
       ...InputsProperty,
     },
     category: 'arithmetic',
+    removable: false,
   },
   subtract: {
     label: <FormattedMessage id="subtract.title" defaultMessage="Subtract" />,
@@ -165,6 +169,7 @@ export const CircuitComponents: {[string]: ComponentData} = {
       ...UnaryProperty,
     },
     category: 'arithmetic',
+    removable: false,
   },
   multiply: {
     label: <FormattedMessage id="multiply.title" defaultMessage="Multiply" />,
@@ -172,6 +177,7 @@ export const CircuitComponents: {[string]: ComponentData} = {
       ...InputsProperty,
     },
     category: 'arithmetic',
+    removable: false,
   },
   divide: {
     label: <FormattedMessage id="divide.title" defaultMessage="Divide" />,
@@ -179,6 +185,7 @@ export const CircuitComponents: {[string]: ComponentData} = {
       ...UnaryProperty,
     },
     category: 'arithmetic',
+    removable: false,
   },
   pushButton: {
     label: (
@@ -189,6 +196,7 @@ export const CircuitComponents: {[string]: ComponentData} = {
       ...OnProperty,
     },
     category: 'control',
+    removable: false,
   },
   toggleSwitch: {
     label: (
@@ -202,6 +210,7 @@ export const CircuitComponents: {[string]: ComponentData} = {
       ...OnProperty,
     },
     category: 'control',
+    removable: false,
   },
   dial: {
     label: <FormattedMessage id="dial.title" defaultMessage="Dial" />,
@@ -210,6 +219,7 @@ export const CircuitComponents: {[string]: ComponentData} = {
       ...MaxProperty,
     },
     category: 'control',
+    removable: false,
   },
   slider: {
     label: <FormattedMessage id="slider.title" defaultMessage="Slider" />,
@@ -218,6 +228,7 @@ export const CircuitComponents: {[string]: ComponentData} = {
       ...MaxProperty,
     },
     category: 'control',
+    removable: false,
   },
   joystick: {
     label: <FormattedMessage id="joystick.title" defaultMessage="Joystick" />,
@@ -236,6 +247,7 @@ export const CircuitComponents: {[string]: ComponentData} = {
       },
     },
     category: 'control',
+    removable: false,
   },
   pseudo3d: {
     label: <FormattedMessage id="pseudo3d.title" defaultMessage="Pseudo 3D" />,
@@ -260,15 +272,18 @@ export const CircuitComponents: {[string]: ComponentData} = {
       },
     },
     category: 'display',
+    removable: false,
   },
   inputBus: {
     label: <FormattedMessage id="input_bus.title" defaultMessage="Input Bus" />,
     properties: {},
+    removable: false,
   },
   outputBus: {
     label: (
       <FormattedMessage id="output_bus.title" defaultMessage="Output Bus" />
     ),
     properties: {},
+    removable: false,
   },
 };

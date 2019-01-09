@@ -892,6 +892,7 @@ export class Scene extends Resource {
   _entityHierarchy: EntityHierarchyNode;
   _quadtrees: Map<string, QuadtreeNode>;
   _dirtyBounds: ?Map<string, Bounds>;
+  _initialEntities: ?Object;
 
   /** Returns a reference to the id tree root node. */
   get idTree(): IdTreeNode {
@@ -1321,6 +1322,13 @@ export class Scene extends Resource {
   }
 
   _getInitialEntities(): Object {
+    if (!this._initialEntities) {
+      this._initialEntities = this._createInitialEntities();
+    }
+    return this._initialEntities;
+  }
+
+  _createInitialEntities(): Object {
     return {};
   }
 }
@@ -1332,7 +1340,7 @@ class Environment extends Scene {
   getType(): ResourceType {
     return 'environment';
   }
-  _getInitialEntities(): Object {
+  _createInitialEntities(): Object {
     return {default: {}};
   }
 }
@@ -1344,7 +1352,7 @@ class Organism extends Scene {
   getType(): ResourceType {
     return 'organism';
   }
-  _getInitialEntities(): Object {
+  _createInitialEntities(): Object {
     return {
       exterior: {},
       interior: {order: 1},

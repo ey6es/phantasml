@@ -46,5 +46,6 @@ export const EffectorComponents: {[string]: ComponentData} = {
       },
     },
     category: 'effector',
+    removable: false,
   },
 };

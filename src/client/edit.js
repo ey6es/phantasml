@@ -104,7 +104,7 @@ const RedoItem = ReactRedux.connect(state => ({
 ));
 
 const CutItem = ReactRedux.connect(state => ({
-  disabled: state.selection.size === 0,
+  disabled: !canCopyOrDelete(state.selection),
 }))(props => (
   <MenuItem
     shortcut={new Shortcut('X', Shortcut.CTRL | Shortcut.FIELD_DISABLE)}
@@ -115,7 +115,7 @@ const CutItem = ReactRedux.connect(state => ({
 ));
 
 const CopyItem = ReactRedux.connect(state => ({
-  disabled: state.selection.size === 0,
+  disabled: !canCopyOrDelete(state.selection),
 }))(props => (
   <MenuItem
     shortcut={new Shortcut('C', Shortcut.CTRL | Shortcut.FIELD_DISABLE)}
@@ -137,7 +137,7 @@ const PasteItem = ReactRedux.connect(state => ({
 ));
 
 const DeleteItem = ReactRedux.connect(state => ({
-  disabled: state.selection.size === 0,
+  disabled: !canCopyOrDelete(state.selection),
 }))(props => (
   <MenuItem
     shortcut={new Shortcut(46)} // Delete
@@ -146,6 +146,21 @@ const DeleteItem = ReactRedux.connect(state => ({
     <FormattedMessage id="edit.delete" defaultMessage="Delete" />
   </MenuItem>
 ));
+
+function canCopyOrDelete(selection: Set<string>): boolean {
+  if (selection.size === 0) {
+    return false;
+  }
+  const resource = store.getState().resource;
+  if (resource instanceof Scene) {
+    for (const id of selection) {
+      if (resource.isInitialEntity(id)) {
+        return false;
+      }
+    }
+  }
+  return true;
+}
 
 const SelectAllItem = ReactRedux.connect(state => {
   let disabled = true;

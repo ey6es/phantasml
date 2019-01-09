@@ -205,6 +205,7 @@ export const RendererComponents: {[string]: ComponentData} = {
       ...ZOrderProperty,
     },
     category: 'renderer',
+    removable: false,
   },
   effectorRenderer: {
     label: (
@@ -217,6 +218,7 @@ export const RendererComponents: {[string]: ComponentData} = {
       ...ZOrderProperty,
     },
     category: 'renderer',
+    removable: false,
   },
   moduleRenderer: {
     label: (
@@ -229,5 +231,6 @@ export const RendererComponents: {[string]: ComponentData} = {
       ...ZOrderProperty,
     },
     category: 'renderer',
+    removable: false,
   },
 };

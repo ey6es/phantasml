@@ -93,6 +93,9 @@ function CategorySubmenus() {
   > = new Map();
   for (const name in Components) {
     const data = Components[name];
+    if (data.removable === false) {
+      continue;
+    }
     const category = data.category;
     if (category && (page ? data.page === true : data.entity !== false)) {
       let array = categories.get(category);
@@ -115,7 +118,16 @@ function CategorySubmenus() {
   const entities: Entity[] = [];
   for (const id of ids) {
     const entity = resource.getEntity(id);
-    entity && entities.push(entity);
+    if (entity) {
+      for (const key in entity.state) {
+        const component = Components[key];
+        if (component && component.removable === false && component.category) {
+          // can't replace this component, so remove its category
+          categories.delete(component.category);
+        }
+      }
+      entities.push(entity);
+    }
   }
   const createElement = ([name, data]) => {
     if (data.properties) {

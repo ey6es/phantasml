@@ -61,5 +61,6 @@ export const SensorComponents: {[string]: ComponentData} = {
       },
     },
     category: 'sensor',
+    removable: false,
   },
 };
