@@ -653,7 +653,7 @@ export class Shortcut {
  */
 export class MenuItem extends React.Component<
   {
-    shortcut?: Shortcut,
+    shortcut?: ?Shortcut,
     disabled?: boolean,
     onClick?: mixed => mixed,
     children?: any,

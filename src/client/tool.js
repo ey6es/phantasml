@@ -171,6 +171,7 @@ export class Toolset extends React.Component<
     preferences: UserGetPreferencesResponse,
     setPreferences: UserGetPreferencesResponse => void,
     renderer: ?Renderer,
+    openEntityMenu: Vector2 => void,
   },
   {optionProperties: ?OptionProperties},
 > {
@@ -180,6 +181,7 @@ export class Toolset extends React.Component<
     const toolProps = {
       locale: this.props.locale,
       renderer: this.props.renderer,
+      openEntityMenu: this.props.openEntityMenu,
       options: this.props.preferences,
       setOptionProperties: this._setOptionProperties,
     };
@@ -382,6 +384,7 @@ function ShortcutTooltip(props: {
 type ToolProps = {
   locale: string,
   renderer: ?Renderer,
+  openEntityMenu: Vector2 => void,
   options: UserGetPreferencesResponse,
   setOptionProperties: (?OptionProperties) => void,
   activeTool: ToolType,
@@ -564,7 +567,10 @@ class ToolImpl extends React.Component<ToolProps, {}> {
   };
 
   _onContextMenu = (event: MouseEvent) => {
-    // nothing by default
+    if (this.active) {
+      event.preventDefault();
+      this.props.openEntityMenu(vec2(event.clientX, event.clientY));
+    }
   };
 
   _onDoubleClick = (event: MouseEvent) => {
@@ -809,10 +815,12 @@ class SelectPanToolImpl extends ToolImpl {
   };
 
   _onMouseDown = (event: MouseEvent) => {
-    if (!(this.active && event.button === 0)) {
+    if (!this.active) {
       return;
     }
-    this._pressed = true;
+    if (event.button === 0) {
+      this._pressed = true;
+    }
     const renderer = this.props.renderer;
     const resource = store.getState().resource;
     if (!(renderer && resource)) {
@@ -827,33 +835,37 @@ class SelectPanToolImpl extends ToolImpl {
       const map = {};
       let hoverStates = this.props.hoverStates;
       for (const [id, hoverState] of this.props.hoverStates) {
-        const entity = resource.getEntity(id);
-        if (entity) {
-          for (const key in entity.state) {
-            const renderer = ComponentRenderers[key];
-            if (renderer) {
-              const [newHoverState, select] = renderer.onPress(
-                entity,
-                transformPoint(
-                  eventPosition,
-                  getTransformInverseMatrix(
-                    entity.getLastCachedValue('worldTransform'),
+        let select = true;
+        if (event.button === 0) {
+          const entity = resource.getEntity(id);
+          if (entity) {
+            for (const key in entity.state) {
+              const renderer = ComponentRenderers[key];
+              if (renderer) {
+                const [newHoverState, newSelect] = renderer.onPress(
+                  entity,
+                  transformPoint(
+                    eventPosition,
+                    getTransformInverseMatrix(
+                      entity.getLastCachedValue('worldTransform'),
+                    ),
+                    localPosition,
                   ),
-                  localPosition,
-                ),
-              );
-              if (newHoverState !== hoverState) {
-                if (hoverStates === this.props.hoverStates) {
-                  hoverStates = new Map(this.props.hoverStates);
+                );
+                if (newHoverState !== hoverState) {
+                  if (hoverStates === this.props.hoverStates) {
+                    hoverStates = new Map(this.props.hoverStates);
+                  }
+                  hoverStates.set(id, newHoverState);
                 }
-                hoverStates.set(id, newHoverState);
+                select = newSelect;
+                break;
               }
-              if (select) {
-                map[id] = event.ctrlKey ? !this.props.selection.has(id) : true;
-              }
-              break;
             }
           }
+        }
+        if (select) {
+          map[id] = event.ctrlKey ? !this.props.selection.has(id) : true;
         }
       }
       if (hoverStates !== this.props.hoverStates) {
@@ -864,7 +876,9 @@ class SelectPanToolImpl extends ToolImpl {
       if (this.props.selection.size > 0) {
         store.dispatch(StoreActions.select.create({}));
       }
-      this._panning = true;
+      if (event.button === 0) {
+        this._panning = true;
+      }
     }
   };
 

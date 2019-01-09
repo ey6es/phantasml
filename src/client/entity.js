@@ -8,8 +8,11 @@
 import * as React from 'react';
 import * as ReactRedux from 'react-redux';
 import {FormattedMessage} from 'react-intl';
+import {Dropdown, DropdownMenu, DropdownItem} from 'reactstrap';
+import {Target} from 'react-popper';
 import {StoreActions, store, createUuid, centerPageOnSelection} from './store';
 import type {ComponentData} from './component';
+import {EditItems} from './edit';
 import {GeometryComponents} from './geometry/components';
 import {SensorCategory, SensorComponents} from './sensor/components';
 import {EffectorCategory, EffectorComponents} from './effector/components';
@@ -18,8 +21,9 @@ import type {Renderer} from './renderer/util';
 import {Menu, MenuItem, Submenu, renderText} from './util/ui';
 import type {Resource, Entity} from '../server/store/resource';
 import {EntityHierarchyNode, Scene, SceneActions} from '../server/store/scene';
-import type {Transform} from '../server/store/math';
+import type {Vector2, Transform} from '../server/store/math';
 import {
+  vec2,
   invertTransform,
   composeTransforms,
   simplifyTransform,
@@ -286,31 +290,41 @@ export const EntityTree = ReactRedux.connect(state => {
     root = resource.entityHierarchy.getChild(state.page);
   }
   return {root};
-})((props: {root: ?EntityHierarchyNode, renderer: ?Renderer}) => {
-  const root = props.root;
-  if (!root) {
-    return null;
-  }
-  return (
-    <div
-      className="entity-tree"
-      onMouseDown={event => {
-        if (store.getState().selection.size > 0) {
-          // deselect
-          store.dispatch(StoreActions.select.create({}));
-        }
-      }}
-      onDrop={event => {
-        event.stopPropagation();
-        const page = store.getState().page;
-        if (isDroppable(page, null, root.highestChildOrder)) {
-          drop(page, null, root.highestChildOrder);
-        }
-      }}>
-      <EntityTreeChildren node={root} renderer={props.renderer} />
-    </div>
-  );
-});
+})(
+  (props: {
+    root: ?EntityHierarchyNode,
+    renderer: ?Renderer,
+    openEntityMenu: Vector2 => void,
+  }) => {
+    const root = props.root;
+    if (!root) {
+      return null;
+    }
+    return (
+      <div
+        className="entity-tree"
+        onMouseDown={event => {
+          if (store.getState().selection.size > 0) {
+            // deselect
+            store.dispatch(StoreActions.select.create({}));
+          }
+        }}
+        onDrop={event => {
+          event.stopPropagation();
+          const page = store.getState().page;
+          if (isDroppable(page, null, root.highestChildOrder)) {
+            drop(page, null, root.highestChildOrder);
+          }
+        }}
+        onContextMenu={event => {
+          event.preventDefault();
+          props.openEntityMenu(vec2(event.clientX, event.clientY));
+        }}>
+        <EntityTreeChildren node={root} renderer={props.renderer} />
+      </div>
+    );
+  },
+);
 
 function EntityTreeChildren(props: {
   node: EntityHierarchyNode,
@@ -620,3 +634,23 @@ function drop(parentId: string, beforeOrder: ?number, afterOrder: ?number) {
   }
   store.dispatch(SceneActions.editEntities.create(map));
 }
+
+/**
+ * The entity context menu.
+ */
+export const EntityMenu = ReactRedux.connect(state => {
+  return {};
+})((props: {position: Vector2, close: () => void}) => {
+  return (
+    <Dropdown
+      className="position-fixed"
+      style={{left: props.position.x, top: props.position.y}}
+      isOpen={true}
+      toggle={props.close}>
+      <Target />
+      <DropdownMenu>
+        <EditItems />
+      </DropdownMenu>
+    </Dropdown>
+  );
+});

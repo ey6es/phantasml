@@ -40,15 +40,7 @@ export class EditDropdown extends React.Component<
       <Menu label={<FormattedMessage id="edit.title" defaultMessage="Edit" />}>
         {this.props.resource
           ? [
-              <UndoItem key="undo" />,
-              <RedoItem key="redo" />,
-              <DropdownItem key="firstDivider" divider />,
-              <CutItem key="cut" />,
-              <CopyItem key="copy" />,
-              <PasteItem key="paste" />,
-              <DeleteItem key="delete" />,
-              <DropdownItem key="secondDivider" divider />,
-              <SelectAllItem key="selectAll" />,
+              <EditItems key="editItems" shortcuts />,
               <DropdownItem key="thirdDivider" divider />,
             ]
           : null}
@@ -77,11 +69,31 @@ export class EditDropdown extends React.Component<
   _clearDialog = () => this.props.setDialog(null);
 }
 
+/**
+ * The standard set of edit menu items.
+ *
+ * @param props the component properties.
+ * @param props.shortcuts whether or not to include shortcuts.
+ */
+export function EditItems(props: {shortcuts?: boolean}) {
+  return [
+    <UndoItem key="undo" shortcut={props.shortcuts} />,
+    <RedoItem key="redo" shortcut={props.shortcuts} />,
+    <DropdownItem key="firstDivider" divider />,
+    <CutItem key="cut" shortcut={props.shortcuts} />,
+    <CopyItem key="copy" shortcut={props.shortcuts} />,
+    <PasteItem key="paste" shortcut={props.shortcuts} />,
+    <DeleteItem key="delete" shortcut={props.shortcuts} />,
+    <DropdownItem key="secondDivider" divider />,
+    <SelectAllItem key="selectAll" shortcut={props.shortcuts} />,
+  ];
+}
+
 const UndoItem = ReactRedux.connect(state => ({
   disabled: state.undoStack.length === 0,
-}))(props => (
+}))((props: {disabled: boolean, shortcut: ?boolean}) => (
   <MenuItem
-    shortcut={new Shortcut('Z', Shortcut.CTRL)}
+    shortcut={props.shortcut ? new Shortcut('Z', Shortcut.CTRL) : null}
     disabled={props.disabled}
     onClick={() => store.dispatch(StoreActions.undo.create())}>
     <FormattedMessage id="edit.undo" defaultMessage="Undo" />
@@ -90,12 +102,14 @@ const UndoItem = ReactRedux.connect(state => ({
 
 const RedoItem = ReactRedux.connect(state => ({
   disabled: state.redoStack.length === 0,
-}))(props => (
+}))((props: {disabled: boolean, shortcut: ?boolean}) => (
   <MenuItem
     shortcut={
-      new Shortcut('Y', Shortcut.CTRL, [
-        new Shortcut('Z', Shortcut.CTRL | Shortcut.SHIFT),
-      ])
+      props.shortcut
+        ? new Shortcut('Y', Shortcut.CTRL, [
+            new Shortcut('Z', Shortcut.CTRL | Shortcut.SHIFT),
+          ])
+        : null
     }
     disabled={props.disabled}
     onClick={() => store.dispatch(StoreActions.redo.create())}>
@@ -105,9 +119,13 @@ const RedoItem = ReactRedux.connect(state => ({
 
 const CutItem = ReactRedux.connect(state => ({
   disabled: !canCopyOrDelete(state.selection),
-}))(props => (
+}))((props: {disabled: boolean, shortcut: ?boolean}) => (
   <MenuItem
-    shortcut={new Shortcut('X', Shortcut.CTRL | Shortcut.FIELD_DISABLE)}
+    shortcut={
+      props.shortcut
+        ? new Shortcut('X', Shortcut.CTRL | Shortcut.FIELD_DISABLE)
+        : null
+    }
     disabled={props.disabled}
     onClick={() => store.dispatch(StoreActions.cut.create())}>
     <FormattedMessage id="edit.cut" defaultMessage="Cut" />
@@ -116,9 +134,13 @@ const CutItem = ReactRedux.connect(state => ({
 
 const CopyItem = ReactRedux.connect(state => ({
   disabled: !canCopyOrDelete(state.selection),
-}))(props => (
+}))((props: {disabled: boolean, shortcut: ?boolean}) => (
   <MenuItem
-    shortcut={new Shortcut('C', Shortcut.CTRL | Shortcut.FIELD_DISABLE)}
+    shortcut={
+      props.shortcut
+        ? new Shortcut('C', Shortcut.CTRL | Shortcut.FIELD_DISABLE)
+        : null
+    }
     disabled={props.disabled}
     onClick={() => store.dispatch(StoreActions.copy.create())}>
     <FormattedMessage id="edit.copy" defaultMessage="Copy" />
@@ -127,9 +149,13 @@ const CopyItem = ReactRedux.connect(state => ({
 
 const PasteItem = ReactRedux.connect(state => ({
   disabled: state.clipboard.size === 0,
-}))(props => (
+}))((props: {disabled: boolean, shortcut: ?boolean}) => (
   <MenuItem
-    shortcut={new Shortcut('V', Shortcut.CTRL | Shortcut.FIELD_DISABLE)}
+    shortcut={
+      props.shortcut
+        ? new Shortcut('V', Shortcut.CTRL | Shortcut.FIELD_DISABLE)
+        : null
+    }
     disabled={props.disabled}
     onClick={() => store.dispatch(StoreActions.paste.create())}>
     <FormattedMessage id="edit.paste" defaultMessage="Paste" />
@@ -138,9 +164,9 @@ const PasteItem = ReactRedux.connect(state => ({
 
 const DeleteItem = ReactRedux.connect(state => ({
   disabled: !canCopyOrDelete(state.selection),
-}))(props => (
+}))((props: {disabled: boolean, shortcut: ?boolean}) => (
   <MenuItem
-    shortcut={new Shortcut(46)} // Delete
+    shortcut={props.shortcut ? new Shortcut(46) : null} // Delete
     disabled={props.disabled}
     onClick={() => store.dispatch(StoreActions.delete.create())}>
     <FormattedMessage id="edit.delete" defaultMessage="Delete" />
@@ -170,9 +196,13 @@ const SelectAllItem = ReactRedux.connect(state => {
     disabled = !(pageNode && pageNode.children.length > 0);
   }
   return {disabled};
-})((props: {disabled: boolean}) => (
+})((props: {disabled: boolean, shortcut: ?boolean}) => (
   <MenuItem
-    shortcut={new Shortcut('A', Shortcut.CTRL | Shortcut.FIELD_DISABLE)}
+    shortcut={
+      props.shortcut
+        ? new Shortcut('A', Shortcut.CTRL | Shortcut.FIELD_DISABLE)
+        : null
+    }
     disabled={props.disabled}
     onClick={() => {
       const state = store.getState();

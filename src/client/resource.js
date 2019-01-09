@@ -21,7 +21,7 @@ import {
 } from 'reactstrap';
 import {StoreActions, store, setStoreResource, isResourceDirty} from './store';
 import {Toolset} from './tool';
-import {EntityTree} from './entity';
+import {EntityTree, EntityMenu} from './entity';
 import {SceneView} from './view';
 import {ComponentEditor} from './component';
 import {getFromApi, deleteFromApi, putToApi, postToApi} from './util/api';
@@ -50,6 +50,7 @@ import {
   isResourceDescriptionValid,
 } from '../server/constants';
 import {ResourceActions} from '../server/store/resource';
+import type {Vector2} from '../server/store/math';
 import {getValue} from '../server/store/util';
 
 /** The parameter prefix used for resources. */
@@ -499,9 +500,13 @@ export class ResourceContent extends React.Component<
     renderer: ?Renderer,
     setRenderer: (?Renderer) => void,
   },
-  {dialog: ?React.Element<any>, fontImage: ?HTMLImageElement},
+  {
+    dialog: ?React.Element<any>,
+    fontImage: ?HTMLImageElement,
+    entityMenuPosition: ?Vector2,
+  },
 > {
-  state = {dialog: null, fontImage: null};
+  state = {dialog: null, fontImage: null, entityMenuPosition: null};
 
   _fontImage: Promise<HTMLImageElement> = new Promise(
     resolve => (this._resolveFontImage = resolve),
@@ -576,8 +581,12 @@ export class ResourceContent extends React.Component<
                 preferences={this.props.preferences}
                 setPreferences={this.props.setPreferences}
                 renderer={this.props.renderer}
+                openEntityMenu={this._openEntityMenu}
               />
-              <EntityTree renderer={this.props.renderer} />
+              <EntityTree
+                renderer={this.props.renderer}
+                openEntityMenu={this._openEntityMenu}
+              />
             </div>
             <div className="flex-grow-1 d-flex flex-column">
               <SceneView
@@ -594,6 +603,12 @@ export class ResourceContent extends React.Component<
                 setPreferences={this.props.setPreferences}
               />
             </div>
+            {this.state.entityMenuPosition ? (
+              <EntityMenu
+                position={this.state.entityMenuPosition}
+                close={this._closeEntityMenu}
+              />
+            ) : null}
           </div>
         );
       default:
@@ -604,6 +619,12 @@ export class ResourceContent extends React.Component<
   _setDialog = (dialog: ?React.Element<any>) => this.setState({dialog});
 
   _clearDialog = () => this.setState({dialog: null});
+
+  _openEntityMenu = (position: Vector2) => {
+    this.setState({entityMenuPosition: position});
+  };
+
+  _closeEntityMenu = () => this.setState({entityMenuPosition: null});
 }
 
 function isResourceOwned(
