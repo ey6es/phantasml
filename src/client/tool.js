@@ -822,7 +822,8 @@ class SelectPanToolImpl extends ToolImpl {
       this._pressed = true;
     }
     const renderer = this.props.renderer;
-    const resource = store.getState().resource;
+    const state = store.getState();
+    const resource = state.resource;
     if (!(renderer && resource)) {
       return;
     }
@@ -865,7 +866,17 @@ class SelectPanToolImpl extends ToolImpl {
           }
         }
         if (select) {
-          map[id] = event.ctrlKey ? !this.props.selection.has(id) : true;
+          if (event.ctrlKey) {
+            map[id] = !this.props.selection.has(id);
+          } else if (state.selection.has(id)) {
+            // if we select something that was already selected, include
+            // the entire existing selection
+            for (const id of state.selection) {
+              map[id] = true;
+            }
+          } else {
+            map[id] = true;
+          }
         }
       }
       if (hoverStates !== this.props.hoverStates) {
