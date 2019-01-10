@@ -500,6 +500,9 @@ export class Renderer {
 
   fontTexture: WebGLTexture;
 
+  mouseOffsetPosition: ?Vector2;
+  mouseWorldPosition: ?Vector2;
+
   _renderCallbacks: [(Renderer) => void, number][] = [];
   _frameDirty = false;
   _lastFrameTime = 0;
@@ -570,6 +573,10 @@ export class Renderer {
       gl.LINEAR_MIPMAP_LINEAR,
     );
     gl.generateMipmap(gl.TEXTURE_2D);
+
+    canvas.addEventListener('mouseenter', this._onMouseMove);
+    canvas.addEventListener('mousemove', this._onMouseMove);
+    canvas.addEventListener('mouseleave', this._onMouseLeave);
   }
 
   /**
@@ -610,7 +617,35 @@ export class Renderer {
     }
     this.gl.deleteTexture(this.fontTexture);
     this._frameDirty = false;
+
+    this.canvas.removeEventListener('mouseenter', this._onMouseMove);
+    this.canvas.removeEventListener('mousemove', this._onMouseMove);
+    this.canvas.removeEventListener('mouseleave', this._onMouseLeave);
   }
+
+  _onMouseMove = (event: MouseEvent) => {
+    this.mouseOffsetPosition = vec2(
+      event.offsetX,
+      event.offsetY,
+      this.mouseOffsetPosition,
+    );
+    this._updateMouseWorldPosition();
+  };
+
+  _updateMouseWorldPosition() {
+    if (this.mouseOffsetPosition) {
+      this.mouseWorldPosition = this.getWorldPosition(
+        this.mouseOffsetPosition.x,
+        this.mouseOffsetPosition.y,
+        this.mouseWorldPosition,
+      );
+    }
+  }
+
+  _onMouseLeave = (event: MouseEvent) => {
+    this.mouseOffsetPosition = null;
+    this.mouseWorldPosition = null;
+  };
 
   /**
    * Returns the world position corresponding to an event position.
@@ -624,7 +659,7 @@ export class Renderer {
   getEventPosition(
     clientX: number,
     clientY: number,
-    result?: Vector2,
+    result?: ?Vector2,
   ): Vector2 {
     const rect = this.canvas.getBoundingClientRect();
     return this.getWorldPosition(
@@ -1178,6 +1213,7 @@ export class Renderer {
       this._camera.aspect !== aspect
     ) {
       this._camera = {x, y, size, aspect};
+      this._updateMouseWorldPosition();
     }
   }
 

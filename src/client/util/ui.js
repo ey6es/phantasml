@@ -885,11 +885,13 @@ export class ContextMenu extends React.Component<
             style={{left: this.props.position.x, top: this.props.position.y}}
             isOpen={this.state.active}
             toggle={this.props.close}>
-            <Target />
-            {ReactDOM.createPortal(
-              <DropdownMenu>{this.props.children}</DropdownMenu>,
-              menuContainer,
-            )}
+            <div>
+              <Target />
+              {ReactDOM.createPortal(
+                <DropdownMenu>{this.props.children}</DropdownMenu>,
+                menuContainer,
+              )}
+            </div>
           </ContainedDropdown>
         </MenuContext.Provider>
       </MenuBarContext.Provider>

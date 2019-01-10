@@ -23,9 +23,22 @@ import {
   reducer as resourceReducer,
   undoStackReducer,
 } from '../server/store/resource';
-import {Scene, SceneActions, advanceEditNumber} from '../server/store/scene';
+import {
+  Scene,
+  SceneActions,
+  advanceEditNumber,
+  mergeEntityEdits,
+} from '../server/store/scene';
 import type {Vector2} from '../server/store/math';
-import {getTransformTranslation, boundsValid} from '../server/store/math';
+import {
+  vec2,
+  plus,
+  minus,
+  plusEquals,
+  timesEquals,
+  getTransformTranslation,
+  boundsValid,
+} from '../server/store/math';
 import {setsEqual} from '../server/store/util';
 
 type StoreAction = {type: string, [string]: any};
@@ -376,11 +389,16 @@ export const StoreActions = {
     },
   },
   paste: {
-    create: (asChildren: boolean = false) => ({type: 'paste', asChildren}),
+    create: (translation: ?Vector2, asChildren: boolean = false) => ({
+      type: 'paste',
+      translation,
+      asChildren,
+    }),
     reduce: (state: StoreState, action: StoreAction) => {
       const pasteAction = createPasteAction(
         state.clipboard,
         state,
+        action.translation,
         action.asChildren,
       );
       return pasteAction ? reducer(state, pasteAction) : state;
@@ -731,6 +749,7 @@ function dispatchFrame() {
  *
  * @param entities the map from entity id to entity state.
  * @param state the store state.
+ * @param [translation] optional translation at which to paste.
  * @param [asChildren=false] whether to paste the entities as children of the
  * (first) currently selected entity.
  * @return the paste action, if successful.
@@ -738,6 +757,7 @@ function dispatchFrame() {
 export function createPasteAction(
   entities: Map<string, Object>,
   state: StoreState,
+  translation?: ?Vector2,
   asChildren: boolean = false,
 ): ?StoreAction {
   const resource = state.resource;
@@ -752,12 +772,31 @@ export function createPasteAction(
   if (!parentNode) {
     return;
   }
+  let offset: ?Vector2;
+  if (translation) {
+    // find the centroid of all top level entities' translations
+    const centroid = vec2();
+    let count = 0;
+    for (const json of entities.values()) {
+      if (!entities.has(json.parent.ref)) {
+        plusEquals(centroid, getTransformTranslation(json.transform));
+        count++;
+      }
+    }
+    timesEquals(centroid, 1.0 / count);
+    offset = minus(translation, centroid);
+  }
   let map = {};
   const ids: Map<string, string> = new Map();
   for (const [id, json] of entities) {
     const newId = createUuid();
     ids.set(id, newId);
-    map[newId] = json;
+    if (offset) {
+      const translation = plus(getTransformTranslation(json.transform), offset);
+      map[newId] = mergeEntityEdits(json, {transform: {translation}});
+    } else {
+      map[newId] = json;
+    }
   }
   map = updateRefs(map, ids, parentId);
   let lastOrder = parentNode.highestChildOrder;
@@ -768,6 +807,17 @@ export function createPasteAction(
     }
   }
   return SceneActions.editEntities.create(map);
+}
+
+/**
+ * Returns the location of the center of the current page.
+ *
+ * @return the page translation.
+ */
+export function getPageTranslation(): Vector2 {
+  const storeState = store.getState();
+  const pageState = storeState.pageStates.get(storeState.page) || {};
+  return vec2(pageState.x, pageState.y);
 }
 
 function updateRefs(

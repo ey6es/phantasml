@@ -350,7 +350,7 @@ export type LineSegment = {start: Vector2, end: Vector2};
  * vector will be created).
  * @return a reference to the result vector, for chaining.
  */
-export function vec2(x: number = 0, y: number = 0, result?: Vector2): Vector2 {
+export function vec2(x: number = 0, y: number = 0, result?: ?Vector2): Vector2 {
   if (!result) {
     return {x, y};
   }

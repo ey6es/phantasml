@@ -9,7 +9,13 @@ import * as React from 'react';
 import * as ReactRedux from 'react-redux';
 import {FormattedMessage} from 'react-intl';
 import {DropdownItem} from 'reactstrap';
-import {StoreActions, store, createUuid, centerPageOnSelection} from './store';
+import {
+  StoreActions,
+  store,
+  createUuid,
+  centerPageOnSelection,
+  getPageTranslation,
+} from './store';
 import type {ComponentData} from './component';
 import {EditItems} from './edit';
 import {GeometryComponents} from './geometry/components';
@@ -23,6 +29,7 @@ import {EntityHierarchyNode, Scene, SceneActions} from '../server/store/scene';
 import type {Vector2, Transform} from '../server/store/math';
 import {
   vec2,
+  equals,
   invertTransform,
   composeTransforms,
   simplifyTransform,
@@ -49,16 +56,10 @@ export class EntityDropdown extends React.Component<{locale: string}, {}> {
   }
 
   _createEntity = (label: React.Element<any>, state: Object) => {
-    createEntity(label, this.props.locale, state, getPageTransform());
+    createEntity(label, this.props.locale, state, {
+      translation: getPageTranslation(),
+    });
   };
-}
-
-function getPageTransform(): Transform {
-  const storeState = store.getState();
-  const pageState = storeState.pageStates.get(storeState.page) || {};
-  const x: number = pageState.x || 0.0;
-  const y: number = pageState.y || 0.0;
-  return {translation: {x, y}};
 }
 
 function EntityMenuItems(props: {
@@ -664,19 +665,16 @@ export const EntityMenu = ReactRedux.connect(state => {
     position: Vector2,
     close: () => void,
   }) => {
-    let transform: Transform;
+    const translation = getPageTranslation();
     const renderer = props.renderer;
     if (renderer) {
-      const translation = renderer.getEventPosition(
+      const position = renderer.getEventPosition(
         props.position.x,
         props.position.y,
       );
-      if (boundsContainPoint(renderer.getCameraBounds(), translation)) {
-        transform = {translation};
+      if (boundsContainPoint(renderer.getCameraBounds(), position)) {
+        equals(position, translation);
       }
-    }
-    if (!transform) {
-      transform = getPageTransform();
     }
     return (
       <ContextMenu position={props.position} close={props.close}>
@@ -684,12 +682,12 @@ export const EntityMenu = ReactRedux.connect(state => {
           <EntityMenuItems
             locale={props.locale}
             createEntity={(label, state) => {
-              createEntity(label, props.locale, state, transform);
+              createEntity(label, props.locale, state, {translation});
             }}
           />
         </Submenu>
         <DropdownItem divider />
-        <EditItems renderer={props.renderer} />
+        <EditItems translation={translation} />
       </ContextMenu>
     );
   },

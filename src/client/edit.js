@@ -11,7 +11,7 @@ import {FormattedMessage} from 'react-intl';
 import {DropdownItem, Form} from 'reactstrap';
 import type {PropertyData} from './component';
 import {PropertyEditorGroup} from './component';
-import {StoreActions, store} from './store';
+import {StoreActions, store, getPageTranslation} from './store';
 import {DEFAULT_AUTO_SAVE_MINUTES} from './resource';
 import type {Renderer} from './renderer/util';
 import {Menu, MenuItem, Shortcut, RequestDialog} from './util/ui';
@@ -22,6 +22,7 @@ import type {
 import type {Resource} from '../server/store/resource';
 import type {EntityHierarchyNode} from '../server/store/scene';
 import {Scene} from '../server/store/scene';
+import type {Vector2} from '../server/store/math';
 
 /**
  * The edit menu dropdown.
@@ -80,9 +81,14 @@ export class EditDropdown extends React.Component<
  *
  * @param props the component properties.
  * @param props.shortcuts whether or not to include shortcuts.
- * @param props.renderer the renderer reference.
+ * @param [props.renderer] the renderer reference.
+ * @param [props.translation] the translation at which to paste.
  */
-export function EditItems(props: {shortcuts?: boolean, renderer: ?Renderer}) {
+export function EditItems(props: {
+  shortcuts?: boolean,
+  renderer?: ?Renderer,
+  translation?: Vector2,
+}) {
   return [
     <UndoItem key="undo" shortcut={props.shortcuts} />,
     <RedoItem key="redo" shortcut={props.shortcuts} />,
@@ -93,6 +99,7 @@ export function EditItems(props: {shortcuts?: boolean, renderer: ?Renderer}) {
       key="paste"
       shortcut={props.shortcuts}
       renderer={props.renderer}
+      translation={props.translation}
     />,
     <DeleteItem key="delete" shortcut={props.shortcuts} />,
     <DropdownItem key="secondDivider" divider />,
@@ -160,18 +167,33 @@ const CopyItem = ReactRedux.connect(state => ({
 
 const PasteItem = ReactRedux.connect(state => ({
   disabled: state.clipboard.size === 0,
-}))((props: {disabled: boolean, shortcut: ?boolean, renderer: ?Renderer}) => (
-  <MenuItem
-    shortcut={
-      props.shortcut
-        ? new Shortcut('V', Shortcut.CTRL | Shortcut.FIELD_DISABLE)
-        : null
-    }
-    disabled={props.disabled}
-    onClick={() => store.dispatch(StoreActions.paste.create())}>
-    <FormattedMessage id="edit.paste" defaultMessage="Paste" />
-  </MenuItem>
-));
+}))(
+  (props: {
+    disabled: boolean,
+    shortcut: ?boolean,
+    renderer: ?Renderer,
+    translation: ?Vector2,
+  }) => (
+    <MenuItem
+      shortcut={
+        props.shortcut
+          ? new Shortcut('V', Shortcut.CTRL | Shortcut.FIELD_DISABLE)
+          : null
+      }
+      disabled={props.disabled}
+      onClick={() =>
+        store.dispatch(
+          StoreActions.paste.create(
+            props.translation ||
+              (props.renderer && props.renderer.mouseWorldPosition) ||
+              getPageTranslation(),
+          ),
+        )
+      }>
+      <FormattedMessage id="edit.paste" defaultMessage="Paste" />
+    </MenuItem>
+  ),
+);
 
 const DeleteItem = ReactRedux.connect(state => ({
   disabled: !canCopyOrDelete(state.selection),
