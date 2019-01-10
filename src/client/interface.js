@@ -122,6 +122,7 @@ export class Interface extends React.Component<
                 flushPreferences={this._flushPreferences}
                 resource={this.state.resource}
                 setDialog={this._setDialog}
+                renderer={this.state.renderer}
               />
             ) : null}
             {this.state.resource

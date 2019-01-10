@@ -12,8 +12,9 @@ import {DropdownItem, Form} from 'reactstrap';
 import type {PropertyData} from './component';
 import {PropertyEditorGroup} from './component';
 import {StoreActions, store} from './store';
-import {Menu, MenuItem, Shortcut, RequestDialog} from './util/ui';
 import {DEFAULT_AUTO_SAVE_MINUTES} from './resource';
+import type {Renderer} from './renderer/util';
+import {Menu, MenuItem, Shortcut, RequestDialog} from './util/ui';
 import type {
   UserGetPreferencesResponse,
   ResourceDescriptor,
@@ -32,6 +33,7 @@ export class EditDropdown extends React.Component<
     flushPreferences: () => Promise<void>,
     resource: ?ResourceDescriptor,
     setDialog: (?React.Element<any>) => void,
+    renderer: ?Renderer,
   },
   {},
 > {
@@ -40,7 +42,11 @@ export class EditDropdown extends React.Component<
       <Menu label={<FormattedMessage id="edit.title" defaultMessage="Edit" />}>
         {this.props.resource
           ? [
-              <EditItems key="editItems" shortcuts />,
+              <EditItems
+                key="editItems"
+                renderer={this.props.renderer}
+                shortcuts
+              />,
               <DropdownItem key="thirdDivider" divider />,
             ]
           : null}
@@ -74,15 +80,20 @@ export class EditDropdown extends React.Component<
  *
  * @param props the component properties.
  * @param props.shortcuts whether or not to include shortcuts.
+ * @param props.renderer the renderer reference.
  */
-export function EditItems(props: {shortcuts?: boolean}) {
+export function EditItems(props: {shortcuts?: boolean, renderer: ?Renderer}) {
   return [
     <UndoItem key="undo" shortcut={props.shortcuts} />,
     <RedoItem key="redo" shortcut={props.shortcuts} />,
     <DropdownItem key="firstDivider" divider />,
     <CutItem key="cut" shortcut={props.shortcuts} />,
     <CopyItem key="copy" shortcut={props.shortcuts} />,
-    <PasteItem key="paste" shortcut={props.shortcuts} />,
+    <PasteItem
+      key="paste"
+      shortcut={props.shortcuts}
+      renderer={props.renderer}
+    />,
     <DeleteItem key="delete" shortcut={props.shortcuts} />,
     <DropdownItem key="secondDivider" divider />,
     <SelectAllItem key="selectAll" shortcut={props.shortcuts} />,
@@ -149,7 +160,7 @@ const CopyItem = ReactRedux.connect(state => ({
 
 const PasteItem = ReactRedux.connect(state => ({
   disabled: state.clipboard.size === 0,
-}))((props: {disabled: boolean, shortcut: ?boolean}) => (
+}))((props: {disabled: boolean, shortcut: ?boolean, renderer: ?Renderer}) => (
   <MenuItem
     shortcut={
       props.shortcut

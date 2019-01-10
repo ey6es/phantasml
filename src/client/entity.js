@@ -8,8 +8,7 @@
 import * as React from 'react';
 import * as ReactRedux from 'react-redux';
 import {FormattedMessage} from 'react-intl';
-import {Dropdown, DropdownMenu, DropdownItem} from 'reactstrap';
-import {Target} from 'react-popper';
+import {DropdownItem} from 'reactstrap';
 import {StoreActions, store, createUuid, centerPageOnSelection} from './store';
 import type {ComponentData} from './component';
 import {EditItems} from './edit';
@@ -18,7 +17,7 @@ import {SensorCategory, SensorComponents} from './sensor/components';
 import {EffectorCategory, EffectorComponents} from './effector/components';
 import {CircuitCategories, CircuitComponents} from './circuit/components';
 import type {Renderer} from './renderer/util';
-import {Menu, MenuItem, Submenu, renderText} from './util/ui';
+import {Menu, MenuItem, Submenu, ContextMenu, renderText} from './util/ui';
 import type {Resource, Entity} from '../server/store/resource';
 import {EntityHierarchyNode, Scene, SceneActions} from '../server/store/scene';
 import type {Vector2, Transform} from '../server/store/math';
@@ -27,52 +26,70 @@ import {
   invertTransform,
   composeTransforms,
   simplifyTransform,
+  boundsContainPoint,
 } from '../server/store/math';
+
+const EntityLabel = (
+  <FormattedMessage id="entity.title" defaultMessage="Entity" />
+);
 
 /**
  * The entity menu dropdown.
  */
 export class EntityDropdown extends React.Component<{locale: string}, {}> {
   render() {
-    const groupLabel = (
-      <FormattedMessage id="entity.group" defaultMessage="Group" />
-    );
-    const textLabel = (
-      <FormattedMessage id="entity.text" defaultMessage="Text" />
-    );
     return (
-      <Menu
-        label={<FormattedMessage id="entity.title" defaultMessage="Entity" />}
-        omitChildrenWhenClosed={true}>
-        <MenuItem onClick={() => this._createEntity(groupLabel)}>
-          {groupLabel}
-        </MenuItem>
-        <MenuItem
-          onClick={() =>
-            this._createEntity(textLabel, {
-              textRenderer: {
-                text: renderText(textLabel, this.props.locale),
-                order: 1,
-              },
-            })
-          }>
-          {textLabel}
-        </MenuItem>
-        <ShapeMenu createEntity={this._createEntity} />
-        <ModuleMenu createEntity={this._createEntity} />
-        <SensorMenu createEntity={this._createEntity} />
-        <EffectorMenu createEntity={this._createEntity} />
+      <Menu label={EntityLabel} omitChildrenWhenClosed={true}>
+        <EntityMenuItems
+          locale={this.props.locale}
+          createEntity={this._createEntity}
+        />
       </Menu>
     );
   }
 
-  _createEntity = (label: React.Element<any>, state: Object = {}) => {
-    const storeState = store.getState();
-    const pageState = storeState.pageStates.get(storeState.page) || {};
-    const x: number = pageState.x || 0.0;
-    const y: number = pageState.y || 0.0;
-    createEntity(label, this.props.locale, state, {translation: {x, y}});
+  _createEntity = (label: React.Element<any>, state: Object) => {
+    createEntity(label, this.props.locale, state, getPageTransform());
   };
+}
+
+function getPageTransform(): Transform {
+  const storeState = store.getState();
+  const pageState = storeState.pageStates.get(storeState.page) || {};
+  const x: number = pageState.x || 0.0;
+  const y: number = pageState.y || 0.0;
+  return {translation: {x, y}};
+}
+
+function EntityMenuItems(props: {
+  locale: string,
+  createEntity: (React.Element<any>, Object) => void,
+}) {
+  const groupLabel = (
+    <FormattedMessage id="entity.group" defaultMessage="Group" />
+  );
+  const textLabel = <FormattedMessage id="entity.text" defaultMessage="Text" />;
+  return [
+    <MenuItem key="group" onClick={() => props.createEntity(groupLabel, {})}>
+      {groupLabel}
+    </MenuItem>,
+    <MenuItem
+      key="text"
+      onClick={() =>
+        props.createEntity(textLabel, {
+          textRenderer: {
+            text: renderText(textLabel, props.locale),
+            order: 1,
+          },
+        })
+      }>
+      {textLabel}
+    </MenuItem>,
+    <ShapeMenu key="shape" createEntity={props.createEntity} />,
+    <ModuleMenu key="module" createEntity={props.createEntity} />,
+    <SensorMenu key="sensor" createEntity={props.createEntity} />,
+    <EffectorMenu key="effector" createEntity={props.createEntity} />,
+  ];
 }
 
 function ShapeMenu(props: {
@@ -640,17 +657,40 @@ function drop(parentId: string, beforeOrder: ?number, afterOrder: ?number) {
  */
 export const EntityMenu = ReactRedux.connect(state => {
   return {};
-})((props: {position: Vector2, close: () => void}) => {
-  return (
-    <Dropdown
-      className="position-fixed"
-      style={{left: props.position.x, top: props.position.y}}
-      isOpen={true}
-      toggle={props.close}>
-      <Target />
-      <DropdownMenu>
-        <EditItems />
-      </DropdownMenu>
-    </Dropdown>
-  );
-});
+})(
+  (props: {
+    locale: string,
+    renderer: ?Renderer,
+    position: Vector2,
+    close: () => void,
+  }) => {
+    let transform: Transform;
+    const renderer = props.renderer;
+    if (renderer) {
+      const translation = renderer.getEventPosition(
+        props.position.x,
+        props.position.y,
+      );
+      if (boundsContainPoint(renderer.getCameraBounds(), translation)) {
+        transform = {translation};
+      }
+    }
+    if (!transform) {
+      transform = getPageTransform();
+    }
+    return (
+      <ContextMenu position={props.position} close={props.close}>
+        <Submenu label={EntityLabel}>
+          <EntityMenuItems
+            locale={props.locale}
+            createEntity={(label, state) => {
+              createEntity(label, props.locale, state, transform);
+            }}
+          />
+        </Submenu>
+        <DropdownItem divider />
+        <EditItems renderer={props.renderer} />
+      </ContextMenu>
+    );
+  },
+);

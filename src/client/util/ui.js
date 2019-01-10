@@ -11,6 +11,7 @@ import * as ReactDOM from 'react-dom';
 import * as ReactDOMServer from 'react-dom/server';
 import type {Element} from 'react';
 import {IntlProvider, FormattedMessage, injectIntl} from 'react-intl';
+import {Target} from 'react-popper';
 import {
   Modal,
   ModalHeader,
@@ -32,6 +33,7 @@ import {
 import {library} from '@fortawesome/fontawesome-svg-core';
 import {FontAwesomeIcon} from '@fortawesome/react-fontawesome';
 import {faEllipsisV} from '@fortawesome/free-solid-svg-icons/faEllipsisV';
+import type {Vector2} from '../../server/store/math';
 import {roundToPrecision} from '../../server/store/math';
 import {store} from '../store';
 
@@ -848,6 +850,57 @@ export class ButtonMenu extends React.Component<
   }
 
   _toggle = () => this.setState({active: !this.state.active});
+}
+
+type ContextMenuProps = {
+  position: Vector2,
+  close: () => void,
+  children?: mixed,
+};
+type ContextMenuState = {
+  active: boolean,
+  hoverItem: ?React.Component<any, any>,
+};
+
+/**
+ * A context menu.
+ *
+ * @param props the element properties.
+ * @param props.position the menu client position.
+ * @param props.close the function to close the menu.
+ * @param props.children the menu contents.
+ */
+export class ContextMenu extends React.Component<
+  ContextMenuProps,
+  ContextMenuState,
+> {
+  state = {active: true, hoverItem: null};
+
+  render() {
+    return (
+      <MenuBarContext.Provider value={this}>
+        <MenuContext.Provider value={this}>
+          <ContainedDropdown
+            className="position-fixed"
+            style={{left: this.props.position.x, top: this.props.position.y}}
+            isOpen={this.state.active}
+            toggle={this.props.close}>
+            <Target />
+            {ReactDOM.createPortal(
+              <DropdownMenu>{this.props.children}</DropdownMenu>,
+              menuContainer,
+            )}
+          </ContainedDropdown>
+        </MenuContext.Provider>
+      </MenuBarContext.Provider>
+    );
+  }
+
+  componentDidUpdate(prevProps: ContextMenuProps, prevState: ContextMenuState) {
+    if (prevState.active && !this.state.active) {
+      this.props.close();
+    }
+  }
 }
 
 /**

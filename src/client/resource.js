@@ -605,6 +605,8 @@ export class ResourceContent extends React.Component<
             </div>
             {this.state.entityMenuPosition ? (
               <EntityMenu
+                locale={this.props.locale}
+                renderer={this.props.renderer}
                 position={this.state.entityMenuPosition}
                 close={this._closeEntityMenu}
               />

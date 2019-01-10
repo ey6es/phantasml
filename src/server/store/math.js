@@ -1149,6 +1149,22 @@ export function boundsContain(first: Bounds, second: Bounds): boolean {
 }
 
 /**
+ * Checks whether a set of bounds contains a point.
+ *
+ * @param bounds the bounds to check.
+ * @param point the point to check.
+ * @return whether or not the bounds contain the point.
+ */
+export function boundsContainPoint(bounds: Bounds, point: Vector2): boolean {
+  return (
+    point.x >= bounds.min.x &&
+    point.x <= bounds.max.x &&
+    point.y >= bounds.min.y &&
+    point.y <= bounds.max.y
+  );
+}
+
+/**
  * Checks whether two sets of bounds intersect.
  *
  * @param first the first bounds to check.
