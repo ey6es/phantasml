@@ -15,8 +15,11 @@ import {
 } from './components';
 import type {HoverState} from '../store';
 import {store} from '../store';
+import {EntityName} from '../entity';
 import type {Renderer} from '../renderer/util';
 import {renderPointHelper, renderLineHelper} from '../renderer/helpers';
+import {ComponentSensors} from '../sensor/sensors';
+import {ComponentEffectors} from '../effector/effectors';
 import {ShapeList} from '../../server/store/shape';
 import type {Entity} from '../../server/store/resource';
 import type {IdTreeNode} from '../../server/store/scene';
@@ -49,8 +52,8 @@ export type OutputData = {
 
 type ModuleData = {
   getIcon: Object => ShapeList,
-  getInputs: Object => {[string]: InputData},
-  getOutputs: Object => {[string]: OutputData},
+  getInputs: (IdTreeNode, Object) => {[string]: InputData},
+  getOutputs: (IdTreeNode, Object) => {[string]: OutputData},
   getOutputTransform: Object => Transform,
   getWidth: Object => number,
   getHeight: (Object, number, number) => number,
@@ -218,8 +221,8 @@ export const MODULE_HEIGHT_PER_TERMINAL = 1.5;
 
 const BaseModule = {
   getIcon: data => NoIcon,
-  getInputs: data => ({}),
-  getOutputs: data => ({}),
+  getInputs: (idTree, data) => ({}),
+  getOutputs: (idTree, data) => ({}),
   getWidth: data => DEFAULT_MODULE_WIDTH,
   getHeight: (data, inputCount, outputCount) => {
     return Math.max(inputCount, outputCount) * MODULE_HEIGHT_PER_TERMINAL;
@@ -255,7 +258,7 @@ const BUTTON_DIAL_RADIUS = 0.9;
 export const ComponentModules: {[string]: ModuleData} = {
   fork: extend(BaseModule, {
     getIcon: data => ForkIcon,
-    getInputs: data => SingleInput,
+    getInputs: (idTree, data) => SingleInput,
     getOutputs: createMultipleOutputs,
   }),
   bundle: extend(BaseModule, {
@@ -290,7 +293,7 @@ export const ComponentModules: {[string]: ModuleData} = {
   }),
   add: extend(BaseModule, {
     getIcon: data => AddIcon,
-    getInputs: data =>
+    getInputs: (idTree, data) =>
       createMultipleInputs(data, 'summand', index => (
         <FormattedMessage
           id="add.summand.n"
@@ -298,7 +301,7 @@ export const ComponentModules: {[string]: ModuleData} = {
           values={{number: index}}
         />
       )),
-    getOutputs: data => ({
+    getOutputs: (idTree, data) => ({
       sum: {
         label: <FormattedMessage id="add.sum" defaultMessage="Sum" />,
       },
@@ -306,7 +309,7 @@ export const ComponentModules: {[string]: ModuleData} = {
   }),
   subtract: extend(BaseModule, {
     getIcon: data => SubtractIcon,
-    getInputs: data => {
+    getInputs: (idTree, data) => {
       const subtrahend = {
         subtrahend: {
           label: (
@@ -329,7 +332,7 @@ export const ComponentModules: {[string]: ModuleData} = {
         ...subtrahend,
       };
     },
-    getOutputs: data => ({
+    getOutputs: (idTree, data) => ({
       difference: {
         label: (
           <FormattedMessage
@@ -342,7 +345,7 @@ export const ComponentModules: {[string]: ModuleData} = {
   }),
   multiply: extend(BaseModule, {
     getIcon: data => MultiplyIcon,
-    getInputs: data =>
+    getInputs: (idTree, data) =>
       createMultipleInputs(data, 'factor', index => (
         <FormattedMessage
           id="multiply.factor.n"
@@ -350,7 +353,7 @@ export const ComponentModules: {[string]: ModuleData} = {
           values={{number: index}}
         />
       )),
-    getOutputs: data => ({
+    getOutputs: (idTree, data) => ({
       product: {
         label: (
           <FormattedMessage id="multiply.product" defaultMessage="Product" />
@@ -360,7 +363,7 @@ export const ComponentModules: {[string]: ModuleData} = {
   }),
   divide: extend(BaseModule, {
     getIcon: data => DivideIcon,
-    getInputs: data => {
+    getInputs: (idTree, data) => {
       const divisor = {
         divisor: {
           label: (
@@ -380,7 +383,7 @@ export const ComponentModules: {[string]: ModuleData} = {
         ...divisor,
       };
     },
-    getOutputs: data => ({
+    getOutputs: (idTree, data) => ({
       quotient: {
         label: (
           <FormattedMessage id="divide.quotient" defaultMessage="Quotient" />
@@ -389,8 +392,8 @@ export const ComponentModules: {[string]: ModuleData} = {
     }),
   }),
   pushButton: extend(BaseModule, {
-    getIcon: data => ButtonDialIcon,
-    getOutputs: data => SingleOutput,
+    getIcon: (idTree, data) => ButtonDialIcon,
+    getOutputs: (idTree, data) => SingleOutput,
     getHeight: data => DEFAULT_MODULE_WIDTH,
     createRenderFn: (idTree, entity, baseFn) => {
       const transform = entity.getLastCachedValue('worldTransform');
@@ -455,7 +458,7 @@ export const ComponentModules: {[string]: ModuleData} = {
   }),
   toggleSwitch: extend(BaseModule, {
     getIcon: data => ToggleSwitchIcon,
-    getOutputs: data => SingleOutput,
+    getOutputs: (idTree, data) => SingleOutput,
     createRenderFn: (idTree, entity, baseFn) => {
       const transform = entity.getLastCachedValue('worldTransform');
       return (renderer, selected, hoverState) => {
@@ -516,7 +519,7 @@ export const ComponentModules: {[string]: ModuleData} = {
   }),
   dial: extend(BaseModule, {
     getIcon: data => ButtonDialIcon,
-    getOutputs: data => SingleOutput,
+    getOutputs: (idTree, data) => SingleOutput,
     getHeight: data => DEFAULT_MODULE_WIDTH,
     createRenderFn: (idTree, entity, baseFn) => {
       const transform = entity.getLastCachedValue('worldTransform');
@@ -598,7 +601,7 @@ export const ComponentModules: {[string]: ModuleData} = {
   slider: extend(BaseModule, {
     getIcon: data => SliderIcon,
     getWidth: data => DEFAULT_MODULE_WIDTH * 2.0,
-    getOutputs: data => SingleOutput,
+    getOutputs: (idTree, data) => SingleOutput,
     createRenderFn: (idTree, entity, baseFn) => {
       const transform = entity.getLastCachedValue('worldTransform');
       return (renderer, selected, hoverState) => {
@@ -669,7 +672,7 @@ export const ComponentModules: {[string]: ModuleData} = {
   }),
   joystick: extend(BaseModule, {
     getIcon: data => JoystickIcon,
-    getOutputs: data => ({
+    getOutputs: (idTree, data) => ({
       leftRight: {
         label: (
           <FormattedMessage
@@ -788,18 +791,91 @@ export const ComponentModules: {[string]: ModuleData} = {
       ),
   }),
   inputBus: extend(BaseModule, {
+    getOutputs: (idTree, data) => {
+      if (!data.sensors) {
+        return {};
+      }
+      const outputs = {};
+      for (const id in data.sensors) {
+        const entity = idTree.getEntity(id);
+        if (!entity) {
+          continue;
+        }
+        for (const key in entity.state) {
+          const sensor = ComponentSensors[key];
+          if (sensor) {
+            const sensorOutputs = sensor.getOutputs(entity.state[key]);
+            for (const name in sensorOutputs) {
+              outputs[id + '$' + name] = {
+                label: (
+                  <TerminalName
+                    entity={entity}
+                    label={sensorOutputs[name].label}
+                  />
+                ),
+              };
+            }
+            break;
+          }
+        }
+      }
+      return outputs;
+    },
     getWidth: data => MODULE_HEIGHT_PER_TERMINAL,
     getHeight: (data, inputCount, outputCount) => {
       return Math.max(inputCount, outputCount, 1) * MODULE_HEIGHT_PER_TERMINAL;
     },
   }),
   outputBus: extend(BaseModule, {
+    getInputs: (idTree, data) => {
+      if (!data.effectors) {
+        return {};
+      }
+      const inputs = {};
+      for (const id in data.effectors) {
+        const entity = idTree.getEntity(id);
+        if (!entity) {
+          continue;
+        }
+        for (const key in entity.state) {
+          const effector = ComponentEffectors[key];
+          if (effector) {
+            const effectorInputs = effector.getInputs(entity.state[key]);
+            for (const name in effectorInputs) {
+              inputs[id + '$' + name] = {
+                label: (
+                  <TerminalName
+                    entity={entity}
+                    label={effectorInputs[name].label}
+                  />
+                ),
+              };
+            }
+            break;
+          }
+        }
+      }
+      return inputs;
+    },
     getWidth: data => MODULE_HEIGHT_PER_TERMINAL,
     getHeight: (data, inputCount, outputCount) => {
       return Math.max(inputCount, outputCount, 1) * MODULE_HEIGHT_PER_TERMINAL;
     },
   }),
 };
+
+function TerminalName(props: {entity: Entity, label: React.Element<any>}) {
+  return (
+    <FormattedMessage
+      id="terminal.name"
+      defaultMessage="{entity} {label}"
+      values={{
+        entity: <EntityName entity={props.entity} />,
+        label: props.label,
+      }}
+    />
+  );
+}
 
 function createMultipleInputs(
   data: Object,
@@ -814,7 +890,10 @@ function createMultipleInputs(
   return inputs;
 }
 
-function createMultipleOutputs(data: Object): {[string]: OutputData} {
+function createMultipleOutputs(
+  idTree: IdTreeNode,
+  data: Object,
+): {[string]: OutputData} {
   const outputs = {};
   const outputCount = data.outputs || OutputsProperty.outputs.defaultValue;
   for (let ii = 1; ii <= outputCount; ii++) {
@@ -831,7 +910,10 @@ function createMultipleOutputs(data: Object): {[string]: OutputData} {
   return outputs;
 }
 
-function createElementInputs(data: Object): {[string]: InputData} {
+function createElementInputs(
+  idTree: IdTreeNode,
+  data: Object,
+): {[string]: InputData} {
   const inputs = {};
   const elementCount = data.elements || ElementsProperty.elements.defaultValue;
   for (let ii = 1; ii <= elementCount; ii++) {
@@ -840,7 +922,10 @@ function createElementInputs(data: Object): {[string]: InputData} {
   return inputs;
 }
 
-function createElementOutputs(data: Object): {[string]: OutputData} {
+function createElementOutputs(
+  idTree: IdTreeNode,
+  data: Object,
+): {[string]: OutputData} {
   const outputs = {};
   const elementCount = data.elements || ElementsProperty.elements.defaultValue;
   for (let ii = 1; ii <= elementCount; ii++) {

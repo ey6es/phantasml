@@ -216,11 +216,19 @@ function invokeEditCallbacks(
   }
   let newMap = action.map;
   for (const id in action.map) {
+    const state = action.map[id];
     const entity = resource.getEntity(id);
     if (!entity) {
+      if (state) {
+        for (const key in state) {
+          const callbacks = ComponentEditCallbacks[key];
+          if (callbacks) {
+            newMap = callbacks.onCreate(resource, id, newMap);
+          }
+        }
+      }
       continue;
     }
-    const state = action.map[id];
     if (state === null) {
       for (const key in entity.state) {
         const callbacks = ComponentEditCallbacks[key];
@@ -243,12 +251,20 @@ function invokeEditCallbacks(
 }
 
 type EditCallbackData = {
+  onCreate: (Scene, string, Object) => Object,
   onDelete: (Scene, Entity, Object) => Object,
   onEdit: (Scene, Entity, Object) => Object,
 };
 
 /** Callbacks for component types. */
 export const ComponentEditCallbacks: {[string]: EditCallbackData} = {};
+
+/** Default (no-op) edit callbacks. */
+export const BaseEditCallbacks: EditCallbackData = {
+  onCreate: (scene, id, map) => map,
+  onDelete: (scene, entity, map) => map,
+  onEdit: (scene, entity, map) => map,
+};
 
 const FRAME_RATE = 60;
 const FRAME_DELAY = 1000 / FRAME_RATE;
@@ -871,13 +887,7 @@ function reducePage(state: StoreState, action: ResourceAction): string {
           }
         }
       }
-      continue;
     }
-    do {
-      id = parent.ref;
-      parent = getParent(action.map[id], resource.getEntity(id));
-    } while (parent);
-    page = id; // switch to page with added/removed/edited entity
   }
   return page;
 }

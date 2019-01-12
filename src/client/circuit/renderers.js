@@ -8,7 +8,12 @@
 import * as React from 'react';
 import {MODULE_HEIGHT_PER_TERMINAL, ComponentModules} from './modules';
 import type {HoverState} from '../store';
-import {ComponentEditCallbacks, StoreActions, store} from '../store';
+import {
+  ComponentEditCallbacks,
+  BaseEditCallbacks,
+  StoreActions,
+  store,
+} from '../store';
 import {
   SELECT_COLOR,
   ComponentRenderers,
@@ -73,8 +78,8 @@ ComponentRenderers.moduleRenderer = {
       const module = ComponentModules[key];
       if (module && shapeList) {
         const data = entity.state[key];
-        const inputCount = Object.keys(module.getInputs(data)).length;
-        const outputCount = Object.keys(module.getOutputs(data)).length;
+        const inputCount = Object.keys(module.getInputs(idTree, data)).length;
+        const outputCount = Object.keys(module.getOutputs(idTree, data)).length;
         const outputTransform = module.getOutputTransform(data);
         const width = module.getWidth(data);
         return module.createRenderFn(
@@ -118,6 +123,10 @@ ComponentRenderers.moduleRenderer = {
   onFrame: entity => {
     const state = store.getState();
     const oldHoverState = state.hoverStates.get(entity.id);
+    const resource = state.resource;
+    if (!(resource instanceof Scene)) {
+      return oldHoverState;
+    }
     if (oldHoverState && oldHoverState.part) {
       const elapsed = Date.now() - oldHoverState.moveTime;
       if (elapsed > TOOLTIP_DELAY && !oldHoverState.dragging) {
@@ -126,9 +135,9 @@ ComponentRenderers.moduleRenderer = {
             const module = ComponentModules[key];
             if (module) {
               const data = entity.state[key];
-              const inputs = module.getInputs(data);
+              const inputs = module.getInputs(resource.idTree, data);
               const inputKeys = Object.keys(inputs);
-              const outputs = module.getOutputs(data);
+              const outputs = module.getOutputs(resource.idTree, data);
               const outputKeys = Object.keys(outputs);
               const width = module.getWidth(data);
               let index = oldHoverState.part - 1;
@@ -172,7 +181,7 @@ ComponentRenderers.moduleRenderer = {
                   const targetInputs =
                     targetModule &&
                     targetData &&
-                    targetModule.getInputs(targetData);
+                    targetModule.getInputs(resource.idTree, targetData);
                   const targetInput =
                     targetInputs && targetInputs[output.input];
                   if (
@@ -229,6 +238,10 @@ ComponentRenderers.moduleRenderer = {
   onPress: (entity, position) => {
     const state = store.getState();
     const oldHoverState = state.hoverStates.get(entity.id);
+    const resource = state.resource;
+    if (!(resource instanceof Scene)) {
+      return [oldHoverState, true];
+    }
     const parentPosition = transformPoint(
       position,
       getTransformMatrix(entity.state.transform),
@@ -242,7 +255,7 @@ ComponentRenderers.moduleRenderer = {
         store.dispatch(StoreActions.setTooltip.create(null));
       }
       let part = oldHoverState.part;
-      if (part <= getInputCount(entity)) {
+      if (part <= getInputCount(resource.idTree, entity)) {
         part = 0;
       }
       return [{dragging: position, offset, part}, false];
@@ -343,7 +356,7 @@ ComponentRenderers.moduleRenderer = {
       vec2(),
       results,
     );
-    const inputCount = getInputCount(entity);
+    const inputCount = getInputCount(resource.idTree, entity);
     let part: ?number;
     for (const result of results) {
       const resultPart = collisionGeometry.getFloatAttribute(
@@ -364,7 +377,10 @@ ComponentRenderers.moduleRenderer = {
     let color: ?string;
     const draggedHoverState = state.hoverStates.get(draggedEntity.id);
     if (draggedHoverState && draggedHoverState.part) {
-      const index = draggedHoverState.part - getInputCount(draggedEntity) - 1;
+      const index =
+        draggedHoverState.part -
+        getInputCount(resource.idTree, draggedEntity) -
+        1;
       color = WireColors[index % WireColors.length];
     }
     const oldHoverState = state.hoverStates.get(entity.id);
@@ -398,7 +414,7 @@ ComponentRenderers.moduleRenderer = {
       return;
     }
     const moduleKey = getModuleKey(entity);
-    const outputKey = getOutputKey(entity, oldHoverState.part);
+    const outputKey = getOutputKey(resource.idTree, entity, oldHoverState.part);
     if (!(moduleKey && outputKey)) {
       return;
     }
@@ -410,7 +426,8 @@ ComponentRenderers.moduleRenderer = {
         targetEntity = resource.getEntity(id);
         targetModuleKey = targetEntity && getModuleKey(targetEntity);
         targetInputKey =
-          targetEntity && getInputKey(targetEntity, hoverState.part);
+          targetEntity &&
+          getInputKey(resource.idTree, targetEntity, hoverState.part);
         break;
       }
     }
@@ -478,7 +495,7 @@ ComponentRenderers.moduleRenderer = {
   },
 };
 
-ComponentEditCallbacks.moduleRenderer = {
+ComponentEditCallbacks.moduleRenderer = extend(BaseEditCallbacks, {
   onDelete: (scene, entity, map) => {
     const moduleKey = getModuleKey(entity);
     if (!moduleKey) {
@@ -515,8 +532,8 @@ ComponentEditCallbacks.moduleRenderer = {
       entity.state[moduleKey],
       map[entity.id][moduleKey] || {},
     );
-    const inputs = module.getInputs(moduleData);
-    const outputs = module.getOutputs(moduleData);
+    const inputs = module.getInputs(scene.idTree, moduleData);
+    const outputs = module.getOutputs(scene.idTree, moduleData);
     let newMap = map;
     for (const key in moduleData) {
       // remove any connections that are no longer valid
@@ -553,7 +570,7 @@ ComponentEditCallbacks.moduleRenderer = {
     }
     return newMap;
   },
-};
+});
 
 function onModuleMove(entity: Entity, position: Vector2): HoverState {
   const state = store.getState();
@@ -581,7 +598,7 @@ function onModuleMove(entity: Entity, position: Vector2): HoverState {
       if (part === 0) {
         return module.onMove(entity, position);
       }
-      const inputKeys = Object.keys(module.getInputs(data));
+      const inputKeys = Object.keys(module.getInputs(resource.idTree, data));
       const inputKey = inputKeys[part - 1];
       if (inputKey && data[inputKey]) {
         return; // connected input
@@ -595,44 +612,42 @@ function onModuleMove(entity: Entity, position: Vector2): HoverState {
   return {part, moveTime: Date.now()};
 }
 
-function getInputCount(entity: Entity): number {
+function getInputCount(idTree: IdTreeNode, entity: Entity): number {
   for (const key in entity.state) {
     const module = ComponentModules[key];
     if (module) {
-      return Object.keys(module.getInputs(entity.state[key])).length;
+      return Object.keys(module.getInputs(idTree, entity.state[key])).length;
     }
   }
   return 0;
 }
 
-function getOutputCount(entity: Entity): number {
-  for (const key in entity.state) {
-    const module = ComponentModules[key];
-    if (module) {
-      return Object.keys(module.getOutputs(entity.state[key])).length;
-    }
-  }
-  return 0;
-}
-
-function getInputKey(entity: Entity, part: number): ?string {
+function getInputKey(
+  idTree: IdTreeNode,
+  entity: Entity,
+  part: number,
+): ?string {
   for (const key in entity.state) {
     const module = ComponentModules[key];
     if (module) {
       const data = entity.state[key];
-      const inputs = Object.keys(module.getInputs(data));
+      const inputs = Object.keys(module.getInputs(idTree, data));
       return inputs[part - 1];
     }
   }
 }
 
-function getOutputKey(entity: Entity, part: number): ?string {
+function getOutputKey(
+  idTree: IdTreeNode,
+  entity: Entity,
+  part: number,
+): ?string {
   for (const key in entity.state) {
     const module = ComponentModules[key];
     if (module) {
       const data = entity.state[key];
-      const inputs = Object.keys(module.getInputs(data));
-      const outputs = Object.keys(module.getOutputs(data));
+      const inputs = Object.keys(module.getInputs(idTree, data));
+      const outputs = Object.keys(module.getOutputs(idTree, data));
       return outputs[part - inputs.length - 1];
     }
   }
@@ -675,9 +690,9 @@ ComponentGeometry.moduleRenderer = extend(BaseGeometry, {
         continue;
       }
       const data = entity.state[key];
-      const inputs = module.getInputs(data);
+      const inputs = module.getInputs(idTree, data);
       const inputCount = Object.keys(inputs).length;
-      const outputs = module.getOutputs(data);
+      const outputs = module.getOutputs(idTree, data);
       const outputCount = Object.keys(outputs).length;
       const width = module.getWidth(data);
       const height = module.getHeight(data, inputCount, outputCount);
@@ -694,6 +709,7 @@ ComponentGeometry.moduleRenderer = extend(BaseGeometry, {
         if (sourceEntity && sourceModuleKey) {
           const sourceOutputs = Object.keys(
             ComponentModules[sourceModuleKey].getOutputs(
+              idTree,
               sourceEntity.state[sourceModuleKey],
             ),
           );
@@ -746,7 +762,7 @@ ComponentGeometry.moduleRenderer = extend(BaseGeometry, {
           const targetModule = ComponentModules[targetModuleKey];
           const targetData = targetEntity.state[targetModuleKey];
           const targetInputKeys = Object.keys(
-            targetModule.getInputs(targetData),
+            targetModule.getInputs(idTree, targetData),
           );
           const targetWidth = targetModule.getWidth(targetData);
           const index = targetInputKeys.indexOf(target.input);
