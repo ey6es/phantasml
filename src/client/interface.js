@@ -30,6 +30,7 @@ import {
 import {EditDropdown} from './edit';
 import {SelectionDropdown} from './selection';
 import {ViewDropdown} from './view';
+import {PrefabDropdown} from './prefab';
 import {EntityDropdown} from './entity';
 import {ComponentDropdown} from './component';
 import {AdminDropdown} from './admin';
@@ -132,6 +133,7 @@ export class Interface extends React.Component<
                     locale={this.props.locale}
                   />,
                   <ViewDropdown key="view" renderer={this.state.renderer} />,
+                  <PrefabDropdown key="prefab" />,
                   <EntityDropdown key="entity" locale={this.props.locale} />,
                   <ComponentDropdown key="component" />,
                 ]
