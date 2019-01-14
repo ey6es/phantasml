@@ -634,7 +634,9 @@ const PropertyEditors = {
           id={props.id}
           type="checkbox"
           className={props.rightAlign ? 'text-right' : undefined}
-          cssModule={{'custom-control-label': 'custom-control-label mb-2'}}
+          cssModule={{
+            'custom-control-label': 'custom-control-label align-baseline mb-2',
+          }}
           checked={getValue(
             props.value,
             props.property.defaultValue || DefaultValues.boolean,
