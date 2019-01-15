@@ -222,7 +222,7 @@ module.exports = function(grunt) {
       }
       return taskConfig;
     })(),
-    watch: {
+    chokidar: {
       exercises: {
         files: 'src/exercises/**',
         tasks: 'build-exercises',
@@ -328,7 +328,7 @@ module.exports = function(grunt) {
     })(),
     concurrent: {
       options: {logConcurrentOutput: true},
-      local: ['watch:local', 'exec:localApi', 'open:local'],
+      local: ['chokidar:local', 'exec:localApi', 'open:local'],
     },
     'ftp-deploy': {
       build: {
