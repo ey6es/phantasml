@@ -1346,16 +1346,19 @@ class Environment extends Scene {
 }
 
 /**
- * A scene representing a virtual organism.
+ * A scene representing a virtual construct.
  */
-class Organism extends Scene {
+class Construct extends Scene {
   getType(): ResourceType {
-    return 'organism';
+    return 'construct';
   }
   _createInitialEntities(): Object {
     return {
       exterior: {},
       interior: {order: 1},
+      root: {
+        parent: {ref: 'exterior'},
+      },
       inputBus: {
         parent: {ref: 'interior'},
         transform: {
@@ -1379,7 +1382,7 @@ class Organism extends Scene {
 
 // register the type constructors for deserialization
 addResourceTypeConstructor('environment', Environment);
-addResourceTypeConstructor('organism', Organism);
+addResourceTypeConstructor('construct', Construct);
 
 // used to determine which edits to merge
 let currentEditNumber = 1;

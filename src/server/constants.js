@@ -70,7 +70,7 @@ export function isDisplayNameValid(name: string): boolean {
 }
 
 /** The available resource types (as an object so that we can use $Keys). */
-export const RESOURCE_TYPES = {environment: 0, organism: 1};
+export const RESOURCE_TYPES = {environment: 0, construct: 1};
 
 /** Minimum length for resource names. */
 export const MIN_RESOURCE_NAME_LENGTH = 1;

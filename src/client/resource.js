@@ -465,11 +465,11 @@ export function ResourceTypeMessage(props: {type: ResourceType}) {
           defaultMessage="Environment"
         />
       );
-    case 'organism':
+    case 'construct':
       return (
         <FormattedMessage
-          id="resource.type.organism"
-          defaultMessage="Organism"
+          id="resource.type.construct"
+          defaultMessage="Construct"
         />
       );
     default:
@@ -572,7 +572,7 @@ export class ResourceContent extends React.Component<
   _createLayout(resource: ResourceDescriptor) {
     switch (resource.type) {
       case 'environment':
-      case 'organism':
+      case 'construct':
         return (
           <div className="full-interface d-flex">
             <div className="d-flex flex-column left-column">

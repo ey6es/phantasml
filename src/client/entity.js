@@ -289,6 +289,8 @@ export function EntityName(props: {entity: Entity}) {
       return (
         <FormattedMessage id="entity.name.interior" defaultMessage="Interior" />
       );
+    case 'root':
+      return <FormattedMessage id="entity.name.root" defaultMessage="Root" />;
     case 'inputBus':
       return CircuitComponents.inputBus.label;
     case 'outputBus':
