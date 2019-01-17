@@ -570,14 +570,22 @@ function isDroppable(
       return false; // can't parent to self or descendants
     }
   }
+  let reparenting = false;
   for (const id of selection) {
     const entity = resource.getEntity(id);
     if (entity) {
       const parent = entity.getParent();
       if (!parent || parent.ref !== parentId) {
-        return true; // reparenting something
+        if (resource.isInitialEntity(id)) {
+          // no reparenting initial entities
+          return false;
+        }
+        reparenting = true;
       }
     }
+  }
+  if (reparenting) {
+    return true;
   }
   // if we get here, we're just reordering; figure out if the order will change
   const parentNode = resource.entityHierarchy.getNode(parentLineage);
