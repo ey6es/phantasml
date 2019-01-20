@@ -516,7 +516,9 @@ export class ResourceContent extends React.Component<
   render() {
     return (
       <div>
-        {this.props.resource ? this._createLayout(this.props.resource) : null}
+        {this.props.resource && this.state.fontImage
+          ? this._createLayout(this.props.resource, this.state.fontImage)
+          : null}
         {this.state.dialog}
         <img
           ref={image => {
@@ -569,7 +571,7 @@ export class ResourceContent extends React.Component<
     this.props.setResource(null);
   }
 
-  _createLayout(resource: ResourceDescriptor) {
+  _createLayout(resource: ResourceDescriptor, fontImage: HTMLImageElement) {
     switch (resource.type) {
       case 'environment':
       case 'construct':
@@ -593,7 +595,7 @@ export class ResourceContent extends React.Component<
                 locale={this.props.locale}
                 preferences={this.props.preferences}
                 setRenderer={this.props.setRenderer}
-                fontImage={(this.state.fontImage: any)}
+                fontImage={fontImage}
               />
             </div>
             <div className="d-flex flex-column right-column">
