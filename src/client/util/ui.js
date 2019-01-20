@@ -441,13 +441,32 @@ export class MenuBar extends React.Component<
 
 const MenuContext = React.createContext(dummyComponent);
 
+const menuBackdrop = document.createElement('DIV');
+menuBackdrop.className = 'menu-backdrop';
+(document.body: any).appendChild(menuBackdrop);
+
 const menuContainer = document.createElement('DIV');
 menuContainer.className = 'menu-container';
 (document.body: any).appendChild(menuContainer);
 
+const menus: Set<ContainedDropdown> = new Set();
+
 class ContainedDropdown extends Dropdown {
   getContainer() {
     return menuContainer;
+  }
+  addEvents() {
+    super.addEvents();
+    if (menus.size === 0) {
+      menuBackdrop.style.display = 'block';
+    }
+    menus.add(this);
+  }
+  removeEvents() {
+    super.removeEvents();
+    if (menus.delete(this) && menus.size === 0) {
+      menuBackdrop.style.display = 'none';
+    }
   }
 }
 
