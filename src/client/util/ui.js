@@ -468,6 +468,10 @@ class ContainedDropdown extends Dropdown {
       menuBackdrop.style.display = 'none';
     }
   }
+  toggle(event: Event) {
+    event.stopPropagation();
+    super.toggle(event);
+  }
 }
 
 /**
@@ -505,7 +509,10 @@ export class Menu extends React.Component<
                 menuBar.state.active && toggle && toggle.focus();
               }}
               isOpen={open}
-              toggle={() => menuBar.setState({active: !menuBar.state.active})}>
+              toggle={() => {
+                menuBar.state.active && toggle && toggle.blur();
+                menuBar.setState({active: !menuBar.state.active});
+              }}>
               <div>
                 <DropdownToggle
                   disabled={menuBar.props.disabled || this.props.disabled}
