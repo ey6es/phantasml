@@ -477,10 +477,14 @@ export class Menu extends React.Component<
       <MenuBarContext.Consumer>
         {menuBar => {
           const open = menuBar.state.active && menuBar.state.hoverItem === this;
+          let toggle: ?HTMLElement;
           return (
             <ContainedDropdown
               nav
-              onMouseOver={event => menuBar.setState({hoverItem: this})}
+              onMouseOver={event => {
+                menuBar.setState({hoverItem: this});
+                menuBar.state.active && toggle && toggle.focus();
+              }}
               isOpen={open}
               toggle={() => menuBar.setState({active: !menuBar.state.active})}>
               <div>
@@ -488,9 +492,7 @@ export class Menu extends React.Component<
                   disabled={menuBar.props.disabled || this.props.disabled}
                   nav
                   caret
-                  onMouseOver={event =>
-                    menuBar.state.active && event.target.focus()
-                  }
+                  innerRef={element => (toggle = element)}
                   onDragStart={event => event.preventDefault()}>
                   {this.props.label}
                 </DropdownToggle>
