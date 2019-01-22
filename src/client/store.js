@@ -1052,7 +1052,13 @@ export function createUuid(): string {
 document.addEventListener('keydown', (event: KeyboardEvent) => {
   event.repeat || advanceEditNumber();
 });
-document.addEventListener('mousedown', advanceEditNumber);
+document.addEventListener('mousedown', (event: MouseEvent) => {
+  if (event.detail > 2) {
+    // stop triple-click select on Chrome
+    event.preventDefault();
+  }
+  advanceEditNumber();
+});
 
 /**
  * Checks whether the state is "dirty": whether there have been any edits since

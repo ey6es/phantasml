@@ -344,7 +344,13 @@ module.exports = function(grunt) {
     documentation: {
       dist: {
         options: {destination: 'docs/api'},
-        files: [{expand: true, cwd: 'src', src: '**/*.js'}],
+        files: [
+          {
+            expand: true,
+            cwd: 'src',
+            src: ['**/*.js', '!**/node_modules/**'],
+          },
+        ],
       },
     },
   });
