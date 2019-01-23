@@ -107,6 +107,7 @@ export class Interface extends React.Component<
           disabled={!!this.state.loading}>
           <Nav navbar>
             <ResourceDropdown
+              locale={this.props.locale}
               userStatus={this.props.userStatus}
               preferences={this.state.preferences}
               resource={this.state.resource}
@@ -133,7 +134,11 @@ export class Interface extends React.Component<
                     locale={this.props.locale}
                   />,
                   <ViewDropdown key="view" renderer={this.state.renderer} />,
-                  <ConstructDropdown key="construct" />,
+                  <ConstructDropdown
+                    key="construct"
+                    locale={this.props.locale}
+                    setDialog={this._setDialog}
+                  />,
                   <EntityDropdown key="entity" locale={this.props.locale} />,
                   <ComponentDropdown key="component" />,
                 ]

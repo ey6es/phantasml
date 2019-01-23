@@ -84,6 +84,7 @@ export function getAutoSaveMinutes(
  */
 export class ResourceDropdown extends React.Component<
   {
+    locale: string,
     userStatus: UserStatusResponse,
     preferences: UserGetPreferencesResponse,
     resource: ?ResourceDescriptor,
@@ -126,7 +127,8 @@ export class ResourceDropdown extends React.Component<
                 onClick={() =>
                   this._setDialog(
                     <ResourceMetadataDialog
-                      resource={this.props.resource}
+                      locale={this.props.locale}
+                      resource={resource}
                       setResource={this.props.setResource}
                       onClosed={this._clearDialog}
                     />,
@@ -550,8 +552,9 @@ export class ResourceContent extends React.Component<
         // ask for a name for the new resource
         this._setDialog(
           <ResourceMetadataDialog
+            locale={this.props.locale}
             resource={resource}
-            required={true}
+            required
             setResource={this.props.setResource}
             onClosed={this._clearDialog}
           />,
@@ -641,11 +644,21 @@ function isResourceOwned(
   return userStatus.admin || resource.ownerId === userStatus.userId;
 }
 
-class ResourceMetadataDialogImpl extends React.Component<
+/**
+ * Dialog for configuring resource metadata.
+ *
+ * @param props the component properties.
+ * @param props.locale the current locale.
+ * @param resource the resource descriptor.
+ * @param required whether or not the metadata is required.
+ * @param setResource the function to call when the metadata is set.
+ * @param onClosed the function to call when closed.
+ */
+export class ResourceMetadataDialog extends React.Component<
   {
-    intl: Object,
+    locale: string,
     resource: ResourceDescriptor,
-    required: ?boolean,
+    required?: boolean,
     setResource: (?ResourceDescriptor) => void,
     onClosed: () => void,
   },
@@ -654,26 +667,34 @@ class ResourceMetadataDialogImpl extends React.Component<
   state = {
     name: renderText(
       <ResourceName resource={this.props.resource} />,
-      this.props.intl.locale,
+      this.props.locale,
     ),
     description: this.props.resource.description,
   };
+
+  get _header() {
+    return (
+      <FormattedMessage
+        id="resource.metadata.title"
+        defaultMessage="Resource Metadata"
+      />
+    );
+  }
+
+  get _applicable(): boolean {
+    return !this.props.required;
+  }
 
   render() {
     const nameValid = isResourceNameValid(this.state.name);
     const descriptionValid = isResourceDescriptionValid(this.state.description);
     return (
       <RequestDialog
-        header={
-          <FormattedMessage
-            id="resource.metadata.title"
-            defaultMessage="Resource Metadata"
-          />
-        }
+        header={this._header}
         makeRequest={this._makeRequest}
         invalid={!(nameValid && descriptionValid)}
         onClosed={this.props.onClosed}
-        applicable={!this.props.required}
+        applicable={this._applicable}
         cancelable={!this.props.required}>
         <Form>
           <FormGroup>
@@ -703,7 +724,7 @@ class ResourceMetadataDialogImpl extends React.Component<
                   id="resource.description.placeholder"
                   defaultMessage="An optional description of the resource."
                 />,
-                this.props.intl.locale,
+                this.props.locale,
               )}
               value={this.state.description}
               valid={descriptionValid}
@@ -719,11 +740,16 @@ class ResourceMetadataDialogImpl extends React.Component<
   }
 
   _makeRequest = async () => {
+    await this._submitRequest();
+    return {};
+  };
+
+  async _submitRequest() {
     if (
       this.props.resource.name === this.state.name &&
       this.props.resource.description === this.state.description
     ) {
-      return {};
+      return;
     }
     const data = {
       name: this.state.name,
@@ -731,11 +757,8 @@ class ResourceMetadataDialogImpl extends React.Component<
     };
     await putToApi(getResourceMetadataPath(this.props.resource.id), data);
     this.props.setResource(Object.assign({}, this.props.resource, data));
-    return {};
-  };
+  }
 }
-
-const ResourceMetadataDialog = injectIntl(ResourceMetadataDialogImpl);
 
 function getResourceMetadataPath(id: string) {
   return getResourcePath(id) + '/metadata';

@@ -288,6 +288,15 @@ export class Entity extends RefCounted {
   }
 
   /**
+   * Returns the id of the construct associated with the entity, if any.
+   *
+   * @return the construct id, if any.
+   */
+  getConstruct(): ?string {
+    return this.state.construct;
+  }
+
+  /**
    * Returns the most recently cached value under the specified key, if any.
    *
    * @param key the key of the desired value.
