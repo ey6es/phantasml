@@ -8,8 +8,15 @@
 import * as React from 'react';
 import * as ReactRedux from 'react-redux';
 import {FormattedMessage} from 'react-intl';
-import {ResourceMetadataDialog} from './resource';
+import {
+  ResourceMetadataDialog,
+  getResourceMetadataPath,
+  getResourceContentPath,
+} from './resource';
+import {store, updateRefs} from './store';
+import {postToApi, putToApi} from './util/api';
 import {Menu, MenuItem} from './util/ui';
+import type {ResourceCreateRequest} from '../server/api';
 import {Scene} from '../server/store/scene';
 
 /**
@@ -97,7 +104,40 @@ class CreateConstructDialog extends ResourceMetadataDialog {
     return false;
   }
 
-  async _submitRequest() {}
+  async _submitRequest(): Promise<void> {
+    const state = store.getState();
+    const resource = state.resource;
+    if (!(resource instanceof Scene && state.selection.size === 1)) {
+      return;
+    }
+    const rootId = state.selection.values().next().value;
+    const entity = resource.getEntity(rootId);
+    const node = resource.getEntityHierarchyNode(rootId);
+    if (!(entity && node && !resource.isInitialEntity(rootId))) {
+      return;
+    }
+    const request: ResourceCreateRequest = {type: 'construct'};
+    const response = await postToApi('/resource', request);
+    const resourceId = response.id;
+    const data = {
+      name: this.state.name,
+      description: this.state.description,
+    };
+    const json: Object = {entities: {exterior: {}}};
+    const ids = new Map([[rootId, 'root']]);
+    node.applyToEntityIds(entityId => {
+      const entity = resource.getEntity(entityId);
+      if (entity) {
+        const newId = entityId === rootId ? 'root' : entityId;
+        json.entities[newId] = updateRefs(entity.toJSON(), ids, 'exterior');
+      }
+    });
+    delete json.entities.root.name;
+    await Promise.all([
+      putToApi(getResourceMetadataPath(resourceId), data),
+      putToApi(getResourceContentPath(resourceId), json, false),
+    ]);
+  }
 }
 
 const SaveConstructItem = ReactRedux.connect(state => ({

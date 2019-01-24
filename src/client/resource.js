@@ -744,7 +744,7 @@ export class ResourceMetadataDialog extends React.Component<
     return {};
   };
 
-  async _submitRequest() {
+  async _submitRequest(): Promise<void> {
     if (
       this.props.resource.name === this.state.name &&
       this.props.resource.description === this.state.description
@@ -760,11 +760,23 @@ export class ResourceMetadataDialog extends React.Component<
   }
 }
 
-function getResourceMetadataPath(id: string) {
+/**
+ * Returns the metadata path for the resource with the given id.
+ *
+ * @param id the id of the resource.
+ * @return the metadata path.
+ */
+export function getResourceMetadataPath(id: string) {
   return getResourcePath(id) + '/metadata';
 }
 
-function getResourceContentPath(id: string) {
+/**
+ * Returns the content path for the resource with the given id.
+ *
+ * @param id the id of the resource.
+ * @return the content path.
+ */
+export function getResourceContentPath(id: string) {
   return getResourcePath(id) + '/content';
 }
 

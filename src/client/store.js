@@ -836,7 +836,15 @@ export function getPageTranslation(): Vector2 {
   return vec2(pageState.x, pageState.y);
 }
 
-function updateRefs(
+/**
+ * Updates the references in a state object according to an id map.
+ *
+ * @param map the object to update.
+ * @param ids the map from old to new id.
+ * @param defaultParentId the id of the entity to use as the default parent.
+ * @return the updated object.
+ */
+export function updateRefs(
   map: Object,
   ids: Map<string, string>,
   defaultParentId: string,
