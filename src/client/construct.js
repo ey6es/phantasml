@@ -17,7 +17,7 @@ import {store, updateRefs} from './store';
 import {postToApi, putToApi} from './util/api';
 import {Menu, MenuItem} from './util/ui';
 import type {ResourceCreateRequest} from '../server/api';
-import {Scene} from '../server/store/scene';
+import {Scene, SceneActions} from '../server/store/scene';
 
 /**
  * The dropdown menu for constructs.
@@ -39,6 +39,7 @@ export class ConstructDropdown extends React.Component<
           setDialog={this.props.setDialog}
         />
         <SaveConstructItem />
+        <RevertConstructItem />
         <RefreshConstructItem />
         <UnlinkConstructItem />
         <OpenConstructItem />
@@ -125,18 +126,28 @@ class CreateConstructDialog extends ResourceMetadataDialog {
     };
     const json: Object = {entities: {exterior: {}}};
     const ids = new Map([[rootId, 'root']]);
+    const map = {};
     node.applyToEntityIds(entityId => {
       const entity = resource.getEntity(entityId);
-      if (entity) {
-        const newId = entityId === rootId ? 'root' : entityId;
-        json.entities[newId] = updateRefs(entity.toJSON(), ids, 'exterior');
+      if (!entity) {
+        return;
       }
+      const newId = entityId === rootId ? 'root' : entityId;
+      json.entities[newId] = updateRefs(entity.toJSON(), ids, 'exterior');
+      const edit: Object = {construct: resourceId};
+      for (const key in entity.state) {
+        if (key !== 'parent') {
+          edit[key] = null;
+        }
+      }
+      map[entityId] = edit;
     });
     delete json.entities.root.name;
     await Promise.all([
       putToApi(getResourceMetadataPath(resourceId), data),
       putToApi(getResourceContentPath(resourceId), json, false),
     ]);
+    store.dispatch(SceneActions.editEntities.create(map));
   }
 }
 
@@ -145,6 +156,14 @@ const SaveConstructItem = ReactRedux.connect(state => ({
 }))((props: {disabled: boolean}) => (
   <MenuItem disabled={props.disabled} onClick={() => {}}>
     <FormattedMessage id="construct.save" defaultMessage="Save" />
+  </MenuItem>
+));
+
+const RevertConstructItem = ReactRedux.connect(state => ({
+  disabled: true,
+}))((props: {disabled: boolean}) => (
+  <MenuItem disabled={props.disabled} onClick={() => {}}>
+    <FormattedMessage id="construct.revert" defaultMessage="Revert" />
   </MenuItem>
 ));
 
