@@ -8,6 +8,7 @@
 import * as React from 'react';
 import {FormattedMessage} from 'react-intl';
 import type {ComponentData, CategoryData} from '../component';
+import {RadiusLabel} from '../geometry/components';
 
 // ensure that renderers are included in build
 import './renderers';
@@ -58,6 +59,22 @@ export const SensorComponents: {[string]: ComponentData} = {
         ),
         min: 0,
         defaultValue: 20,
+      },
+    },
+    category: 'sensor',
+    removable: false,
+  },
+  touch: {
+    label: <FormattedMessage id="touch.title" defaultMessage="Touch" />,
+    properties: {
+      radius: {
+        type: 'number',
+        label: RadiusLabel,
+        defaultValue: 1.0,
+        step: 0.01,
+        wheelStep: 0.1,
+        precision: 2,
+        min: 0,
       },
     },
     category: 'sensor',

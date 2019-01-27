@@ -249,6 +249,24 @@ export const CircuitComponents: {[string]: ComponentData} = {
     category: 'control',
     removable: false,
   },
+  lamp: {
+    label: <FormattedMessage id="lamp.title" defaultMessage="Lamp" />,
+    properties: {},
+    category: 'display',
+    removable: false,
+  },
+  barGraph: {
+    label: <FormattedMessage id="bar_graph.title" defaultMessage="Bar Graph" />,
+    properties: {},
+    category: 'display',
+    removable: false,
+  },
+  gauge: {
+    label: <FormattedMessage id="gauge.title" defaultMessage="Gauge" />,
+    properties: {},
+    category: 'display',
+    removable: false,
+  },
   pseudo3d: {
     label: <FormattedMessage id="pseudo3d.title" defaultMessage="Pseudo 3D" />,
     properties: {

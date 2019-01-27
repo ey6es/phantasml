@@ -778,6 +778,19 @@ export const ComponentModules: {[string]: ModuleData} = {
       }
     },
   }),
+  lamp: extend(BaseModule, {
+    getHeight: data => DEFAULT_MODULE_WIDTH,
+    getInputs: (idTree, data) => SingleInput,
+  }),
+  barGraph: extend(BaseModule, {
+    getWidth: data => MODULE_HEIGHT_PER_TERMINAL,
+    getHeight: data => DEFAULT_MODULE_WIDTH,
+    getInputs: (idTree, data) => SingleInput,
+  }),
+  gauge: extend(BaseModule, {
+    getHeight: data => DEFAULT_MODULE_WIDTH,
+    getInputs: (idTree, data) => SingleInput,
+  }),
   pseudo3d: extend(BaseModule, {
     getWidth: data =>
       getValue(

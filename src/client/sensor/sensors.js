@@ -63,4 +63,25 @@ export const ComponentSensors: {[string]: SensorData} = {
       },
     }),
   },
+  touch: {
+    createShapeList: data => {
+      const props = SensorComponents.touch.properties;
+      const radius = getValue(data.radius, props.radius.defaultValue);
+      return new ShapeList()
+        .setAttributes({
+          thickness: 0.15,
+          pathColor: [1.0, 1.0, 1.0],
+          fillColor: [0.5, 0.5, 0.5],
+        })
+        .advance(radius)
+        .pivot(90)
+        .penDown(true)
+        .turn(360, radius);
+    },
+    getOutputs: data => ({
+      active: {
+        label: <FormattedMessage id="touch.active" defaultMessage="Active" />,
+      },
+    }),
+  },
 };

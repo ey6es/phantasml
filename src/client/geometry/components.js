@@ -98,6 +98,13 @@ export const HeightLabel = (
 );
 
 /**
+ * A shared label for radius.
+ */
+export const RadiusLabel = (
+  <FormattedMessage id="geometry.radius" defaultMessage="Radius:" />
+);
+
+/**
  * Geometry component metadata mapped by component name.
  */
 export const GeometryComponents: {[string]: ComponentData} = {
@@ -176,7 +183,7 @@ export const GeometryComponents: {[string]: ComponentData} = {
       ...ThicknessProperty,
       radius: {
         type: 'number',
-        label: <FormattedMessage id="arc.radius" defaultMessage="Radius:" />,
+        label: RadiusLabel,
         defaultValue: DEFAULT_ARC_RADIUS,
         step: 0.01,
         wheelStep: 0.1,
