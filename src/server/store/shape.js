@@ -90,6 +90,20 @@ export class Path {
   }
 
   /**
+   * Creates a transformed version of the path.
+   *
+   * @param transform the transformation to apply.
+   * @return the new, transformed path.
+   */
+  createTransformed(transform: Transform): Path {
+    const newPath = new Path(this.loop);
+    for (const command of this.commands) {
+      newPath.commands.push(command.createTransformed(transform));
+    }
+    return newPath;
+  }
+
+  /**
    * Adds a set of attributes to all points in the path.
    *
    * @param attributes the attribute values to add.
@@ -444,6 +458,10 @@ class PathCommand {
     this.dest = transformPoint(this.dest, getTransformMatrix(transform));
   }
 
+  createTransformed(transform: Transform): PathCommand {
+    throw new Error('Not implemented.');
+  }
+
   addAttributes(attributes: VertexAttributes) {
     this.attributes = Object.assign({}, this.attributes, attributes);
   }
@@ -743,6 +761,14 @@ class PathCommand {
 }
 
 class MoveTo extends PathCommand {
+  createTransformed(transform: Transform): PathCommand {
+    return new MoveTo(
+      transformPoint(this.dest, getTransformMatrix(transform)),
+      this.zOrder,
+      this.attributes,
+    );
+  }
+
   encode(): string {
     return ' M ' + encodePoint(this.dest);
   }
@@ -782,6 +808,14 @@ function encodePoint(point: Vector2) {
 }
 
 class LineTo extends PathCommand {
+  createTransformed(transform: Transform): PathCommand {
+    return new LineTo(
+      transformPoint(this.dest, getTransformMatrix(transform)),
+      this.zOrder,
+      this.attributes,
+    );
+  }
+
   encode(): string {
     return ' L ' + encodePoint(this.dest);
   }
@@ -898,6 +932,15 @@ class ArcTo extends PathCommand {
   transform(transform: Transform) {
     super.transform(transform);
     this.radius *= getTransformMaxScaleMagnitude(transform);
+  }
+
+  createTransformed(transform: Transform): PathCommand {
+    return new ArcTo(
+      transformPoint(this.dest, getTransformMatrix(transform)),
+      this.radius * getTransformMaxScaleMagnitude(transform),
+      this.zOrder,
+      this.attributes,
+    );
   }
 
   encode(): string {
@@ -1105,6 +1148,17 @@ class CurveTo extends PathCommand {
     const matrix = getTransformMatrix(transform);
     this.c1 = transformPoint(this.c1, matrix);
     this.c2 = transformPoint(this.c2, matrix);
+  }
+
+  createTransformed(transform: Transform): PathCommand {
+    const matrix = getTransformMatrix(transform);
+    return new CurveTo(
+      transformPoint(this.dest, matrix),
+      transformPoint(this.c1, matrix),
+      transformPoint(this.c2, matrix),
+      this.zOrder,
+      this.attributes,
+    );
   }
 
   encode(): string {

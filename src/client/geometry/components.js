@@ -227,6 +227,13 @@ export const GeometryComponents: {[string]: ComponentData} = {
     },
     category: 'geometry',
   },
+  sigil: {
+    label: <FormattedMessage id="sigil.title" defaultMessage="Sigil" />,
+    properties: {
+      ...ThicknessProperty,
+    },
+    category: 'geometry',
+  },
   path: {
     label: <FormattedMessage id="path.title" defaultMessage="Path" />,
     properties: {

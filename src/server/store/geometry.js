@@ -13,6 +13,7 @@ import {
   vec2,
   equals,
   rotateEquals,
+  radians,
   plus,
   plusEquals,
   minus,
@@ -41,7 +42,7 @@ import {
   clamp,
   roundToPrecision,
 } from './math';
-import {getValue, getColorArray} from './util';
+import {getValue, getColorArray, extend} from './util';
 import {Path, Shape, ShapeList} from './shape';
 import type {CollisionGeometry} from './collision';
 
@@ -71,6 +72,7 @@ export const DEFAULT_ARC_ANGLE = 2 * Math.PI;
 export const DEFAULT_CURVE_SPAN = 5;
 export const DEFAULT_CURVE_C1 = vec2(-0.833, 2);
 export const DEFAULT_CURVE_C2 = vec2(0.833, -2);
+export const SIGIL_RADIUS = 8.5;
 
 /**
  * Gets the collision geometry for the specified entity through the cache.
@@ -634,6 +636,64 @@ export const ComponentGeometry: {[string]: GeometryData} = {
       };
     },
   },
+  sigil: extend(BaseGeometry, {
+    createShapeList: (idTree, entity) => {
+      const data = entity.state.sigil;
+      const thickness = getValue(data.thickness, DEFAULT_THICKNESS);
+      const PUPIL_HEIGHT = 5.0;
+      const PUPIL_WIDTH = 2.0;
+      const PUPIL_FLATNESS = 1.0;
+      const LOBE_MIDDLE = 4.75;
+      const LOBE_TOP_WIDTH = 0.75;
+      const LOBE_BOTTOM_WIDTH = 1.0;
+      const LOBE_HEIGHT = 1.0;
+      const attributes = {thickness};
+      const pupil = new Path()
+        .moveTo(vec2(0.0, PUPIL_HEIGHT * -0.5), 0, attributes)
+        .curveTo(
+          vec2(0.0, PUPIL_HEIGHT * 0.5),
+          vec2(PUPIL_WIDTH * 0.5, PUPIL_FLATNESS * -0.5),
+          vec2(PUPIL_WIDTH * 0.5, PUPIL_FLATNESS * 0.5),
+          0,
+          attributes,
+        )
+        .curveTo(
+          vec2(0.0, PUPIL_HEIGHT * -0.5),
+          vec2(PUPIL_WIDTH * -0.5, PUPIL_FLATNESS * 0.5),
+          vec2(PUPIL_WIDTH * -0.5, PUPIL_FLATNESS * -0.5),
+          0,
+          attributes,
+        );
+      const start = rotateEquals(vec2(0.0, PUPIL_HEIGHT * 0.5), radians(60));
+      const end = vec2(-start.x, start.y);
+      const topLobe = new Path()
+        .moveTo(start, 0, attributes)
+        .arcTo(end, PUPIL_HEIGHT * -0.5, 0, attributes)
+        .curveTo(
+          vec2(0.0, SIGIL_RADIUS),
+          vec2(LOBE_BOTTOM_WIDTH * 0.5, LOBE_MIDDLE - LOBE_HEIGHT * 0.5),
+          vec2(LOBE_TOP_WIDTH * 0.5, LOBE_MIDDLE + LOBE_HEIGHT * 0.5),
+          0,
+          attributes,
+        )
+        .curveTo(
+          start,
+          vec2(LOBE_TOP_WIDTH * -0.5, LOBE_MIDDLE + LOBE_HEIGHT * 0.5),
+          vec2(LOBE_BOTTOM_WIDTH * -0.5, LOBE_MIDDLE - LOBE_HEIGHT * 0.5),
+          0,
+          attributes,
+        );
+      return new ShapeList([
+        new Shape(pupil),
+        new Shape(topLobe),
+        new Shape(topLobe.createTransformed({rotation: radians(120)})),
+        new Shape(topLobe.createTransformed({rotation: radians(-120)})),
+      ])
+        .move(0.0, -SIGIL_RADIUS, 0, attributes)
+        .penDown()
+        .turn(360, SIGIL_RADIUS);
+    },
+  }),
   path: {
     createShapeList: (idTree, entity) => {
       const data = entity.state.path;

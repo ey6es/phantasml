@@ -18,6 +18,7 @@ import {
   DEFAULT_CURVE_SPAN,
   DEFAULT_CURVE_C1,
   DEFAULT_CURVE_C2,
+  SIGIL_RADIUS,
   getShapeList,
 } from './geometry';
 import {getValue} from './util';
@@ -100,6 +101,15 @@ export const ComponentBounds: {[string]: BoundsData} = {
       addToBoundsEquals(bounds, halfSpan, 0.0);
       addToBoundsEquals(bounds, c1.x, c1.y);
       addToBoundsEquals(bounds, c2.x, c2.y);
+      return thickness;
+    },
+  },
+  sigil: {
+    addToBounds: (idTree: IdTreeNode, entity: Entity, bounds: Bounds) => {
+      const data = entity.state.sigil;
+      const thickness = getValue(data.thickness, DEFAULT_THICKNESS);
+      addToBoundsEquals(bounds, -SIGIL_RADIUS, -SIGIL_RADIUS);
+      addToBoundsEquals(bounds, SIGIL_RADIUS, SIGIL_RADIUS);
       return thickness;
     },
   },
