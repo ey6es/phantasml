@@ -860,9 +860,9 @@ export function updateRefs(
       if (ref !== undefined) {
         const newId = ids.get(ref);
         if (newId !== undefined) {
-          newMap[key] = {ref: newId};
+          newMap[key] = Object.assign({}, value, {ref: newId});
         } else if (key === 'parent') {
-          newMap[key] = {ref: defaultParentId};
+          newMap[key] = Object.assign({}, value, {ref: defaultParentId});
         }
       } else {
         newMap[key] = updateRefs(value, ids, defaultParentId);
