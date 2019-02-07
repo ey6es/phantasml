@@ -206,7 +206,13 @@ const DeleteItem = ReactRedux.connect(state => ({
   </MenuItem>
 ));
 
-function canCopyOrDelete(selection: Set<string>): boolean {
+/**
+ * Checks whether we can copy or delete the described selection.
+ *
+ * @param selection the set of selected ids.
+ * @return whether or not we can copy or delete the selection.
+ */
+export function canCopyOrDelete(selection: Set<string>): boolean {
   if (selection.size === 0) {
     return false;
   }

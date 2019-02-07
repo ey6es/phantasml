@@ -8,7 +8,9 @@
 import * as React from 'react';
 import * as ReactRedux from 'react-redux';
 import {FormattedMessage} from 'react-intl';
-import {StoreActions, store} from './store';
+import {DropdownItem} from 'reactstrap';
+import {StoreActions, store, createPasteAction} from './store';
+import {canCopyOrDelete} from './edit';
 import {createEntity} from './entity';
 import {Menu, Submenu, MenuItem, Shortcut} from './util/ui';
 import {GeometryComponents} from './geometry/components';
@@ -74,6 +76,8 @@ export class SelectionDropdown extends React.Component<{locale: string}, {}> {
         <ToShapeItem locale={this.props.locale} />
         <ToShapeListItem locale={this.props.locale} />
         <ToPartsItem locale={this.props.locale} />
+        <DropdownItem divider />
+        <DuplicateItem />
       </Menu>
     );
   }
@@ -834,4 +838,53 @@ function positionToString(position: Vector2, offset: Vector2): string {
     ' ' +
     roundToPrecision(position.y - offset.y, 6)
   );
+}
+
+const DuplicateItem = ReactRedux.connect(state => ({
+  disabled: !canCopyOrDelete(state.selection),
+}))(props => (
+  <MenuItem disabled={props.disabled} onClick={duplicateSelection}>
+    <FormattedMessage id="selection.duplicate" defaultMessage="Duplicate" />
+  </MenuItem>
+));
+
+function duplicateSelection() {
+  const state = store.getState();
+  const resource = state.resource;
+  if (!(resource instanceof Scene)) {
+    return;
+  }
+  const entitiesByParentId: Map<string, Map<string, Object>> = new Map();
+  for (const id of state.selection) {
+    if (resource.isAncestorInSet(id, state.selection)) {
+      continue; // we only want the top-level selections
+    }
+    const entity = resource.getEntity(id);
+    const parent = entity && entity.getParent();
+    const node = resource.getEntityHierarchyNode(id);
+    if (!(entity && parent && node)) {
+      continue;
+    }
+    let entities: Map<string, Object> = (entitiesByParentId.get(
+      parent.ref,
+    ): any);
+    if (!entities) {
+      entitiesByParentId.set(parent.ref, (entities = new Map()));
+    }
+    node.applyToEntityIds(id => {
+      const entity = resource.getEntity(id);
+      entity && entities.set(id, entity.state);
+    });
+  }
+  const map = {};
+  for (const [parentId, entities] of entitiesByParentId) {
+    const pasteAction = createPasteAction(state, entities, parentId);
+    if (pasteAction) {
+      store.dispatch(pasteAction);
+      for (const key in pasteAction.map) {
+        map[key] = true;
+      }
+    }
+  }
+  store.dispatch(StoreActions.select.create(map));
 }

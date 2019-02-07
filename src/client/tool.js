@@ -2699,7 +2699,8 @@ class StampToolImpl extends DrawToolImpl {
   }
 
   _onMouseDown = (event: MouseEvent) => {
-    const resource = store.getState().resource;
+    const state = store.getState();
+    const resource = state.resource;
     if (
       !(
         this.active &&
@@ -2727,7 +2728,7 @@ class StampToolImpl extends DrawToolImpl {
       );
       entities.set(id, Object.assign({}, entity.state, {transform}));
     }
-    const action = createPasteAction(entities, store.getState());
+    const action = createPasteAction(state, entities, state.page);
     action && store.dispatch(action);
   };
 

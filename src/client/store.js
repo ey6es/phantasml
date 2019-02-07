@@ -412,10 +412,12 @@ export const StoreActions = {
     }),
     reduce: (state: StoreState, action: StoreAction) => {
       const pasteAction = createPasteAction(
-        state.clipboard,
         state,
+        state.clipboard,
+        state.selection.size > 0 && action.asChildren
+          ? (state.selection.values().next().value: any)
+          : state.page,
         action.translation,
-        action.asChildren,
       );
       return pasteAction ? reducer(state, pasteAction) : state;
     },
@@ -763,27 +765,22 @@ function dispatchFrame() {
 /**
  * Creates an action to paste a set of entities.
  *
- * @param entities the map from entity id to entity state.
  * @param state the store state.
+ * @param entities the map from entity id to entity state.
+ * @param parentId the id of the parent to paste under.
  * @param [translation] optional translation at which to paste.
- * @param [asChildren=false] whether to paste the entities as children of the
- * (first) currently selected entity.
  * @return the paste action, if successful.
  */
 export function createPasteAction(
-  entities: Map<string, Object>,
   state: StoreState,
+  entities: Map<string, Object>,
+  parentId: string,
   translation?: ?Vector2,
-  asChildren: boolean = false,
 ): ?StoreAction {
   const resource = state.resource;
   if (!(resource instanceof Scene)) {
     return;
   }
-  const parentId =
-    state.selection.size > 0 && asChildren
-      ? (state.selection.values().next().value: any)
-      : state.page;
   const parentNode = resource.getEntityHierarchyNode(parentId);
   if (!parentNode) {
     return;
