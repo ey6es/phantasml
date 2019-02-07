@@ -71,7 +71,11 @@ import {
   renderArcHelper,
   renderCurveHelper,
 } from './renderer/helpers';
-import {PathColorProperty, FillColorProperty} from './renderer/components';
+import {
+  PathColorProperty,
+  FillColorProperty,
+  RendererComponents,
+} from './renderer/components';
 import {
   SELECT_COLOR,
   ERASE_COLOR,
@@ -686,9 +690,7 @@ class ToolImpl extends React.Component<ToolProps, {}> {
   ): Vector2 {
     const position = renderer.getEventPosition(clientX, clientY);
     const snapped = equals(position);
-    if (this.props.options.gridSnap) {
-      roundEquals(snapped);
-    }
+    this.props.options.gridSnap && roundToGridEquals(snapped);
     if (!(this.props.options.featureSnap && this.allowFeatureSnap)) {
       return snapped;
     }
@@ -1159,8 +1161,28 @@ function getMousePosition(
   event: MouseEvent,
 ): Vector2 {
   const position = renderer.getEventPosition(event.clientX, event.clientY);
-  gridSnap && roundEquals(position);
+  gridSnap && roundToGridEquals(position);
   return position;
+}
+
+function roundToGridEquals(position: Vector2): Vector2 {
+  const state = store.getState();
+  const resource = state.resource;
+  if (!(resource instanceof Scene)) {
+    return position;
+  }
+  const entity = resource.getEntity(state.page);
+  if (!entity) {
+    return position;
+  }
+  const background = entity.state.background || {};
+  const gridSpacing =
+    background.gridSpacing ||
+    RendererComponents.background.properties.gridSpacing.defaultValue;
+  return timesEquals(
+    roundEquals(timesEquals(position, 1.0 / gridSpacing)),
+    gridSpacing,
+  );
 }
 
 class HoverToolImpl extends ToolImpl {
@@ -1439,14 +1461,14 @@ class TranslateToolImpl extends HandleToolImpl {
     oldPosition: Vector2,
     newPosition: Vector2,
   ): Transform {
-    this.props.options.gridSnap && roundEquals(newPosition);
+    this.props.options.gridSnap && roundToGridEquals(newPosition);
     const translation = minus(newPosition, oldPosition);
     if (this._hover !== 'xy') {
       const axis = this._hover === 'x' ? vec2(1.0, 0.0) : vec2(0.0, 1.0);
       rotateEquals(axis, this._rotation);
       times(axis, dot(axis, translation), translation);
       if (this.props.options.gridSnap) {
-        roundEquals(plus(oldPosition, translation, newPosition));
+        roundToGridEquals(plus(oldPosition, translation, newPosition));
         minus(newPosition, oldPosition, translation);
         if (this.props.options.local) {
           const len = length(translation);

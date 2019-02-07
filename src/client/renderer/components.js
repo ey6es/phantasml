@@ -85,6 +85,20 @@ export const RendererComponents: {[string]: ComponentData} = {
         ),
         defaultValue: '#282828',
       },
+      gridSpacing: {
+        type: 'number',
+        label: (
+          <FormattedMessage
+            id="background.grid_spacing"
+            defaultMessage="Grid Freq:"
+          />
+        ),
+        min: 0.0,
+        step: 0.01,
+        wheelStep: 0.1,
+        precision: 2,
+        defaultValue: 1.0,
+      },
     },
     page: true,
     entity: false,
