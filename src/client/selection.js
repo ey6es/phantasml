@@ -843,7 +843,10 @@ function positionToString(position: Vector2, offset: Vector2): string {
 const DuplicateItem = ReactRedux.connect(state => ({
   disabled: !canCopyOrDelete(state.selection),
 }))(props => (
-  <MenuItem disabled={props.disabled} onClick={duplicateSelection}>
+  <MenuItem
+    disabled={props.disabled}
+    shortcut={new Shortcut('D', Shortcut.CTRL)}
+    onClick={duplicateSelection}>
     <FormattedMessage id="selection.duplicate" defaultMessage="Duplicate" />
   </MenuItem>
 ));

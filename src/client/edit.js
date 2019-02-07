@@ -251,7 +251,7 @@ const SelectAllItem = ReactRedux.connect(state => {
         if (pageNode) {
           const map = {};
           pageNode.applyToEntityIds(id => {
-            if (id !== state.page) {
+            if (!(id === state.page || resource.isInitialEntity(id))) {
               map[id] = true;
             }
           });
