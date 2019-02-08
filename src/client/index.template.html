@@ -1,78 +1,87 @@
 <!DOCTYPE html>
 <html>
-<head>
-  <title>Phantasml</title>
-  <meta charset="UTF-8">
-  <meta
-    name="description"
-    content="A laboratory for experiments in artificial life and machine learning.">
-  <meta name="keywords" content="ALife, ML, neural networks">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="phantasml-api-endpoint" content="@@api-endpoint">
-  <meta name="phantasml-build-time" content="@@build-time">
-  <meta name="google-signin-client_id" content="@@google-client-id">
-  <meta name="facebook-app-id" content="@@facebook-app-id">
-  <style>
-    /* loading spinner from https://loading.io/css/ */
-    .loading {
-      display: inline-block;
-      width: 48px;
-      height: 48px;
-      position: absolute;
-      left: 50%;
-      top: 50%;
-      transform: translate(-50%, -50%);
-    }
-    .loading:after {
-      content: " ";
-      display: block;
-      width: 46px;
-      height: 46px;
-      margin: 1px;
-      border-radius: 50%;
-      border: 5px solid #fff;
-      border-color: #fff transparent #fff transparent;
-      animation: loading 1.2s linear infinite, lds-fade 1.2s ease-in;
-    }
-    @keyframes loading {
-      0% { transform: rotate(0deg); }
-      100% { transform: rotate(360deg); }
-    }
-    @keyframes lds-fade {
-      0% { opacity: 0.0; } 
-      100% { opacity: 1.0; }
-    }
-    body {
-      background-color: #222;
-    }
-    .full-screen {
-      position: fixed;
-      left: 0px;
-      right: 0px;
-      top: 0px;
-      bottom: 0px; 
-    }
-  </style>
-  <link rel="stylesheet" type="text/css" href="style.css">
-  
-  <!-- https://realfavicongenerator.net -->
-  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
-  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
-  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
-  <link rel="manifest" href="/site.webmanifest">
-  <link rel="mask-icon" href="/safari-pinned-tab.svg" color="#5bbad5">
-  <meta name="msapplication-TileColor" content="#da532c">
-  <meta name="theme-color" content="#ffffff">
-</head>
-<body>
-  <div id="app">
-    <div class="full-screen">
-      <div class="loading"></div>
+  <head>
+    <title>Phantasml</title>
+    <meta charset="UTF-8" />
+    <meta
+      name="description"
+      content="A laboratory for experiments in artificial life and machine learning."
+    />
+    <meta name="keywords" content="ALife, ML, neural networks" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="phantasml-api-endpoint" content="@@api-endpoint" />
+    <meta name="phantasml-build-time" content="@@build-time" />
+    <meta name="google-signin-client_id" content="@@google-client-id" />
+    <meta name="facebook-app-id" content="@@facebook-app-id" />
+    <style>
+      /* loading spinner from https://loading.io/css/ */
+      .loading {
+        display: inline-block;
+        width: 48px;
+        height: 48px;
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        transform: translate(-50%, -50%);
+      }
+      .loading:after {
+        content: ' ';
+        display: block;
+        width: 46px;
+        height: 46px;
+        margin: 1px;
+        border-radius: 50%;
+        border: 5px solid #fff;
+        border-color: #fff transparent #fff transparent;
+        animation: loading 1.2s linear infinite, lds-fade 1.2s ease-in;
+      }
+      @keyframes loading {
+        0% {
+          transform: rotate(0deg);
+        }
+        100% {
+          transform: rotate(360deg);
+        }
+      }
+      @keyframes lds-fade {
+        0% {
+          opacity: 0;
+        }
+        100% {
+          opacity: 1;
+        }
+      }
+      body {
+        background-color: #222;
+      }
+      .full-screen {
+        position: fixed;
+        left: 0px;
+        right: 0px;
+        top: 0px;
+        bottom: 0px;
+      }
+    </style>
+    <link rel="stylesheet" type="text/css" href="style.css" />
+
+    <!-- https://realfavicongenerator.net -->
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
+    <link rel="manifest" href="/site.webmanifest" />
+    <link rel="mask-icon" href="/safari-pinned-tab.svg" color="#5bbad5" />
+    <meta name="msapplication-TileColor" content="#da532c" />
+    <meta name="theme-color" content="#ffffff" />
+  </head>
+  <body>
+    <div id="app">
+      <div class="full-screen">
+        <div class="loading"></div>
+      </div>
     </div>
-  </div>
-  @@live-reload-tag
-  <script src="https://apis.google.com/js/platform.js"></script>
-  <script src="https://connect.facebook.net/en-US/sdk.js"></script>
-  <script src="app.min.js"></script>
-</body>
+    @@live-reload-tag
+    <script src="https://apis.google.com/js/platform.js"></script>
+    <script src="https://connect.facebook.net/en-US/sdk.js"></script>
+    <script src="app.min.js"></script>
+  </body>
 </html>

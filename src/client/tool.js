@@ -509,7 +509,7 @@ class ToolImpl extends React.Component<ToolProps, {}> {
     document.addEventListener('mousemove', this._onMouseMove);
     document.addEventListener('keydown', this._onKeyDown);
     document.addEventListener('keyup', this._onKeyUp);
-    renderer.canvas.addEventListener('wheel', this._onWheel);
+    renderer.canvas.addEventListener('wheel', this._onWheel, {passive: true});
     this.active && this._onActivate(renderer);
   }
 
