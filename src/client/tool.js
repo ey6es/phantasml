@@ -2827,6 +2827,10 @@ class StampToolImpl extends DrawToolImpl {
       ),
     };
     entityZOrders.sort(compareEntityZOrders);
+    renderer.bindFramebuffer(renderer.alphaBuffer);
+    renderer.setClearColor('#000000');
+    const gl = renderer.gl;
+    gl.clear(gl.COLOR_BUFFER_BIT);
     for (const entityZOrder of entityZOrders) {
       const entity = entityZOrder.entity;
       entity.getCachedValue(
@@ -2836,6 +2840,8 @@ class StampToolImpl extends DrawToolImpl {
         entity,
       )(renderer, false, this._transform);
     }
+    renderer.bindFramebuffer(null);
+    renderer.renderAlphaBuffer();
   }
 }
 const StampTool = connectTool(StampToolImpl);

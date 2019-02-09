@@ -329,7 +329,7 @@ export class RenderCanvas extends React.Component<
       let renderBounds: Bounds;
       const totalBounds = resource.getTotalBounds(entity.id);
       if (texture.width !== width || texture.height !== height) {
-        texture.setSize(renderer, width, height);
+        texture.configure(renderer, width, height);
         framebuffer.bounds = totalBounds;
         renderBounds = totalBounds;
       } else if (totalBounds !== framebuffer.bounds) {

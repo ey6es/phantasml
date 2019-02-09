@@ -345,25 +345,32 @@ export class Texture extends RefCounted {
   }
 
   /**
-   * (Re)creates the texture with the specified dimensions.
+   * (Re)creates the texture with the specified dimensions and format.
    *
    * @param renderer the renderer to use.
    * @param width the texture width.
    * @param height the texture height.
+   * @param [alpha=false] whether or not to include an alpha channel.
    */
-  setSize(renderer: Renderer, width: number, height: number) {
+  configure(
+    renderer: Renderer,
+    width: number,
+    height: number,
+    alpha: boolean = false,
+  ) {
     this._width = width;
     this._height = height;
     renderer.bindTexture(this.get(renderer));
     const gl = renderer.gl;
+    const format = alpha ? gl.RGBA : gl.RGB;
     gl.texImage2D(
       gl.TEXTURE_2D,
       0,
-      gl.RGB,
+      format,
       width,
       height,
       0,
-      gl.RGB,
+      format,
       gl.UNSIGNED_BYTE,
       null,
     );
@@ -466,6 +473,12 @@ export class Framebuffer extends RefCounted {
 
 export type Camera = {x: number, y: number, size: number, aspect: number};
 export type Viewport = {x: number, y: number, width: number, height: number};
+type BlendFunc = {
+  srcRGB?: number,
+  dstRGB?: number,
+  srcAlpha?: number,
+  dstAlpha?: number,
+};
 
 function getViewProjectionMatrix(camera: Camera): number[] {
   const halfSize = camera.size * 0.5;
@@ -510,6 +523,7 @@ export class Renderer {
   _frameDurationTotal = 0;
   _frameDurationIndex = 0;
 
+  _alphaBuffer: ?Framebuffer;
   _boundArrayBuffer: ?WebGLBuffer;
   _boundElementArrayBuffer: ?WebGLBuffer;
   _boundProgram: ?Program;
@@ -517,7 +531,7 @@ export class Renderer {
   _boundFramebuffer: ?WebGLFramebuffer;
   _vertexAttribArraysEnabled: Set<number> = new Set();
   _capsEnabled: Set<number> = new Set();
-  _blendFunc: {sfactor?: number, dfactor?: number} = {};
+  _blendFunc: BlendFunc = {};
   _clearColor: ?string;
   _viewport: Viewport = {x: 0.0, y: 0.0, width: 0.0, height: 0.0};
   _scissor: Viewport = {x: 0.0, y: 0.0, width: 0.0, height: 0.0};
@@ -545,6 +559,23 @@ export class Renderer {
       : (this._frameDurations.length * 1000) / this._frameDurationTotal;
   }
 
+  /** Returns the shared, canvas-sized alpha buffer. */
+  get alphaBuffer(): WebGLFramebuffer {
+    let alphaBuffer: Framebuffer = (this._alphaBuffer: any);
+    if (!alphaBuffer) {
+      this._alphaBuffer = alphaBuffer = new Framebuffer(new Texture());
+      alphaBuffer.ref();
+    }
+    const texture = alphaBuffer.texture;
+    if (
+      texture.width !== this.canvas.width ||
+      texture.height !== this.canvas.height
+    ) {
+      texture.configure(this, this.canvas.width, this.canvas.height, true);
+    }
+    return alphaBuffer.get(this);
+  }
+
   constructor(canvas: HTMLCanvasElement, fontImage: HTMLImageElement) {
     this.canvas = canvas;
     const gl = canvas.getContext('webgl', {alpha: false, depth: false});
@@ -555,7 +586,7 @@ export class Renderer {
     this.elementIndexUint = !!gl.getExtension('OES_element_index_uint');
 
     // only one blend function at the moment
-    this.setBlendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+    this.setBlendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA, gl.ONE, gl.ONE);
 
     // load the font image
     this.bindTexture((this.fontTexture = gl.createTexture()));
@@ -594,6 +625,7 @@ export class Renderer {
    * Releases the resources held by the renderer.
    */
   dispose() {
+    this._alphaBuffer && this._alphaBuffer.deref();
     for (const program of this.programs.values()) {
       program.dispose();
     }
@@ -815,6 +847,15 @@ export class Renderer {
     this._frameDirty = false;
     for (const [callback, order] of this._renderCallbacks) {
       callback(this);
+    }
+  }
+
+  /**
+   * Renders the alpha buffer to the screen.
+   */
+  renderAlphaBuffer() {
+    if (this._alphaBuffer) {
+      renderAlphaBuffer(this, this._alphaBuffer.texture.get(this));
     }
   }
 
@@ -1143,17 +1184,28 @@ export class Renderer {
   /**
    * Sets the GL blend function parameters.
    *
-   * @param sfactor the source blend factor.
-   * @param dfactor the dest blend factor.
+   * @param srcRGB the source RGB blend factor.
+   * @param dstRGB the dest RGB blend factor.
+   * @param srcAlpha the source alpha blend factor.
+   * @param dstAlpha the dest alpha blend factor.
    */
-  setBlendFunc(sfactor: number, dfactor: number) {
+  setBlendFunc(
+    srcRGB: number,
+    dstRGB: number,
+    srcAlpha: number,
+    dstAlpha: number,
+  ) {
     if (
-      this._blendFunc.sfactor !== sfactor ||
-      this._blendFunc.dfactor !== dfactor
+      this._blendFunc.srcRGB !== srcRGB ||
+      this._blendFunc.dstRGB !== dstRGB ||
+      this._blendFunc.srcAlpha !== srcAlpha ||
+      this._blendFunc.dstAlpha !== dstAlpha
     ) {
-      this.gl.blendFunc(sfactor, dfactor);
-      this._blendFunc.sfactor = sfactor;
-      this._blendFunc.dfactor = dfactor;
+      this.gl.blendFuncSeparate(srcRGB, dstRGB, srcAlpha, dstAlpha);
+      this._blendFunc.srcRGB = srcRGB;
+      this._blendFunc.dstRGB = dstRGB;
+      this._blendFunc.srcAlpha = srcAlpha;
+      this._blendFunc.dstAlpha = dstAlpha;
     }
   }
 
@@ -1225,7 +1277,52 @@ export class Renderer {
   setClearColor(color: string) {
     if (this._clearColor !== color) {
       const array = getColorArray((this._clearColor = color));
-      this.gl.clearColor(array[0], array[1], array[2], 1.0);
+      this.gl.clearColor(array[0], array[1], array[2], 0.0);
     }
   }
 }
+
+function renderAlphaBuffer(renderer: Renderer, texture: ?WebGLTexture) {
+  const program = renderer.getProgram(
+    renderAlphaBuffer,
+    renderer.getVertexShader(renderAlphaBuffer, ALPHA_BUFFER_VERTEX_SHADER),
+    renderer.getFragmentShader(renderAlphaBuffer, ALPHA_BUFFER_FRAGMENT_SHADER),
+  );
+  program.setUniformInt('texture', 0);
+  renderer.setEnabled(renderer.gl.BLEND, true);
+  renderer.bindTexture(texture);
+  AlphaBufferGeometry.draw(program);
+  renderer.bindTexture(null);
+}
+
+const AlphaBufferGeometry = new Geometry(
+  // prettier-ignore
+  new Float32Array([
+    -1, -1, 0, 0,
+    1, -1, 1, 0,
+    1, 1, 1, 1,
+    -1, 1, 0, 1,
+  ]),
+  new Uint16Array([0, 1, 2, 2, 3, 0]),
+  {vertex: 2, uv: 2},
+);
+
+const ALPHA_BUFFER_VERTEX_SHADER = `
+  attribute vec2 vertex;
+  attribute vec2 uv;
+  varying vec2 interpolatedUv;
+  void main(void) {
+    interpolatedUv = uv;
+    gl_Position = vec4(vertex.xy, 0.0, 1.0);
+  }
+`;
+
+const ALPHA_BUFFER_FRAGMENT_SHADER = `
+  precision mediump float;
+  uniform sampler2D texture;
+  varying vec2 interpolatedUv;
+  void main(void) {
+    gl_FragColor =
+      texture2D(texture, interpolatedUv) * vec4(1.0, 1.0, 1.0, 0.25);
+  }
+`;

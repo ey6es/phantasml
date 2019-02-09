@@ -547,11 +547,11 @@ function renderText(
   transform: Transform,
   color: string,
   geometry: Geometry,
-  selected: boolean,
-  hoverState: HoverState,
+  selected: boolean = false,
+  hoverState?: HoverState,
 ) {
   if (isHoverStateTransform(hoverState)) {
-    renderTranslucentText(
+    renderText(
       renderer,
       composeTransforms(hoverState, transform),
       color,
@@ -592,7 +592,7 @@ const TEXT_VERTEX_SHADER = `
 `;
 
 export const TEXT_FRAGMENT_SHADER = `
-  precision mediump float; 
+  precision mediump float;
   uniform sampler2D texture;
   uniform float stepSize;
   uniform vec3 color;
@@ -605,48 +605,6 @@ export const TEXT_FRAGMENT_SHADER = `
     );
     float alpha = smoothstep(0.5 - stepSize, 0.5 + stepSize, dist);
     gl_FragColor = vec4(color, alpha);
-  }
-`;
-
-function renderTranslucentText(
-  renderer: Renderer,
-  transform: Transform,
-  color: string,
-  geometry: Geometry,
-) {
-  const program = renderer.getProgram(
-    renderTranslucentText,
-    renderer.getVertexShader(renderTranslucentText, TEXT_VERTEX_SHADER),
-    renderer.getFragmentShader(
-      renderTranslucentText,
-      TRANSLUCENT_TEXT_FRAGMENT_SHADER,
-    ),
-  );
-  program.setUniformViewProjectionMatrix('viewProjectionMatrix');
-  program.setUniformMatrix('modelMatrix', transform, getTransformMatrix);
-  program.setUniformInt('texture', 0);
-  program.setUniformFloat('stepSize', renderer.pixelsToWorldUnits);
-  program.setUniformColor('color', color);
-  renderer.setEnabled(renderer.gl.BLEND, true);
-  renderer.bindTexture(renderer.fontTexture);
-  geometry.draw(program);
-  renderer.bindTexture(null);
-}
-
-export const TRANSLUCENT_TEXT_FRAGMENT_SHADER = `
-  precision mediump float; 
-  uniform sampler2D texture;
-  uniform float stepSize;
-  uniform vec3 color;
-  varying vec2 interpolatedUv;
-  void main(void) {
-    vec4 dists = texture2D(texture, interpolatedUv);
-    float dist = max(
-      min(max(dists.r, dists.g), dists.b),
-      min(max(dists.b, dists.g), dists.r)
-    );
-    float alpha = smoothstep(0.5 - stepSize, 0.5 + stepSize, dist);
-    gl_FragColor = vec4(color, alpha * 0.25);
   }
 `;
 
@@ -681,7 +639,7 @@ function renderTextBackdrop(
 }
 
 export const TEXT_BACKDROP_FRAGMENT_SHADER = `
-  precision mediump float; 
+  precision mediump float;
   uniform sampler2D texture;
   uniform float stepSize;
   uniform vec3 color;
@@ -719,11 +677,11 @@ function renderShape(
   pathColor: string,
   fillColor: string,
   geometry: Geometry,
-  selected: boolean,
-  hoverState: HoverState,
+  selected: boolean = false,
+  hoverState?: HoverState,
 ) {
   if (isHoverStateTransform(hoverState)) {
-    renderTranslucentShape(
+    renderShape(
       renderer,
       composeTransforms(hoverState, transform),
       pathColor,
@@ -775,35 +733,6 @@ function createShapeFragmentShader(alpha: string): string {
   );
 }
 
-function renderTranslucentShape(
-  renderer: Renderer,
-  transform: Transform,
-  pathColor: string,
-  fillColor: string,
-  geometry: Geometry,
-) {
-  const program = renderer.getProgram(
-    renderTranslucentShape,
-    renderer.getVertexShader(renderTranslucentShape, SHAPE_VERTEX_SHADER),
-    renderer.getFragmentShader(
-      renderTranslucentShape,
-      TRANSLUCENT_SHAPE_FRAGMENT_SHADER,
-    ),
-  );
-  program.setUniformViewProjectionMatrix('viewProjectionMatrix');
-  program.setUniformMatrix('modelMatrix', transform, getTransformMatrix);
-  program.setUniformMatrix('vectorMatrix', getTransformVectorMatrix(transform));
-  program.setUniformFloat('pixelsToWorldUnits', renderer.pixelsToWorldUnits);
-  program.setUniformColor('pathColor', pathColor);
-  program.setUniformColor('fillColor', fillColor);
-  renderer.setEnabled(renderer.gl.BLEND, true);
-  geometry.draw(program);
-}
-
-export const TRANSLUCENT_SHAPE_FRAGMENT_SHADER = createShapeFragmentShader(
-  'baseAlpha * 0.25',
-);
-
 /**
  * Renders a shape list with the filled parts translucent.
  *
@@ -812,8 +741,8 @@ export const TRANSLUCENT_SHAPE_FRAGMENT_SHADER = createShapeFragmentShader(
  * @param pathColor the path color to use.
  * @param fillColor the fill color to use.
  * @param geometry the shape list geometry.
- * @param selected whether or not the list is selected.
- * @param hoverState the shape list hover state.
+ * @param [selected=false] whether or not the list is selected.
+ * @param [hoverState] the shape list hover state.
  */
 export function renderTranslucentFilledShapeList(
   renderer: Renderer,
@@ -821,11 +750,11 @@ export function renderTranslucentFilledShapeList(
   pathColor: string,
   fillColor: string,
   geometry: Geometry,
-  selected: boolean,
-  hoverState: HoverState,
+  selected: boolean = false,
+  hoverState?: HoverState,
 ) {
   if (isHoverStateTransform(hoverState)) {
-    renderTranslucentShapeList(
+    renderTranslucentFilledShapeList(
       renderer,
       composeTransforms(hoverState, transform),
       pathColor,
@@ -867,8 +796,8 @@ const TRANSLUCENT_FILLED_SHAPE_LIST_FRAGMENT_SHADER = createShapeListFragmentSha
  * @param pathColor the path color to use.
  * @param fillColor the fill color to use.
  * @param geometry the shape list geometry.
- * @param selected whether or not the list is selected.
- * @param hoverState the shape list hover state.
+ * @param [selected=false] whether or not the list is selected.
+ * @param [hoverState] the shape list hover state.
  */
 export function renderShapeList(
   renderer: Renderer,
@@ -876,11 +805,11 @@ export function renderShapeList(
   pathColor: string,
   fillColor: string,
   geometry: Geometry,
-  selected: boolean,
-  hoverState: HoverState,
+  selected: boolean = false,
+  hoverState?: HoverState,
 ) {
   if (isHoverStateTransform(hoverState)) {
-    renderTranslucentShapeList(
+    renderShapeList(
       renderer,
       composeTransforms(hoverState, transform),
       pathColor,
@@ -945,38 +874,6 @@ function createShapeListFragmentShader(alpha: string): string {
     `vec4(color, ${alpha})`,
   );
 }
-
-function renderTranslucentShapeList(
-  renderer: Renderer,
-  transform: Transform,
-  pathColor: string,
-  fillColor: string,
-  geometry: Geometry,
-) {
-  const program = renderer.getProgram(
-    renderTranslucentShapeList,
-    renderer.getVertexShader(
-      renderTranslucentShapeList,
-      SHAPE_LIST_VERTEX_SHADER,
-    ),
-    renderer.getFragmentShader(
-      renderTranslucentShapeList,
-      TRANSLUCENT_SHAPE_LIST_FRAGMENT_SHADER,
-    ),
-  );
-  program.setUniformViewProjectionMatrix('viewProjectionMatrix');
-  program.setUniformMatrix('modelMatrix', transform, getTransformMatrix);
-  program.setUniformMatrix('vectorMatrix', getTransformVectorMatrix(transform));
-  program.setUniformFloat('pixelsToWorldUnits', renderer.pixelsToWorldUnits);
-  program.setUniformColor('pathColorScale', pathColor);
-  program.setUniformColor('fillColorScale', fillColor);
-  renderer.setEnabled(renderer.gl.BLEND, true);
-  geometry.draw(program);
-}
-
-const TRANSLUCENT_SHAPE_LIST_FRAGMENT_SHADER = createShapeListFragmentShader(
-  'baseAlpha * 0.25',
-);
 
 /** The color used to indicate general hovering/selection. */
 export const SELECT_COLOR = '#00bc8c';
