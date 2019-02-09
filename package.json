@@ -19,11 +19,11 @@
   },
   "homepage": "https://github.com/ey6es/phantasml#readme",
   "devDependencies": {
-    "@fortawesome/fontawesome-svg-core": "^1.2.12",
-    "@fortawesome/free-solid-svg-icons": "^5.6.3",
+    "@fortawesome/fontawesome-svg-core": "^1.2.14",
+    "@fortawesome/free-solid-svg-icons": "^5.7.1",
     "@fortawesome/react-fontawesome": "^0.1.4",
     "@tensorflow/tfjs": "^0.12.7",
-    "aws-sdk": "^2.391.0",
+    "aws-sdk": "^2.400.0",
     "babel-core": "^6.26.3",
     "babel-plugin-flow-runtime": "^0.17.0",
     "babel-plugin-react-intl": "^2.4.0",
@@ -61,15 +61,16 @@
     "load-grunt-tasks": "^4.0.0",
     "msdf-bmfont-xml": "^2.3.5",
     "opn": "^5.4.0",
-    "prettier": "^1.16.0",
+    "prettier": "^1.16.4",
     "pretty-quick": "^1.10.0",
     "react-intl": "^2.8.0",
     "reactstrap": "^6.5.0",
-    "uuid": "^3.3.2"
+    "uuid": "^3.3.2",
+    "lodash": ">=4.17.11"
   },
   "dependencies": {
-    "react": "^16.7.0",
-    "react-dom": "^16.7.0",
+    "react": "^16.8.1",
+    "react-dom": "^16.8.1",
     "react-redux": "^5.1.1",
     "redux": "^4.0.1"
   },
