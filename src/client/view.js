@@ -182,6 +182,7 @@ export class SceneView extends React.Component<
     preferences: UserGetPreferencesResponse,
     setRenderer: (?Renderer) => void,
     fontImage: HTMLImageElement,
+    setMousePositionElement: (?HTMLElement) => void,
   },
   {},
 > {
@@ -197,6 +198,7 @@ export class SceneView extends React.Component<
             preferences={this.props.preferences}
             setRenderer={this.props.setRenderer}
             fontImage={this.props.fontImage}
+            setMousePositionElement={this.props.setMousePositionElement}
           />
         </div>
       </div>

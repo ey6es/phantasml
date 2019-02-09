@@ -176,6 +176,7 @@ export class Toolset extends React.Component<
     setPreferences: UserGetPreferencesResponse => void,
     renderer: ?Renderer,
     openEntityMenu: Vector2 => void,
+    mousePositionElement: ?HTMLElement,
   },
   {optionProperties: ?OptionProperties},
 > {
@@ -186,6 +187,7 @@ export class Toolset extends React.Component<
       locale: this.props.locale,
       renderer: this.props.renderer,
       openEntityMenu: this.props.openEntityMenu,
+      mousePositionElement: this.props.mousePositionElement,
       options: this.props.preferences,
       setOptionProperties: this._setOptionProperties,
     };
@@ -389,6 +391,7 @@ type ToolProps = {
   locale: string,
   renderer: ?Renderer,
   openEntityMenu: Vector2 => void,
+  mousePositionElement: ?HTMLElement,
   options: UserGetPreferencesResponse,
   setOptionProperties: (?OptionProperties) => void,
   activeTool: ToolType,
@@ -502,6 +505,8 @@ class ToolImpl extends React.Component<ToolProps, {}> {
 
   _subscribeToRenderer(renderer: Renderer) {
     renderer.addRenderCallback(this._renderHelpers);
+    renderer.canvas.addEventListener('mouseenter', this._onMouseEnter);
+    renderer.canvas.addEventListener('mouseleave', this._onMouseLeave);
     renderer.canvas.addEventListener('mousedown', this._onMouseDown);
     renderer.canvas.addEventListener('contextmenu', this._onContextMenu);
     renderer.canvas.addEventListener('dblclick', this._onDoubleClick);
@@ -515,6 +520,8 @@ class ToolImpl extends React.Component<ToolProps, {}> {
 
   _unsubscribeFromRenderer(renderer: Renderer) {
     renderer.removeRenderCallback(this._renderHelpers);
+    renderer.canvas.removeEventListener('mouseenter', this._onMouseEnter);
+    renderer.canvas.removeEventListener('mouseleave', this._onMouseLeave);
     renderer.canvas.removeEventListener('mousedown', this._onMouseDown);
     renderer.canvas.removeEventListener('contextmenu', this._onContextMenu);
     renderer.canvas.removeEventListener('dblclick', this._onDoubleClick);
@@ -566,6 +573,20 @@ class ToolImpl extends React.Component<ToolProps, {}> {
     return {translation, rotation, scale};
   }
 
+  _onMouseEnter = (event: MouseEvent) => {
+    const mousePositionElement = this.props.mousePositionElement;
+    if (this.active && mousePositionElement) {
+      mousePositionElement.style.visibility = 'visible';
+    }
+  };
+
+  _onMouseLeave = (event: MouseEvent) => {
+    const mousePositionElement = this.props.mousePositionElement;
+    if (this.active && mousePositionElement) {
+      mousePositionElement.style.visibility = 'hidden';
+    }
+  };
+
   _onMouseDown = (event: MouseEvent) => {
     // nothing by default
   };
@@ -610,6 +631,17 @@ class ToolImpl extends React.Component<ToolProps, {}> {
     // nothing by default
   };
 
+  _displayMousePosition(position: Vector2) {
+    const child =
+      this.props.mousePositionElement &&
+      this.props.mousePositionElement.firstChild;
+    if (child) {
+      child.textContent = `X: ${position.x.toFixed(2)}, Y: ${position.y.toFixed(
+        2,
+      )}`;
+    }
+  }
+
   _updatePointHover(clientX: number, clientY: number) {
     if (!this.active) {
       return;
@@ -620,6 +652,7 @@ class ToolImpl extends React.Component<ToolProps, {}> {
       return;
     }
     const position = renderer.getEventPosition(clientX, clientY);
+    this._displayMousePosition(position);
     const localPosition = vec2();
     const hoverStates: Map<string, HoverState> = new Map();
     const bounds = {min: position, max: position};
@@ -996,6 +1029,7 @@ class SelectPanToolImpl extends ToolImpl {
           return !(hoverState && hoverState.dragging);
         },
       );
+      this._displayMousePosition(eventPosition);
       const localPosition = vec2();
       let hoverStates = this.props.hoverStates;
       let dragging = false;
@@ -1069,6 +1103,7 @@ class SelectPanToolImpl extends ToolImpl {
     if (!this._pressed) {
       const hoverStates: Map<string, HoverState> = new Map();
       const position = renderer.getEventPosition(clientX, clientY);
+      this._displayMousePosition(position);
       const bounds = {min: position, max: position};
       if (boundsContain(renderer.getCameraBounds(), bounds)) {
         const entityZOrders: EntityZOrder[] = [];
@@ -1220,6 +1255,7 @@ class HoverToolImpl extends ToolImpl {
           event.clientX,
           event.clientY,
         );
+        this._displayMousePosition(position);
         this._rect = {start: position, end: position};
         this._updateRectHover(this._rect);
         renderer.canvas.style.cursor = 'crosshair';
@@ -1254,6 +1290,7 @@ class HoverToolImpl extends ToolImpl {
         event.clientX,
         event.clientY,
       );
+      this._displayMousePosition(position);
       this._rect = Object.assign({}, this._rect, {end: position});
       this._updateRectHover(this._rect);
       renderer.requestFrameRender();
@@ -1334,14 +1371,13 @@ class HandleToolImpl extends ToolImpl {
     const position = this._position;
     if (!(renderer && position)) {
       this._hover = 'xy';
+      if (this.active && renderer) {
+        this._displayMousePosition(
+          renderer.getEventPosition(event.clientX, event.clientY),
+        );
+      }
       return;
     }
-    const vector = minusEquals(
-      renderer.getWorldPosition(event.offsetX, event.offsetY),
-      position,
-    );
-    rotateEquals(vector, -this._rotation);
-
     if (this._pressed) {
       const resource = store.getState().resource;
       if (!(resource instanceof Scene)) {
@@ -1383,12 +1419,19 @@ class HandleToolImpl extends ToolImpl {
       }
       store.dispatch(SceneActions.editEntities.create(map));
     } else {
+      const eventPosition = renderer.getEventPosition(
+        event.clientX,
+        event.clientY,
+      );
+      this._displayMousePosition(eventPosition);
+      const vector = minusEquals(eventPosition, position);
       let hover: HoverType = 'xy';
       const outerRadius = renderer.pixelsToWorldUnits * 40.0;
       const len = length(vector);
       if (len < outerRadius) {
         const innerRadius = renderer.pixelsToWorldUnits * 15.0;
         if (len > innerRadius) {
+          rotateEquals(vector, -this._rotation);
           if (vector.x > vector.y === vector.x < -vector.y) {
             hover = 'y';
           } else {
@@ -1418,9 +1461,13 @@ class HandleToolImpl extends ToolImpl {
   };
 
   _onMouseUp = (event: MouseEvent) => {
-    if (this._pressed) {
+    const renderer = this.props.renderer;
+    if (this._pressed && renderer) {
       this._pressed = false;
-      this.props.renderer && this.props.renderer.requestFrameRender();
+      this._displayMousePosition(
+        renderer.getEventPosition(event.clientX, event.clientY),
+      );
+      renderer.requestFrameRender();
     }
   };
 
@@ -1481,6 +1528,7 @@ class TranslateToolImpl extends HandleToolImpl {
         }
       }
     }
+    this._displayMousePosition(newPosition);
     return length(translation) < 0.001 ? null : {translation};
   }
 }
@@ -1530,13 +1578,13 @@ class RotateToolImpl extends HandleToolImpl {
     if (!handlePosition) {
       return null;
     }
+    const newWorldPosition = plus(newPosition, this._relativePosition);
+    this._displayMousePosition(newWorldPosition);
     const sourceRotation = this._rotation;
     const from = normalizeEquals(
       minusEquals(plus(oldPosition, this._relativePosition), handlePosition),
     );
-    const to = normalizeEquals(
-      minusEquals(plus(newPosition, this._relativePosition), handlePosition),
-    );
+    const to = normalizeEquals(minusEquals(newWorldPosition, handlePosition));
     let destRotation = sourceRotation + Math.asin(cross(from, to));
     if (this.props.options.snap) {
       destRotation = (Math.round((8 * destRotation) / Math.PI) * Math.PI) / 8;
@@ -1603,11 +1651,10 @@ class ScaleToolImpl extends HandleToolImpl {
     if (!(handlePosition && worldScale)) {
       return null;
     }
+    const newWorldPosition = plus(newPosition, this._relativePosition);
+    this._displayMousePosition(newWorldPosition);
     const from = rotate(worldScale, this._rotation);
-    const to = minusEquals(
-      plus(newPosition, this._relativePosition),
-      handlePosition,
-    );
+    const to = minusEquals(newWorldPosition, handlePosition);
     to.x /= this._relativePosition.x;
     to.y /= this._relativePosition.y;
     const axisX = rotateEquals(vec2(1.0, 0.0), this._rotation);
@@ -1784,6 +1831,7 @@ class DrawToolImpl extends ToolImpl {
       this._lastClientX,
       this._lastClientY,
     );
+    this._displayMousePosition(this._translation);
     this._renderDrawHelper(renderer, this._translation);
   };
 

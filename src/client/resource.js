@@ -506,9 +506,15 @@ export class ResourceContent extends React.Component<
     dialog: ?React.Element<any>,
     fontImage: ?HTMLImageElement,
     entityMenuPosition: ?Vector2,
+    mousePositionElement: ?HTMLElement,
   },
 > {
-  state = {dialog: null, fontImage: null, entityMenuPosition: null};
+  state = {
+    dialog: null,
+    fontImage: null,
+    entityMenuPosition: null,
+    mousePositionElement: null,
+  };
 
   _fontImage: Promise<HTMLImageElement> = new Promise(
     resolve => (this._resolveFontImage = resolve),
@@ -586,6 +592,7 @@ export class ResourceContent extends React.Component<
                 preferences={this.props.preferences}
                 setPreferences={this.props.setPreferences}
                 renderer={this.props.renderer}
+                mousePositionElement={this.state.mousePositionElement}
                 openEntityMenu={this._openEntityMenu}
               />
               <EntityTree
@@ -598,6 +605,7 @@ export class ResourceContent extends React.Component<
                 locale={this.props.locale}
                 preferences={this.props.preferences}
                 setRenderer={this.props.setRenderer}
+                setMousePositionElement={this._setMousePositionElement}
                 fontImage={fontImage}
               />
             </div>
@@ -632,6 +640,10 @@ export class ResourceContent extends React.Component<
   };
 
   _closeEntityMenu = () => this.setState({entityMenuPosition: null});
+
+  _setMousePositionElement = (mousePositionElement: ?HTMLElement) => {
+    this.setState({mousePositionElement});
+  };
 }
 
 function isResourceOwned(

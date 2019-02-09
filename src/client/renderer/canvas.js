@@ -128,6 +128,7 @@ export class RenderCanvas extends React.Component<
     preferences: UserGetPreferencesResponse,
     setRenderer: (?Renderer) => void,
     fontImage: HTMLImageElement,
+    setMousePositionElement: (?HTMLElement) => void,
   },
   {renderer: ?Renderer},
 > {
@@ -152,6 +153,12 @@ export class RenderCanvas extends React.Component<
       this.props.preferences.showStats ? (
         <CanvasStats key="stats" renderer={this.state.renderer} />
       ) : null,
+      <div
+        key="mousePosition"
+        ref={this.props.setMousePositionElement}
+        className="tooltip show mouse-position">
+        <div className="tooltip-inner" />
+      </div>,
       <CanvasTooltips key="tooltips" renderer={this.state.renderer} />,
     ];
   }
