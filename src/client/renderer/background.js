@@ -13,7 +13,7 @@ import {getColorArray} from '../../server/store/util';
 type BackgroundData = {
   color?: string,
   gridColor?: string,
-  gridSpacing?: number,
+  gridScale?: number,
 };
 
 const VERTEX_SHADER = `
@@ -30,12 +30,12 @@ const FRAGMENT_SHADER = `
   precision mediump float;
   uniform vec3 color;
   uniform vec3 gridColor;
-  uniform float gridSpacing;
+  uniform float gridScale;
   uniform float pixelSize;
   varying vec2 worldPosition;
   void main(void) {
-    vec2 position = worldPosition / gridSpacing;
-    vec2 offsetPosition = worldPosition / gridSpacing + vec2(pixelSize);
+    vec2 position = worldPosition / gridScale;
+    vec2 offsetPosition = position + vec2(pixelSize);
     vec2 fract0 = fract(offsetPosition);
     vec2 fract1 = fract(offsetPosition / 5.0);
     vec2 grid0 = step(pixelSize, fract0);
@@ -91,11 +91,11 @@ export function renderBackground(
     'gridColor',
     data.gridColor || props.gridColor.defaultValue,
   );
-  const gridSpacing = data.gridSpacing || props.gridSpacing.defaultValue;
-  program.setUniformFloat('gridSpacing', gridSpacing);
+  const gridScale = data.gridScale || props.gridScale.defaultValue;
+  program.setUniformFloat('gridScale', gridScale);
   program.setUniformFloat(
     'pixelSize',
-    (2.0 * renderer.camera.size) / (renderer.canvas.height * gridSpacing),
+    (2.0 * renderer.camera.size) / (renderer.canvas.height * gridScale),
   );
   renderer.setEnabled(renderer.gl.BLEND, false);
   BackgroundGeometry.draw(program);

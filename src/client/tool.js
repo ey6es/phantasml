@@ -1211,12 +1211,12 @@ function roundToGridEquals(position: Vector2): Vector2 {
     return position;
   }
   const background = entity.state.background || {};
-  const gridSpacing =
-    background.gridSpacing ||
-    RendererComponents.background.properties.gridSpacing.defaultValue;
+  const gridScale =
+    background.gridScale ||
+    RendererComponents.background.properties.gridScale.defaultValue;
   return timesEquals(
-    roundEquals(timesEquals(position, 1.0 / gridSpacing)),
-    gridSpacing,
+    roundEquals(timesEquals(position, 1.0 / gridScale)),
+    gridScale,
   );
 }
 
