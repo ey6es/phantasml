@@ -2783,7 +2783,7 @@ class StampToolImpl extends DrawToolImpl {
     const entities: Map<string, Object> = new Map();
     for (const id of this.props.selection) {
       const entity = resource.getEntity(id);
-      if (!entity) {
+      if (!entity || resource.isInitialEntity(id)) {
         continue;
       }
       const transform = Object.assign(
@@ -2798,6 +2798,9 @@ class StampToolImpl extends DrawToolImpl {
       );
       entities.set(id, Object.assign({}, entity.state, {transform}));
     }
+    if (entities.size === 0) {
+      return;
+    }
     const action = createPasteAction(state, entities, state.page);
     action && store.dispatch(action);
   };
@@ -2811,7 +2814,7 @@ class StampToolImpl extends DrawToolImpl {
     const totalTranslation = vec2();
     for (const id of this.props.selection) {
       const entity = resource.getEntity(id);
-      if (!entity) {
+      if (!entity || resource.isInitialEntity(id)) {
         continue;
       }
       entityZOrders.push(
@@ -2819,6 +2822,9 @@ class StampToolImpl extends DrawToolImpl {
       );
       const transform: Transform = entity.getLastCachedValue('worldTransform');
       plusEquals(totalTranslation, getTransformTranslation(transform));
+    }
+    if (entityZOrders.length === 0) {
+      return;
     }
     this._transform = {
       translation: minus(
