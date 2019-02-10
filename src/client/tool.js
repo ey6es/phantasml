@@ -669,7 +669,8 @@ class ToolImpl extends React.Component<ToolProps, {}> {
               ),
               localPosition,
             ),
-          )
+          ) &&
+          this._allowHover(entity)
         ) {
           hoverStates.set(entity.id, true);
         }
@@ -705,7 +706,8 @@ class ToolImpl extends React.Component<ToolProps, {}> {
       );
       if (
         collisionGeometry &&
-        collisionGeometry.intersectsPolygon(localVertices)
+        collisionGeometry.intersectsPolygon(localVertices) &&
+        this._allowHover(entity)
       ) {
         hoverStates.set(entity.id, true);
       }
@@ -713,6 +715,10 @@ class ToolImpl extends React.Component<ToolProps, {}> {
     if (!mapsEqual(hoverStates, this.props.hoverStates)) {
       store.dispatch(StoreActions.setHoverStates.create(hoverStates));
     }
+  }
+
+  _allowHover(entity: Entity): boolean {
+    return true;
   }
 
   _getMousePosition(
@@ -1793,6 +1799,11 @@ class EraseToolImpl extends HoverToolImpl {
       },
       ...args,
     );
+  }
+
+  _allowHover(entity: Entity): boolean {
+    const resource = store.getState().resource;
+    return resource instanceof Scene && !resource.isInitialEntity(entity.id);
   }
 
   _processHovered(additive: boolean) {
