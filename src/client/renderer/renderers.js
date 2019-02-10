@@ -25,6 +25,7 @@ import {
 import {ComponentBounds} from '../../server/store/bounds';
 import type {Vector2, Transform, Bounds} from '../../server/store/math';
 import {
+  isTransform,
   getTransformMatrix,
   getTransformVectorMatrix,
   getTransformMaxScaleMagnitude,
@@ -550,7 +551,7 @@ function renderText(
   selected: boolean = false,
   hoverState?: HoverState,
 ) {
-  if (isHoverStateTransform(hoverState)) {
+  if (isTransform(hoverState)) {
     renderText(
       renderer,
       composeTransforms(hoverState, transform),
@@ -559,7 +560,7 @@ function renderText(
     );
     return;
   }
-  if (selected || hoverState) {
+  if (selected || isBackdropHoverState(hoverState)) {
     renderTextBackdrop(renderer, transform, geometry, selected, hoverState);
   }
   const program = renderer.getProgram(
@@ -576,6 +577,10 @@ function renderText(
   renderer.bindTexture(renderer.fontTexture);
   geometry.draw(program);
   renderer.bindTexture(null);
+}
+
+function isBackdropHoverState(hoverState: HoverState): boolean {
+  return hoverState === true || hoverState === 'erase';
 }
 
 const TEXT_VERTEX_SHADER = `
@@ -680,7 +685,7 @@ function renderShape(
   selected: boolean = false,
   hoverState?: HoverState,
 ) {
-  if (isHoverStateTransform(hoverState)) {
+  if (isTransform(hoverState)) {
     renderShape(
       renderer,
       composeTransforms(hoverState, transform),
@@ -690,7 +695,7 @@ function renderShape(
     );
     return;
   }
-  if (selected || hoverState) {
+  if (selected || isBackdropHoverState(hoverState)) {
     renderBackdrop(renderer, transform, geometry, selected, hoverState);
   }
   const program = renderer.getProgram(
@@ -753,7 +758,7 @@ export function renderTranslucentFilledShapeList(
   selected: boolean = false,
   hoverState?: HoverState,
 ) {
-  if (isHoverStateTransform(hoverState)) {
+  if (isTransform(hoverState)) {
     renderTranslucentFilledShapeList(
       renderer,
       composeTransforms(hoverState, transform),
@@ -763,7 +768,7 @@ export function renderTranslucentFilledShapeList(
     );
     return;
   }
-  if (selected || hoverState) {
+  if (selected || isBackdropHoverState(hoverState)) {
     renderBackdrop(renderer, transform, geometry, selected, hoverState);
   }
   const program = renderer.getProgram(
@@ -808,7 +813,7 @@ export function renderShapeList(
   selected: boolean = false,
   hoverState?: HoverState,
 ) {
-  if (isHoverStateTransform(hoverState)) {
+  if (isTransform(hoverState)) {
     renderShapeList(
       renderer,
       composeTransforms(hoverState, transform),
@@ -818,7 +823,7 @@ export function renderShapeList(
     );
     return;
   }
-  if (selected || hoverState) {
+  if (selected || isBackdropHoverState(hoverState)) {
     renderBackdrop(renderer, transform, geometry, selected, hoverState);
   }
   const program = renderer.getProgram(
@@ -834,13 +839,6 @@ export function renderShapeList(
   program.setUniformColor('fillColorScale', fillColor);
   renderer.setEnabled(renderer.gl.BLEND, true);
   geometry.draw(program);
-}
-
-function isHoverStateTransform(hoverState: HoverState): boolean {
-  return (
-    typeof hoverState === 'object' &&
-    !(hoverState && (hoverState.dragging || hoverState.point !== undefined))
-  );
 }
 
 const SHAPE_LIST_VERTEX_SHADER = createVertexShader(

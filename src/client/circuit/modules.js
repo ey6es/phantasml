@@ -36,6 +36,7 @@ import {
   normalize,
   cross,
   composeTransforms,
+  isTransform,
   clamp,
 } from '../../server/store/math';
 import {getValue, extend} from '../../server/store/util';
@@ -398,20 +399,19 @@ export const ComponentModules: {[string]: ModuleData} = {
     createRenderFn: (idTree, entity, baseFn) => {
       const transform = entity.getLastCachedValue('worldTransform');
       return (renderer, selected, hoverState) => {
-        const hoverObject = hoverState && typeof hoverState === 'object';
-        const buttonHover = hoverObject && hoverState.value;
-        baseFn(renderer, selected, buttonHover ? undefined : hoverState);
+        baseFn(renderer, selected, hoverState);
         renderPointHelper(
           renderer,
-          transform,
+          isTransform(hoverState)
+            ? composeTransforms(hoverState, transform)
+            : transform,
           BUTTON_DIAL_RADIUS,
           entity.state.pushButton.value
             ? '#00ffff'
-            : buttonHover
+            : hoverState && hoverState.value
             ? '#00bfbf'
             : '#009999',
-          hoverObject &&
-            !(hoverState.part || hoverState.dragging || buttonHover),
+          false,
         );
       };
     },
@@ -462,22 +462,24 @@ export const ComponentModules: {[string]: ModuleData} = {
     createRenderFn: (idTree, entity, baseFn) => {
       const transform = entity.getLastCachedValue('worldTransform');
       return (renderer, selected, hoverState) => {
-        const hoverObject = hoverState && typeof hoverState === 'object';
-        const switchHover = hoverObject && hoverState.value != null;
-        baseFn(renderer, selected, switchHover ? undefined : hoverState);
+        baseFn(renderer, selected, hoverState);
         renderPointHelper(
           renderer,
-          composeTransforms(transform, {
-            translation: getToggleSwitchPosition(
-              entity.state.toggleSwitch.value,
-            ),
-          }),
+          composeTransforms(
+            isTransform(hoverState)
+              ? composeTransforms(hoverState, transform)
+              : transform,
+            {
+              translation: getToggleSwitchPosition(
+                entity.state.toggleSwitch.value,
+              ),
+            },
+          ),
           KNOB_THICKNESS,
           '#ffffff',
-          hoverObject &&
-            !(hoverState.part || hoverState.dragging || switchHover),
+          false,
         );
-        if (switchHover) {
+        if (hoverState && hoverState.value != null) {
           renderLineHelper(
             renderer,
             transform,
@@ -524,28 +526,30 @@ export const ComponentModules: {[string]: ModuleData} = {
     createRenderFn: (idTree, entity, baseFn) => {
       const transform = entity.getLastCachedValue('worldTransform');
       return (renderer, selected, hoverState) => {
-        const hoverObject = hoverState && typeof hoverState === 'object';
-        const dialHover = hoverObject && hoverState.value != null;
-        baseFn(renderer, selected, dialHover ? undefined : hoverState);
+        baseFn(renderer, selected, hoverState);
+        let centerTransform = transform;
+        if (isTransform(hoverState)) {
+          centerTransform = composeTransforms(hoverState, transform);
+        }
         renderPointHelper(
           renderer,
-          transform,
+          centerTransform,
           BUTTON_DIAL_RADIUS,
           '#404040',
-          hoverObject && !(hoverState.part || hoverState.dragging || dialHover),
+          false,
         );
         renderLineHelper(
           renderer,
           composeTransforms(
-            transform,
+            centerTransform,
             getDialTransform(entity.state.dial.value),
           ),
           0.2,
           '#ffffff',
           0.4,
-          hoverObject && !(hoverState.part || hoverState.dragging || dialHover),
+          false,
         );
-        if (dialHover) {
+        if (hoverState && hoverState.value != null) {
           renderLineHelper(
             renderer,
             composeTransforms(transform, getDialTransform(hoverState.value)),
@@ -605,20 +609,22 @@ export const ComponentModules: {[string]: ModuleData} = {
     createRenderFn: (idTree, entity, baseFn) => {
       const transform = entity.getLastCachedValue('worldTransform');
       return (renderer, selected, hoverState) => {
-        const hoverObject = hoverState && typeof hoverState === 'object';
-        const sliderHover = hoverObject && hoverState.value != null;
-        baseFn(renderer, selected, sliderHover ? undefined : hoverState);
+        baseFn(renderer, selected, hoverState);
         renderPointHelper(
           renderer,
-          composeTransforms(transform, {
-            translation: getSliderPosition(entity.state.slider.value),
-          }),
+          composeTransforms(
+            isTransform(hoverState)
+              ? composeTransforms(hoverState, transform)
+              : transform,
+            {
+              translation: getSliderPosition(entity.state.slider.value),
+            },
+          ),
           KNOB_THICKNESS,
           '#ffffff',
-          hoverObject &&
-            !(hoverState.part || hoverState.dragging || sliderHover),
+          false,
         );
-        if (sliderHover) {
+        if (hoverState && hoverState.value != null) {
           renderPointHelper(
             renderer,
             composeTransforms(transform, {
@@ -690,20 +696,22 @@ export const ComponentModules: {[string]: ModuleData} = {
     createRenderFn: (idTree, entity, baseFn) => {
       const transform = entity.getLastCachedValue('worldTransform');
       return (renderer, selected, hoverState) => {
-        const hoverObject = hoverState && typeof hoverState === 'object';
-        const joystickHover = hoverObject && hoverState.value;
-        baseFn(renderer, selected, joystickHover ? undefined : hoverState);
+        baseFn(renderer, selected, hoverState);
         renderPointHelper(
           renderer,
-          composeTransforms(transform, {
-            translation: getJoystickPosition(entity.state.joystick.value),
-          }),
+          composeTransforms(
+            isTransform(hoverState)
+              ? composeTransforms(hoverState, transform)
+              : transform,
+            {
+              translation: getJoystickPosition(entity.state.joystick.value),
+            },
+          ),
           KNOB_THICKNESS,
           '#ffffff',
-          hoverObject &&
-            !(hoverState.part || hoverState.dragging || joystickHover),
+          false,
         );
-        if (joystickHover) {
+        if (hoverState && hoverState.value) {
           renderPointHelper(
             renderer,
             composeTransforms(transform, {

@@ -29,6 +29,16 @@ export function invertTransform(transform: Transform): Transform {
 }
 
 /**
+ * Checks whether a value is a (non-identity) transform.
+ *
+ * @param value the value to check.
+ * @return whether or not the value is a non-identity transform.
+ */
+export function isTransform(value: any): boolean {
+  return !!(value && (value.translation || value.rotation || value.scale));
+}
+
+/**
  * Simplifies a transform.
  *
  * @param transform the transform to simplify.
@@ -104,11 +114,11 @@ export function composeTransforms(
       m2[0] * m1[0] + m2[3] * m1[1] + m2[6] * m1[2],
       m2[1] * m1[0] + m2[4] * m1[1] + m2[7] * m1[2],
       m2[2] * m1[0] + m2[5] * m1[1] + m2[8] * m1[2],
-      
+
       m2[0] * m1[3] + m2[3] * m1[4] + m2[6] * m1[5],
       m2[1] * m1[3] + m2[4] * m1[4] + m2[7] * m1[5],
       m2[2] * m1[3] + m2[5] * m1[4] + m2[8] * m1[5],
-      
+
       m2[0] * m1[6] + m2[3] * m1[7] + m2[6] * m1[8],
       m2[1] * m1[6] + m2[4] * m1[7] + m2[7] * m1[8],
       m2[2] * m1[6] + m2[5] * m1[7] + m2[8] * m1[8],
@@ -120,7 +130,7 @@ export function composeTransforms(
 const IDENTITY_MATRIX = [
   1, 0, 0,
   0, 1, 0,
-  0, 0, 1,  
+  0, 0, 1,
 ];
 
 /**
@@ -223,11 +233,11 @@ export function getTransformInverseMatrix(transform: Transform): number[] {
         (m[4] * m[8] - m[7] * m[5]) * scale,
         (m[7] * m[2] - m[1] * m[8]) * scale,
         (m[1] * m[5] - m[4] * m[2]) * scale,
-        
+
         (m[6] * m[5] - m[3] * m[8]) * scale,
         (m[0] * m[8] - m[6] * m[2]) * scale,
         (m[3] * m[2] - m[0] * m[5]) * scale,
-        
+
         (m[3] * m[7] - m[6] * m[4]) * scale,
         (m[6] * m[1] - m[0] * m[7]) * scale,
         (m[0] * m[4] - m[3] * m[1]) * scale,
