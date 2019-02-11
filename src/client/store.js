@@ -1053,10 +1053,29 @@ export function createUuid(): string {
     .replace(/[+/]/g, char => (char === '+' ? '-' : '_'));
 }
 
+let keyMode: number = 0;
+
 // split edits when we press a key or mouse button
 document.addEventListener('keydown', (event: KeyboardEvent) => {
-  event.repeat || advanceEditNumber();
+  if (event.repeat) {
+    return;
+  }
+  if (event.altKey || event.ctrlKey || event.metaKey) {
+    keyMode = 0;
+    advanceEditNumber();
+    return;
+  }
+  if (event.keyCode === 8 || event.keyCode === 46) {
+    if (keyMode !== event.keyCode) {
+      keyMode = event.keyCode;
+      advanceEditNumber();
+    }
+  } else if (keyMode !== 0) {
+    keyMode = 0;
+    advanceEditNumber();
+  }
 });
+
 document.addEventListener('mousedown', (event: MouseEvent) => {
   if (event.detail > 2) {
     // stop triple-click select on Chrome
