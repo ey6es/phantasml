@@ -121,7 +121,7 @@ const AXES_VERTEX_SHADER = createVertexShader(
 
 const AXES_FRAGMENT_SHADER = createFragmentShader(
   `
-    varying float interpolatedPart; 
+    varying float interpolatedPart;
   `,
   `
     vec3 color = mix(
@@ -433,9 +433,9 @@ const SHAPE_HELPER_FRAGMENT_SHADER = createFragmentShader(
     uniform float alphaScale;
   `,
   `
-    float filled = 1.0 - step(dist, 0.0);
+    float filled = step(dist, -0.000001);
   `,
-  `vec4(mix(fillColor, pathColor, filled), baseAlpha * alphaScale)`,
+  `vec4(mix(pathColor, fillColor, filled), baseAlpha * alphaScale)`,
 );
 
 const LineHelperGeometry = new Geometry(
