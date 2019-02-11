@@ -35,6 +35,7 @@ import {FontAwesomeIcon} from '@fortawesome/react-fontawesome';
 import {faEllipsisV} from '@fortawesome/free-solid-svg-icons/faEllipsisV';
 import type {Vector2} from '../../server/store/math';
 import {roundToPrecision} from '../../server/store/math';
+import {advanceEditNumber} from '../../server/store/scene';
 import {store} from '../store';
 
 library.add(faEllipsisV);
@@ -1224,7 +1225,10 @@ export class ColorField extends React.Component<
           className="d-none"
           type="color"
           value={this.state.value}
-          onChange={event => this._setValue(event.target.value)}
+          onChange={event => {
+            advanceEditNumber();
+            this._setValue(event.target.value);
+          }}
         />
       </div>
     );
