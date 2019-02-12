@@ -1021,6 +1021,8 @@ type NumberFieldProps = {
   [string]: any,
 };
 
+let lastWheelTarget: ?HTMLElement;
+
 /**
  * A number field with some customizations.
  *
@@ -1053,6 +1055,10 @@ export class NumberField extends React.Component<
         onWheel={event => {
           if (event.deltaY === 0) {
             return;
+          }
+          if (lastWheelTarget !== event.target) {
+            advanceEditNumber();
+            lastWheelTarget = event.target;
           }
           event.preventDefault();
           let numberValue = parseFloat(this.state.value);
