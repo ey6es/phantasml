@@ -27,7 +27,7 @@ import {
   Scene,
   SceneActions,
   advanceEditNumber,
-  mergeEntityEdits,
+  applyEdit,
 } from '../server/store/scene';
 import type {Vector2} from '../server/store/math';
 import {
@@ -806,7 +806,7 @@ export function createPasteAction(
     ids.set(id, newId);
     if (offset) {
       const translation = plus(getTransformTranslation(json.transform), offset);
-      map[newId] = mergeEntityEdits(json, {transform: {translation}});
+      map[newId] = applyEdit(json, {transform: {translation}});
     } else {
       map[newId] = json;
     }

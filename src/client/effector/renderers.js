@@ -14,7 +14,7 @@ import {
   renderShapeList,
 } from '../renderer/renderers';
 import {TransferableValue} from '../../server/store/resource';
-import {mergeEntityEdits} from '../../server/store/scene';
+import {mergeEdits} from '../../server/store/scene';
 import {ComponentBounds, BaseBounds} from '../../server/store/bounds';
 import {
   ComponentGeometry,
@@ -61,18 +61,18 @@ ComponentRenderers.effectorRenderer = extend(BaseRenderer, {
 ComponentEditCallbacks.effectorRenderer = {
   onCreate: (scene, id, map) => {
     // add id to output bus list
-    return mergeEntityEdits(map, {
+    return mergeEdits(map, {
       outputBus: {outputBus: {effectors: {[id]: true}}},
     });
   },
   onDelete: (scene, entity, map) => {
     // remove id from output bus list
-    return mergeEntityEdits(map, {
+    return mergeEdits(map, {
       outputBus: {outputBus: {effectors: {[entity.id]: null}}},
     });
   },
   onEdit: (scene, entity, map) => {
     // touch output bus in case the effector inputs changed
-    return map.outputBus ? map : mergeEntityEdits(map, {outputBus: {}});
+    return map.outputBus ? map : mergeEdits(map, {outputBus: {}});
   },
 };

@@ -1225,10 +1225,7 @@ export class ColorField extends React.Component<
           className="d-none"
           type="color"
           value={this.state.value}
-          onChange={event => {
-            advanceEditNumber();
-            this._setValue(event.target.value);
-          }}
+          onChange={event => this._setValue(event.target.value)}
         />
       </div>
     );

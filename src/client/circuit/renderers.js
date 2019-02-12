@@ -38,7 +38,7 @@ import {
   Scene,
   SceneActions,
   getWorldTransform,
-  mergeEntityEdits,
+  mergeEdits,
 } from '../../server/store/scene';
 import {ShapeList} from '../../server/store/shape';
 import {
@@ -510,7 +510,7 @@ ComponentEditCallbacks.moduleRenderer = extend(BaseEditCallbacks, {
         const otherModuleKey = otherEntity && getModuleKey(otherEntity);
         if (otherModuleKey && newMap[value.ref] !== null) {
           // remove reference on other side
-          newMap = mergeEntityEdits(newMap, {
+          newMap = mergeEdits(newMap, {
             [value.ref]: {
               [otherModuleKey]: {
                 [value.input || value.output]: null,
@@ -528,7 +528,7 @@ ComponentEditCallbacks.moduleRenderer = extend(BaseEditCallbacks, {
       return map;
     }
     const module = ComponentModules[moduleKey];
-    const moduleData = mergeEntityEdits(
+    const moduleData = mergeEdits(
       entity.state[moduleKey],
       map[entity.id][moduleKey] || {},
     );
@@ -549,14 +549,14 @@ ComponentEditCallbacks.moduleRenderer = extend(BaseEditCallbacks, {
             remove = value.output;
           } else if (scene.getEntity(value.ref) && newMap[value.ref] !== null) {
             // touch the source to trigger an update
-            newMap = mergeEntityEdits(newMap, {[value.ref]: {}});
+            newMap = mergeEdits(newMap, {[value.ref]: {}});
           }
         }
         if (remove) {
           const otherEntity = scene.getEntity(value.ref);
           const otherModuleKey = otherEntity && getModuleKey(otherEntity);
           if (otherModuleKey) {
-            newMap = mergeEntityEdits(newMap, {
+            newMap = mergeEdits(newMap, {
               [entity.id]: {
                 [moduleKey]: {[key]: null},
               },

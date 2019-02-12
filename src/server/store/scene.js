@@ -107,7 +107,7 @@ class IdTreeLeafNode extends IdTreeNode {
     const newEntities = new Map(this._entities);
     const newEntity = new Entity(
       id,
-      state ? mergeEntityEdits(oldEntity.state, state) : oldEntity.state,
+      state ? applyEdit(oldEntity.state, state) : oldEntity.state,
       oldEntity,
     );
     newEntities.set(id, newEntity);
@@ -1406,24 +1406,69 @@ function reverseEdit(state: Object, edit: Object): Object {
   const reversed = {};
   for (const key in edit) {
     if (key.charAt(0) === '_') {
-      continue; // derived property; no merging
+      continue; // derived property; skip
     }
-    const oldValue = state[key];
-    const newValue = edit[key];
-    if (oldValue === undefined || oldValue === null) {
+    const stateValue = state[key];
+    const editValue = edit[key];
+    if (stateValue === undefined || stateValue === null) {
       reversed[key] = null;
+    } else if (
+      typeof stateValue === 'object' &&
+      typeof editValue === 'object' &&
+      !Array.isArray(stateValue) &&
+      !Array.isArray(editValue) &&
+      editValue !== null
+    ) {
+      reversed[key] = reverseEdit(stateValue, editValue);
     } else {
-      reversed[key] =
-        typeof oldValue === 'object' &&
-        typeof newValue === 'object' &&
-        !Array.isArray(oldValue) &&
-        !Array.isArray(newValue) &&
-        newValue !== null
-          ? reverseEdit(oldValue, newValue)
-          : oldValue;
+      reversed[key] = stateValue;
     }
   }
   return reversed;
+}
+
+/**
+ * Applies an edit to a state object.
+ *
+ * @param state the original state.
+ * @param edit the edit to apply.
+ * @return the edited state.
+ */
+export function applyEdit(state: Object, edit: Object): Object {
+  const edited = {};
+  for (const key in state) {
+    if (key.charAt(0) === '_') {
+      continue; // derived property; skip
+    }
+    const stateValue = state[key];
+    const editValue = edit[key];
+    if (editValue === undefined) {
+      // not in edit; use existing value
+      edited[key] = stateValue;
+    } else if (editValue === null) {
+      // deleted in edit
+    } else if (
+      typeof stateValue === 'object' &&
+      stateValue !== null &&
+      typeof editValue === 'object' &&
+      !Array.isArray(stateValue) &&
+      !Array.isArray(editValue)
+    ) {
+      // values are mergeable; apply recursively
+      edited[key] = applyEdit(stateValue, editValue);
+    } else {
+      // values not mergeable; use edit value
+      edited[key] = editValue;
+    }
+  }
+  // add anything from the edit that wasn't in the state
+  for (const key in edit) {
+    if (state[key] === undefined && key.charAt(0) !== '_') {
+      const editValue = edit[key];
+      editValue === null || (edited[key] = editValue);
+    }
+  }
+  return edited;
 }
 
 /**
@@ -1433,29 +1478,27 @@ function reverseEdit(state: Object, edit: Object): Object {
  * @param second the second edit to merge.
  * @return the merged edit.
  */
-export function mergeEntityEdits(first: Object, second: Object): Object {
+export function mergeEdits(first: Object, second: Object): Object {
   const merged = {};
   for (const key in first) {
     if (key.charAt(0) === '_') {
-      continue; // derived property; no merging
+      continue; // derived property; skip
     }
     const firstValue = first[key];
     const secondValue = second[key];
     if (secondValue === undefined) {
       // not in second; use value from first
       merged[key] = firstValue;
-    } else if (secondValue === null) {
-      // deleted in second; delete if also deleted in first
-      firstValue === null && (merged[key] = null);
     } else if (
       typeof firstValue === 'object' &&
       firstValue !== null &&
       typeof secondValue === 'object' &&
+      secondValue !== null &&
       !Array.isArray(firstValue) &&
       !Array.isArray(secondValue)
     ) {
       // values are mergeable; merge recursively
-      merged[key] = mergeEntityEdits(firstValue, secondValue);
+      merged[key] = mergeEdits(firstValue, secondValue);
     } else {
       // values not mergeable; use second value
       merged[key] = secondValue;
@@ -1505,7 +1548,7 @@ export const SceneActions = {
           lastUndo.editNumber === action.editNumber
         ) {
           // merge into existing edit
-          const map = mergeEntityEdits(reverseEdit, lastUndo.map);
+          const map = mergeEdits(reverseEdit, lastUndo.map);
           return (undoStack
             .slice(0, undoIndex)
             .concat([Object.assign({}, lastUndo, {map})]): ResourceAction[]);

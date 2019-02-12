@@ -14,7 +14,7 @@ import {
   renderTranslucentFilledShapeList,
 } from '../renderer/renderers';
 import {TransferableValue} from '../../server/store/resource';
-import {mergeEntityEdits} from '../../server/store/scene';
+import {mergeEdits} from '../../server/store/scene';
 import {ComponentBounds, BaseBounds} from '../../server/store/bounds';
 import {
   ComponentGeometry,
@@ -61,18 +61,18 @@ ComponentRenderers.sensorRenderer = extend(BaseRenderer, {
 ComponentEditCallbacks.sensorRenderer = {
   onCreate: (scene, id, map) => {
     // add id to input bus list
-    return mergeEntityEdits(map, {
+    return mergeEdits(map, {
       inputBus: {inputBus: {sensors: {[id]: true}}},
     });
   },
   onDelete: (scene, entity, map) => {
     // remove id from input bus list
-    return mergeEntityEdits(map, {
+    return mergeEdits(map, {
       inputBus: {inputBus: {sensors: {[entity.id]: null}}},
     });
   },
   onEdit: (scene, entity, map) => {
     // touch input bus in case the sensor outputs changed
-    return map.inputBus ? map : mergeEntityEdits(map, {inputBus: {}});
+    return map.inputBus ? map : mergeEdits(map, {inputBus: {}});
   },
 };
