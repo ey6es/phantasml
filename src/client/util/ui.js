@@ -1026,12 +1026,15 @@ let lastWheelTarget: ?HTMLElement;
 /**
  * A number field with some customizations.
  *
- * @param initialValue the initial value of the field.
+ * @param [initialValue=0] the initial value of the field.
  * @param setValue the function to set the new value.
- * @param step the step size.
- * @param precision the precision at which to display the number.
+ * @param [step=1] the step size.
+ * @param [wheelStep=1] the step size to use for mouse wheel adjustment.
+ * @param [precision=1] the precision at which to display the number.
+ * @param [circular=false] whether or not the values wrap around from min to
+ * max.
  */
-export class NumberField extends React.Component<
+export class NumberField extends React.PureComponent<
   NumberFieldProps,
   {value: string},
 > {
@@ -1046,49 +1049,12 @@ export class NumberField extends React.Component<
       circular,
       ...props
     } = this.props;
-    const step = props.step || 1;
     return (
       <Input
         type="number"
         value={this.state.value}
-        onChange={event => this._setValue(event.target.value)}
-        onWheel={event => {
-          if (event.deltaY === 0) {
-            return;
-          }
-          if (lastWheelTarget !== event.target) {
-            advanceEditNumber();
-            lastWheelTarget = event.target;
-          }
-          event.preventDefault();
-          let numberValue = parseFloat(this.state.value);
-          if (isNaN(numberValue)) {
-            numberValue = 0.0;
-          }
-          const amount = wheelStep || step;
-          const delta = event.deltaY > 0 ? -amount : amount;
-          let newValue = numberValue + delta;
-          const minimum = this.props.min;
-          const maximum = this.props.max;
-          if (circular && minimum != null && maximum != null) {
-            while (newValue < minimum) {
-              newValue += maximum - minimum;
-            }
-            while (newValue > maximum) {
-              newValue -= maximum - minimum;
-            }
-          } else {
-            if (minimum != null) {
-              newValue = Math.max(minimum, newValue);
-            }
-            if (maximum != null) {
-              newValue = Math.min(maximum, newValue);
-            }
-          }
-          this._setValue(
-            String(roundToPrecision(newValue, this._getPrecision())),
-          );
-        }}
+        onChange={this._onChange}
+        onWheel={this._onWheel}
         {...props}
       />
     );
@@ -1113,6 +1079,46 @@ export class NumberField extends React.Component<
     return this.props.precision || 1;
   }
 
+  _onChange = (event: SyntheticEvent<HTMLInputElement>) => {
+    this._setValue(event.currentTarget.value);
+  };
+
+  _onWheel = (event: SyntheticWheelEvent<HTMLInputElement>) => {
+    if (event.deltaY === 0) {
+      return;
+    }
+    if (lastWheelTarget !== event.currentTarget) {
+      advanceEditNumber();
+      lastWheelTarget = event.currentTarget;
+    }
+    event.preventDefault();
+    let numberValue = parseFloat(this.state.value);
+    if (isNaN(numberValue)) {
+      numberValue = 0.0;
+    }
+    const amount = this.props.wheelStep || this.props.step || 1;
+    const delta = event.deltaY > 0 ? -amount : amount;
+    let newValue = numberValue + delta;
+    const minimum = this.props.min;
+    const maximum = this.props.max;
+    if (this.props.circular && minimum != null && maximum != null) {
+      while (newValue < minimum) {
+        newValue += maximum - minimum;
+      }
+      while (newValue > maximum) {
+        newValue -= maximum - minimum;
+      }
+    } else {
+      if (minimum != null) {
+        newValue = Math.max(minimum, newValue);
+      }
+      if (maximum != null) {
+        newValue = Math.min(maximum, newValue);
+      }
+    }
+    this._setValue(String(roundToPrecision(newValue, this._getPrecision())));
+  };
+
   _setValue(value: string) {
     this.setState({value});
     const numberValue = parseFloat(value);
@@ -1132,7 +1138,7 @@ type MaskFieldProps = {
  * @param initialValue the initial value of the field.
  * @param setValue the function to set the new value.
  */
-export class MaskField extends React.Component<
+export class MaskField extends React.PureComponent<
   MaskFieldProps,
   {value: string},
 > {
@@ -1141,11 +1147,7 @@ export class MaskField extends React.Component<
   render() {
     const {initialValue, setValue, ...props} = this.props;
     return (
-      <Input
-        value={this.state.value}
-        onChange={event => this._setValue(event.target.value)}
-        {...props}
-      />
+      <Input value={this.state.value} onChange={this._onChange} {...props} />
     );
   }
 
@@ -1163,6 +1165,10 @@ export class MaskField extends React.Component<
   _getInitialValue(): number {
     return this.props.initialValue || 0;
   }
+
+  _onChange = (event: SyntheticEvent<HTMLInputElement>) => {
+    this._setValue(event.currentTarget.value);
+  };
 
   _setValue(value: string) {
     if (!/^[01]*$/.test(value) || value.length > 32) {
@@ -1185,6 +1191,7 @@ type ColorFieldProps = {
   defaultValue: string,
   [string]: any,
 };
+type ColorFieldState = {value: string};
 
 /**
  * A field for editing a color (as a hex string).
@@ -1192,9 +1199,9 @@ type ColorFieldProps = {
  * @param initialValue the initial value of the field.
  * @param setValue the function to set the new value.
  */
-export class ColorField extends React.Component<
+export class ColorField extends React.PureComponent<
   ColorFieldProps,
-  {value: string},
+  ColorFieldState,
 > {
   state = {value: this._getInitialValue()};
 
@@ -1207,37 +1214,37 @@ export class ColorField extends React.Component<
       <div className="d-flex">
         <InputGroup>
           <Input
-            innerRef={input => {
-              this._input = input;
-              this._updateInput();
-            }}
+            innerRef={this._inputRef}
             className="flex-grow-1 color-input"
             type="text"
             size="8"
             value={this.state.value}
-            onChange={event => this._setValue(event.target.value)}
+            onChange={this._onChange}
             {...props}
           />
           <InputGroupAddon addonType="append">
             <Button
               className="pl-1 pr-1 color-picker-button"
-              onClick={() => this._picker && this._picker.click()}>
+              onClick={this._openPicker}>
               <FontAwesomeIcon icon="ellipsis-v" />
             </Button>
           </InputGroupAddon>
         </InputGroup>
         <Input
-          innerRef={picker => (this._picker = picker)}
+          innerRef={this._pickerRef}
           className="d-none"
           type="color"
           value={this.state.value}
-          onChange={event => this._setValue(event.target.value)}
+          onChange={this._onChange}
         />
       </div>
     );
   }
 
-  componentDidUpdate(prevProps: ColorFieldProps) {
+  componentDidUpdate(prevProps: ColorFieldProps, prevState: ColorFieldState) {
+    if (prevState.value !== this.state.value) {
+      this._updateInput();
+    }
     if (prevProps.initialValue === this.props.initialValue) {
       return;
     }
@@ -1247,9 +1254,22 @@ export class ColorField extends React.Component<
     }
   }
 
+  _inputRef = (input: ?HTMLInputElement) => {
+    this._input = input;
+    this._updateInput();
+  };
+
+  _pickerRef = (picker: ?HTMLInputElement) => (this._picker = picker);
+
+  _openPicker = () => this._picker && this._picker.click();
+
   _getInitialValue(): string {
     return this.props.initialValue || this.props.defaultValue;
   }
+
+  _onChange = (event: SyntheticEvent<HTMLInputElement>) => {
+    this._setValue(event.currentTarget.value);
+  };
 
   _setValue(value: string) {
     if (!/^#[0-9a-fA-F]*$/.test(value) || value.length > 7) {
@@ -1259,7 +1279,6 @@ export class ColorField extends React.Component<
     if (value.length === 7) {
       this.props.setValue(value);
     }
-    this._updateInput();
   }
 
   _updateInput() {
