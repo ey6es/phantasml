@@ -136,11 +136,14 @@ export class Program {
    * @param name the name of the uniform to set.
    * @param key the value key.
    * @param content the value or value generator.
+   * @param [elements] number of elements per entry, if not the same as the
+   * array size.
    */
   setUniformArray<T>(
     name: string,
     key: T,
     content: ValueArray | (T => ValueArray),
+    elements?: number,
   ) {
     if (key === undefined) {
       key = (null: any); // can't use undefined as key
@@ -148,21 +151,24 @@ export class Program {
     if (this._uniformValues.get(name) !== key) {
       this.bind();
       const value = typeof content === 'function' ? content(key) : content;
-      switch (value.length) {
-        case 1:
-          this.renderer.gl.uniform1fv(this.getUniformLocation(name), value);
-          break;
-        case 2:
-          this.renderer.gl.uniform2fv(this.getUniformLocation(name), value);
-          break;
-        case 3:
-          this.renderer.gl.uniform3fv(this.getUniformLocation(name), value);
-          break;
-        case 4:
-          this.renderer.gl.uniform4fv(this.getUniformLocation(name), value);
-          break;
-        default:
-          throw new Error('Invalid uniform array size: ' + value.length);
+      if (value.length > 0) {
+        const variant = elements == null ? value.length : elements;
+        switch (variant) {
+          case 1:
+            this.renderer.gl.uniform1fv(this.getUniformLocation(name), value);
+            break;
+          case 2:
+            this.renderer.gl.uniform2fv(this.getUniformLocation(name), value);
+            break;
+          case 3:
+            this.renderer.gl.uniform3fv(this.getUniformLocation(name), value);
+            break;
+          case 4:
+            this.renderer.gl.uniform4fv(this.getUniformLocation(name), value);
+            break;
+          default:
+            throw new Error('Invalid uniform element size: ' + variant);
+        }
       }
       this._uniformValues.set(name, key);
     }

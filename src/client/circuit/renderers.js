@@ -16,11 +16,14 @@ import {
 } from '../store';
 import {
   SELECT_COLOR,
+  SHAPE_LIST_FRAGMENT_SHADER,
   ComponentRenderers,
   createShapeListRenderFn,
   renderShapeList,
   createVertexShader,
   createFragmentShader,
+  isBackdropHoverState,
+  renderBackdrop,
 } from '../renderer/renderers';
 import {
   WireArrowBounds,
@@ -51,6 +54,7 @@ import type {PenetrationResult} from '../../server/store/collision';
 import {ComponentBounds, BaseBounds} from '../../server/store/bounds';
 import type {Vector2, Transform, Bounds} from '../../server/store/math';
 import {
+  isTransform,
   getTransformMatrix,
   getTransformVectorMatrix,
   getTransformInverseMatrix,
@@ -81,6 +85,7 @@ ComponentRenderers.moduleRenderer = {
         const inputCount = Object.keys(module.getInputs(idTree, data)).length;
         const outputCount = Object.keys(module.getOutputs(idTree, data)).length;
         const outputTransform = module.getOutputTransform(data);
+        const outputValues = module.getOutputValues(data);
         const width = module.getWidth(data);
         return module.createRenderFn(
           idTree,
@@ -100,19 +105,16 @@ ComponentRenderers.moduleRenderer = {
               renderModule(
                 renderer,
                 transform,
-                pathColor,
-                fillColor,
                 geometry,
                 selected,
                 hoverState,
                 inputCount,
                 outputCount,
                 outputTransform,
+                outputValues,
                 width,
               );
             },
-            '#ffffff',
-            '#ffffff',
           ),
         );
       }
@@ -827,38 +829,41 @@ const end = vec2();
 function renderModule(
   renderer: Renderer,
   transform: Transform,
-  pathColor: string,
-  fillColor: string,
   geometry: Geometry,
   selected: boolean,
   hoverState: HoverState,
   inputCount: number,
   outputCount: number,
   outputTransform: Transform,
+  outputValues: Float32Array,
   width: number,
 ) {
   const partHover = hoverState && hoverState.part;
   if (!partHover) {
-    renderShapeList(
+    renderFullModule(
       renderer,
       transform,
-      pathColor,
-      fillColor,
       geometry,
       selected,
       hoverState,
+      inputCount,
+      outputCount,
+      outputValues,
     );
     return;
   }
+  const moduleShader = getPartModuleShader(outputCount);
   const program = renderer.getProgram(
-    renderModule,
-    renderer.getVertexShader(renderModule, MODULE_VERTEX_SHADER),
-    renderer.getFragmentShader(renderModule, MODULE_FRAGMENT_SHADER),
+    moduleShader,
+    renderer.getVertexShader(moduleShader, moduleShader.vertex),
+    renderer.getFragmentShader(renderModule, PART_MODULE_FRAGMENT_SHADER),
   );
   program.setUniformViewProjectionMatrix('viewProjectionMatrix');
   program.setUniformMatrix('modelMatrix', transform, getTransformMatrix);
   program.setUniformMatrix('vectorMatrix', getTransformVectorMatrix(transform));
   program.setUniformFloat('pixelsToWorldUnits', renderer.pixelsToWorldUnits);
+  program.setUniformFloat('outputOffset', inputCount + 1);
+  program.setUniformArray('outputValues', outputValues, outputValues, 1);
   if (hoverState.dragging) {
     program.setUniformFloat('replacePart', hoverState.part);
     program.setUniformFloat('replaceAlpha', 0.0);
@@ -917,37 +922,58 @@ function renderModule(
   geometry.draw(program);
 }
 
-const MODULE_VERTEX_SHADER = createVertexShader(
-  `
-    uniform float hoverPart;
-    uniform float replacePart;
-    uniform vec3 replaceColor;
-    uniform float replaceAlpha;
-    uniform float alpha;
-    uniform float outline;
-    uniform vec3 outlineColor;
-    attribute float thickness;
-    attribute vec3 pathColor;
-    attribute vec3 fillColor;
-    attribute float part;
-    varying vec3 interpolatedPathColor;
-    varying vec3 interpolatedFillColor;
-    varying float interpolatedAlpha;
-  `,
-  `
-    float replace =
-      step(replacePart - 0.5, part) * step(part, replacePart + 0.5);
-    vec3 basePathColor = mix(pathColor, replaceColor, replace);
-    vec3 baseFillColor = mix(fillColor, replaceColor, replace);
-    interpolatedPathColor = mix(basePathColor, outlineColor, outline);
-    interpolatedFillColor = mix(baseFillColor, outlineColor, outline);
-    interpolatedAlpha = alpha * mix(1.0, replaceAlpha, replace);
-    float hovered = step(hoverPart - 0.5, part) * step(part, hoverPart + 0.5);
-  `,
-  `thickness + (hovered * 2.0 + outline * 3.0) * pixelsToWorldUnits`,
-);
+type ModuleShader = {vertex: string};
+let partModuleShaders: ModuleShader[] = [];
 
-export const MODULE_FRAGMENT_SHADER = createFragmentShader(
+function getPartModuleShader(outputs: number): ModuleShader {
+  const index = Math.max(0, Math.ceil(Math.log(outputs) / Math.LN2) - 4);
+  let moduleShader = partModuleShaders[index];
+  if (!moduleShader) {
+    partModuleShaders[index] = moduleShader = {
+      vertex: createVertexShader(
+        `
+          uniform float hoverPart;
+          uniform float replacePart;
+          uniform vec3 replaceColor;
+          uniform float replaceAlpha;
+          uniform float alpha;
+          uniform float outline;
+          uniform vec3 outlineColor;
+          uniform float outputOffset;
+          uniform float outputValues[${2 ** (index + 4)}];
+          attribute float thickness;
+          attribute vec3 pathColor;
+          attribute vec3 fillColor;
+          attribute float part;
+          varying vec3 interpolatedPathColor;
+          varying vec3 interpolatedFillColor;
+          varying float interpolatedAlpha;
+        `,
+        `
+          float index = part - outputOffset;
+          float value = mix(
+            1.0,
+            0.5 + 0.5 / (1.0 + exp(-2.0 * outputValues[int(index)])),
+            step(0.0, index)
+          );
+          float replace =
+            step(replacePart - 0.5, part) * step(part, replacePart + 0.5);
+          vec3 basePathColor = mix(pathColor * value, replaceColor, replace);
+          vec3 baseFillColor = mix(fillColor * value, replaceColor, replace);
+          interpolatedPathColor = mix(basePathColor, outlineColor, outline);
+          interpolatedFillColor = mix(baseFillColor, outlineColor, outline);
+          interpolatedAlpha = alpha * mix(1.0, replaceAlpha, replace);
+          float hovered =
+            step(hoverPart - 0.5, part) * step(part, hoverPart + 0.5);
+        `,
+        `thickness + (hovered * 2.0 + outline * 3.0) * pixelsToWorldUnits`,
+      ),
+    };
+  }
+  return moduleShader;
+}
+
+const PART_MODULE_FRAGMENT_SHADER = createFragmentShader(
   `
     varying vec3 interpolatedPathColor;
     varying vec3 interpolatedFillColor;
@@ -959,3 +985,79 @@ export const MODULE_FRAGMENT_SHADER = createFragmentShader(
   `,
   `vec4(color, baseAlpha * interpolatedAlpha)`,
 );
+
+function renderFullModule(
+  renderer: Renderer,
+  transform: Transform,
+  geometry: Geometry,
+  selected: boolean,
+  hoverState: HoverState,
+  inputCount: number,
+  outputCount: number,
+  outputValues: Float32Array,
+) {
+  if (isTransform(hoverState)) {
+    renderFullModule(
+      renderer,
+      composeTransforms(hoverState, transform),
+      geometry,
+      false,
+      undefined,
+      inputCount,
+      outputCount,
+      outputValues,
+    );
+    return;
+  }
+  if (selected || isBackdropHoverState(hoverState)) {
+    renderBackdrop(renderer, transform, geometry, selected, hoverState);
+  }
+  const moduleShader = getFullModuleShader(outputCount);
+  const program = renderer.getProgram(
+    moduleShader,
+    renderer.getVertexShader(moduleShader, moduleShader.vertex),
+    renderer.getFragmentShader(renderFullModule, SHAPE_LIST_FRAGMENT_SHADER),
+  );
+  program.setUniformViewProjectionMatrix('viewProjectionMatrix');
+  program.setUniformMatrix('modelMatrix', transform, getTransformMatrix);
+  program.setUniformMatrix('vectorMatrix', getTransformVectorMatrix(transform));
+  program.setUniformFloat('pixelsToWorldUnits', renderer.pixelsToWorldUnits);
+  program.setUniformFloat('outputOffset', inputCount + 1);
+  program.setUniformArray('outputValues', outputValues, outputValues, 1);
+  renderer.setEnabled(renderer.gl.BLEND, true);
+  geometry.draw(program);
+}
+
+let fullModuleShaders: ModuleShader[] = [];
+
+function getFullModuleShader(outputs: number): ModuleShader {
+  const index = Math.max(0, Math.ceil(Math.log(outputs) / Math.LN2) - 4);
+  let moduleShader = fullModuleShaders[index];
+  if (!moduleShader) {
+    fullModuleShaders[index] = moduleShader = {
+      vertex: createVertexShader(
+        `
+          uniform float outputOffset;
+          uniform float outputValues[${2 ** (index + 4)}];
+          attribute float thickness;
+          attribute vec3 pathColor;
+          attribute vec3 fillColor;
+          attribute float part;
+          varying vec3 interpolatedPathColor;
+          varying vec3 interpolatedFillColor;
+        `,
+        `
+          float index = part - outputOffset;
+          float value = mix(
+            1.0,
+            0.5 + 0.5 / (1.0 + exp(-2.0 * outputValues[int(index)])),
+            step(0.0, index)
+          );
+          interpolatedPathColor = pathColor * value;
+          interpolatedFillColor = fillColor * value;
+        `,
+      ),
+    };
+  }
+  return moduleShader;
+}

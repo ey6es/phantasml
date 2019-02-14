@@ -51,11 +51,18 @@ export type OutputData = {
   label: React.Element<any>,
 };
 
+/** State associated with a single output. */
+export type OutputState = {
+  value: number,
+};
+
 type ModuleData = {
   getIcon: Object => ShapeList,
   getInputs: (IdTreeNode, Object) => {[string]: InputData},
   getOutputs: (IdTreeNode, Object) => {[string]: OutputData},
   getOutputTransform: Object => Transform,
+  getOutputState: (Object, string) => OutputState,
+  getOutputValues: Object => Float32Array,
   getWidth: Object => number,
   getHeight: (Object, number, number) => number,
   drawBody: (Object, number, number, ShapeList) => void,
@@ -229,6 +236,8 @@ const BaseModule = {
     return Math.max(inputCount, outputCount) * MODULE_HEIGHT_PER_TERMINAL;
   },
   getOutputTransform: data => null,
+  getOutputState: (data, name) => ({value: 0.0}),
+  getOutputValues: data => new Float32Array([]),
   drawBody: (data, width, height, shapeList) => {
     shapeList
       .move(width * -0.5, height * -0.5, 0)
@@ -395,6 +404,13 @@ export const ComponentModules: {[string]: ModuleData} = {
   pushButton: extend(BaseModule, {
     getIcon: (idTree, data) => ButtonDialIcon,
     getOutputs: (idTree, data) => SingleOutput,
+    getOutputState: (data, name) => ({
+      value: data.value ? getValue(data.on, 1.0) : getValue(data.off, 0.0),
+    }),
+    getOutputValues: data =>
+      new Float32Array([
+        data.value ? getValue(data.on, 1.0) : getValue(data.off, 0.0),
+      ]),
     getHeight: data => DEFAULT_MODULE_WIDTH,
     createRenderFn: (idTree, entity, baseFn) => {
       const transform = entity.getLastCachedValue('worldTransform');

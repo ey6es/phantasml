@@ -302,16 +302,16 @@ type RenderShapeFn = (
  * @param entity the entity owning the list.
  * @param shapeList the shape list.
  * @param renderShapeFn the function to use to render the shape.
- * @param pathColor the path color.
- * @param fillColor the fill color.
+ * @param [pathColor='#ffffff'] the path color.
+ * @param [fillColor='#ffffff'] the fill color.
  * @return the render function.
  */
 export function createShapeListRenderFn(
   entity: Entity,
   shapeList: ShapeList,
   renderShapeFn: RenderShapeFn,
-  pathColor: string,
-  fillColor: string,
+  pathColor: string = '#ffffff',
+  fillColor: string = '#ffffff',
 ): (Renderer, boolean, HoverState) => void {
   if (!shapeList.requiresTessellation()) {
     const geometry: Geometry = (entity.getCachedValue(
@@ -579,7 +579,13 @@ function renderText(
   renderer.bindTexture(null);
 }
 
-function isBackdropHoverState(hoverState: HoverState): boolean {
+/**
+ * Checks whether the supplied hover state implies a backdrop.
+ *
+ * @param hoverState the hover state to check.
+ * @return whether or not the hover state implies a backdrop.
+ */
+export function isBackdropHoverState(hoverState: HoverState): boolean {
   return hoverState === true || hoverState === 'erase';
 }
 
@@ -857,7 +863,10 @@ const SHAPE_LIST_VERTEX_SHADER = createVertexShader(
   `,
 );
 
-const SHAPE_LIST_FRAGMENT_SHADER = createShapeListFragmentShader('baseAlpha');
+/** Standard fragment shader for shape lists. */
+export const SHAPE_LIST_FRAGMENT_SHADER = createShapeListFragmentShader(
+  'baseAlpha',
+);
 
 function createShapeListFragmentShader(alpha: string): string {
   return createFragmentShader(
@@ -879,7 +888,16 @@ export const SELECT_COLOR = '#00bc8c';
 /** The color used to indicate erasing. */
 export const ERASE_COLOR = '#e74c3c';
 
-function renderBackdrop(
+/**
+ * Renders the backdrop for a shape/shape list.
+ *
+ * @param renderer the renderer to use.
+ * @param transform the shape transform.
+ * @param geometry the shape geometry.
+ * @param selected whether or not the shape is selected.
+ * @param hoverState the state's hover state.
+ */
+export function renderBackdrop(
   renderer: Renderer,
   transform: Transform,
   geometry: Geometry,
