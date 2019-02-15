@@ -38,6 +38,7 @@ import {
   composeTransforms,
   isTransform,
   clamp,
+  mix,
 } from '../../server/store/math';
 import {getValue, extend} from '../../server/store/util';
 
@@ -51,18 +52,12 @@ export type OutputData = {
   label: React.Element<any>,
 };
 
-/** State associated with a single output. */
-export type OutputState = {
-  value: number,
-};
-
 type ModuleData = {
   getIcon: Object => ShapeList,
   getInputs: (IdTreeNode, Object) => {[string]: InputData},
   getOutputs: (IdTreeNode, Object) => {[string]: OutputData},
   getOutputTransform: Object => Transform,
-  getOutputState: (Object, string) => OutputState,
-  getOutputValues: Object => Float32Array,
+  getOutputValue: (Object, string) => number,
   getWidth: Object => number,
   getHeight: (Object, number, number) => number,
   drawBody: (Object, number, number, ShapeList) => void,
@@ -236,8 +231,7 @@ const BaseModule = {
     return Math.max(inputCount, outputCount) * MODULE_HEIGHT_PER_TERMINAL;
   },
   getOutputTransform: data => null,
-  getOutputState: (data, name) => ({value: 0.0}),
-  getOutputValues: data => new Float32Array([]),
+  getOutputValue: (data, name) => 0.0,
   drawBody: (data, width, height, shapeList) => {
     shapeList
       .move(width * -0.5, height * -0.5, 0)
@@ -404,13 +398,8 @@ export const ComponentModules: {[string]: ModuleData} = {
   pushButton: extend(BaseModule, {
     getIcon: (idTree, data) => ButtonDialIcon,
     getOutputs: (idTree, data) => SingleOutput,
-    getOutputState: (data, name) => ({
-      value: data.value ? getValue(data.on, 1.0) : getValue(data.off, 0.0),
-    }),
-    getOutputValues: data =>
-      new Float32Array([
-        data.value ? getValue(data.on, 1.0) : getValue(data.off, 0.0),
-      ]),
+    getOutputValue: (data, name) =>
+      data.value ? getValue(data.on, 1.0) : getValue(data.off, 0.0),
     getHeight: data => DEFAULT_MODULE_WIDTH,
     createRenderFn: (idTree, entity, baseFn) => {
       const transform = entity.getLastCachedValue('worldTransform');
@@ -475,6 +464,8 @@ export const ComponentModules: {[string]: ModuleData} = {
   toggleSwitch: extend(BaseModule, {
     getIcon: data => ToggleSwitchIcon,
     getOutputs: (idTree, data) => SingleOutput,
+    getOutputValue: (data, name) =>
+      data.value ? getValue(data.on, 1.0) : getValue(data.off, 0.0),
     createRenderFn: (idTree, entity, baseFn) => {
       const transform = entity.getLastCachedValue('worldTransform');
       return (renderer, selected, hoverState) => {
@@ -538,6 +529,8 @@ export const ComponentModules: {[string]: ModuleData} = {
   dial: extend(BaseModule, {
     getIcon: data => ButtonDialIcon,
     getOutputs: (idTree, data) => SingleOutput,
+    getOutputValue: (data, name) =>
+      mix(getValue(data.min, 0.0), getValue(data.max, 1.0), data.value || 0.0),
     getHeight: data => DEFAULT_MODULE_WIDTH,
     createRenderFn: (idTree, entity, baseFn) => {
       const transform = entity.getLastCachedValue('worldTransform');
@@ -622,6 +615,8 @@ export const ComponentModules: {[string]: ModuleData} = {
     getIcon: data => SliderIcon,
     getWidth: data => DEFAULT_MODULE_WIDTH * 2.0,
     getOutputs: (idTree, data) => SingleOutput,
+    getOutputValue: (data, name) =>
+      mix(getValue(data.min, 0.0), getValue(data.max, 1.0), data.value || 0.0),
     createRenderFn: (idTree, entity, baseFn) => {
       const transform = entity.getLastCachedValue('worldTransform');
       return (renderer, selected, hoverState) => {
@@ -695,20 +690,19 @@ export const ComponentModules: {[string]: ModuleData} = {
   joystick: extend(BaseModule, {
     getIcon: data => JoystickIcon,
     getOutputs: (idTree, data) => ({
-      leftRight: {
-        label: (
-          <FormattedMessage
-            id="joystick.left_right"
-            defaultMessage="Left/Right"
-          />
-        ),
+      x: {
+        label: <FormattedMessage id="joystick.x" defaultMessage="X" />,
       },
-      downUp: {
-        label: (
-          <FormattedMessage id="joystick.down_up" defaultMessage="Down/Up" />
-        ),
+      y: {
+        label: <FormattedMessage id="joystick.y" defaultMessage="Y" />,
       },
     }),
+    getOutputValue: (data, name) =>
+      mix(
+        getValue(data.min, -1.0),
+        getValue(data.max, 1.0),
+        0.5 + (data.value ? data.value[name] : 0.0) * 0.5,
+      ),
     createRenderFn: (idTree, entity, baseFn) => {
       const transform = entity.getLastCachedValue('worldTransform');
       return (renderer, selected, hoverState) => {

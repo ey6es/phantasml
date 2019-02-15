@@ -78,10 +78,14 @@ export class Program {
    * Sets a uniform from a hex color string.
    *
    * @param name the name of the uniform to set.
-   * @param value the hex color string.
+   * @param value the hex color string or element array.
    */
-  setUniformColor(name: string, value: string) {
-    this.setUniformArray(name, value, getColorArray);
+  setUniformColor(name: string, value: string | number[]) {
+    this.setUniformArray(
+      name,
+      (value: any),
+      Array.isArray(value) ? value : getColorArray,
+    );
   }
 
   /**

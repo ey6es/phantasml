@@ -71,6 +71,7 @@ import {
   minus,
   plusEquals,
   distance,
+  clamp,
 } from '../../server/store/math';
 import {extend, getColorArray} from '../../server/store/util';
 
@@ -82,10 +83,35 @@ ComponentRenderers.moduleRenderer = {
       const module = ComponentModules[key];
       if (module && shapeList) {
         const data = entity.state[key];
-        const inputCount = Object.keys(module.getInputs(idTree, data)).length;
-        const outputCount = Object.keys(module.getOutputs(idTree, data)).length;
+        const inputs = Object.keys(module.getInputs(idTree, data));
+        const outputs = Object.keys(module.getOutputs(idTree, data));
         const outputTransform = module.getOutputTransform(data);
-        const outputValues = module.getOutputValues(data);
+        const partValues = new Float32Array(1 + inputs.length + outputs.length);
+        let partIndex = 0;
+        partValues[partIndex++] = 1.0;
+        for (const input of inputs) {
+          let value = 1.0;
+          const inputData = data[input];
+          if (inputData && inputData.ref && inputData.output) {
+            const entity = idTree.getEntity(inputData.ref);
+            if (entity) {
+              for (const key in entity.state) {
+                const module = ComponentModules[key];
+                if (module) {
+                  value = module.getOutputValue(
+                    entity.state[key],
+                    inputData.output,
+                  );
+                  break;
+                }
+              }
+            }
+          }
+          partValues[partIndex++] = value;
+        }
+        for (const output of outputs) {
+          partValues[partIndex++] = module.getOutputValue(data, output);
+        }
         const width = module.getWidth(data);
         return module.createRenderFn(
           idTree,
@@ -108,10 +134,10 @@ ComponentRenderers.moduleRenderer = {
                 geometry,
                 selected,
                 hoverState,
-                inputCount,
-                outputCount,
+                inputs.length,
+                outputs.length,
                 outputTransform,
-                outputValues,
+                partValues,
                 width,
               );
             },
@@ -376,23 +402,27 @@ ComponentRenderers.moduleRenderer = {
     if (!part) {
       return;
     }
-    let color: ?string;
+    let color: ?(number[]);
     const draggedHoverState = state.hoverStates.get(draggedEntity.id);
     if (draggedHoverState && draggedHoverState.part) {
-      const index =
-        draggedHoverState.part -
-        getInputCount(resource.idTree, draggedEntity) -
-        1;
-      color = WireColors[index % WireColors.length];
+      for (const key in draggedEntity.state) {
+        const module = ComponentModules[key];
+        if (module) {
+          const data = draggedEntity.state[key];
+          const inputs = Object.keys(module.getInputs(resource.idTree, data));
+          const outputs = Object.keys(module.getOutputs(resource.idTree, data));
+          const index = draggedHoverState.part - inputs.length - 1;
+          color = getWireColor(
+            index,
+            module.getOutputValue(data, outputs[index]),
+          );
+          break;
+        }
+      }
     }
     const oldHoverState = state.hoverStates.get(entity.id);
-    if (
-      oldHoverState &&
-      oldHoverState.part === part &&
-      oldHoverState.color === color &&
-      oldHoverState.over
-    ) {
-      return oldHoverState;
+    if (oldHoverState && oldHoverState.part === part && oldHoverState.over) {
+      return Object.assign({}, oldHoverState, {color});
     }
     return {part, color, over: true, moveTime: Date.now()};
   },
@@ -546,13 +576,8 @@ ComponentEditCallbacks.moduleRenderer = extend(BaseEditCallbacks, {
           if (!outputs[key]) {
             remove = value.input;
           }
-        } else if (value.output) {
-          if (!inputs[key]) {
-            remove = value.output;
-          } else if (scene.getEntity(value.ref) && newMap[value.ref] !== null) {
-            // touch the source to trigger an update
-            newMap = mergeEdits(newMap, {[value.ref]: {}});
-          }
+        } else if (value.output && !inputs[key]) {
+          remove = value.output;
         }
         if (remove) {
           const otherEntity = scene.getEntity(value.ref);
@@ -567,6 +592,9 @@ ComponentEditCallbacks.moduleRenderer = extend(BaseEditCallbacks, {
               },
             });
           }
+        } else if (scene.getEntity(value.ref) && newMap[value.ref] !== null) {
+          // touch the source to trigger an update
+          newMap = mergeEdits(newMap, {[value.ref]: {}});
         }
       }
     }
@@ -835,7 +863,7 @@ function renderModule(
   inputCount: number,
   outputCount: number,
   outputTransform: Transform,
-  outputValues: Float32Array,
+  partValues: Float32Array,
   width: number,
 ) {
   const partHover = hoverState && hoverState.part;
@@ -848,11 +876,11 @@ function renderModule(
       hoverState,
       inputCount,
       outputCount,
-      outputValues,
+      partValues,
     );
     return;
   }
-  const moduleShader = getPartModuleShader(outputCount);
+  const moduleShader = getPartModuleShader(partValues.length);
   const program = renderer.getProgram(
     moduleShader,
     renderer.getVertexShader(moduleShader, moduleShader.vertex),
@@ -862,8 +890,7 @@ function renderModule(
   program.setUniformMatrix('modelMatrix', transform, getTransformMatrix);
   program.setUniformMatrix('vectorMatrix', getTransformVectorMatrix(transform));
   program.setUniformFloat('pixelsToWorldUnits', renderer.pixelsToWorldUnits);
-  program.setUniformFloat('outputOffset', inputCount + 1);
-  program.setUniformArray('outputValues', outputValues, outputValues, 1);
+  program.setUniformArray('partValues', partValues, partValues, 1);
   if (hoverState.dragging) {
     program.setUniformFloat('replacePart', hoverState.part);
     program.setUniformFloat('replaceAlpha', 0.0);
@@ -914,7 +941,7 @@ function renderModule(
       renderer,
       wireTransform,
       MODULE_THICKNESS,
-      WireColors[index % WireColors.length],
+      getWireColor(index, partValues[hoverState.part]),
       start,
       end,
     );
@@ -922,11 +949,17 @@ function renderModule(
   geometry.draw(program);
 }
 
+function getWireColor(index: number, value: number): number[] {
+  const color = WireColorArrays[index % WireColors.length];
+  const scale = clamp(0.5 + value * 0.5, 0.0, 1.0);
+  return [color[0] * scale, color[1] * scale, color[2] * scale];
+}
+
 type ModuleShader = {vertex: string};
 let partModuleShaders: ModuleShader[] = [];
 
-function getPartModuleShader(outputs: number): ModuleShader {
-  const index = Math.max(0, Math.ceil(Math.log(outputs) / Math.LN2) - 4);
+function getPartModuleShader(parts: number): ModuleShader {
+  const index = Math.max(0, Math.ceil(Math.log(parts) / Math.LN2) - 4);
   let moduleShader = partModuleShaders[index];
   if (!moduleShader) {
     partModuleShaders[index] = moduleShader = {
@@ -939,8 +972,7 @@ function getPartModuleShader(outputs: number): ModuleShader {
           uniform float alpha;
           uniform float outline;
           uniform vec3 outlineColor;
-          uniform float outputOffset;
-          uniform float outputValues[${2 ** (index + 4)}];
+          uniform float partValues[${2 ** (index + 4)}];
           attribute float thickness;
           attribute vec3 pathColor;
           attribute vec3 fillColor;
@@ -950,12 +982,7 @@ function getPartModuleShader(outputs: number): ModuleShader {
           varying float interpolatedAlpha;
         `,
         `
-          float index = part - outputOffset;
-          float value = mix(
-            1.0,
-            0.5 + 0.5 / (1.0 + exp(-2.0 * outputValues[int(index)])),
-            step(0.0, index)
-          );
+          float value = clamp(0.5 + partValues[int(part)] * 0.5, 0.0, 1.0);
           float replace =
             step(replacePart - 0.5, part) * step(part, replacePart + 0.5);
           vec3 basePathColor = mix(pathColor * value, replaceColor, replace);
@@ -994,7 +1021,7 @@ function renderFullModule(
   hoverState: HoverState,
   inputCount: number,
   outputCount: number,
-  outputValues: Float32Array,
+  partValues: Float32Array,
 ) {
   if (isTransform(hoverState)) {
     renderFullModule(
@@ -1005,7 +1032,7 @@ function renderFullModule(
       undefined,
       inputCount,
       outputCount,
-      outputValues,
+      partValues,
     );
     return;
   }
@@ -1022,23 +1049,21 @@ function renderFullModule(
   program.setUniformMatrix('modelMatrix', transform, getTransformMatrix);
   program.setUniformMatrix('vectorMatrix', getTransformVectorMatrix(transform));
   program.setUniformFloat('pixelsToWorldUnits', renderer.pixelsToWorldUnits);
-  program.setUniformFloat('outputOffset', inputCount + 1);
-  program.setUniformArray('outputValues', outputValues, outputValues, 1);
+  program.setUniformArray('partValues', partValues, partValues, 1);
   renderer.setEnabled(renderer.gl.BLEND, true);
   geometry.draw(program);
 }
 
 let fullModuleShaders: ModuleShader[] = [];
 
-function getFullModuleShader(outputs: number): ModuleShader {
-  const index = Math.max(0, Math.ceil(Math.log(outputs) / Math.LN2) - 4);
+function getFullModuleShader(parts: number): ModuleShader {
+  const index = Math.max(0, Math.ceil(Math.log(parts) / Math.LN2) - 4);
   let moduleShader = fullModuleShaders[index];
   if (!moduleShader) {
     fullModuleShaders[index] = moduleShader = {
       vertex: createVertexShader(
         `
-          uniform float outputOffset;
-          uniform float outputValues[${2 ** (index + 4)}];
+          uniform float partValues[${2 ** (index + 4)}];
           attribute float thickness;
           attribute vec3 pathColor;
           attribute vec3 fillColor;
@@ -1047,12 +1072,7 @@ function getFullModuleShader(outputs: number): ModuleShader {
           varying vec3 interpolatedFillColor;
         `,
         `
-          float index = part - outputOffset;
-          float value = mix(
-            1.0,
-            0.5 + 0.5 / (1.0 + exp(-2.0 * outputValues[int(index)])),
-            step(0.0, index)
-          );
+          float value = clamp(0.5 + partValues[int(part)] * 0.5, 0.0, 1.0);
           interpolatedPathColor = pathColor * value;
           interpolatedFillColor = fillColor * value;
         `,

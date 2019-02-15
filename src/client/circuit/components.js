@@ -104,10 +104,12 @@ const OnProperty = {
   },
 };
 
+const MinLabel = <FormattedMessage id="control.min" defaultMessage="Min:" />;
+
 const MinProperty = {
   min: {
     type: 'number',
-    label: <FormattedMessage id="control.min" defaultMessage="Min:" />,
+    label: MinLabel,
     step: 0.01,
     precision: 2,
   },
@@ -233,7 +235,13 @@ export const CircuitComponents: {[string]: ComponentData} = {
   joystick: {
     label: <FormattedMessage id="joystick.title" defaultMessage="Joystick" />,
     properties: {
-      ...MinProperty,
+      min: {
+        type: 'number',
+        label: MinLabel,
+        step: 0.01,
+        precision: 2,
+        defaultValue: -1.0,
+      },
       ...MaxProperty,
       autocenter: {
         type: 'boolean',

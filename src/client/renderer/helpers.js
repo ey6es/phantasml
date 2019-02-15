@@ -507,8 +507,8 @@ export function renderPolygonHelper(
   renderer: Renderer,
   transform: Transform,
   thickness: number,
-  pathColor: string,
-  fillColor: string,
+  pathColor: string | number[],
+  fillColor: string | number[],
   geometry: Geometry,
 ) {
   const program = renderer.getProgram(
@@ -737,7 +737,7 @@ export function renderCurveHelper(
   renderer: Renderer,
   transform: Transform,
   thickness: number,
-  pathColor: string,
+  pathColor: string | number[],
   span: number,
   c1: Vector2,
   c2: Vector2,
@@ -831,7 +831,7 @@ export function renderWireHelper(
   renderer: Renderer,
   transform: Transform,
   thickness: number,
-  color: string,
+  color: string | number[],
   start: Vector2,
   end: Vector2,
 ) {
