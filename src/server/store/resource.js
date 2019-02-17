@@ -218,18 +218,27 @@ class ConditionallyTransferableValue extends RefCounted {
  * @param state the entity's state.
  * @param [previousEntity] the previous entity from which to transfer cached
  * values, if any.
+ * @param [editType] the type of edit applied to create this entity, if
+ * specified.
  */
 export class Entity extends RefCounted {
   id: string;
   state: Object;
+  editType: ?string;
   visit = 0;
 
   _cachedValues: ?Map<mixed, mixed>;
 
-  constructor(id: string, state: Object = {}, previousEntity?: Entity) {
+  constructor(
+    id: string,
+    state: Object = {},
+    previousEntity?: Entity,
+    editType?: ?string,
+  ) {
     super();
     this.id = id;
     this.state = state;
+    this.editType = editType;
     if (previousEntity && previousEntity._cachedValues) {
       // transfer any transferable values
       for (const [key, value] of previousEntity._cachedValues) {

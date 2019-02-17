@@ -41,6 +41,7 @@ import {
   Scene,
   SceneActions,
   getWorldTransform,
+  applyEdit,
   mergeEdits,
 } from '../../server/store/scene';
 import {ShapeList} from '../../server/store/shape';
@@ -560,13 +561,15 @@ ComponentEditCallbacks.moduleRenderer = extend(BaseEditCallbacks, {
       return map;
     }
     const module = ComponentModules[moduleKey];
-    const moduleData = mergeEdits(
+    const entityEdit = map[entity.id];
+    const moduleData = applyEdit(
       entity.state[moduleKey],
-      map[entity.id][moduleKey] || {},
+      entityEdit[moduleKey] || {},
     );
     const inputs = module.getInputs(scene.idTree, moduleData);
     const outputs = module.getOutputs(scene.idTree, moduleData);
     let newMap = map;
+    const touchType = {_type: entityEdit._type};
     for (const key in moduleData) {
       // remove any connections that are no longer valid
       const value = moduleData[key];
@@ -594,7 +597,7 @@ ComponentEditCallbacks.moduleRenderer = extend(BaseEditCallbacks, {
           }
         } else if (scene.getEntity(value.ref) && newMap[value.ref] !== null) {
           // touch the source to trigger an update
-          newMap = mergeEdits(newMap, {[value.ref]: {}});
+          newMap = mergeEdits(newMap, {[value.ref]: touchType});
         }
       }
     }
@@ -843,8 +846,12 @@ ComponentGeometry.moduleRenderer = extend(BaseGeometry, {
       module.drawBody(data, width, height, shapeList);
       shapeList.add(module.getIcon(data));
       return new TransferableValue(shapeList, newEntity => {
-        // we can transfer if we have the same module component
-        return newEntity.state[key] === data && !connected;
+        // we can transfer if we only changed the value or we
+        // have the same module component and aren't connected
+        return (
+          newEntity.editType === 'value' ||
+          (newEntity.state[key] === data && !connected)
+        );
       });
     }
     return new ShapeList();

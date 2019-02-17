@@ -439,6 +439,7 @@ export const ComponentModules: {[string]: ModuleData} = {
           {
             [entity.id]: {
               pushButton: {value: true},
+              _type: 'value',
             },
           },
           false,
@@ -453,6 +454,7 @@ export const ComponentModules: {[string]: ModuleData} = {
             {
               [entity.id]: {
                 pushButton: {value: null},
+                _type: 'value',
               },
             },
             false,
@@ -520,6 +522,7 @@ export const ComponentModules: {[string]: ModuleData} = {
         SceneActions.editEntities.create({
           [entity.id]: {
             toggleSwitch: {value: !entity.state.toggleSwitch.value},
+            _type: 'value',
           },
         }),
       );
@@ -585,6 +588,7 @@ export const ComponentModules: {[string]: ModuleData} = {
         SceneActions.editEntities.create({
           [entity.id]: {
             dial: {value: getDialValue(position)},
+            _type: 'value',
           },
         }),
       );
@@ -605,6 +609,7 @@ export const ComponentModules: {[string]: ModuleData} = {
         SceneActions.editEntities.create({
           [entity.id]: {
             dial: {value},
+            _type: 'value',
           },
         }),
       );
@@ -666,6 +671,7 @@ export const ComponentModules: {[string]: ModuleData} = {
         SceneActions.editEntities.create({
           [entity.id]: {
             slider: {value: getSliderValue(position)},
+            _type: 'value',
           },
         }),
       );
@@ -681,6 +687,7 @@ export const ComponentModules: {[string]: ModuleData} = {
         SceneActions.editEntities.create({
           [entity.id]: {
             slider: {value},
+            _type: 'value',
           },
         }),
       );
@@ -753,6 +760,7 @@ export const ComponentModules: {[string]: ModuleData} = {
           {
             [entity.id]: {
               joystick: {value: getJoystickValue(position)},
+              _type: 'value',
             },
           },
           entity.state.joystick.autocenter === false,
@@ -771,6 +779,7 @@ export const ComponentModules: {[string]: ModuleData} = {
           {
             [entity.id]: {
               joystick: {value},
+              _type: 'value',
             },
           },
           entity.state.joystick.autocenter === false,
@@ -788,6 +797,7 @@ export const ComponentModules: {[string]: ModuleData} = {
             {
               [entity.id]: {
                 joystick: {value: null},
+                _type: 'value',
               },
             },
             false,

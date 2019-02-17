@@ -105,11 +105,13 @@ class IdTreeLeafNode extends IdTreeNode {
       return [this.addEntity(newEntity, depth), null, newEntity];
     }
     const newEntities = new Map(this._entities);
-    const newEntity = new Entity(
-      id,
-      state ? applyEdit(oldEntity.state, state) : oldEntity.state,
-      oldEntity,
-    );
+    let newState = oldEntity.state;
+    let editType: ?string;
+    if (state) {
+      newState = applyEdit(oldEntity.state, state);
+      editType = state._type;
+    }
+    const newEntity = new Entity(id, newState, oldEntity, editType);
     newEntities.set(id, newEntity);
     return [new IdTreeLeafNode(newEntities), oldEntity, newEntity];
   }
@@ -1406,6 +1408,10 @@ function reverseEdit(state: Object, edit: Object): Object {
   const reversed = {};
   for (const key in edit) {
     if (key.charAt(0) === '_') {
+      if (key === '_type') {
+        // preserve optional type
+        reversed._type = edit._type;
+      }
       continue; // derived property; skip
     }
     const stateValue = state[key];
@@ -1482,6 +1488,13 @@ export function mergeEdits(first: Object, second: Object): Object {
   const merged = {};
   for (const key in first) {
     if (key.charAt(0) === '_') {
+      if (key === '_type') {
+        // preserve optional type
+        const firstType = first._type;
+        if (firstType === second._type) {
+          merged._type = firstType;
+        }
+      }
       continue; // derived property; skip
     }
     const firstValue = first[key];
