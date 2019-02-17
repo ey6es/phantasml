@@ -247,7 +247,7 @@ function invokeEditCallbacks(
   }
   return newMap === action.map
     ? action
-    : SceneActions.editEntities.create(newMap);
+    : SceneActions.editEntities.create(newMap, action.undoable);
 }
 
 type EditCallbackData = {
