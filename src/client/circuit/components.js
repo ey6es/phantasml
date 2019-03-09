@@ -8,7 +8,7 @@
 import * as React from 'react';
 import {FormattedMessage} from 'react-intl';
 import type {ComponentData, CategoryData} from '../component';
-import {WidthLabel, HeightLabel} from '../geometry/components';
+import {WidthLabel, HeightLabel, AngleLabel} from '../geometry/components';
 
 // ensure that renderers are included in build
 import './renderers';
@@ -122,6 +122,18 @@ const MaxProperty = {
     step: 0.01,
     precision: 2,
     defaultValue: 1.0,
+  },
+};
+
+const HysteresisProperty = {
+  hysteresis: {
+    type: 'number',
+    label: (
+      <FormattedMessage id="control.hysteresis" defaultMessage="Hysteresis:" />
+    ),
+    step: 0.01,
+    precision: 2,
+    defaultValue: 0.5,
   },
 };
 
@@ -259,19 +271,47 @@ export const CircuitComponents: {[string]: ComponentData} = {
   },
   lamp: {
     label: <FormattedMessage id="lamp.title" defaultMessage="Lamp" />,
-    properties: {},
+    properties: {
+      ...MinProperty,
+      ...MaxProperty,
+      ...HysteresisProperty,
+    },
     category: 'display',
     removable: false,
   },
   barGraph: {
     label: <FormattedMessage id="bar_graph.title" defaultMessage="Bar Graph" />,
-    properties: {},
+    properties: {
+      ...MinProperty,
+      ...MaxProperty,
+      ...HysteresisProperty,
+    },
     category: 'display',
     removable: false,
   },
   gauge: {
     label: <FormattedMessage id="gauge.title" defaultMessage="Gauge" />,
-    properties: {},
+    properties: {
+      ...MinProperty,
+      ...MaxProperty,
+      redline: {
+        type: 'number',
+        label: (
+          <FormattedMessage id="gauge.redline" defaultMessage="Redline:" />
+        ),
+        step: 0.01,
+        precision: 2,
+        defaultValue: 0.9,
+      },
+      ...HysteresisProperty,
+      angle: {
+        type: 'angle',
+        label: AngleLabel,
+        defaultValue: Math.PI,
+        min: 0.0,
+        max: 2 * Math.PI,
+      },
+    },
     category: 'display',
     removable: false,
   },

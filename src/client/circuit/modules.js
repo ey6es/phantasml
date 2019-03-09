@@ -17,13 +17,18 @@ import type {HoverState} from '../store';
 import {store} from '../store';
 import {EntityName} from '../entity';
 import type {Renderer} from '../renderer/util';
-import {renderPointHelper, renderLineHelper} from '../renderer/helpers';
+import {
+  renderPointHelper,
+  renderLineHelper,
+  renderRectangleHelper,
+} from '../renderer/helpers';
+import {ComponentPhysics} from '../physics/physics';
 import {ComponentSensors} from '../sensor/sensors';
 import {ComponentEffectors} from '../effector/effectors';
 import {ShapeList} from '../../server/store/shape';
 import type {Entity} from '../../server/store/resource';
 import type {IdTreeNode} from '../../server/store/scene';
-import {SceneActions} from '../../server/store/scene';
+import {SceneActions, mergeEdits} from '../../server/store/scene';
 import type {Transform, Vector2} from '../../server/store/math';
 import {
   TWO_PI,
@@ -809,15 +814,45 @@ export const ComponentModules: {[string]: ModuleData} = {
   lamp: extend(BaseModule, {
     getHeight: data => DEFAULT_MODULE_WIDTH,
     getInputs: (idTree, data) => SingleInput,
+    createRenderFn: (idTree, entity, baseFn) => {
+      const transform = entity.getLastCachedValue('worldTransform');
+      const value = entity.state.lamp.value || 0.0;
+      const color = [value, value, value];
+      return (renderer, selected, hoverState) => {
+        baseFn(renderer, selected, hoverState);
+        renderRectangleHelper(
+          renderer,
+          transform,
+          0.2,
+          color,
+          color,
+          true,
+          1.0,
+          1.0,
+        );
+      };
+    },
   }),
   barGraph: extend(BaseModule, {
     getWidth: data => MODULE_HEIGHT_PER_TERMINAL,
     getHeight: data => DEFAULT_MODULE_WIDTH,
     getInputs: (idTree, data) => SingleInput,
+    createRenderFn: (idTree, entity, baseFn) => {
+      const transform = entity.getLastCachedValue('worldTransform');
+      return (renderer, selected, hoverState) => {
+        baseFn(renderer, selected, hoverState);
+      };
+    },
   }),
   gauge: extend(BaseModule, {
     getHeight: data => DEFAULT_MODULE_WIDTH,
     getInputs: (idTree, data) => SingleInput,
+    createRenderFn: (idTree, entity, baseFn) => {
+      const transform = entity.getLastCachedValue('worldTransform');
+      return (renderer, selected, hoverState) => {
+        baseFn(renderer, selected, hoverState);
+      };
+    },
   }),
   pseudo3d: extend(BaseModule, {
     getWidth: data =>
@@ -986,3 +1021,31 @@ function createElement(index: number) {
     ),
   };
 }
+
+ComponentPhysics.lamp = {
+  isActive: data => {
+    return !!data.input;
+  },
+  advance: (scene, entity, duration, map) => {
+    const data = entity.state.lamp;
+    const input = data.input;
+    if (!input) {
+      return false;
+    }
+    const source = scene.getEntity(input.ref);
+    if (!source) {
+      return false;
+    }
+    for (const key in source.state) {
+      const module = ComponentModules[key];
+      if (module) {
+        const value = module.getOutputValue(source.state[key], input.output);
+        map[entity.id] = {
+          lamp: {value},
+        };
+        return true;
+      }
+    }
+    return false;
+  },
+};

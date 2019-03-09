@@ -105,6 +105,13 @@ export const RadiusLabel = (
 );
 
 /**
+ * A shared label for angle.
+ */
+export const AngleLabel = (
+  <FormattedMessage id="geometry.angle" defaultMessage="Angle:" />
+);
+
+/**
  * Geometry component metadata mapped by component name.
  */
 export const GeometryComponents: {[string]: ComponentData} = {
@@ -192,7 +199,7 @@ export const GeometryComponents: {[string]: ComponentData} = {
       },
       angle: {
         type: 'angle',
-        label: <FormattedMessage id="arc.angle" defaultMessage="Angle:" />,
+        label: AngleLabel,
         defaultValue: DEFAULT_ARC_ANGLE,
         min: -2 * Math.PI,
         max: 2 * Math.PI,
