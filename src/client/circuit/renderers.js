@@ -14,6 +14,7 @@ import {
   StoreActions,
   store,
 } from '../store';
+import {Components} from '../component';
 import {
   SELECT_COLOR,
   SHAPE_LIST_FRAGMENT_SHADER,
@@ -156,7 +157,7 @@ ComponentRenderers.moduleRenderer = {
     if (!(resource instanceof Scene)) {
       return oldHoverState;
     }
-    if (oldHoverState && oldHoverState.part) {
+    if (oldHoverState) {
       const elapsed = Date.now() - oldHoverState.moveTime;
       if (elapsed > TOOLTIP_DELAY && !oldHoverState.dragging) {
         if (!(state.tooltip && state.tooltip.entityId == entity.id)) {
@@ -169,12 +170,20 @@ ComponentRenderers.moduleRenderer = {
               const outputs = module.getOutputs(resource.idTree, data);
               const outputKeys = Object.keys(outputs);
               const width = module.getWidth(data);
-              let index = oldHoverState.part - 1;
+              let index = (oldHoverState.part || 0) - 1;
               let label: React.Element<any>;
               const position = vec2();
               let secondaryLabel: ?React.Element<any>;
               let secondaryPosition: ?Vector2;
-              if (index < inputKeys.length) {
+              if (index === -1) {
+                label = Components[key].label;
+                vec2(
+                  0.0,
+                  module.getHeight(data, inputKeys.length, outputKeys.length) *
+                    0.5,
+                  position,
+                );
+              } else if (index < inputKeys.length) {
                 label = inputs[inputKeys[index]].label;
                 vec2(
                   width * -0.5 - MODULE_HEIGHT_PER_TERMINAL * 0.5,
@@ -1043,7 +1052,11 @@ function renderFullModule(
     );
     return;
   }
-  if (selected || isBackdropHoverState(hoverState)) {
+  if (
+    selected ||
+    isBackdropHoverState(hoverState) ||
+    (hoverState && hoverState.part === 0)
+  ) {
     renderBackdrop(renderer, transform, geometry, selected, hoverState);
   }
   const moduleShader = getFullModuleShader(outputCount);

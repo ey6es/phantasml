@@ -983,7 +983,10 @@ export type ComponentData = {
   [string]: any,
 };
 
-const Components: {[string]: ComponentData} = {
+/**
+ * Components mapped by id.
+ */
+export const Components: {[string]: ComponentData} = {
   transform: {
     label: <FormattedMessage id="transform.title" defaultMessage="Transform" />,
     properties: {

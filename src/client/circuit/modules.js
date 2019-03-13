@@ -251,13 +251,21 @@ const BaseModule = {
       .penUp();
   },
   createRenderFn: (idTree, entity, baseFn) => baseFn,
-  onMove: (entity, position) => true,
+  onMove: defaultOnMove,
   onPress: (entity, position, offset) => [{dragging: position, offset}, true],
   onDrag: (entity, position, setHoverState) => {
     return store.getState().hoverStates.get(entity.id);
   },
   onRelease: (entity, position) => {},
 };
+
+function defaultOnMove(entity: Entity, position: Vector2): HoverState {
+  const oldHoverState = store.getState().hoverStates.get(entity.id);
+  if (oldHoverState && oldHoverState.part === 0 && !oldHoverState.dragging) {
+    return oldHoverState;
+  }
+  return {part: 0, moveTime: Date.now()};
+}
 
 const BUTTON_DIAL_RADIUS = 0.9;
 
@@ -427,7 +435,7 @@ export const ComponentModules: {[string]: ModuleData} = {
     },
     onMove: (entity, position) => {
       if (length(position) > BUTTON_DIAL_RADIUS) {
-        return true;
+        return defaultOnMove(entity, position);
       }
       const oldHoverState = store.getState().hoverStates.get(entity.id);
       return oldHoverState && oldHoverState.value
@@ -510,7 +518,7 @@ export const ComponentModules: {[string]: ModuleData} = {
         Math.abs(position.x) > HALF_TOGGLE_SWITCH_SIZE + KNOB_THICKNESS ||
         Math.abs(position.y) > KNOB_THICKNESS
       ) {
-        return true;
+        return defaultOnMove(entity, position);
       }
       const oldHoverState = store.getState().hoverStates.get(entity.id);
       const value = !entity.state.toggleSwitch.value;
@@ -580,7 +588,7 @@ export const ComponentModules: {[string]: ModuleData} = {
     },
     onMove: (entity, position) => {
       if (length(position) > BUTTON_DIAL_RADIUS) {
-        return true;
+        return defaultOnMove(entity, position);
       }
       return {value: getDialValue(position)};
     },
@@ -663,7 +671,7 @@ export const ComponentModules: {[string]: ModuleData} = {
         Math.abs(position.x) > HALF_SLIDER_SIZE + KNOB_THICKNESS ||
         Math.abs(position.y) > KNOB_THICKNESS
       ) {
-        return true;
+        return defaultOnMove(entity, position);
       }
       return {value: getSliderValue(position)};
     },
@@ -751,7 +759,7 @@ export const ComponentModules: {[string]: ModuleData} = {
         Math.abs(position.x) > HALF_JOYSTICK_SIZE + KNOB_THICKNESS ||
         Math.abs(position.y) > HALF_JOYSTICK_SIZE + KNOB_THICKNESS
       ) {
-        return true;
+        return defaultOnMove(entity, position);
       }
       return {value: getJoystickValue(position)};
     },
