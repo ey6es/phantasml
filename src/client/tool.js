@@ -824,12 +824,18 @@ class SelectPanToolImpl extends ToolImpl {
     renderer.requestFrameRender();
 
     const state = store.getState();
+    let lastResource = state.resource;
     let lastPage = state.page;
     let lastPageState = state.pageStates.get(state.page);
     this._unsubscribeFromStore = store.subscribe(() => {
       const state = store.getState();
       const pageState = state.pageStates.get(state.page);
-      if (state.page !== lastPage || pageState !== lastPageState) {
+      if (
+        state.resource !== lastResource ||
+        state.page !== lastPage ||
+        pageState !== lastPageState
+      ) {
+        lastResource = state.resource;
         lastPage = state.page;
         lastPageState = pageState;
         this._handleMoveOrScroll();
