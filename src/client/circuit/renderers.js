@@ -139,7 +139,9 @@ ComponentRenderers.moduleRenderer = {
                 inputs.length,
                 outputs.length,
                 outputTransform,
-                partValues,
+                store.getState().playState === 'stopped'
+                  ? getStoppedPartValues(partValues.length)
+                  : partValues,
                 width,
               );
             },
@@ -424,7 +426,9 @@ ComponentRenderers.moduleRenderer = {
           const index = draggedHoverState.part - inputs.length - 1;
           color = getWireColor(
             index,
-            module.getOutputValue(data, outputs[index]),
+            state.playState === 'stopped'
+              ? 1.0
+              : module.getOutputValue(data, outputs[index]),
           );
           break;
         }
@@ -443,6 +447,7 @@ ComponentRenderers.moduleRenderer = {
     if (
       !(
         resource instanceof Scene &&
+        oldHoverState &&
         oldHoverState.dragging &&
         oldHoverState.part
       )
@@ -536,6 +541,16 @@ ComponentRenderers.moduleRenderer = {
     store.dispatch(SceneActions.editEntities.create(map));
   },
 };
+
+const stoppedPartValues: Float32Array[] = [];
+function getStoppedPartValues(count: number): Float32Array {
+  let partValues = stoppedPartValues[count];
+  if (!partValues) {
+    stoppedPartValues[count] = partValues = new Float32Array(count);
+    partValues.fill(1.0);
+  }
+  return partValues;
+}
 
 ComponentEditCallbacks.moduleRenderer = extend(BaseEditCallbacks, {
   onDelete: (scene, entity, map) => {

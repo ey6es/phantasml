@@ -799,6 +799,7 @@ class SelectPanToolImpl extends ToolImpl {
   _panning = false;
   _pressed = false;
   _updatingHoverStates = false;
+  _dragging = false;
   _unsubscribeFromStore: ?() => void;
 
   constructor(...args: any[]) {
@@ -838,7 +839,7 @@ class SelectPanToolImpl extends ToolImpl {
         lastResource = state.resource;
         lastPage = state.page;
         lastPageState = pageState;
-        this._handleMoveOrScroll();
+        this._dragging || this._handleMoveOrScroll();
       }
     });
   }
@@ -1069,20 +1070,25 @@ class SelectPanToolImpl extends ToolImpl {
           for (const key in entity.state) {
             const renderer = ComponentRenderers[key];
             if (renderer) {
-              setHoverState(
-                id,
-                renderer.onDrag(
-                  entity,
-                  transformPoint(
-                    eventPosition,
-                    getTransformInverseMatrix(
-                      entity.getLastCachedValue('worldTransform'),
+              this._dragging = true;
+              try {
+                setHoverState(
+                  id,
+                  renderer.onDrag(
+                    entity,
+                    transformPoint(
+                      eventPosition,
+                      getTransformInverseMatrix(
+                        entity.getLastCachedValue('worldTransform'),
+                      ),
+                      localPosition,
                     ),
-                    localPosition,
+                    setHoverState,
                   ),
-                  setHoverState,
-                ),
-              );
+                );
+              } finally {
+                this._dragging = false;
+              }
               break;
             }
           }
