@@ -36,6 +36,7 @@
     "browserify-shim": "^3.8.14",
     "cached-path-relative": ">=1.0.2",
     "cryptiles": ">=4.1.2",
+    "earcut": "^2.1.5",
     "fb": "^2.0.0",
     "flow-aws-lambda": "^1.0.4",
     "flow-bin": "^0.74.0",
@@ -59,14 +60,14 @@
     "husky": "^0.14.3",
     "js-yaml": "^3.12.1",
     "load-grunt-tasks": "^4.0.0",
+    "lodash": ">=4.17.11",
     "msdf-bmfont-xml": "^2.3.5",
     "opn": "^5.4.0",
     "prettier": "^1.16.4",
     "pretty-quick": "^1.10.0",
     "react-intl": "^2.8.0",
     "reactstrap": "^6.5.0",
-    "uuid": "^3.3.2",
-    "lodash": ">=4.17.11"
+    "uuid": "^3.3.2"
   },
   "dependencies": {
     "react": "^16.8.1",

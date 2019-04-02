@@ -5,6 +5,7 @@
  * @flow
  */
 
+import earcut from 'earcut';
 import type {Vector2, Transform, Plane, Bounds} from './math';
 import {
   radians,
@@ -1452,23 +1453,17 @@ export class Shape {
     const vertexCount = lastIndex - firstIndex;
     const vertexOffset = attributeOffsets.vertex;
 
-    // create the linked array of vertex objects
-    const vertices: Vertex[] = [];
+    // run the earcut algorithm to get indices
+    const vertices: number[] = [];
     for (let ii = 8; ii < vertexCount; ii += 9) {
       const index = firstIndex + ii;
       const arrayIndex = index * vertexSize + vertexOffset;
-      vertices.push(
-        ({
-          index,
-          position: vec2(arrayBuffer[arrayIndex], arrayBuffer[arrayIndex + 1]),
-        }: any),
-      );
+      vertices.push(arrayBuffer[arrayIndex], arrayBuffer[arrayIndex + 1]);
     }
-    this._earcut(vertices, (v1, v2, v3) => {
-      elementArrayBuffer[elementArrayIndex++] = v1.index;
-      elementArrayBuffer[elementArrayIndex++] = v2.index;
-      elementArrayBuffer[elementArrayIndex++] = v3.index;
-    });
+    const indices: number[] = earcut(vertices);
+    for (const index of indices) {
+      elementArrayBuffer[elementArrayIndex++] = firstIndex + index * 9 + 8;
+    }
     return [arrayIndex, groupIndex];
   }
 
@@ -1494,120 +1489,25 @@ export class Shape {
     const finalIndex = path.lastIndex - 1;
     const vertexOffset = attributeOffsets.vertex;
 
-    // create the linked array of vertex objects
-    const vertices: Vertex[] = [];
+    // run the earcut algorithm to get indices
+    const vertices: number[] = [];
     for (let index = firstIndex; index <= finalIndex; index++) {
       const arrayIndex = index * vertexSize + vertexOffset;
-      vertices.push(
-        ({
-          index,
-          position: vec2(arrayBuffer[arrayIndex], arrayBuffer[arrayIndex + 1]),
-        }: any),
-      );
+      vertices.push(arrayBuffer[arrayIndex], arrayBuffer[arrayIndex + 1]);
     }
-    const polygonVertices: Vertex[][] = [];
-    this._earcut(vertices, (v1, v2, v3) => {
-      polygonVertices.push([v1, v2, v3]);
-    });
-
-    // add just the indices to the list
-    for (const polygon of polygonVertices) {
-      const indices: number[] = [];
-      for (const vertex of polygon) {
-        indices.push(vertex.index);
-      }
-      polygons.push({indices, firstIndex, finalIndex});
+    const indices: number[] = earcut(vertices);
+    for (let ii = 0; ii < indices.length; ii += 3) {
+      polygons.push({
+        indices: [
+          firstIndex + indices[ii],
+          firstIndex + indices[ii + 1],
+          firstIndex + indices[ii + 2],
+        ],
+        firstIndex,
+        finalIndex,
+      });
     }
     return arrayIndex;
-  }
-
-  _earcut(vertices: Vertex[], addTriangle: (Vertex, Vertex, Vertex) => void) {
-    for (let ii = 0; ii < vertices.length; ii++) {
-      const vertex = vertices[ii];
-      vertex.left = vertices[(ii + vertices.length - 1) % vertices.length];
-      vertex.right = vertices[(ii + 1) % vertices.length];
-    }
-    const leftMiddle = vec2();
-    const leftRight = vec2();
-    const convexVertices: Set<Vertex> = new Set();
-    const concaveVertices: Set<Vertex> = new Set();
-    // odd vertices are inside
-    for (const vertex of vertices) {
-      minus(vertex.position, vertex.left.position, leftMiddle);
-      minus(vertex.right.position, vertex.left.position, leftRight);
-
-      if (cross(leftMiddle, leftRight) >= 0.0) {
-        convexVertices.add(vertex);
-      } else {
-        concaveVertices.add(vertex);
-      }
-    }
-    const point = vec2();
-    const plane = {normal: vec2(), constant: 0.0};
-    let remainingTriangles = vertices.length - 2;
-    let iterationsWithoutTriangle = 0;
-    while (remainingTriangles > 0) {
-      let foundTriangle = false;
-      let loopVertices = convexVertices;
-      let skipTest = false;
-      if (convexVertices.size === 0) {
-        loopVertices = concaveVertices;
-        skipTest = true;
-      }
-      if (iterationsWithoutTriangle > 1) {
-        skipTest = true;
-      }
-      vertexLoop: for (const vertex of loopVertices) {
-        if (!skipTest) {
-          planeFromPoints(vertex.left.position, vertex.right.position, plane);
-          for (const testVertices of [convexVertices, concaveVertices]) {
-            for (const testVertex of testVertices) {
-              if (
-                signedDistance(plane, testVertex.position) < 0 &&
-                testVertex !== vertex &&
-                testVertex !== vertex.left &&
-                testVertex !== vertex.right
-              ) {
-                continue vertexLoop; // not an ear
-              }
-            }
-          }
-        }
-        vertex.left.right = vertex.right;
-        vertex.right.left = vertex.left;
-        loopVertices.delete(vertex);
-
-        // see if left or right changed convexity
-        minus(vertex.left.position, vertex.left.left.position, leftMiddle);
-        minus(vertex.right.position, vertex.left.left.position, leftRight);
-        if (cross(leftMiddle, leftRight) >= 0.0) {
-          concaveVertices.delete(vertex.left);
-          convexVertices.add(vertex.left);
-        } else {
-          convexVertices.delete(vertex.left);
-          concaveVertices.add(vertex.left);
-        }
-        minus(vertex.right.position, vertex.left.position, leftMiddle);
-        minus(vertex.right.right.position, vertex.left.position, leftRight);
-        if (cross(leftMiddle, leftRight) >= 0.0) {
-          concaveVertices.delete(vertex.right);
-          convexVertices.add(vertex.right);
-        } else {
-          convexVertices.delete(vertex.right);
-          concaveVertices.add(vertex.right);
-        }
-        addTriangle(vertex.left, vertex, vertex.right);
-
-        remainingTriangles--;
-        foundTriangle = true;
-        break;
-      }
-      if (foundTriangle) {
-        iterationsWithoutTriangle = 0;
-      } else {
-        iterationsWithoutTriangle++;
-      }
-    }
   }
 }
 
