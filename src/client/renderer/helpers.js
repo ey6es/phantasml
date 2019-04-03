@@ -624,14 +624,14 @@ function createArcShapeList(fill: boolean): ShapeList {
   return new ShapeList()
     .move(1.0, 0, 90, {t: 0.0})
     .penDown(fill)
-    .arc(Math.PI, 1.0, {t: 1.0});
+    .arc(Math.PI * 1.5, 1.0, {t: 1.0});
 }
 
 const OpenFilledArcHelperGeometry = new Geometry(
   ...new ShapeList()
     .penDown(true)
     .move(1, 0, 90, {t: 0.0})
-    .arc(Math.PI, 1.0, {t: 1.0})
+    .arc(Math.PI * 1.5, 1.0, {t: 1.0})
     .move(0, 0, 0, {t: 1.0})
     .createGeometry(64.0),
 );
@@ -701,7 +701,7 @@ const ARC_HELPER_VERTEX_SHADER = createVertexShader(
   `,
   `
     float angle = mix(startAngle, endAngle, t);
-    float baseAngle = t * PI;
+    float baseAngle = t * PI * 1.5;
     float cr = cos(angle - baseAngle);
     float sr = sin(angle - baseAngle);
     vec2 rotatedVector = vec2(
