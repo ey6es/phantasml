@@ -762,6 +762,12 @@ export const ComponentGeometry: {[string]: GeometryData} = {
           shapeList.shapes.push(new Shape(exterior));
           return createVisitor(exterior, fillColor, pathColor, thickness);
         },
+        createHoleVisitor: (pathColor, thickness) => {
+          const hole = new Path(true);
+          const shape = shapeList.shapes[shapeList.shapes.length - 1];
+          shape.holes.push(hole);
+          return createVisitor(hole, null, pathColor, thickness);
+        },
         createPathVisitor: (loop, pathColor, thickness) => {
           const path = new Path(loop);
           shapeList.paths.push(path);
@@ -852,6 +858,13 @@ function mirrorShapeList(list: string): string {
           thickness,
           6,
         )}`;
+        return pathVisitor;
+      },
+      createHoleVisitor: (pathColor, thickness) => {
+        if (newList.length > 0) {
+          newList += ' ';
+        }
+        newList += `H ${pathColor} ${roundToPrecision(thickness, 6)}`;
         return pathVisitor;
       },
       createPathVisitor: (loop, pathColor, thickness) => {
@@ -1208,6 +1221,8 @@ interface ShapeListVisitor {
     thickness: number,
   ): PathVisitor;
 
+  createHoleVisitor(pathColor: string, thickness: number): PathVisitor;
+
   createPathVisitor(
     loop: boolean,
     pathColor: string,
@@ -1248,6 +1263,23 @@ export function parseShapeList(
         ii = parsePath(
           list,
           visitor.createShapeVisitor(fillColor, pathColor, thickness),
+          reversed,
+          ii,
+        );
+        break;
+      }
+      case 'H': {
+        let nextSpaceIndex = getNextSpaceIndex(list, ii);
+        const pathColor = list.substring(ii, nextSpaceIndex);
+        ii = nextSpaceIndex + 1;
+
+        nextSpaceIndex = getNextSpaceIndex(list, ii);
+        const thickness = parseFloat(list.substring(ii, nextSpaceIndex));
+        ii = nextSpaceIndex + 1;
+
+        ii = parsePath(
+          list,
+          visitor.createHoleVisitor(pathColor, thickness),
           reversed,
           ii,
         );

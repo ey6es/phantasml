@@ -1339,24 +1339,23 @@ class CurveTo extends PathCommand {
   }
 }
 
-type Vertex = {
-  index: number,
-  position: Vector2,
-  left: Vertex,
-  right: Vertex,
-};
-
 /**
  * A general representation of a shape.
  *
  * @param exterior the path defining the shape's exterior boundary.
+ * @param holes the holes in the shape.
  */
 export class Shape {
   exterior: Path;
+  holes: Path[];
 
-  constructor(exterior: Path) {
+  constructor(exterior: Path, holes: Path[] = []) {
     this.exterior = exterior;
     this.exterior.loop = true;
+    this.holes = holes;
+    for (const hole of holes) {
+      hole.loop = true;
+    }
   }
 
   /**
@@ -1383,7 +1382,11 @@ export class Shape {
    * @return the encoded shape.
    */
   encode(): string {
-    return 'S ' + this.exterior.encodeContents(true);
+    let encoded = 'S ' + this.exterior.encodeContents(true);
+    for (const hole of this.holes) {
+      encoded += ' H ' + hole.encodeContents(false);
+    }
+    return encoded;
   }
 
   /**
@@ -1402,7 +1405,15 @@ export class Shape {
    * @return whether or not the shape requires tessellation.
    */
   requiresTessellation(): boolean {
-    return this.exterior.requiresTessellation();
+    if (this.exterior.requiresTessellation()) {
+      return true;
+    }
+    for (const hole of this.holes) {
+      if (hole.requiresTessellation()) {
+        return true;
+      }
+    }
+    return false;
   }
 
   updateStats(
@@ -1419,6 +1430,9 @@ export class Shape {
     let previousVertices = stats.vertices;
     this.exterior.updateStats(stats, tessellation, omitAttributes, true);
     const exteriorVertices = stats.vertices - previousVertices;
+    for (const hole of this.holes) {
+      hole.updateStats(stats, tessellation, omitAttributes, true);
+    }
     const triangles = exteriorVertices / 9 - 2;
     const indices = 3 * triangles;
     group.start = stats.indices;
@@ -1537,6 +1551,8 @@ export class ShapeList {
   omitCollisionAttributes: Set<string> = new Set();
 
   _drawingPath: ?Path;
+  _drawingShape: ?Shape;
+  _holeShape: ?Shape;
 
   _stack: StackEntry[] = [];
 
@@ -1890,8 +1906,11 @@ export class ShapeList {
    */
   penDown(shape: boolean = false, attributes?: VertexAttributes): ShapeList {
     this._drawingPath = new Path();
-    if (shape) {
-      this.shapes.push(new Shape(this._drawingPath));
+    if (this._holeShape) {
+      this._drawingPath.loop = true;
+      this._holeShape.holes.push(this._drawingPath);
+    } else if (shape) {
+      this.shapes.push((this._drawingShape = new Shape(this._drawingPath)));
     } else {
       this.paths.push(this._drawingPath);
     }
@@ -1907,10 +1926,18 @@ export class ShapeList {
   /**
    * Picks the pen up (stops drawing).
    *
+   * @param [hole=false] if true, the next shape will be a hole within the last
+   * non-hole shape.
    * @return a reference to the list, for chaining.
    */
-  penUp(): ShapeList {
+  penUp(hole: boolean = false): ShapeList {
+    if (hole) {
+      this._holeShape = this._holeShape || this._drawingShape;
+    } else {
+      this._holeShape = null;
+    }
     this._drawingPath = null;
+    this._drawingShape = null;
     return this;
   }
 

@@ -801,6 +801,9 @@ function convertToParts(locale: string) {
             id && (selection[id] = true);
           });
         },
+        createHoleVisitor: (pathColor, thickness) => {
+          return createVisitor(null, pathColor, thickness, path => {});
+        },
         createPathVisitor: (loop, pathColor, thickness) => {
           return createVisitor(null, pathColor, thickness, path => {
             const id = createEntity(
