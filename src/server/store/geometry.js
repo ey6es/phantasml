@@ -923,42 +923,51 @@ function getShapeOrPathControlPoints(
   data: Object,
   shape: boolean,
 ): ControlPoint[] {
-  const path = (shape ? data.exterior : data.path) || '';
   const thickness = getValue(data.thickness, DEFAULT_THICKNESS);
   const controlPoints: ControlPoint[] = [];
   const lastPosition = vec2();
   const vector = vec2();
-  parsePath(path, {
-    moveTo: position => {
-      if (!shape) {
+  const addControlPoints = (path: string) => {
+    parsePath(path, {
+      moveTo: position => {
+        if (!shape) {
+          controlPoints.push({position: equals(position), thickness});
+        }
+        equals(position, lastPosition);
+      },
+      lineTo: position => {
         controlPoints.push({position: equals(position), thickness});
-      }
-      equals(position, lastPosition);
-    },
-    lineTo: position => {
-      controlPoints.push({position: equals(position), thickness});
-      equals(position, lastPosition);
-    },
-    arcTo: (position, radius) => {
-      minus(position, lastPosition, vector);
-      const height = length(vector) / 2.0;
-      const angle = 2.0 * Math.asin(clamp(height / radius, -1.0, 1.0));
-      const distanceToMiddle = radius * (Math.cos(angle * 0.5) - 1.0);
-      plusEquals(
-        timesEquals(plusEquals(lastPosition, position), 0.5),
-        timesEquals(orthonormalizeEquals(vector), distanceToMiddle),
-      );
-      controlPoints.push({position: equals(lastPosition), thickness});
-      controlPoints.push({position: equals(position), thickness});
-      equals(position, lastPosition);
-    },
-    curveTo: (position, c1, c2) => {
-      controlPoints.push({position: equals(c1), thickness});
-      controlPoints.push({position: equals(c2), thickness});
-      controlPoints.push({position: equals(position), thickness});
-      equals(position, lastPosition);
-    },
-  });
+        equals(position, lastPosition);
+      },
+      arcTo: (position, radius) => {
+        minus(position, lastPosition, vector);
+        const height = length(vector) / 2.0;
+        const angle = 2.0 * Math.asin(clamp(height / radius, -1.0, 1.0));
+        const distanceToMiddle = radius * (Math.cos(angle * 0.5) - 1.0);
+        plusEquals(
+          timesEquals(plusEquals(lastPosition, position), 0.5),
+          timesEquals(orthonormalizeEquals(vector), distanceToMiddle),
+        );
+        controlPoints.push({position: equals(lastPosition), thickness});
+        controlPoints.push({position: equals(position), thickness});
+        equals(position, lastPosition);
+      },
+      curveTo: (position, c1, c2) => {
+        controlPoints.push({position: equals(c1), thickness});
+        controlPoints.push({position: equals(c2), thickness});
+        controlPoints.push({position: equals(position), thickness});
+        equals(position, lastPosition);
+      },
+    });
+  };
+  if (shape) {
+    addControlPoints(data.exterior || '');
+    if (data.holes) {
+      data.holes.forEach(hole => addControlPoints(hole));
+    }
+  } else {
+    addControlPoints(data.path || '');
+  }
   return controlPoints;
 }
 
@@ -968,51 +977,60 @@ function createShapeOrPathControlPointEdit(
   mirrored: boolean,
   shape: boolean,
 ) {
-  const path =
-    (shape ? entity.state.shape.exterior : entity.state.path.path) || '';
   const lastPosition = vec2();
   const vector = vec2();
-  const midpoint = vec2();
-  const vertices: Vector2[] = [];
-  parsePath(path, {
-    moveTo: position => {
-      if (!shape) {
+  const elementVertices: Vector2[][] = [];
+  const allVertices: Vector2[] = [];
+  const createVertices = (path: string) => {
+    const vertices: Vector2[] = [];
+    parsePath(path, {
+      moveTo: position => {
+        if (!shape) {
+          vertices.push(equals(position));
+        }
+        equals(position, lastPosition);
+      },
+      lineTo: position => {
         vertices.push(equals(position));
-      }
-      equals(position, lastPosition);
-    },
-    lineTo: position => {
-      vertices.push(equals(position));
-      equals(position, lastPosition);
-    },
-    arcTo: (position, radius) => {
-      minus(position, lastPosition, vector);
-      const height = length(vector) / 2.0;
-      const angle = 2.0 * Math.asin(clamp(height / radius, -1.0, 1.0));
-      const distanceToMiddle = radius * (Math.cos(angle * 0.5) - 1.0);
-      plusEquals(
-        timesEquals(plusEquals(lastPosition, position), 0.5),
-        timesEquals(orthonormalizeEquals(vector), distanceToMiddle),
-      );
-      vertices.push(equals(lastPosition));
-      vertices.push(equals(position));
-      equals(position, lastPosition);
-    },
-    curveTo: (position, c1, c2) => {
-      vertices.push(equals(c1));
-      vertices.push(equals(c2));
-      vertices.push(equals(position));
-      equals(position, lastPosition);
-    },
-  });
+        equals(position, lastPosition);
+      },
+      arcTo: (position, radius) => {
+        minus(position, lastPosition, vector);
+        const height = length(vector) / 2.0;
+        const angle = 2.0 * Math.asin(clamp(height / radius, -1.0, 1.0));
+        const distanceToMiddle = radius * (Math.cos(angle * 0.5) - 1.0);
+        plusEquals(
+          timesEquals(plusEquals(lastPosition, position), 0.5),
+          timesEquals(orthonormalizeEquals(vector), distanceToMiddle),
+        );
+        vertices.push(equals(lastPosition));
+        vertices.push(equals(position));
+        equals(position, lastPosition);
+      },
+      curveTo: (position, c1, c2) => {
+        vertices.push(equals(c1));
+        vertices.push(equals(c2));
+        vertices.push(equals(position));
+        equals(position, lastPosition);
+      },
+    });
+    allVertices.push(...vertices);
+    return vertices;
+  };
+  const path =
+    (shape ? entity.state.shape.exterior : entity.state.path.path) || '';
+  const pathVertices = createVertices(path);
+  const holeVertices =
+    shape && entity.state.shape.holes
+      ? entity.state.shape.holes.map(hole => createVertices(hole))
+      : [];
   const worldTransform = entity.getLastCachedValue('worldTransform');
   const worldMatrix = getTransformMatrix(worldTransform);
-  vertices.forEach(vertex => transformPointEquals(vertex, worldMatrix));
+  allVertices.forEach(vertex => transformPointEquals(vertex, worldMatrix));
   for (const [index, position] of indexPositions) {
-    equals(position, vertices[index]);
+    equals(position, allVertices[index]);
   }
-  const translation = shape ? getCentroid(vertices) : getMean(vertices);
-  let newPath = '';
+  const translation = shape ? getCentroid(pathVertices) : getMean(pathVertices);
   const positionToString = (position: Vector2) => {
     return (
       roundToPrecision(position.x - translation.x, 6) +
@@ -1021,55 +1039,60 @@ function createShapeOrPathControlPointEdit(
     );
   };
   const reversed = shape && mirrored;
-  let index = shape ? vertices.length - 1 : 0;
-  let increment = reversed ? vertices.length - 1 : 1;
-  const reverseIncrement = vertices.length - increment;
-  parsePath(
-    path,
-    {
-      moveTo: position => {
-        newPath += 'M ' + positionToString(vertices[index]);
-        index = (index + increment) % vertices.length;
-      },
-      lineTo: position => {
-        newPath += ' L ' + positionToString(vertices[index]);
-        index = (index + increment) % vertices.length;
-      },
-      arcTo: (position, radius) => {
-        const start = vertices[(index + reverseIncrement) % vertices.length];
-        const mid = vertices[index];
-        index = (index + increment) % vertices.length;
-        const end = vertices[index];
-        index = (index + increment) % vertices.length;
-        const height = 0.5 * distance(start, end);
-        orthonormalizeEquals(minus(end, start, vector));
-        minusEquals(timesEquals(plus(start, end, midpoint), 0.5), mid);
-        const dist = clamp(dot(vector, midpoint), -height, height);
-        if (dist !== 0.0) {
-          radius = (height * height + dist * dist) / (2.0 * dist);
-        }
-        newPath +=
-          ' A ' + positionToString(end) + ' ' + roundToPrecision(radius, 6);
-      },
-      curveTo: position => {
-        const c1 = vertices[index];
-        index = (index + increment) % vertices.length;
-        const c2 = vertices[index];
-        index = (index + increment) % vertices.length;
-        const end = vertices[index];
-        index = (index + increment) % vertices.length;
+  const midpoint = vec2();
+  const createNewPath = (path: string, vertices: Vector2[]) => {
+    let newPath = '';
+    let index = shape ? vertices.length - 1 : 0;
+    let increment = reversed ? vertices.length - 1 : 1;
+    const reverseIncrement = vertices.length - increment;
+    parsePath(
+      path,
+      {
+        moveTo: position => {
+          newPath += 'M ' + positionToString(vertices[index]);
+          index = (index + increment) % vertices.length;
+        },
+        lineTo: position => {
+          newPath += ' L ' + positionToString(vertices[index]);
+          index = (index + increment) % vertices.length;
+        },
+        arcTo: (position, radius) => {
+          const start = vertices[(index + reverseIncrement) % vertices.length];
+          const mid = vertices[index];
+          index = (index + increment) % vertices.length;
+          const end = vertices[index];
+          index = (index + increment) % vertices.length;
+          const height = 0.5 * distance(start, end);
+          orthonormalizeEquals(minus(end, start, vector));
+          minusEquals(timesEquals(plus(start, end, midpoint), 0.5), mid);
+          const dist = clamp(dot(vector, midpoint), -height, height);
+          if (dist !== 0.0) {
+            radius = (height * height + dist * dist) / (2.0 * dist);
+          }
+          newPath +=
+            ' A ' + positionToString(end) + ' ' + roundToPrecision(radius, 6);
+        },
+        curveTo: position => {
+          const c1 = vertices[index];
+          index = (index + increment) % vertices.length;
+          const c2 = vertices[index];
+          index = (index + increment) % vertices.length;
+          const end = vertices[index];
+          index = (index + increment) % vertices.length;
 
-        newPath +=
-          ' C ' +
-          positionToString(end) +
-          ' ' +
-          positionToString(c1) +
-          ' ' +
-          positionToString(c2);
+          newPath +=
+            ' C ' +
+            positionToString(end) +
+            ' ' +
+            positionToString(c1) +
+            ' ' +
+            positionToString(c2);
+        },
       },
-    },
-    reversed,
-  );
+      reversed,
+    );
+    return newPath;
+  };
   const edit: Object = {
     transform: simplifyTransform(
       composeTransforms(
@@ -1079,9 +1102,14 @@ function createShapeOrPathControlPointEdit(
     ),
   };
   if (shape) {
-    edit.shape = {exterior: newPath};
+    edit.shape = {exterior: createNewPath(path, pathVertices)};
+    if (entity.state.shape.holes) {
+      edit.shape.holes = entity.state.shape.holes.map((hole, index) =>
+        createNewPath(hole, holeVertices[index]),
+      );
+    }
   } else {
-    edit.path = {path: newPath};
+    edit.path = {path: createNewPath(path, pathVertices)};
   }
   return edit;
 }
