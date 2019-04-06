@@ -1505,6 +1505,7 @@ export class Shape {
     tessellation: number,
   ): number {
     const paths: CollisionPath[] = [];
+    const firstIndex = arrayIndex / vertexSize;
     arrayIndex = this.exterior.populateCollisionBuffer(
       arrayBuffer,
       arrayIndex,
@@ -1513,8 +1514,6 @@ export class Shape {
       vertexSize,
       tessellation,
     );
-    const path = paths[0];
-    const firstIndex = path.firstIndex;
     const holeIndices: number[] = [];
     for (const hole of this.holes) {
       holeIndices.push(arrayIndex / vertexSize - firstIndex);
@@ -1527,7 +1526,7 @@ export class Shape {
         tessellation,
       );
     }
-    const finalIndex = path.lastIndex - 1;
+    const finalIndex = arrayIndex / vertexSize - 1;
     const vertexOffset = attributeOffsets.vertex;
 
     // run the earcut algorithm to get indices
@@ -1538,14 +1537,15 @@ export class Shape {
     }
     const indices: number[] = earcut(vertices, holeIndices);
     for (let ii = 0; ii < indices.length; ii += 3) {
+      const absoluteIndices = [
+        firstIndex + indices[ii],
+        firstIndex + indices[ii + 1],
+        firstIndex + indices[ii + 2],
+      ];
       polygons.push({
-        indices: [
-          firstIndex + indices[ii],
-          firstIndex + indices[ii + 1],
-          firstIndex + indices[ii + 2],
-        ],
-        firstIndex,
-        finalIndex,
+        indices: absoluteIndices,
+        firstIndex: Math.min(...absoluteIndices),
+        finalIndex: Math.max(...absoluteIndices),
       });
     }
     return arrayIndex;
