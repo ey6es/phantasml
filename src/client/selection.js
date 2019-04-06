@@ -191,6 +191,13 @@ type PathElement = {
 
 type PathElementIndex = [PathElement, number];
 
+type Path = {
+  firstIndex: number,
+  elements: PathElement[],
+  signedArea: number,
+  centroid: Vector2,
+};
+
 function convertToShapeOrPath(locale: string, shape: boolean) {
   const state = store.getState();
   const resource = state.resource;
@@ -290,19 +297,30 @@ function convertToShapeOrPath(locale: string, shape: boolean) {
       }
     }
   }
-  let signedArea = 0.0;
-  const centroid = vec2();
+  // divide elements up into contiguous paths
+  let currentPath: Path = {
+    firstIndex: 0,
+    elements: [],
+    signedArea: 0.0,
+    centroid: vec2(),
+  };
+  const paths: Path[] = [];
   let currentElement = farthestElement;
-  let index = 0;
-  for (let ii = 0; ii < elements.length; ii++) {
+  while (elements.length > 0) {
     const [element, index] = currentElement;
+    elements.splice(elements.indexOf(element), 1);
+    if (currentPath.elements.length === 0) {
+      currentPath.firstIndex = index;
+      paths.push(currentPath);
+    }
+    currentPath.elements.push(element);
     const otherIndex = 1 - index;
     const from = element.endpoints[index];
     const to = element.endpoints[otherIndex];
     currentElement = element.closestElements[otherIndex];
 
     // "weld" endpoints together to their midpoints
-    if (shape || ii !== elements.length - 1) {
+    if (shape || elements.length > 0) {
       const [nextElement, nextIndex] = currentElement;
       const nextFrom = nextElement.endpoints[nextIndex];
       equals(timesEquals(plusEquals(to, nextFrom), 0.5), nextFrom);
@@ -310,164 +328,206 @@ function convertToShapeOrPath(locale: string, shape: boolean) {
 
     if (shape) {
       const cp = cross(from, to);
-      signedArea += cp;
-      centroid.x += cp * (from.x + to.x);
-      centroid.y += cp * (from.y + to.y);
+      currentPath.signedArea += cp;
+      currentPath.centroid.x += cp * (from.x + to.x);
+      currentPath.centroid.y += cp * (from.y + to.y);
     } else {
-      ii === 0 && plusEquals(centroid, from);
-      plusEquals(centroid, to);
+      currentPath.elements.length === 1 &&
+        plusEquals(currentPath.centroid, from);
+      plusEquals(currentPath.centroid, to);
+    }
+
+    // if we wrap around, open a new path
+    if (currentElement[0] === currentPath.elements[0]) {
+      currentPath = {
+        firstIndex: 0,
+        elements: [],
+        signedArea: 0.0,
+        centroid: vec2(),
+      };
+      currentElement = [elements[0], 0];
     }
   }
-  timesEquals(centroid, 1.0 / (shape ? 3.0 * signedArea : elements.length + 1));
-  const reversed = shape && signedArea < 0.0;
-  currentElement = reversed
-    ? [farthestElement[0], 1 - farthestElement[1]]
-    : farthestElement;
-  let path = '';
-  let lastPosition = vec2();
-  for (let ii = 0; ii < elements.length; ii++) {
-    const [element, index] = currentElement;
-    const otherIndex = 1 - index;
-    let firstPoint = element.controlPoints[element.type === 'arc' ? 1 : 0];
-    let lastPoint = element.controlPoints[element.controlPoints.length - 1];
-    if (index === 1) {
-      const tmp = firstPoint;
-      firstPoint = lastPoint;
-      lastPoint = tmp;
+  let largestArea = 0.0;
+  let largestIndex = 0;
+  for (let ii = 0; ii < paths.length; ii++) {
+    const path = paths[ii];
+    timesEquals(
+      path.centroid,
+      1.0 / (shape ? 3.0 * path.signedArea : path.elements.length + 1),
+    );
+    const area = Math.abs(path.signedArea);
+    if (area > largestArea) {
+      largestArea = area;
+      largestIndex = ii;
     }
-    if (path.length === 0) {
-      path = 'M ' + positionToString(firstPoint, centroid);
-    }
-    lastPosition = lastPoint;
-    switch (element.type) {
-      case 'line':
-        path += ' L ' + positionToString(lastPoint, centroid);
-        break;
-
-      case 'lineGroup':
-        if (index === 0) {
-          for (let ii = 1; ii < element.controlPoints.length; ii++) {
-            path +=
-              ' L ' + positionToString(element.controlPoints[ii], centroid);
-          }
-        } else {
-          for (let ii = element.controlPoints.length - 2; ii >= 0; ii--) {
-            path +=
-              ' L ' + positionToString(element.controlPoints[ii], centroid);
-          }
-        }
-        break;
-
-      case 'arc':
-        const center = element.controlPoints[0];
-        const midpoint = element.controlPoints[2];
-        const cp = cross(
-          minus(midpoint, firstPoint),
-          minus(lastPosition, firstPoint),
-        );
-        const radius =
-          (cp < 0.0 ? -0.5 : 0.5) *
-          (distance(center, lastPosition) + distance(center, firstPoint));
-        const roundedRadius = ' ' + roundToPrecision(radius, 6);
-        const dp = dot(
-          normalizeEquals(minus(firstPoint, center)),
-          normalizeEquals(minus(midpoint, center)),
-        );
-        const angle = 2.0 * Math.acos(dp);
-        if (angle > Math.PI) {
-          // break large angles into two parts
-          path += ' A ' + positionToString(midpoint, centroid);
-          path += roundedRadius;
-        }
-        path += ' A ' + positionToString(lastPoint, centroid);
-        path += roundedRadius;
-        break;
-
-      case 'curve':
-        path += ' C ' + positionToString(lastPoint, centroid);
-        if (index === 0) {
-          path +=
-            ' ' +
-            positionToString(element.controlPoints[1], centroid) +
-            ' ' +
-            positionToString(element.controlPoints[2], centroid);
-        } else {
-          path +=
-            ' ' +
-            positionToString(element.controlPoints[2], centroid) +
-            ' ' +
-            positionToString(element.controlPoints[1], centroid);
-        }
-        break;
-
-      case 'path':
-        let jj = 1;
-        let increment = 1;
-        if (index === 1) {
-          jj = element.controlPoints.length - 2;
-          increment = element.controlPoints.length - 1;
-        }
-        const reverseIncrement = element.controlPoints.length - increment;
-        parsePath(
-          element.data.path || '',
-          {
-            moveTo: position => {},
-            lineTo: position => {
-              path +=
-                ' L ' + positionToString(element.controlPoints[jj], centroid);
-              jj = (jj + increment) % element.controlPoints.length;
-            },
-            arcTo: (position, radius) => {
-              const start =
-                element.controlPoints[
-                  (jj + reverseIncrement) % element.controlPoints.length
-                ];
-              const mid = element.controlPoints[jj];
-              jj = (jj + increment) % element.controlPoints.length;
-              const end = element.controlPoints[jj];
-              jj = (jj + increment) % element.controlPoints.length;
-
-              const height = 0.5 * distance(start, end);
-              const vector = orthonormalizeEquals(minus(end, start));
-              const midpoint = minusEquals(
-                timesEquals(plus(start, end), 0.5),
-                mid,
-              );
-              const dist = clamp(dot(vector, midpoint), -height, height);
-              if (dist !== 0.0) {
-                radius = (height * height + dist * dist) / (2.0 * dist);
-              }
-
-              path +=
-                ' A ' +
-                positionToString(end, centroid) +
-                ' ' +
-                roundToPrecision(radius, 6);
-            },
-            curveTo: () => {
-              const c1 = element.controlPoints[jj];
-              jj = (jj + increment) % element.controlPoints.length;
-              const c2 = element.controlPoints[jj];
-              jj = (jj + increment) % element.controlPoints.length;
-              const end = element.controlPoints[jj];
-              jj = (jj + increment) % element.controlPoints.length;
-
-              path +=
-                ' C ' +
-                positionToString(end, centroid) +
-                ' ' +
-                positionToString(c1, centroid) +
-                ' ' +
-                positionToString(c2, centroid);
-            },
-          },
-          index === 1,
-        );
-        break;
-    }
-    currentElement = element.closestElements[otherIndex];
   }
-  geometryValue[shape ? 'exterior' : 'path'] = path;
+  // biggest path goes first, then holes
+  if (largestIndex !== 0) {
+    const tmp = paths[largestIndex];
+    paths[largestIndex] = paths[0];
+    paths[0] = tmp;
+  }
+  const centroid = paths[0].centroid;
+  const parts: string[] = [];
+  for (let ii = 0; ii < paths.length; ii++) {
+    const path = paths[ii];
+    const reversed =
+      shape && (ii === 0 ? path.signedArea < 0.0 : path.signedArea > 0.0);
+    currentElement = [
+      path.elements[0],
+      reversed ? 1 - path.firstIndex : path.firstIndex,
+    ];
+    let part = '';
+    let lastPosition = vec2();
+    for (let jj = 0; jj < path.elements.length; jj++) {
+      const [element, index] = currentElement;
+      const otherIndex = 1 - index;
+      let firstPoint = element.controlPoints[element.type === 'arc' ? 1 : 0];
+      let lastPoint = element.controlPoints[element.controlPoints.length - 1];
+      if (index === 1) {
+        const tmp = firstPoint;
+        firstPoint = lastPoint;
+        lastPoint = tmp;
+      }
+      if (part.length === 0) {
+        part = 'M ' + positionToString(firstPoint, centroid);
+      }
+      lastPosition = lastPoint;
+      switch (element.type) {
+        case 'line':
+          part += ' L ' + positionToString(lastPoint, centroid);
+          break;
+
+        case 'lineGroup':
+          if (index === 0) {
+            for (let ii = 1; ii < element.controlPoints.length; ii++) {
+              part +=
+                ' L ' + positionToString(element.controlPoints[ii], centroid);
+            }
+          } else {
+            for (let ii = element.controlPoints.length - 2; ii >= 0; ii--) {
+              part +=
+                ' L ' + positionToString(element.controlPoints[ii], centroid);
+            }
+          }
+          break;
+
+        case 'arc':
+          const center = element.controlPoints[0];
+          const midpoint = element.controlPoints[2];
+          const cp = cross(
+            minus(midpoint, firstPoint),
+            minus(lastPosition, firstPoint),
+          );
+          const radius =
+            (cp < 0.0 ? -0.5 : 0.5) *
+            (distance(center, lastPosition) + distance(center, firstPoint));
+          const roundedRadius = ' ' + roundToPrecision(radius, 6);
+          const dp = dot(
+            normalizeEquals(minus(firstPoint, center)),
+            normalizeEquals(minus(midpoint, center)),
+          );
+          const angle = 2.0 * Math.acos(dp);
+          if (angle > Math.PI) {
+            // break large angles into two parts
+            part += ' A ' + positionToString(midpoint, centroid);
+            part += roundedRadius;
+          }
+          part += ' A ' + positionToString(lastPoint, centroid);
+          part += roundedRadius;
+          break;
+
+        case 'curve':
+          part += ' C ' + positionToString(lastPoint, centroid);
+          if (index === 0) {
+            part +=
+              ' ' +
+              positionToString(element.controlPoints[1], centroid) +
+              ' ' +
+              positionToString(element.controlPoints[2], centroid);
+          } else {
+            part +=
+              ' ' +
+              positionToString(element.controlPoints[2], centroid) +
+              ' ' +
+              positionToString(element.controlPoints[1], centroid);
+          }
+          break;
+
+        case 'path':
+          let jj = 1;
+          let increment = 1;
+          if (index === 1) {
+            jj = element.controlPoints.length - 2;
+            increment = element.controlPoints.length - 1;
+          }
+          const reverseIncrement = element.controlPoints.length - increment;
+          parsePath(
+            element.data.path || '',
+            {
+              moveTo: position => {},
+              lineTo: position => {
+                part +=
+                  ' L ' + positionToString(element.controlPoints[jj], centroid);
+                jj = (jj + increment) % element.controlPoints.length;
+              },
+              arcTo: (position, radius) => {
+                const start =
+                  element.controlPoints[
+                    (jj + reverseIncrement) % element.controlPoints.length
+                  ];
+                const mid = element.controlPoints[jj];
+                jj = (jj + increment) % element.controlPoints.length;
+                const end = element.controlPoints[jj];
+                jj = (jj + increment) % element.controlPoints.length;
+
+                const height = 0.5 * distance(start, end);
+                const vector = orthonormalizeEquals(minus(end, start));
+                const midpoint = minusEquals(
+                  timesEquals(plus(start, end), 0.5),
+                  mid,
+                );
+                const dist = clamp(dot(vector, midpoint), -height, height);
+                if (dist !== 0.0) {
+                  radius = (height * height + dist * dist) / (2.0 * dist);
+                }
+
+                part +=
+                  ' A ' +
+                  positionToString(end, centroid) +
+                  ' ' +
+                  roundToPrecision(radius, 6);
+              },
+              curveTo: () => {
+                const c1 = element.controlPoints[jj];
+                jj = (jj + increment) % element.controlPoints.length;
+                const c2 = element.controlPoints[jj];
+                jj = (jj + increment) % element.controlPoints.length;
+                const end = element.controlPoints[jj];
+                jj = (jj + increment) % element.controlPoints.length;
+
+                part +=
+                  ' C ' +
+                  positionToString(end, centroid) +
+                  ' ' +
+                  positionToString(c1, centroid) +
+                  ' ' +
+                  positionToString(c2, centroid);
+              },
+            },
+            index === 1,
+          );
+          break;
+      }
+      currentElement = element.closestElements[otherIndex];
+    }
+    parts.push(part);
+  }
+  geometryValue[shape ? 'exterior' : 'path'] = parts[0];
+  if (shape && parts.length > 1) {
+    geometryValue.holes = parts.slice(1);
+  }
   createEntity(GeometryComponents[geometryKey].label, locale, entityState, {
     translation: centroid,
   });

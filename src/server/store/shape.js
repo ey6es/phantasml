@@ -1427,13 +1427,13 @@ export class Shape {
       zOrder: this.exterior.zOrder * Z_ORDER_SCALE + stats.groups.length,
     };
     stats.groups.push(group);
-    let previousVertices = stats.vertices;
+    const previousVertices = stats.vertices;
     this.exterior.updateStats(stats, tessellation, omitAttributes, true);
-    const exteriorVertices = stats.vertices - previousVertices;
     for (const hole of this.holes) {
       hole.updateStats(stats, tessellation, omitAttributes, true);
     }
-    const triangles = exteriorVertices / 9 - 2;
+    const totalVertices = stats.vertices - previousVertices;
+    const triangles = totalVertices / 9 + (this.holes.length - 1) * 2;
     const indices = 3 * triangles;
     group.start = stats.indices;
     stats.indices += indices;
@@ -1463,6 +1463,21 @@ export class Shape {
       tessellation,
       true,
     );
+    const holeIndices: number[] = [];
+    for (const hole of this.holes) {
+      holeIndices.push((arrayIndex / vertexSize - firstIndex) / 9);
+      [arrayIndex, groupIndex] = hole.populateBuffers(
+        arrayBuffer,
+        elementArrayBuffer,
+        arrayIndex,
+        groups,
+        groupIndex,
+        attributeOffsets,
+        vertexSize,
+        tessellation,
+        true,
+      );
+    }
     const lastIndex = arrayIndex / vertexSize;
     const vertexCount = lastIndex - firstIndex;
     const vertexOffset = attributeOffsets.vertex;
@@ -1474,7 +1489,7 @@ export class Shape {
       const arrayIndex = index * vertexSize + vertexOffset;
       vertices.push(arrayBuffer[arrayIndex], arrayBuffer[arrayIndex + 1]);
     }
-    const indices: number[] = earcut(vertices);
+    const indices: number[] = earcut(vertices, holeIndices);
     for (const index of indices) {
       elementArrayBuffer[elementArrayIndex++] = firstIndex + index * 9 + 8;
     }
@@ -1500,6 +1515,18 @@ export class Shape {
     );
     const path = paths[0];
     const firstIndex = path.firstIndex;
+    const holeIndices: number[] = [];
+    for (const hole of this.holes) {
+      holeIndices.push(arrayIndex / vertexSize - firstIndex);
+      arrayIndex = hole.populateCollisionBuffer(
+        arrayBuffer,
+        arrayIndex,
+        paths,
+        attributeOffsets,
+        vertexSize,
+        tessellation,
+      );
+    }
     const finalIndex = path.lastIndex - 1;
     const vertexOffset = attributeOffsets.vertex;
 
@@ -1509,7 +1536,7 @@ export class Shape {
       const arrayIndex = index * vertexSize + vertexOffset;
       vertices.push(arrayBuffer[arrayIndex], arrayBuffer[arrayIndex + 1]);
     }
-    const indices: number[] = earcut(vertices);
+    const indices: number[] = earcut(vertices, holeIndices);
     for (let ii = 0; ii < indices.length; ii += 3) {
       polygons.push({
         indices: [

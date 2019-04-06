@@ -884,30 +884,38 @@ function mirrorShapeList(list: string): string {
 }
 
 function createShapeOrPathShapeList(data: Object, shape: boolean): ShapeList {
-  const path = (shape ? data.exterior : data.path) || '';
   const thickness = getValue(data.thickness, DEFAULT_THICKNESS);
+  const createPathObject = (path: string) => {
+    const pathObject = new Path(shape);
+    parsePath(path, {
+      moveTo: position => {
+        pathObject.moveTo(equals(position), 0, {thickness});
+      },
+      lineTo: position => {
+        pathObject.lineTo(equals(position), 0, {thickness});
+      },
+      arcTo: (position, radius) => {
+        pathObject.arcTo(equals(position), radius, 0, {thickness});
+      },
+      curveTo: (position, c1, c2) => {
+        pathObject.curveTo(equals(position), equals(c1), equals(c2), 0, {
+          thickness,
+        });
+      },
+    });
+    return pathObject;
+  };
+  const path = (shape ? data.exterior : data.path) || '';
+  const pathObject = createPathObject(path);
+  let holeObjects = [];
+  if (shape && data.holes) {
+    holeObjects = data.holes.map(hole => createPathObject(hole));
+  }
   const fill = shape && getValue(data.fill, DEFAULT_FILL);
-  const pathObject = new Path(shape);
-  parsePath(path, {
-    moveTo: position => {
-      pathObject.moveTo(equals(position), 0, {thickness});
-    },
-    lineTo: position => {
-      pathObject.lineTo(equals(position), 0, {thickness});
-    },
-    arcTo: (position, radius) => {
-      pathObject.arcTo(equals(position), radius, 0, {thickness});
-    },
-    curveTo: (position, c1, c2) => {
-      pathObject.curveTo(equals(position), equals(c1), equals(c2), 0, {
-        thickness,
-      });
-    },
-  });
   if (fill) {
-    return new ShapeList([new Shape(pathObject)]);
+    return new ShapeList([new Shape(pathObject, holeObjects)]);
   } else {
-    return new ShapeList([], [pathObject]);
+    return new ShapeList([], [pathObject, ...holeObjects]);
   }
 }
 
