@@ -1440,6 +1440,17 @@ export class Shape {
     group.end = stats.indices;
   }
 
+  updateCollisionStats(
+    stats: CollisionGeometryStats,
+    tessellation: number,
+    omitAttributes: Set<string>,
+  ) {
+    this.exterior.updateCollisionStats(stats, tessellation, omitAttributes);
+    for (const hole of this.holes) {
+      hole.updateCollisionStats(stats, tessellation, omitAttributes);
+    }
+  }
+
   populateBuffers(
     arrayBuffer: Float32Array,
     elementArrayBuffer: Uint32Array,
@@ -2025,7 +2036,7 @@ export class ShapeList {
       vertices: 0,
     };
     for (const shape of this.shapes) {
-      shape.exterior.updateCollisionStats(
+      shape.updateCollisionStats(
         stats,
         tessellation,
         this.omitCollisionAttributes,
