@@ -676,122 +676,152 @@ function convertToParts(locale: string) {
       controlPoints.forEach(point =>
         transformPointEquals(point.position, worldMatrix),
       );
-      const path =
-        (shapeData ? shapeData.exterior : shapeOrPathData.path) || '';
-      let index = shapeData ? controlPoints.length - 1 : 0;
-      parsePath(path, {
-        moveTo: position => {},
-        lineTo: position => {
-          const start = controlPoints[index];
-          index = (index + 1) % controlPoints.length;
-          const end = controlPoints[index];
-          const translation = timesEquals(
-            plus(start.position, end.position),
-            0.5,
-          );
-          const rotation = Math.atan2(
-            end.position.y - start.position.y,
-            end.position.x - start.position.x,
-          );
-          const id = createEntity(
-            GeometryComponents.line.label,
-            locale,
-            Object.assign(
-              {
-                line: {
-                  thickness,
-                  length: distance(start.position, end.position),
-                  order: 1,
+      let index = 0;
+      const createEntities = (path: string) => {
+        const first = index;
+        let length = 1;
+        const part = controlPoints[index].part;
+        for (let ii = first + 1; ii < controlPoints.length; ii++) {
+          if (controlPoints[ii].part !== part) {
+            break;
+          }
+          length++;
+        }
+        if (shapeData) {
+          index = first + length - 1;
+        }
+        parsePath(path, {
+          moveTo: position => {},
+          lineTo: position => {
+            const start = controlPoints[index];
+            index = first + ((index - first + 1) % length);
+            const end = controlPoints[index];
+            const translation = timesEquals(
+              plus(start.position, end.position),
+              0.5,
+            );
+            const rotation = Math.atan2(
+              end.position.y - start.position.y,
+              end.position.x - start.position.x,
+            );
+            const id = createEntity(
+              GeometryComponents.line.label,
+              locale,
+              Object.assign(
+                {
+                  line: {
+                    thickness,
+                    length: distance(start.position, end.position),
+                    order: 1,
+                  },
                 },
-              },
-              baseState,
-            ),
-            {translation, rotation},
-          );
-          id && (selection[id] = true);
-        },
-        arcTo: (position, radius) => {
-          const start = controlPoints[index];
-          index = (index + 1) % controlPoints.length;
-          const mid = controlPoints[index++];
-          const end = controlPoints[index];
+                baseState,
+              ),
+              {translation, rotation},
+            );
+            id && (selection[id] = true);
+          },
+          arcTo: (position, radius) => {
+            const start = controlPoints[index];
+            index = first + ((index - first + 1) % length);
+            const mid = controlPoints[index++];
+            const end = controlPoints[index];
 
-          const height = 0.5 * distance(start.position, end.position);
-          const vector = orthonormalizeEquals(
-            minus(end.position, start.position),
-          );
-          const midpoint = timesEquals(plus(start.position, end.position), 0.5);
-          minusEquals(midpoint, mid.position);
-          const dist = clamp(dot(vector, midpoint), -height, height);
-          if (dist !== 0.0) {
-            radius = (height * height + dist * dist) / (2.0 * dist);
-          }
-          const center = plus(mid.position, timesEquals(vector, radius));
-          const dp = dot(
-            normalizeEquals(minus(mid.position, center)),
-            normalizeEquals(minus(end.position, center)),
-          );
-          let angle = 2.0 * Math.acos(dp);
-          if (radius < 0.0) {
-            radius = -radius;
-            angle = -angle;
-          }
-          const rotation = Math.atan2(
-            start.position.y - center.y,
-            start.position.x - center.x,
-          );
-          const id = createEntity(
-            GeometryComponents.arc.label,
-            locale,
-            Object.assign(
-              {
-                arc: {
-                  thickness,
-                  radius,
-                  angle,
-                  order: 1,
+            const height = 0.5 * distance(start.position, end.position);
+            const vector = orthonormalizeEquals(
+              minus(end.position, start.position),
+            );
+            const midpoint = timesEquals(
+              plus(start.position, end.position),
+              0.5,
+            );
+            minusEquals(midpoint, mid.position);
+            const dist = clamp(dot(vector, midpoint), -height, height);
+            if (dist !== 0.0) {
+              radius = (height * height + dist * dist) / (2.0 * dist);
+            }
+            const center = plus(mid.position, timesEquals(vector, radius));
+            const dp = dot(
+              normalizeEquals(minus(mid.position, center)),
+              normalizeEquals(minus(end.position, center)),
+            );
+            let angle = 2.0 * Math.acos(dp);
+            if (radius < 0.0) {
+              radius = -radius;
+              angle = -angle;
+            }
+            const rotation = Math.atan2(
+              start.position.y - center.y,
+              start.position.x - center.x,
+            );
+            const id = createEntity(
+              GeometryComponents.arc.label,
+              locale,
+              Object.assign(
+                {
+                  arc: {
+                    thickness,
+                    radius,
+                    angle,
+                    order: 1,
+                  },
                 },
-              },
-              baseState,
-            ),
-            {translation: center, rotation},
-          );
-          id && (selection[id] = true);
-        },
-        curveTo: position => {
-          const start = controlPoints[index];
-          index = (index + 1) % controlPoints.length;
-          const c1 = controlPoints[index++];
-          const c2 = controlPoints[index++];
-          const end = controlPoints[index];
-          const translation = timesEquals(
-            plus(start.position, end.position),
-            0.5,
-          );
-          const rotation = Math.atan2(
-            end.position.y - start.position.y,
-            end.position.x - start.position.x,
-          );
-          const id = createEntity(
-            GeometryComponents.curve.label,
-            locale,
-            Object.assign(
-              {
-                curve: {
-                  thickness,
-                  span: distance(start.position, end.position),
-                  c1: rotateEquals(minus(c1.position, translation), -rotation),
-                  c2: rotateEquals(minus(c2.position, translation), -rotation),
-                  order: 1,
+                baseState,
+              ),
+              {translation: center, rotation},
+            );
+            id && (selection[id] = true);
+          },
+          curveTo: position => {
+            const start = controlPoints[index];
+            index = first + ((index - first + 1) % length);
+            const c1 = controlPoints[index++];
+            const c2 = controlPoints[index++];
+            const end = controlPoints[index];
+            const translation = timesEquals(
+              plus(start.position, end.position),
+              0.5,
+            );
+            const rotation = Math.atan2(
+              end.position.y - start.position.y,
+              end.position.x - start.position.x,
+            );
+            const id = createEntity(
+              GeometryComponents.curve.label,
+              locale,
+              Object.assign(
+                {
+                  curve: {
+                    thickness,
+                    span: distance(start.position, end.position),
+                    c1: rotateEquals(
+                      minus(c1.position, translation),
+                      -rotation,
+                    ),
+                    c2: rotateEquals(
+                      minus(c2.position, translation),
+                      -rotation,
+                    ),
+                    order: 1,
+                  },
                 },
-              },
-              baseState,
-            ),
-            {translation, rotation},
-          );
-          id && (selection[id] = true);
-        },
-      });
+                baseState,
+              ),
+              {translation, rotation},
+            );
+            id && (selection[id] = true);
+          },
+        });
+        index++;
+      };
+      if (shapeData) {
+        createEntities(shapeData.exterior || '');
+        if (shapeData.holes) {
+          shapeData.holes.forEach(createEntities);
+        }
+      } else {
+        createEntities(shapeOrPathData.path || '');
+      }
     }
     const shapeListData = entity.state.shapeList;
     if (shapeListData) {

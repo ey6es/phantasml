@@ -49,6 +49,7 @@ import type {CollisionGeometry} from './collision';
 export type ControlPoint = {
   position: Vector2,
   thickness: number,
+  part?: ?number,
 };
 
 type GeometryData = {
@@ -909,7 +910,7 @@ function createShapeOrPathShapeList(data: Object, shape: boolean): ShapeList {
   const pathObject = createPathObject(path);
   let holeObjects = [];
   if (shape && data.holes) {
-    holeObjects = data.holes.map(hole => createPathObject(hole));
+    holeObjects = data.holes.map(createPathObject);
   }
   const fill = shape && getValue(data.fill, DEFAULT_FILL);
   if (fill) {
@@ -927,16 +928,16 @@ function getShapeOrPathControlPoints(
   const controlPoints: ControlPoint[] = [];
   const lastPosition = vec2();
   const vector = vec2();
-  const addControlPoints = (path: string) => {
+  const addControlPoints = (path: string, part?: number) => {
     parsePath(path, {
       moveTo: position => {
         if (!shape) {
-          controlPoints.push({position: equals(position), thickness});
+          controlPoints.push({position: equals(position), thickness, part});
         }
         equals(position, lastPosition);
       },
       lineTo: position => {
-        controlPoints.push({position: equals(position), thickness});
+        controlPoints.push({position: equals(position), thickness, part});
         equals(position, lastPosition);
       },
       arcTo: (position, radius) => {
@@ -948,14 +949,14 @@ function getShapeOrPathControlPoints(
           timesEquals(plusEquals(lastPosition, position), 0.5),
           timesEquals(orthonormalizeEquals(vector), distanceToMiddle),
         );
-        controlPoints.push({position: equals(lastPosition), thickness});
-        controlPoints.push({position: equals(position), thickness});
+        controlPoints.push({position: equals(lastPosition), thickness, part});
+        controlPoints.push({position: equals(position), thickness, part});
         equals(position, lastPosition);
       },
       curveTo: (position, c1, c2) => {
-        controlPoints.push({position: equals(c1), thickness});
-        controlPoints.push({position: equals(c2), thickness});
-        controlPoints.push({position: equals(position), thickness});
+        controlPoints.push({position: equals(c1), thickness, part});
+        controlPoints.push({position: equals(c2), thickness, part});
+        controlPoints.push({position: equals(position), thickness, part});
         equals(position, lastPosition);
       },
     });
@@ -963,7 +964,7 @@ function getShapeOrPathControlPoints(
   if (shape) {
     addControlPoints(data.exterior || '');
     if (data.holes) {
-      data.holes.forEach(hole => addControlPoints(hole));
+      data.holes.forEach(addControlPoints);
     }
   } else {
     addControlPoints(data.path || '');
