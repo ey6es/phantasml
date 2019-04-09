@@ -864,12 +864,11 @@ function convertToParts(locale: string) {
           end: () => createEntity(path),
         };
       };
+      const shapeStates: Object[] = [];
       parseShapeList(list, {
         createShapeVisitor: (fillColor, pathColor, thickness) => {
           return createVisitor(fillColor, pathColor, thickness, path => {
-            const id = createEntity(
-              GeometryComponents.shape.label,
-              locale,
+            shapeStates.push(
               Object.assign(
                 {
                   shape: {
@@ -886,13 +885,18 @@ function convertToParts(locale: string) {
                 },
                 baseState,
               ),
-              transform,
             );
-            id && (selection[id] = true);
           });
         },
         createHoleVisitor: (pathColor, thickness) => {
-          return createVisitor(null, pathColor, thickness, path => {});
+          return createVisitor(null, pathColor, thickness, path => {
+            const shapeState = shapeStates[shapeStates.length - 1];
+            if (shapeState.shape.holes) {
+              shapeState.shape.holes.push(path);
+            } else {
+              shapeState.shape.holes = [path];
+            }
+          });
         },
         createPathVisitor: (loop, pathColor, thickness) => {
           return createVisitor(null, pathColor, thickness, path => {
@@ -919,6 +923,15 @@ function convertToParts(locale: string) {
           });
         },
       });
+      for (const shapeState of shapeStates) {
+        const id = createEntity(
+          GeometryComponents.shape.label,
+          locale,
+          shapeState,
+          transform,
+        );
+        id && (selection[id] = true);
+      }
     }
   }
   store.dispatch(SceneActions.editEntities.create(map));

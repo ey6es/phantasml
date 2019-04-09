@@ -757,17 +757,19 @@ export const ComponentGeometry: {[string]: GeometryData} = {
             ),
         };
       };
+      let shapeFillColor: ?string = null;
       parseShapeList(list, {
         createShapeVisitor: (fillColor, pathColor, thickness) => {
           const exterior = new Path(true);
           shapeList.shapes.push(new Shape(exterior));
+          shapeFillColor = fillColor;
           return createVisitor(exterior, fillColor, pathColor, thickness);
         },
         createHoleVisitor: (pathColor, thickness) => {
           const hole = new Path(true);
           const shape = shapeList.shapes[shapeList.shapes.length - 1];
           shape.holes.push(hole);
-          return createVisitor(hole, null, pathColor, thickness);
+          return createVisitor(hole, shapeFillColor, pathColor, thickness);
         },
         createPathVisitor: (loop, pathColor, thickness) => {
           const path = new Path(loop);

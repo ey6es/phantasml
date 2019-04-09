@@ -1365,6 +1365,9 @@ export class Shape {
    */
   transform(transform: Transform) {
     this.exterior.transform(transform);
+    for (const hole of this.holes) {
+      hole.transform(transform);
+    }
   }
 
   /**
@@ -1374,6 +1377,9 @@ export class Shape {
    */
   addAttributes(attributes: VertexAttributes) {
     this.exterior.addAttributes(attributes);
+    for (const hole of this.holes) {
+      hole.addAttributes(attributes);
+    }
   }
 
   /**
