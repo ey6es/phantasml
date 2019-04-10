@@ -38,8 +38,6 @@ export type CollisionPath = {
 /** Describes a convex polygon within the collision geometry. */
 export type CollisionPolygon = {
   indices: number[],
-  firstIndex: number,
-  finalIndex: number,
 };
 
 /** Contains information on a single penetration. */
@@ -74,6 +72,7 @@ export class CollisionGeometry {
   _vertexSize: number;
   _paths: CollisionPath[];
   _polygons: CollisionPolygon[];
+  _adjacentIndices: Map<number, number>;
   _area: ?number;
   _centerOfMass: ?Vector2;
   _momentOfInertia: ?number;
@@ -110,6 +109,7 @@ export class CollisionGeometry {
     attributeSizes: {[string]: number},
     paths: CollisionPath[],
     polygons: CollisionPolygon[],
+    adjacentIndices: Map<number, number>,
   ) {
     this._arrayBuffer = arrayBuffer;
     this._attributeOffsets = {};
@@ -121,6 +121,7 @@ export class CollisionGeometry {
     this._vertexSize = currentOffset;
     this._paths = paths;
     this._polygons = polygons;
+    this._adjacentIndices = adjacentIndices;
   }
 
   /**
@@ -724,8 +725,8 @@ export class CollisionGeometry {
         vertex.y += (from.y + to.y) * cp;
 
         // compute, add the extended side if outside edge
-        const adjacentIndex =
-          fromIndex === polygon.finalIndex ? polygon.firstIndex : fromIndex + 1;
+        let adjacentIndex = this._adjacentIndices.get(fromIndex);
+        adjacentIndex === undefined && (adjacentIndex = fromIndex + 1);
         if (toIndex !== adjacentIndex) {
           continue;
         }
@@ -802,8 +803,8 @@ export class CollisionGeometry {
         dividend += cp * (dot(from, from) + dot(from, to) + dot(to, to));
 
         // compute, add the extended side if outside edge
-        const adjacentIndex =
-          fromIndex === polygon.finalIndex ? polygon.firstIndex : fromIndex + 1;
+        let adjacentIndex = this._adjacentIndices.get(fromIndex);
+        adjacentIndex === undefined && (adjacentIndex = fromIndex + 1);
         if (toIndex !== adjacentIndex) {
           continue;
         }

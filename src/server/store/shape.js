@@ -1517,6 +1517,7 @@ export class Shape {
     arrayBuffer: Float32Array,
     arrayIndex: number,
     polygons: CollisionPolygon[],
+    adjacentIndices: Map<number, number>,
     attributeOffsets: {[string]: number},
     vertexSize: number,
     tessellation: number,
@@ -1531,9 +1532,11 @@ export class Shape {
       vertexSize,
       tessellation,
     );
+    adjacentIndices.set(arrayIndex / vertexSize - 1, firstIndex);
     const holeIndices: number[] = [];
     for (const hole of this.holes) {
-      holeIndices.push(arrayIndex / vertexSize - firstIndex);
+      const firstHoleIndex = arrayIndex / vertexSize;
+      holeIndices.push(firstHoleIndex - firstIndex);
       arrayIndex = hole.populateCollisionBuffer(
         arrayBuffer,
         arrayIndex,
@@ -1542,6 +1545,7 @@ export class Shape {
         vertexSize,
         tessellation,
       );
+      adjacentIndices.set(arrayIndex / vertexSize - 1, firstHoleIndex);
     }
     const finalIndex = arrayIndex / vertexSize - 1;
     const vertexOffset = attributeOffsets.vertex;
@@ -1554,15 +1558,12 @@ export class Shape {
     }
     const indices: number[] = earcut(vertices, holeIndices);
     for (let ii = 0; ii < indices.length; ii += 3) {
-      const absoluteIndices = [
-        firstIndex + indices[ii],
-        firstIndex + indices[ii + 1],
-        firstIndex + indices[ii + 2],
-      ];
       polygons.push({
-        indices: absoluteIndices,
-        firstIndex: Math.min(...absoluteIndices),
-        finalIndex: Math.max(...absoluteIndices),
+        indices: [
+          firstIndex + indices[ii],
+          firstIndex + indices[ii + 1],
+          firstIndex + indices[ii + 2],
+        ],
       });
     }
     return arrayIndex;
@@ -2077,11 +2078,13 @@ export class ShapeList {
       );
     }
     const polygons: CollisionPolygon[] = [];
+    const adjacentIndices: Map<number, number> = new Map();
     for (const shape of this.shapes) {
       arrayIndex = shape.populateCollisionBuffer(
         arrayBuffer,
         arrayIndex,
         polygons,
+        adjacentIndices,
         attributeOffsets,
         vertexSize,
         tessellation,
@@ -2092,6 +2095,7 @@ export class ShapeList {
       stats.attributeSizes,
       paths,
       polygons,
+      adjacentIndices,
     );
   }
 
