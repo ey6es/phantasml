@@ -1558,13 +1558,11 @@ export class Shape {
     }
     const indices: number[] = earcut(vertices, holeIndices);
     for (let ii = 0; ii < indices.length; ii += 3) {
-      polygons.push({
-        indices: [
-          firstIndex + indices[ii],
-          firstIndex + indices[ii + 1],
-          firstIndex + indices[ii + 2],
-        ],
-      });
+      polygons.push([
+        firstIndex + indices[ii],
+        firstIndex + indices[ii + 1],
+        firstIndex + indices[ii + 2],
+      ]);
     }
     return arrayIndex;
   }

@@ -36,9 +36,7 @@ export type CollisionPath = {
 };
 
 /** Describes a convex polygon within the collision geometry. */
-export type CollisionPolygon = {
-  indices: number[],
-};
+export type CollisionPolygon = number[];
 
 /** Contains information on a single penetration. */
 export type PenetrationResult = {
@@ -197,9 +195,9 @@ export class CollisionGeometry {
       }
     }
     for (const polygon of this._polygons) {
-      for (let ii = 0; ii < polygon.indices.length; ii++) {
-        const fromIndex = polygon.indices[ii];
-        const toIndex = polygon.indices[(ii + 1) % polygon.indices.length];
+      for (let ii = 0; ii < polygon.length; ii++) {
+        const fromIndex = polygon[ii];
+        const toIndex = polygon[(ii + 1) % polygon.length];
         const fromThickness = this._getVertexThickness(fromIndex, from);
         const toThickness = this._getVertexThickness(toIndex, to);
         const vertexThickness = getNearestPointOnSegment(
@@ -313,7 +311,7 @@ export class CollisionGeometry {
     for (const polygon of this._polygons) {
       const vertices: Vector2[] = [];
       const vertexThicknesses: number[] = [];
-      for (const index of polygon.indices) {
+      for (const index of polygon) {
         const vertex = vec2();
         vertexThicknesses.push(
           this._getVertexThickness(index, vertex) + radius,
@@ -333,8 +331,8 @@ export class CollisionGeometry {
       if (allResults && penetrationLength > 0.0) {
         allResults.push({
           penetration: negative(otherPenetration),
-          fromIndex: polygon.indices[index],
-          toIndex: polygon.indices[(index + 1) % polygon.indices.length],
+          fromIndex: polygon[index],
+          toIndex: polygon[(index + 1) % polygon.length],
         });
       }
     }
@@ -427,7 +425,7 @@ export class CollisionGeometry {
     for (const polygon of this._polygons) {
       const vertices: Vector2[] = [];
       const vertexThicknesses: number[] = [];
-      for (const index of polygon.indices) {
+      for (const index of polygon) {
         const vertex = vec2();
         vertices.push(vertex);
         vertexThicknesses.push(this._getVertexThickness(index, vertex));
@@ -447,8 +445,8 @@ export class CollisionGeometry {
       if (allResults && penetrationLength > 0.0) {
         allResults.push({
           penetration: equals(featurePenetration),
-          fromIndex: polygon.indices[index],
-          toIndex: polygon.indices[(index + 1) % polygon.indices.length],
+          fromIndex: polygon[index],
+          toIndex: polygon[(index + 1) % polygon.length],
         });
       }
     }
@@ -545,7 +543,7 @@ export class CollisionGeometry {
     for (const polygon of this._polygons) {
       const vertices: Vector2[] = [];
       const vertexThicknesses: number[] = [];
-      for (const index of polygon.indices) {
+      for (const index of polygon) {
         const vertex = vec2();
         vertices.push(vertex);
         vertexThicknesses.push(this._getVertexThickness(index, vertex));
@@ -641,7 +639,7 @@ export class CollisionGeometry {
     for (const polygon of this._polygons) {
       const vertices: Vector2[] = [];
       const vertexThicknesses: number[] = [];
-      for (const index of polygon.indices) {
+      for (const index of polygon) {
         const vertex = vec2();
         vertices.push(vertex);
         vertexThicknesses.push(this._getVertexThickness(index, vertex));
@@ -714,9 +712,9 @@ export class CollisionGeometry {
       // https://en.wikipedia.org/wiki/Centroid#Of_a_polygon
       let area = 0.0;
       vec2(0.0, 0.0, vertex);
-      for (let ii = 0; ii < polygon.indices.length; ii++) {
-        const fromIndex = polygon.indices[ii];
-        const toIndex = polygon.indices[(ii + 1) % polygon.indices.length];
+      for (let ii = 0; ii < polygon.length; ii++) {
+        const fromIndex = polygon[ii];
+        const toIndex = polygon[(ii + 1) % polygon.length];
         const fromThickness = this._getVertexThickness(fromIndex, from);
         const toThickness = this._getVertexThickness(toIndex, to);
         const cp = cross(from, to);
@@ -791,9 +789,9 @@ export class CollisionGeometry {
     }
     for (const polygon of this._polygons) {
       let dividend = 0.0;
-      for (let ii = 0; ii < polygon.indices.length; ii++) {
-        const fromIndex = polygon.indices[ii];
-        const toIndex = polygon.indices[(ii + 1) % polygon.indices.length];
+      for (let ii = 0; ii < polygon.length; ii++) {
+        const fromIndex = polygon[ii];
+        const toIndex = polygon[(ii + 1) % polygon.length];
         const fromThickness = this._getVertexThickness(fromIndex, from);
         const toThickness = this._getVertexThickness(toIndex, to);
         minusEquals(from, centerOfMass);
