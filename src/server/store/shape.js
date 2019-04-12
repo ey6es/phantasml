@@ -1557,6 +1557,46 @@ export class Shape {
       vertices.push(arrayBuffer[arrayIndex], arrayBuffer[arrayIndex + 1]);
     }
     const indices: number[] = earcut(vertices, holeIndices);
+
+    // find shared edges for merging
+    type Triangle = {
+      indices: number[],
+      neighbors: Triangle[],
+    };
+    const triangles: Set<Triangle> = new Set();
+    const neighbors: Map<number, Triangle> = new Map();
+    for (let ii = 0; ii < indices.length; ii += 3) {
+      const triangle = {
+        indices: [
+          firstIndex + indices[ii],
+          firstIndex + indices[ii + 1],
+          firstIndex + indices[ii + 2],
+        ],
+        neighbors: [],
+      };
+      for (let jj = 0; jj < 3; jj++) {
+        const start = triangle.indices[jj];
+        const end = triangle.indices[(jj + 1) % 3];
+        const key = Math.max(start, end) * 1000000 + Math.min(start, end);
+        const neighbor = neighbors.get(key);
+        if (neighbor) {
+          neighbors.delete(key);
+          triangle.neighbors[jj] = neighbor;
+          for (let kk = 0; kk < 3; kk++) {
+            const from = neighbor.indices[kk];
+            const to = neighbor.indices[(kk + 1) % 3];
+            if (from === end && to === start) {
+              neighbor.neighbors[kk] = triangle;
+              break;
+            }
+          }
+        } else {
+          neighbors.set(key, triangle);
+        }
+      }
+      triangles.add(triangle);
+    }
+
     for (let ii = 0; ii < indices.length; ii += 3) {
       polygons.push([
         firstIndex + indices[ii],
