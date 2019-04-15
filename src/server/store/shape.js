@@ -1561,18 +1561,18 @@ export class Shape {
     // find shared edges for merging
     type Triangle = {
       indices: number[],
-      neighbors: Triangle[],
+      neighbors: (?Triangle)[],
     };
     const triangles: Set<Triangle> = new Set();
     const neighbors: Map<number, Triangle> = new Map();
     for (let ii = 0; ii < indices.length; ii += 3) {
-      const triangle = {
+      const triangle: Triangle = {
         indices: [
           firstIndex + indices[ii],
           firstIndex + indices[ii + 1],
           firstIndex + indices[ii + 2],
         ],
-        neighbors: [],
+        neighbors: [null, null, null],
       };
       for (let jj = 0; jj < 3; jj++) {
         const start = triangle.indices[jj];
@@ -1597,13 +1597,75 @@ export class Shape {
       triangles.add(triangle);
     }
 
-    for (let ii = 0; ii < indices.length; ii += 3) {
-      polygons.push([
-        firstIndex + indices[ii],
-        firstIndex + indices[ii + 1],
-        firstIndex + indices[ii + 2],
-      ]);
+    // merge greedily
+    const first = vec2();
+    const second = vec2();
+    while (triangles.size > 0) {
+      for (const triangle of triangles) {
+        triangles.delete(triangle);
+        const indices = triangle.indices;
+        const neighbors = triangle.neighbors;
+        for (let ii = 0; ii < indices.length; ii++) {
+          const neighbor = neighbors[ii];
+          if (!(neighbor && triangles.has(neighbor))) {
+            continue;
+          }
+          const previous = indices[(ii + indices.length - 1) % indices.length];
+          const start = indices[ii];
+          const end = indices[(ii + 1) % indices.length];
+          const following = indices[(ii + 2) % indices.length];
+          const neighborStartIndex = neighbor.indices.indexOf(start);
+          const neighborNextIndex = (neighborStartIndex + 1) % 3;
+          const next = neighbor.indices[neighborNextIndex];
+          const startIndex = start * vertexSize + vertexOffset;
+          const sx = arrayBuffer[startIndex];
+          const sy = arrayBuffer[startIndex + 1];
+          const previousIndex = previous * vertexSize + vertexOffset;
+          vec2(
+            sx - arrayBuffer[previousIndex],
+            sy - arrayBuffer[previousIndex + 1],
+            first,
+          );
+          const nextIndex = next * vertexSize + vertexOffset;
+          vec2(
+            arrayBuffer[nextIndex] - sx,
+            arrayBuffer[nextIndex + 1] - sy,
+            second,
+          );
+          if (cross(first, second) < 0.0) {
+            continue;
+          }
+          const endIndex = end * vertexSize + vertexOffset;
+          const ex = arrayBuffer[endIndex];
+          const ey = arrayBuffer[endIndex + 1];
+          vec2(
+            ex - arrayBuffer[nextIndex],
+            ey - arrayBuffer[nextIndex + 1],
+            first,
+          );
+          const followingIndex = following * vertexSize + vertexOffset;
+          vec2(
+            arrayBuffer[followingIndex] - ex,
+            arrayBuffer[followingIndex + 1] - ey,
+            second,
+          );
+          if (cross(first, second) < 0.0) {
+            continue;
+          }
+          triangles.delete(neighbor);
+          indices.splice(ii + 1, 0, next);
+          neighbors.splice(
+            ii,
+            1,
+            neighbor.neighbors[neighborStartIndex],
+            neighbor.neighbors[neighborNextIndex],
+          );
+          ii--;
+        }
+        polygons.push(indices);
+      }
     }
+
     return arrayIndex;
   }
 }
