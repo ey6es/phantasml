@@ -274,11 +274,11 @@ function convertToShapeOrPath(locale: string, shape: boolean) {
   for (const element of elements) {
     const closestDistances = [Infinity, Infinity];
     for (const otherElement of elements) {
-      if (otherElement === element) {
-        continue;
-      }
       for (let ii = 0; ii < 2; ii++) {
         for (let jj = 0; jj < 2; jj++) {
+          if (otherElement === element && ii == jj) {
+            continue;
+          }
           const dist = distance(
             element.endpoints[ii],
             otherElement.endpoints[jj],
