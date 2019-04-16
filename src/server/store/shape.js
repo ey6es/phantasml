@@ -1095,14 +1095,15 @@ class ArcTo extends PathCommand {
       previous.dest.x - center.x,
     );
     const parameterIncrement = 1.0 / divisions;
+    const absRadius = Math.abs(this.radius);
     let parameter = 0.0;
     const point = equals(previous.dest);
     const lastPoint = vec2();
     for (let ii = 0; ii < divisions; ii++) {
       parameter += parameterIncrement;
       const a = a0 + parameter * angle;
-      point.x = center.x + this.radius * Math.cos(a);
-      point.y = center.y + this.radius * Math.sin(a);
+      point.x = center.x + absRadius * Math.cos(a);
+      point.y = center.y + absRadius * Math.sin(a);
       arrayIndex = this._writeCollisionVertex(
         arrayBuffer,
         arrayIndex,
