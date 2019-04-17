@@ -1977,11 +1977,11 @@ export class ShapeList {
     if (angle > Math.PI || angle < -Math.PI) {
       // angles must be <= 180 degrees
       const halfAngle = angle * 0.5;
-      return this.arc(halfAngle, radius, attributes).arc(
+      return this.arc(
         halfAngle,
         radius,
-        attributes,
-      );
+        mixAttributes(this.attributes, attributes, 0.5),
+      ).arc(halfAngle, radius, attributes);
     }
     const nextRotation = this.rotation + angle;
     this.position.x +=
@@ -2276,4 +2276,35 @@ export class ShapeList {
     }
     return [arrayBuffer, elementArrayBuffer, stats.attributeSizes];
   }
+}
+
+function mixAttributes(
+  first: VertexAttributes,
+  second: ?VertexAttributes,
+  t: number,
+): ?VertexAttributes {
+  if (!second) {
+    return;
+  }
+  const mixed: VertexAttributes = {};
+  for (const key in second) {
+    const value = second[key];
+    const previous = first[key];
+    if (Array.isArray(value)) {
+      mixed[key] = value.map((element, index) =>
+        mix(
+          (Array.isArray(previous) ? previous[index] : previous) || 0.0,
+          element,
+          t,
+        ),
+      );
+    } else {
+      mixed[key] = mix(
+        (Array.isArray(previous) ? previous[0] : previous) || 0.0,
+        value,
+        t,
+      );
+    }
+  }
+  return mixed;
 }
