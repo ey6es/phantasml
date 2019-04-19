@@ -598,11 +598,15 @@ class ToolImpl extends React.Component<ToolProps, {}> {
   };
 
   _onContextMenu = (event: MouseEvent) => {
+    this._defaultOnContextMenu(event);
+  };
+
+  _defaultOnContextMenu(event: MouseEvent) {
     if (this.active) {
       event.preventDefault();
       this.props.openEntityMenu(vec2(event.clientX, event.clientY));
     }
-  };
+  }
 
   _onDoubleClick = (event: MouseEvent) => {
     // nothing by default
@@ -1947,7 +1951,12 @@ class LineToolImpl extends DrawToolImpl {
   }
 
   _onMouseDown = (event: MouseEvent) => {
-    if (this.active && event.button === 0) {
+    if (event.button !== 0) {
+      return;
+    }
+    if (this._start) {
+      this._createLine(this._start);
+    } else if (this.active) {
       this._start = equals(this._translation);
       this.props.renderer && this.props.renderer.requestFrameRender();
     }
@@ -1955,9 +1964,25 @@ class LineToolImpl extends DrawToolImpl {
 
   _onMouseUp = (event: MouseEvent) => {
     const start = this._start;
-    if (!start) {
-      return;
+    if (
+      this._start &&
+      distance(this._start, this._translation) > 0.0 &&
+      event.button === 0
+    ) {
+      this._createLine(this._start);
     }
+  };
+
+  _onContextMenu = (event: MouseEvent) => {
+    if (this._start) {
+      event.preventDefault();
+      this._clearLine();
+    } else {
+      this._defaultOnContextMenu(event);
+    }
+  };
+
+  _createLine(start: Vector2) {
     createEntity(
       GeometryComponents.line.label,
       this.props.locale,
@@ -1979,9 +2004,13 @@ class LineToolImpl extends DrawToolImpl {
       },
       this._getTransform(),
     );
+    this._clearLine();
+  }
+
+  _clearLine() {
     this._start = null;
     this.props.renderer && this.props.renderer.requestFrameRender();
-  };
+  }
 
   _renderDrawHelper(renderer: Renderer, translation: Vector2) {
     const start = this._start;
@@ -2035,39 +2064,26 @@ class VertexToolImpl extends DrawToolImpl {
   }
 
   _onMouseDown = (event: MouseEvent) => {
+    if (event.button !== 0) {
+      return;
+    }
     const lastIndex = this._vertices.length - 1;
     if (lastIndex >= 0) {
-      if (
-        event.button === 2 ||
-        distance(this._vertices[lastIndex], this._translation) === 0.0
-      ) {
-        const translation = this._centroid;
-        for (const vertex of this._vertices) {
-          minusEquals(vertex, translation);
-        }
-        this._createEntity({translation});
-        this._vertices = [];
+      if (distance(this._vertices[lastIndex], this._translation) === 0.0) {
+        this._maybeCreateEntity();
       } else {
         this._vertices.push(equals(this._translation));
       }
       this.props.renderer && this.props.renderer.requestFrameRender();
-    } else if (this.active && event.button === 0) {
+    } else if (this.active) {
       this._vertices.push(equals(this._translation));
       this.props.renderer && this.props.renderer.requestFrameRender();
     }
   };
 
-  _createEntity(transform: Transform) {
-    throw new Error('Not implemented.');
-  }
-
-  _onContextMenu = (event: MouseEvent) => {
-    event.preventDefault();
-  };
-
   _onMouseUp = (event: MouseEvent) => {
     const lastIndex = this._vertices.length - 1;
-    if (lastIndex !== 0) {
+    if (lastIndex !== 0 || event.button !== 0) {
       return;
     }
     if (distance(this._translation, this._vertices[lastIndex]) > 0) {
@@ -2075,6 +2091,31 @@ class VertexToolImpl extends DrawToolImpl {
       this.props.renderer && this.props.renderer.requestFrameRender();
     }
   };
+
+  _onContextMenu = (event: MouseEvent) => {
+    if (this._vertices.length > 0) {
+      event.preventDefault();
+      this._maybeCreateEntity();
+    } else {
+      this._defaultOnContextMenu(event);
+    }
+  };
+
+  _maybeCreateEntity() {
+    if (this._vertices.length > 1) {
+      const translation = this._centroid;
+      for (const vertex of this._vertices) {
+        minusEquals(vertex, translation);
+      }
+      this._createEntity({translation});
+    }
+    this._vertices = [];
+    this.props.renderer && this.props.renderer.requestFrameRender();
+  }
+
+  _createEntity(transform: Transform) {
+    throw new Error('Not implemented.');
+  }
 
   _renderDrawHelper(renderer: Renderer, translation: Vector2) {
     if (this._vertices.length === 0) {
