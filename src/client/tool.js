@@ -2356,17 +2356,37 @@ class RectangleToolImpl extends DrawToolImpl {
   }
 
   _onMouseDown = (event: MouseEvent) => {
-    if (this.active && event.button === 0) {
+    if (event.button !== 0) {
+      return;
+    }
+    if (this._start) {
+      this._createRectangle(this._start);
+    } else if (this.active) {
       this._start = equals(this._translation);
       this.props.renderer && this.props.renderer.requestFrameRender();
     }
   };
 
   _onMouseUp = (event: MouseEvent) => {
-    const start = this._start;
-    if (!start) {
-      return;
+    if (
+      this._start &&
+      distance(this._start, this._translation) > 0.0 &&
+      event.button === 0
+    ) {
+      this._createRectangle(this._start);
     }
+  };
+
+  _onContextMenu = (event: MouseEvent) => {
+    if (this._start) {
+      event.preventDefault();
+      this._clearRectangle();
+    } else {
+      this._defaultOnContextMenu(event);
+    }
+  };
+
+  _createRectangle(start: Vector2) {
     createEntity(
       GeometryComponents.rectangle.label,
       this.props.locale,
@@ -2391,9 +2411,13 @@ class RectangleToolImpl extends DrawToolImpl {
       },
       this._getTransform(),
     );
+    this._clearRectangle();
+  }
+
+  _clearRectangle() {
     this._start = null;
     this.props.renderer && this.props.renderer.requestFrameRender();
-  };
+  }
 
   _renderDrawHelper(renderer: Renderer, translation: Vector2) {
     const start = this._start;
@@ -2465,6 +2489,9 @@ class ArcToolImpl extends DrawToolImpl {
   }
 
   _onMouseDown = (event: MouseEvent) => {
+    if (event.button !== 0) {
+      return;
+    }
     const center = this._center;
     const startVector = this._startVector;
     if (center && startVector) {
@@ -2508,14 +2535,11 @@ class ArcToolImpl extends DrawToolImpl {
         },
         this._getTransform(),
       );
-      this._center = null;
-      this._startVector = null;
-      this._reversed = null;
-      this.props.renderer && this.props.renderer.requestFrameRender();
+      this._clearArc();
     } else if (center) {
       this._startVector = minus(this._translation, center);
       this.props.renderer && this.props.renderer.requestFrameRender();
-    } else if (this.active && event.button === 0) {
+    } else if (this.active) {
       this._center = equals(this._translation);
       this.props.renderer && this.props.renderer.requestFrameRender();
     }
@@ -2523,7 +2547,7 @@ class ArcToolImpl extends DrawToolImpl {
 
   _onMouseUp = (event: MouseEvent) => {
     const center = this._center;
-    if (!center) {
+    if (!center || event.button !== 0) {
       return;
     }
     if (!this._startVector && distance(this._translation, center) > 0) {
@@ -2531,6 +2555,22 @@ class ArcToolImpl extends DrawToolImpl {
       this.props.renderer && this.props.renderer.requestFrameRender();
     }
   };
+
+  _onContextMenu = (event: MouseEvent) => {
+    if (this._center) {
+      event.preventDefault();
+      this._clearArc();
+    } else {
+      this._defaultOnContextMenu(event);
+    }
+  };
+
+  _clearArc() {
+    this._center = null;
+    this._startVector = null;
+    this._reversed = null;
+    this.props.renderer && this.props.renderer.requestFrameRender();
+  }
 
   _renderDrawHelper(renderer: Renderer, translation: Vector2) {
     const center = this._center;
@@ -2647,6 +2687,9 @@ class CurveToolImpl extends DrawToolImpl {
   }
 
   _onMouseDown = (event: MouseEvent) => {
+    if (event.button !== 0) {
+      return;
+    }
     const controlCenter = this._controlCenter;
     const start = this._start;
     const end = this._end;
@@ -2683,17 +2726,14 @@ class CurveToolImpl extends DrawToolImpl {
         },
         transform,
       );
-      this._start = null;
-      this._end = null;
-      this._controlCenter = null;
-      this.props.renderer && this.props.renderer.requestFrameRender();
+      this._clearCurve();
     } else if (end) {
       this._controlCenter = equals(this._translation);
       this.props.renderer && this.props.renderer.requestFrameRender();
     } else if (start) {
       this._end = equals(this._translation);
       this.props.renderer && this.props.renderer.requestFrameRender();
-    } else if (this.active && event.button === 0) {
+    } else if (this.active) {
       this._start = equals(this._translation);
       this.props.renderer && this.props.renderer.requestFrameRender();
     }
@@ -2701,7 +2741,7 @@ class CurveToolImpl extends DrawToolImpl {
 
   _onMouseUp = (event: MouseEvent) => {
     const start = this._start;
-    if (!start) {
+    if (!start || event.button !== 0) {
       return;
     }
     if (!this._end && distance(start, this._translation) > 0) {
@@ -2709,6 +2749,22 @@ class CurveToolImpl extends DrawToolImpl {
       this.props.renderer && this.props.renderer.requestFrameRender();
     }
   };
+
+  _onContextMenu = (event: MouseEvent) => {
+    if (this._start) {
+      event.preventDefault();
+      this._clearCurve();
+    } else {
+      this._defaultOnContextMenu(event);
+    }
+  };
+
+  _clearCurve() {
+    this._start = null;
+    this._end = null;
+    this._controlCenter = null;
+    this.props.renderer && this.props.renderer.requestFrameRender();
+  }
 
   _renderDrawHelper(renderer: Renderer, translation: Vector2) {
     const start = this._start;
