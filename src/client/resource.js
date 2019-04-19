@@ -593,6 +593,7 @@ export class ResourceContent extends React.Component<
                 setPreferences={this.props.setPreferences}
                 renderer={this.props.renderer}
                 mousePositionElement={this.state.mousePositionElement}
+                entityMenuPosition={this.state.entityMenuPosition}
                 openEntityMenu={this._openEntityMenu}
               />
               <EntityTree

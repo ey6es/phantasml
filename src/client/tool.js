@@ -175,6 +175,7 @@ export class Toolset extends React.Component<
     preferences: UserGetPreferencesResponse,
     setPreferences: UserGetPreferencesResponse => void,
     renderer: ?Renderer,
+    entityMenuPosition: ?Vector2,
     openEntityMenu: Vector2 => void,
     mousePositionElement: ?HTMLElement,
   },
@@ -186,6 +187,7 @@ export class Toolset extends React.Component<
     const toolProps = {
       locale: this.props.locale,
       renderer: this.props.renderer,
+      entityMenuPosition: this.props.entityMenuPosition,
       openEntityMenu: this.props.openEntityMenu,
       mousePositionElement: this.props.mousePositionElement,
       options: this.props.preferences,
@@ -390,6 +392,7 @@ function ShortcutTooltip(props: {
 type ToolProps = {
   locale: string,
   renderer: ?Renderer,
+  entityMenuPosition: ?Vector2,
   openEntityMenu: Vector2 => void,
   mousePositionElement: ?HTMLElement,
   options: UserGetPreferencesResponse,
@@ -421,7 +424,10 @@ class ToolImpl extends React.Component<ToolProps, {}> {
 
   /** Checks whether the tool is active. */
   get active(): boolean {
-    return this.tempActive || (!this.props.tempTool && this.permActive);
+    return (
+      (this.tempActive || (!this.props.tempTool && this.permActive)) &&
+      !this.props.entityMenuPosition
+    );
   }
 
   /** Checks whether the tool is temporarily active. */
@@ -1883,6 +1889,7 @@ class PointToolImpl extends DrawToolImpl {
 
   _onMouseDown = (event: MouseEvent) => {
     this.active &&
+      event.button === 0 &&
       createEntity(
         GeometryComponents.point.label,
         this.props.locale,
@@ -1940,7 +1947,7 @@ class LineToolImpl extends DrawToolImpl {
   }
 
   _onMouseDown = (event: MouseEvent) => {
-    if (this.active) {
+    if (this.active && event.button === 0) {
       this._start = equals(this._translation);
       this.props.renderer && this.props.renderer.requestFrameRender();
     }
@@ -2044,7 +2051,7 @@ class VertexToolImpl extends DrawToolImpl {
         this._vertices.push(equals(this._translation));
       }
       this.props.renderer && this.props.renderer.requestFrameRender();
-    } else if (this.active) {
+    } else if (this.active && event.button === 0) {
       this._vertices.push(equals(this._translation));
       this.props.renderer && this.props.renderer.requestFrameRender();
     }
@@ -2308,7 +2315,7 @@ class RectangleToolImpl extends DrawToolImpl {
   }
 
   _onMouseDown = (event: MouseEvent) => {
-    if (this.active) {
+    if (this.active && event.button === 0) {
       this._start = equals(this._translation);
       this.props.renderer && this.props.renderer.requestFrameRender();
     }
@@ -2467,7 +2474,7 @@ class ArcToolImpl extends DrawToolImpl {
     } else if (center) {
       this._startVector = minus(this._translation, center);
       this.props.renderer && this.props.renderer.requestFrameRender();
-    } else if (this.active) {
+    } else if (this.active && event.button === 0) {
       this._center = equals(this._translation);
       this.props.renderer && this.props.renderer.requestFrameRender();
     }
@@ -2645,7 +2652,7 @@ class CurveToolImpl extends DrawToolImpl {
     } else if (start) {
       this._end = equals(this._translation);
       this.props.renderer && this.props.renderer.requestFrameRender();
-    } else if (this.active) {
+    } else if (this.active && event.button === 0) {
       this._start = equals(this._translation);
       this.props.renderer && this.props.renderer.requestFrameRender();
     }
@@ -2797,6 +2804,7 @@ class StampToolImpl extends DrawToolImpl {
     if (
       !(
         this.active &&
+        event.button === 0 &&
         this.props.selection.size > 0 &&
         resource instanceof Scene
       )
