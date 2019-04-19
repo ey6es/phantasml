@@ -35,6 +35,7 @@ import {
   normalizeEquals,
   orthonormalizeEquals,
   transformPointEquals,
+  rotate,
   rotateEquals,
   roundToPrecision,
   clamp,
@@ -43,6 +44,8 @@ import {ShapeList} from '../server/store/shape';
 import type {ControlPoint} from '../server/store/geometry';
 import {
   DEFAULT_THICKNESS,
+  DEFAULT_ARC_RADIUS,
+  DEFAULT_ARC_ANGLE,
   ComponentGeometry,
   parsePath,
   parseShapeList,
@@ -186,6 +189,7 @@ type PathElement = {
   data: Object,
   controlPoints: Vector2[],
   endpoints: Vector2[],
+  allPoints: Vector2[],
   closestElements: PathElementIndex[],
 };
 
@@ -195,6 +199,7 @@ type Path = {
   firstIndex: number,
   elements: PathElement[],
   signedArea: number,
+  totalPoints: number,
   centroid: Vector2,
 };
 
@@ -249,14 +254,30 @@ function convertToShapeOrPath(locale: string, shape: boolean) {
       const controlPoints = geometry
         .getControlPoints(data)
         .map(point => transformPointEquals(point.position, matrix));
+      const endpoints = [
+        controlPoints[0],
+        controlPoints[controlPoints.length - 1],
+      ];
+      let allPoints = controlPoints;
+      if (key === 'arc') {
+        endpoints[0] = controlPoints[1];
+        const radius = getValue(data.radius, DEFAULT_ARC_RADIUS);
+        const angle = getValue(data.angle, DEFAULT_ARC_ANGLE);
+        const vector = vec2(radius, 0.0);
+        allPoints = [
+          controlPoints[1],
+          transformPointEquals(rotate(vector, angle * 0.25), matrix),
+          controlPoints[2],
+          transformPointEquals(rotate(vector, angle * 0.75), matrix),
+          controlPoints[3],
+        ];
+      }
       elements.push({
         type: key,
         data,
         controlPoints,
-        endpoints: [
-          controlPoints[key === 'arc' ? 1 : 0],
-          controlPoints[controlPoints.length - 1],
-        ],
+        endpoints,
+        allPoints,
         closestElements: [],
       });
       totalThickness += getValue(data.thickness, DEFAULT_THICKNESS);
@@ -302,10 +323,36 @@ function convertToShapeOrPath(locale: string, shape: boolean) {
     firstIndex: 0,
     elements: [],
     signedArea: 0.0,
+    totalPoints: 0,
     centroid: vec2(),
   };
   const paths: Path[] = [];
   let currentElement = farthestElement;
+  const addPointsToPath = (element: PathElement, reversed: boolean) => {
+    for (let ii = 1; ii < element.allPoints.length; ii++) {
+      let startIndex = ii - 1;
+      let endIndex = ii;
+      if (reversed) {
+        endIndex = element.allPoints.length - ii - 1;
+        startIndex = endIndex + 1;
+      }
+      const start = element.allPoints[startIndex];
+      const end = element.allPoints[endIndex];
+      if (shape) {
+        const cp = cross(start, end);
+        currentPath.signedArea += cp;
+        currentPath.centroid.x += cp * (start.x + end.x);
+        currentPath.centroid.y += cp * (start.y + end.y);
+      } else {
+        if (currentPath.totalPoints === 0) {
+          plusEquals(currentPath.centroid, start);
+          currentPath.totalPoints++;
+        }
+        plusEquals(currentPath.centroid, end);
+        currentPath.totalPoints++;
+      }
+    }
+  };
   while (elements.length > 0) {
     const [element, index] = currentElement;
     elements.splice(elements.indexOf(element), 1);
@@ -326,16 +373,8 @@ function convertToShapeOrPath(locale: string, shape: boolean) {
       equals(timesEquals(plusEquals(to, nextFrom), 0.5), nextFrom);
     }
 
-    if (shape) {
-      const cp = cross(from, to);
-      currentPath.signedArea += cp;
-      currentPath.centroid.x += cp * (from.x + to.x);
-      currentPath.centroid.y += cp * (from.y + to.y);
-    } else {
-      currentPath.elements.length === 1 &&
-        plusEquals(currentPath.centroid, from);
-      plusEquals(currentPath.centroid, to);
-    }
+    // idiotically, Flow throws a stack overflow if we have this inline
+    addPointsToPath(element, index === 1);
 
     // if we wrap around, open a new path
     if (currentElement[0] === currentPath.elements[0]) {
@@ -343,6 +382,7 @@ function convertToShapeOrPath(locale: string, shape: boolean) {
         firstIndex: 0,
         elements: [],
         signedArea: 0.0,
+        totalPoints: 0,
         centroid: vec2(),
       };
       currentElement = [elements[0], 0];
@@ -354,7 +394,7 @@ function convertToShapeOrPath(locale: string, shape: boolean) {
     const path = paths[ii];
     timesEquals(
       path.centroid,
-      1.0 / (shape ? 3.0 * path.signedArea : path.elements.length + 1),
+      1.0 / (shape ? 3.0 * path.signedArea : path.totalPoints),
     );
     const area = Math.abs(path.signedArea);
     if (area > largestArea) {
@@ -428,7 +468,7 @@ function convertToShapeOrPath(locale: string, shape: boolean) {
             normalizeEquals(minus(firstPoint, center)),
             normalizeEquals(minus(midpoint, center)),
           );
-          const angle = 2.0 * Math.acos(dp);
+          const angle = 2.0 * Math.acos(clamp(dp, -1.0, 1.0));
           if (angle > Math.PI) {
             // break large angles into two parts
             part += ' A ' + positionToString(midpoint, centroid);
