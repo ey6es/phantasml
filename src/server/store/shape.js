@@ -1663,7 +1663,7 @@ export class Shape {
           );
           ii--;
         }
-        polygons.push(indices);
+        polygons.push({indices});
       }
     }
 
