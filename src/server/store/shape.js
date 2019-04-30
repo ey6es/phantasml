@@ -416,6 +416,7 @@ export class Path {
     tessellation: number,
   ): number {
     const firstIndex = arrayIndex / vertexSize;
+    const bounds = emptyBounds();
     for (let ii = this.loop ? 1 : 0; ii < this.commands.length; ii++) {
       arrayIndex = this.commands[ii].populateCollisionBuffer(
         arrayBuffer,
@@ -424,12 +425,14 @@ export class Path {
         vertexSize,
         tessellation,
         this.commands[ii - 1],
+        bounds,
       );
     }
     paths.push({
       firstIndex,
       lastIndex: arrayIndex / vertexSize,
       loop: this.loop,
+      bounds,
     });
     return arrayIndex;
   }
@@ -557,6 +560,7 @@ class PathCommand {
     vertexSize: number,
     tessellation: number,
     previous: ?PathCommand,
+    bounds: Bounds,
   ): number {
     return arrayIndex;
   }
@@ -569,10 +573,12 @@ class PathCommand {
     previous: ?PathCommand,
     position: Vector2,
     parameter: number,
+    bounds: Bounds,
   ): number {
     const vertexIndex = arrayIndex + attributeOffsets.vertex;
     arrayBuffer[vertexIndex] = position.x;
     arrayBuffer[vertexIndex + 1] = position.y;
+    addToBoundsEquals(bounds, position.x, position.y);
     this._writeAttributes(
       arrayBuffer,
       arrayIndex,
@@ -790,6 +796,7 @@ class MoveTo extends PathCommand {
     vertexSize: number,
     tessellation: number,
     previous: ?PathCommand,
+    bounds: Bounds,
   ): number {
     arrayIndex = this._writeCollisionVertex(
       arrayBuffer,
@@ -799,6 +806,7 @@ class MoveTo extends PathCommand {
       previous,
       this.dest,
       1.0,
+      bounds,
     );
     return arrayIndex;
   }
@@ -898,6 +906,7 @@ class LineTo extends PathCommand {
     vertexSize: number,
     tessellation: number,
     previous: ?PathCommand,
+    bounds: Bounds,
   ): number {
     if (!previous) {
       throw new Error('Missing previous command.');
@@ -911,6 +920,7 @@ class LineTo extends PathCommand {
         previous,
         this.dest,
         1.0,
+        bounds,
       );
     }
     return arrayIndex;
@@ -1075,6 +1085,7 @@ class ArcTo extends PathCommand {
     vertexSize: number,
     tessellation: number,
     previous: ?PathCommand,
+    bounds: Bounds,
   ): number {
     if (!previous) {
       throw new Error('Missing previous command.');
@@ -1112,6 +1123,7 @@ class ArcTo extends PathCommand {
         previous,
         point,
         parameter,
+        bounds,
       );
     }
     return arrayIndex;
@@ -1279,6 +1291,7 @@ class CurveTo extends PathCommand {
     vertexSize: number,
     tessellation: number,
     previous: ?PathCommand,
+    bounds: Bounds,
   ): number {
     if (!previous) {
       throw new Error('Missing previous command.');
@@ -1303,6 +1316,7 @@ class CurveTo extends PathCommand {
         previous,
         point,
         parameter,
+        bounds,
       );
     }
     return arrayIndex;
@@ -1603,24 +1617,26 @@ export class Shape {
     const second = vec2();
     while (triangles.size > 0) {
       for (const triangle of triangles) {
+        const bounds = emptyBounds();
         triangles.delete(triangle);
         const indices = triangle.indices;
         const neighbors = triangle.neighbors;
         for (let ii = 0; ii < indices.length; ii++) {
+          const start = indices[ii];
+          const startIndex = start * vertexSize + vertexOffset;
+          const sx = arrayBuffer[startIndex];
+          const sy = arrayBuffer[startIndex + 1];
+          addToBoundsEquals(bounds, sx, sy);
           const neighbor = neighbors[ii];
           if (!(neighbor && triangles.has(neighbor))) {
             continue;
           }
           const previous = indices[(ii + indices.length - 1) % indices.length];
-          const start = indices[ii];
           const end = indices[(ii + 1) % indices.length];
           const following = indices[(ii + 2) % indices.length];
           const neighborStartIndex = neighbor.indices.indexOf(start);
           const neighborNextIndex = (neighborStartIndex + 1) % 3;
           const next = neighbor.indices[neighborNextIndex];
-          const startIndex = start * vertexSize + vertexOffset;
-          const sx = arrayBuffer[startIndex];
-          const sy = arrayBuffer[startIndex + 1];
           const previousIndex = previous * vertexSize + vertexOffset;
           vec2(
             sx - arrayBuffer[previousIndex],
@@ -1663,7 +1679,7 @@ export class Shape {
           );
           ii--;
         }
-        polygons.push({indices});
+        polygons.push({indices, bounds});
       }
     }
 

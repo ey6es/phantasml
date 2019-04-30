@@ -5,7 +5,7 @@
  * @flow
  */
 
-import type {Vector2, Transform} from './math';
+import type {Vector2, Transform, Bounds} from './math';
 import {
   getTransformMatrix,
   vec2,
@@ -33,11 +33,13 @@ export type CollisionPath = {
   firstIndex: number,
   lastIndex: number,
   loop: boolean,
+  bounds: Bounds,
 };
 
 /** Describes a convex polygon within the collision geometry. */
 export type CollisionPolygon = {
   indices: number[],
+  bounds: Bounds,
 };
 
 /** Contains information on a single penetration. */
