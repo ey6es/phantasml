@@ -28,27 +28,6 @@ import {
   mix,
 } from './math';
 
-/** Describes a path within the collision geometry. */
-export type CollisionPath = {
-  firstIndex: number,
-  lastIndex: number,
-  loop: boolean,
-  bounds: Bounds,
-};
-
-/** Describes a convex polygon within the collision geometry. */
-export type CollisionPolygon = {
-  indices: number[],
-  bounds: Bounds,
-};
-
-/** Contains information on a single penetration. */
-export type PenetrationResult = {
-  penetration: Vector2,
-  fromIndex: number,
-  toIndex: number,
-};
-
 const penetration = vec2();
 const otherPenetration = vec2();
 const vertex = vec2();
@@ -61,19 +40,757 @@ const finish = vec2();
 const vector = vec2();
 
 /**
+ * Base class for collision elements (paths, polygons).
+ *
+ * @param bounds the bounds of the element.
+ */
+export class CollisionElement {
+  _bounds: Bounds;
+
+  constructor(bounds: Bounds) {
+    this._bounds = bounds;
+  }
+
+  /**
+   * Finds the position of the nearest feature (vertex, edge) to the position
+   * provided within the given radius.
+   *
+   * @param geometry the containing geometry.
+   * @param position the position to search near.
+   * @param radius the radius to search within.
+   * @param nearest the current nearest position, if any.
+   * @return the nearest position, if any.
+   */
+  getNearestFeaturePosition(
+    geometry: CollisionGeometry,
+    position: Vector2,
+    radius: number,
+    nearest: ?Vector2,
+  ): ?Vector2 {
+    throw new Error('Not implemented.');
+  }
+
+  /**
+   * Gets the penetration of another geometry into this one.
+   *
+   * @param geometry the containing geometry.
+   * @param other the other geometry to check against.
+   * @param transform the transform to apply to this geometry before testing it
+   * against the other.
+   * @param radius the intersection radius.
+   * @param result the vector to hold the result.
+   * @param [allResults] if provided, an array to populate with all the
+   * penetrations.
+   */
+  getPenetration(
+    geometry: CollisionGeometry,
+    other: CollisionGeometry,
+    transform: Transform,
+    radius: number,
+    result: Vector2,
+    allResults?: PenetrationResult[],
+  ) {
+    throw new Error('Not implemented.');
+  }
+
+  /**
+   * Finds the penetration of a point into the geometry.
+   *
+   * @param geometry the containing geometry.
+   * @param vertex the vertex to check.
+   * @param vertexThickness the thickness associated with the vertex.
+   * @param result the vector to hold the result.
+   * @param [allResults] if provided, an array to populate with all the
+   * penetrations.
+   */
+  getPointPenetration(
+    geometry: CollisionGeometry,
+    vertex: Vector2,
+    vertexThickness: number,
+    result: Vector2,
+    allResults?: PenetrationResult[],
+  ) {
+    throw new Error('Not implemented.');
+  }
+
+  /**
+   * Finds the penetration of a segment into the geometry.
+   *
+   * @param geometry the containing geometry.
+   * @param start the start of the segment.
+   * @param end the end of the segment.
+   * @param startThickness the thickness associated with the start.
+   * @param endThickness the thickness associated with the end.
+   * @param result a vector to hold the result.
+   */
+  getSegmentPenetration(
+    geometry: CollisionGeometry,
+    start: Vector2,
+    end: Vector2,
+    startThickness: number,
+    endThickness: number,
+    result: Vector2,
+  ) {
+    throw new Error('Not implemented.');
+  }
+
+  /**
+   * Finds the penetration of a polygon into the geometry.
+   *
+   * @param geometry the containing geometry.
+   * @param points the points of the polygon in CCW winding order.
+   * @param thicknesses the thicknesses associated with each point, if any.
+   * @param result a vector to hold the result.
+   * @param resultIndex the index of the current penetrated side.
+   * @return the index of the penetrated side, if any.
+   */
+  getPolygonPenetration(
+    geometry: CollisionGeometry,
+    points: Vector2[],
+    thicknesses: number[],
+    result: Vector2,
+    resultIndex: number,
+  ): number {
+    throw new Error('Not implemented.');
+  }
+
+  _computeAreaAndCenterOfMass(
+    geometry: CollisionGeometry,
+    centerOfMass: Vector2,
+    addQuad: () => void,
+  ): number {
+    throw new Error('Not implemented.');
+  }
+
+  _computeMomentOfInertia(
+    geometry: CollisionGeometry,
+    addQuad: () => void,
+  ): number {
+    throw new Error('Not implemented.');
+  }
+}
+
+/**
+ * A path within the collision geometry.
+ *
+ * @param bounds the bounds of the path.
+ * @param firstIndex the index of the first vertex in the path.
+ * @param lastIndex the index of the last vertex (exclusive).
+ * @param loop whether or not the path loops.
+ */
+export class CollisionPath extends CollisionElement {
+  _firstIndex: number;
+  _lastIndex: number;
+  _loop: boolean;
+
+  constructor(
+    bounds: Bounds,
+    firstIndex: number,
+    lastIndex: number,
+    loop: boolean,
+  ) {
+    super(bounds);
+    this._firstIndex = firstIndex;
+    this._lastIndex = lastIndex;
+    this._loop = loop;
+  }
+
+  getNearestFeaturePosition(
+    geometry: CollisionGeometry,
+    position: Vector2,
+    radius: number,
+    nearest: ?Vector2,
+  ): ?Vector2 {
+    let nearestDistance = nearest ? distance(nearest, position) : radius;
+    const finalIndex = this._lastIndex - 1;
+    if (this._firstIndex === finalIndex) {
+      const vertexThickness = geometry._getVertexThickness(finalIndex, vertex);
+      const dist = distance(vertex, position) - vertexThickness;
+      if (dist < nearestDistance) {
+        nearest = equals(vertex, nearest);
+        nearestDistance = dist;
+      }
+      return nearest;
+    }
+    const endIndex = this._loop ? this._lastIndex : finalIndex;
+    for (let fromIndex = this._firstIndex; fromIndex < endIndex; fromIndex++) {
+      const toIndex =
+        fromIndex === finalIndex ? this._firstIndex : fromIndex + 1;
+      const fromThickness = geometry._getVertexThickness(fromIndex, from);
+      const toThickness = geometry._getVertexThickness(toIndex, to);
+      const vertexThickness = getNearestPointOnSegment(
+        from,
+        to,
+        fromThickness,
+        toThickness,
+        position,
+        vertex,
+      );
+      const dist = distance(vertex, position) - vertexThickness;
+      if (dist < nearestDistance) {
+        nearest = equals(vertex, nearest);
+        nearestDistance = dist;
+      }
+    }
+    return nearest;
+  }
+
+  getPenetration(
+    geometry: CollisionGeometry,
+    other: CollisionGeometry,
+    transform: Transform,
+    radius: number,
+    result: Vector2,
+    allResults?: PenetrationResult[],
+  ) {
+    const matrix = getTransformMatrix(transform);
+    let resultLength = length(result);
+    const finalIndex = this._lastIndex - 1;
+    if (this._firstIndex === finalIndex) {
+      const vertexThickness = geometry._getVertexThickness(finalIndex, vertex);
+      other.getPointPenetration(
+        transformPointEquals(vertex, matrix),
+        vertexThickness + radius,
+        otherPenetration,
+      );
+      const penetrationLength = length(otherPenetration);
+      if (penetrationLength > resultLength) {
+        negative(otherPenetration, result);
+        resultLength = penetrationLength;
+      }
+      if (allResults && penetrationLength > 0.0) {
+        allResults.push({
+          penetration: negative(otherPenetration),
+          fromIndex: finalIndex,
+          toIndex: finalIndex,
+        });
+      }
+      return;
+    }
+    const endIndex = this._loop ? this._lastIndex : finalIndex;
+    for (let fromIndex = this._firstIndex; fromIndex < endIndex; fromIndex++) {
+      const toIndex =
+        fromIndex === finalIndex ? this._firstIndex : fromIndex + 1;
+      const fromThickness = geometry._getVertexThickness(fromIndex, from);
+      const toThickness = geometry._getVertexThickness(toIndex, to);
+      other.getSegmentPenetration(
+        transformPointEquals(from, matrix),
+        transformPointEquals(to, matrix),
+        fromThickness + radius,
+        toThickness + radius,
+        otherPenetration,
+      );
+      const penetrationLength = length(otherPenetration);
+      if (penetrationLength > resultLength) {
+        negative(otherPenetration, result);
+        resultLength = penetrationLength;
+      }
+      if (allResults && penetrationLength > 0.0) {
+        allResults.push({
+          penetration: negative(otherPenetration),
+          fromIndex,
+          toIndex,
+        });
+      }
+    }
+  }
+
+  getPointPenetration(
+    geometry: CollisionGeometry,
+    vertex: Vector2,
+    vertexThickness: number,
+    result: Vector2,
+    allResults?: PenetrationResult[],
+  ) {
+    let resultLength = length(result);
+    const finalIndex = this._lastIndex - 1;
+    if (this._firstIndex === finalIndex) {
+      const pointThickness = geometry._getVertexThickness(finalIndex, point);
+      getPointPointPenetration(
+        point,
+        pointThickness,
+        vertex,
+        vertexThickness,
+        featurePenetration,
+      );
+      const penetrationLength = length(featurePenetration);
+      if (penetrationLength > resultLength) {
+        equals(featurePenetration, result);
+        resultLength = penetrationLength;
+      }
+      if (allResults && penetrationLength > 0.0) {
+        allResults.push({
+          penetration: equals(featurePenetration),
+          fromIndex: finalIndex,
+          toIndex: finalIndex,
+        });
+      }
+      return;
+    }
+    const endIndex = this._loop ? this._lastIndex : finalIndex;
+    for (let fromIndex = this._firstIndex; fromIndex < endIndex; fromIndex++) {
+      const toIndex =
+        fromIndex === finalIndex ? this._firstIndex : fromIndex + 1;
+      const beginThickness = geometry._getVertexThickness(fromIndex, begin);
+      const finishThickness = geometry._getVertexThickness(toIndex, finish);
+      getSegmentPointPenetration(
+        begin,
+        finish,
+        beginThickness,
+        finishThickness,
+        vertex,
+        vertexThickness,
+        featurePenetration,
+      );
+      const penetrationLength = length(featurePenetration);
+      if (penetrationLength > resultLength) {
+        equals(featurePenetration, result);
+        resultLength = penetrationLength;
+      }
+      if (allResults && penetrationLength > 0.0) {
+        allResults.push({
+          penetration: equals(featurePenetration),
+          fromIndex,
+          toIndex,
+        });
+      }
+    }
+  }
+
+  getSegmentPenetration(
+    geometry: CollisionGeometry,
+    start: Vector2,
+    end: Vector2,
+    startThickness: number,
+    endThickness: number,
+    result: Vector2,
+  ) {
+    let resultLength = length(result);
+    const finalIndex = this._lastIndex - 1;
+    if (this._firstIndex === finalIndex) {
+      const pointThickness = geometry._getVertexThickness(finalIndex, point);
+      getSegmentPointPenetration(
+        start,
+        end,
+        startThickness,
+        endThickness,
+        point,
+        pointThickness,
+        featurePenetration,
+      );
+      const penetrationLength = length(featurePenetration);
+      if (penetrationLength > resultLength) {
+        negative(featurePenetration, result);
+        resultLength = penetrationLength;
+      }
+      return;
+    }
+    const endIndex = this._loop ? this._lastIndex : finalIndex;
+    for (let fromIndex = this._firstIndex; fromIndex < endIndex; fromIndex++) {
+      const toIndex =
+        fromIndex === finalIndex ? this._firstIndex : fromIndex + 1;
+      const beginThickness = geometry._getVertexThickness(fromIndex, begin);
+      const finishThickness = geometry._getVertexThickness(toIndex, finish);
+      getSegmentSegmentPenetration(
+        begin,
+        finish,
+        beginThickness,
+        finishThickness,
+        start,
+        end,
+        startThickness,
+        endThickness,
+        featurePenetration,
+      );
+      const penetrationLength = length(featurePenetration);
+      if (penetrationLength > resultLength) {
+        equals(featurePenetration, result);
+        resultLength = penetrationLength;
+      }
+    }
+  }
+
+  getPolygonPenetration(
+    geometry: CollisionGeometry,
+    points: Vector2[],
+    thicknesses: number[],
+    result: Vector2,
+    resultIndex: number,
+  ): number {
+    let resultLength = length(result);
+    const finalIndex = this._lastIndex - 1;
+    if (this._firstIndex === finalIndex) {
+      const pointThickness = geometry._getVertexThickness(finalIndex, point);
+      const index = getPolygonPointPenetration(
+        points,
+        thicknesses,
+        point,
+        pointThickness,
+        featurePenetration,
+      );
+      const penetrationLength = length(featurePenetration);
+      if (penetrationLength > resultLength) {
+        negative(featurePenetration, result);
+        resultLength = penetrationLength;
+        resultIndex = index;
+      }
+      return resultIndex;
+    }
+    const endIndex = this._loop ? this._lastIndex : finalIndex;
+    for (let fromIndex = this._firstIndex; fromIndex < endIndex; fromIndex++) {
+      const toIndex =
+        fromIndex === finalIndex ? this._firstIndex : fromIndex + 1;
+      const beginThickness = geometry._getVertexThickness(fromIndex, begin);
+      const finishThickness = geometry._getVertexThickness(toIndex, finish);
+      const index = getPolygonSegmentPenetration(
+        points,
+        thicknesses,
+        begin,
+        finish,
+        beginThickness,
+        finishThickness,
+        featurePenetration,
+      );
+      const penetrationLength = length(featurePenetration);
+      if (penetrationLength > resultLength) {
+        negative(featurePenetration, result);
+        resultLength = penetrationLength;
+        resultIndex = index;
+      }
+    }
+    return resultIndex;
+  }
+
+  _computeAreaAndCenterOfMass(
+    geometry: CollisionGeometry,
+    centerOfMass: Vector2,
+    addQuad: () => void,
+  ): number {
+    const finalIndex = this._lastIndex - 1;
+    if (this._firstIndex === finalIndex) {
+      const vertexThickness = geometry._getVertexThickness(finalIndex, vertex);
+      const area = vertexThickness * vertexThickness * Math.PI;
+      plusEquals(centerOfMass, timesEquals(vertex, area));
+      return area;
+    }
+    const endIndex = this._loop ? this._lastIndex : finalIndex;
+    for (let fromIndex = this._firstIndex; fromIndex < endIndex; fromIndex++) {
+      const toIndex =
+        fromIndex === finalIndex ? this._firstIndex : fromIndex + 1;
+      const fromThickness = geometry._getVertexThickness(fromIndex, from);
+      const toThickness = geometry._getVertexThickness(toIndex, to);
+      orthonormalizeEquals(minus(to, from, vector));
+      times(vector, fromThickness, v1);
+      times(vector, toThickness, v2);
+      minus(from, v1, begin);
+      minus(to, v2, finish);
+      plusEquals(from, v1);
+      plusEquals(to, v2);
+      addQuad();
+    }
+    return 0.0;
+  }
+
+  _computeMomentOfInertia(
+    geometry: CollisionGeometry,
+    addQuad: () => void,
+  ): number {
+    const centerOfMass = geometry.centerOfMass;
+    const finalIndex = this._lastIndex - 1;
+    if (this._firstIndex === finalIndex) {
+      const vertexThickness = geometry._getVertexThickness(finalIndex, vertex);
+      const area = vertexThickness * vertexThickness * Math.PI;
+      // https://en.wikipedia.org/wiki/List_of_moments_of_inertia
+      const base = 0.5 * area * vertexThickness * vertexThickness;
+      return base + area * squareDistance(vertex, centerOfMass);
+    }
+    const endIndex = this._loop ? this._lastIndex : finalIndex;
+    for (let fromIndex = this._firstIndex; fromIndex < endIndex; fromIndex++) {
+      const toIndex =
+        fromIndex === finalIndex ? this._firstIndex : fromIndex + 1;
+      const fromThickness = geometry._getVertexThickness(fromIndex, from);
+      const toThickness = geometry._getVertexThickness(toIndex, to);
+      minusEquals(from, centerOfMass);
+      minusEquals(to, centerOfMass);
+      orthonormalizeEquals(minus(to, from, vector));
+      times(vector, fromThickness, v1);
+      times(vector, toThickness, v2);
+      minus(from, v1, begin);
+      minus(to, v2, finish);
+      plusEquals(from, v1);
+      plusEquals(to, v2);
+      addQuad();
+    }
+    return 0.0;
+  }
+}
+
+/**
+ * A convex polygon within the collision geometry.
+ *
+ * @param bounds the bounds of the polygon.
+ * @param indices the indices of the polygon's vertices.
+ */
+export class CollisionPolygon extends CollisionElement {
+  _indices: number[];
+
+  constructor(bounds: Bounds, indices: number[]) {
+    super(bounds);
+    this._indices = indices;
+  }
+
+  getNearestFeaturePosition(
+    geometry: CollisionGeometry,
+    position: Vector2,
+    radius: number,
+    nearest: ?Vector2,
+  ): ?Vector2 {
+    let nearestDistance = nearest ? distance(nearest, position) : radius;
+    for (let ii = 0; ii < this._indices.length; ii++) {
+      const fromIndex = this._indices[ii];
+      const toIndex = this._indices[(ii + 1) % this._indices.length];
+      const fromThickness = geometry._getVertexThickness(fromIndex, from);
+      const toThickness = geometry._getVertexThickness(toIndex, to);
+      const vertexThickness = getNearestPointOnSegment(
+        from,
+        to,
+        fromThickness,
+        toThickness,
+        position,
+        vertex,
+      );
+      const dist = distance(vertex, position) - vertexThickness;
+      if (dist < nearestDistance) {
+        nearest = equals(vertex, nearest);
+        nearestDistance = dist;
+      }
+    }
+    return nearest;
+  }
+
+  getPenetration(
+    geometry: CollisionGeometry,
+    other: CollisionGeometry,
+    transform: Transform,
+    radius: number,
+    result: Vector2,
+    allResults?: PenetrationResult[],
+  ) {
+    const matrix = getTransformMatrix(transform);
+    let resultLength = length(result);
+    const vertices: Vector2[] = [];
+    const vertexThicknesses: number[] = [];
+    for (const index of this._indices) {
+      const vertex = vec2();
+      vertexThicknesses.push(
+        geometry._getVertexThickness(index, vertex) + radius,
+      );
+      vertices.push(transformPointEquals(vertex, matrix));
+    }
+    const index = other.getPolygonPenetration(
+      vertices,
+      vertexThicknesses,
+      otherPenetration,
+    );
+    const penetrationLength = length(otherPenetration);
+    if (penetrationLength > resultLength) {
+      negative(otherPenetration, result);
+      resultLength = penetrationLength;
+    }
+    if (allResults && penetrationLength > 0.0) {
+      allResults.push({
+        penetration: negative(otherPenetration),
+        fromIndex: this._indices[index],
+        toIndex: this._indices[(index + 1) % this._indices.length],
+      });
+    }
+  }
+
+  getPointPenetration(
+    geometry: CollisionGeometry,
+    vertex: Vector2,
+    vertexThickness: number,
+    result: Vector2,
+    allResults?: PenetrationResult[],
+  ) {
+    let resultLength = length(result);
+    const vertices: Vector2[] = [];
+    const vertexThicknesses: number[] = [];
+    for (const index of this._indices) {
+      const vertex = vec2();
+      vertices.push(vertex);
+      vertexThicknesses.push(geometry._getVertexThickness(index, vertex));
+    }
+    const index = getPolygonPointPenetration(
+      vertices,
+      vertexThicknesses,
+      vertex,
+      vertexThickness,
+      featurePenetration,
+    );
+    const penetrationLength = length(featurePenetration);
+    if (penetrationLength > resultLength) {
+      equals(featurePenetration, result);
+      resultLength = penetrationLength;
+    }
+    if (allResults && penetrationLength > 0.0) {
+      allResults.push({
+        penetration: equals(featurePenetration),
+        fromIndex: this._indices[index],
+        toIndex: this._indices[(index + 1) % this._indices.length],
+      });
+    }
+  }
+
+  getSegmentPenetration(
+    geometry: CollisionGeometry,
+    start: Vector2,
+    end: Vector2,
+    startThickness: number,
+    endThickness: number,
+    result: Vector2,
+  ) {
+    let resultLength = length(result);
+    const vertices: Vector2[] = [];
+    const vertexThicknesses: number[] = [];
+    for (const index of this._indices) {
+      const vertex = vec2();
+      vertices.push(vertex);
+      vertexThicknesses.push(geometry._getVertexThickness(index, vertex));
+    }
+    getPolygonSegmentPenetration(
+      vertices,
+      vertexThicknesses,
+      start,
+      end,
+      startThickness,
+      endThickness,
+      featurePenetration,
+    );
+    const penetrationLength = length(featurePenetration);
+    if (penetrationLength > resultLength) {
+      equals(featurePenetration, result);
+      resultLength = penetrationLength;
+    }
+  }
+
+  getPolygonPenetration(
+    geometry: CollisionGeometry,
+    points: Vector2[],
+    thicknesses: number[],
+    result: Vector2,
+    resultIndex: number,
+  ): number {
+    let resultLength = length(result);
+    const vertices: Vector2[] = [];
+    const vertexThicknesses: number[] = [];
+    for (const index of this._indices) {
+      const vertex = vec2();
+      vertices.push(vertex);
+      vertexThicknesses.push(geometry._getVertexThickness(index, vertex));
+    }
+    const index = getPolygonPolygonPenetration(
+      vertices,
+      vertexThicknesses,
+      points,
+      thicknesses,
+      featurePenetration,
+    );
+    const penetrationLength = length(featurePenetration);
+    if (penetrationLength > resultLength) {
+      equals(featurePenetration, result);
+      resultLength = penetrationLength;
+      resultIndex = index;
+    }
+    return resultIndex;
+  }
+
+  _computeAreaAndCenterOfMass(
+    geometry: CollisionGeometry,
+    centerOfMass: Vector2,
+    addQuad: () => void,
+  ): number {
+    // https://en.wikipedia.org/wiki/Centroid#Of_a_polygon
+    let area = 0.0;
+    vec2(0.0, 0.0, vertex);
+    for (let ii = 0; ii < this._indices.length; ii++) {
+      const fromIndex = this._indices[ii];
+      const toIndex = this._indices[(ii + 1) % this._indices.length];
+      const fromThickness = geometry._getVertexThickness(fromIndex, from);
+      const toThickness = geometry._getVertexThickness(toIndex, to);
+      const cp = cross(from, to);
+      area += cp;
+      vertex.x += (from.x + to.x) * cp;
+      vertex.y += (from.y + to.y) * cp;
+
+      // compute, add the extended side if outside edge
+      let adjacentIndex = geometry._adjacentIndices.get(fromIndex);
+      adjacentIndex === undefined && (adjacentIndex = fromIndex + 1);
+      if (toIndex !== adjacentIndex) {
+        continue;
+      }
+      orthonormalizeEquals(minus(to, from, vector));
+      plusEquals(times(vector, -fromThickness, begin), from);
+      plusEquals(times(vector, -toThickness, finish), to);
+      addQuad();
+    }
+    area *= 0.5;
+    plusEquals(centerOfMass, timesEquals(vertex, 1.0 / 6.0));
+    return area;
+  }
+
+  _computeMomentOfInertia(
+    geometry: CollisionGeometry,
+    addQuad: () => void,
+  ): number {
+    const centerOfMass = geometry.centerOfMass;
+    let dividend = 0.0;
+    for (let ii = 0; ii < this._indices.length; ii++) {
+      const fromIndex = this._indices[ii];
+      const toIndex = this._indices[(ii + 1) % this._indices.length];
+      const fromThickness = geometry._getVertexThickness(fromIndex, from);
+      const toThickness = geometry._getVertexThickness(toIndex, to);
+      minusEquals(from, centerOfMass);
+      minusEquals(to, centerOfMass);
+
+      const cp = cross(from, to);
+      dividend += cp * (dot(from, from) + dot(from, to) + dot(to, to));
+
+      // compute, add the extended side if outside edge
+      let adjacentIndex = geometry._adjacentIndices.get(fromIndex);
+      adjacentIndex === undefined && (adjacentIndex = fromIndex + 1);
+      if (toIndex !== adjacentIndex) {
+        continue;
+      }
+      orthonormalizeEquals(minus(to, from, vector));
+      plusEquals(times(vector, -fromThickness, begin), from);
+      plusEquals(times(vector, -toThickness, finish), to);
+      addQuad();
+    }
+    return dividend / 12.0;
+  }
+}
+
+/** Contains information on a single penetration. */
+export type PenetrationResult = {
+  penetration: Vector2,
+  fromIndex: number,
+  toIndex: number,
+};
+
+/**
  * Geometry representation for collision detection/response.
  *
  * @param arrayBuffer the array containing the vertex data.
  * @param attributeSizes the map containing the size of the vertex attributes.
- * @param paths the paths in the list.
- * @param polygons the (convex) polygons in the list.
+ * @param elements the elements in the geometry.
+ * @param adjacentIndices adjacency for non-consecutive indices.
  */
 export class CollisionGeometry {
   _arrayBuffer: Float32Array;
   _attributeOffsets: {[string]: number};
   _vertexSize: number;
-  _paths: CollisionPath[];
-  _polygons: CollisionPolygon[];
+  _elements: CollisionElement[];
   _adjacentIndices: Map<number, number>;
   _area: ?number;
   _centerOfMass: ?Vector2;
@@ -109,8 +826,7 @@ export class CollisionGeometry {
   constructor(
     arrayBuffer: Float32Array,
     attributeSizes: {[string]: number},
-    paths: CollisionPath[],
-    polygons: CollisionPolygon[],
+    elements: CollisionElement[],
     adjacentIndices: Map<number, number>,
   ) {
     this._arrayBuffer = arrayBuffer;
@@ -121,8 +837,7 @@ export class CollisionGeometry {
       currentOffset += attributeSizes[name];
     }
     this._vertexSize = currentOffset;
-    this._paths = paths;
-    this._polygons = polygons;
+    this._elements = elements;
     this._adjacentIndices = adjacentIndices;
   }
 
@@ -164,62 +879,16 @@ export class CollisionGeometry {
    * @return the position of the nearest feature, if any.
    */
   getNearestFeaturePosition(position: Vector2, radius: number): ?Vector2 {
-    let closestPoint = vec2();
-    let closestDistance = radius;
-    for (const path of this._paths) {
-      const finalIndex = path.lastIndex - 1;
-      if (path.firstIndex === finalIndex) {
-        const vertexThickness = this._getVertexThickness(finalIndex, vertex);
-        const dist = distance(vertex, position) - vertexThickness;
-        if (dist < closestDistance) {
-          equals(vertex, closestPoint);
-          closestDistance = dist;
-        }
-        continue;
-      }
-      const endIndex = path.loop ? path.lastIndex : finalIndex;
-      for (let fromIndex = path.firstIndex; fromIndex < endIndex; fromIndex++) {
-        const toIndex =
-          fromIndex === finalIndex ? path.firstIndex : fromIndex + 1;
-        const fromThickness = this._getVertexThickness(fromIndex, from);
-        const toThickness = this._getVertexThickness(toIndex, to);
-        const vertexThickness = getNearestPointOnSegment(
-          from,
-          to,
-          fromThickness,
-          toThickness,
-          position,
-          vertex,
-        );
-        const dist = distance(vertex, position) - vertexThickness;
-        if (dist < closestDistance) {
-          equals(vertex, closestPoint);
-          closestDistance = dist;
-        }
-      }
+    let nearest: ?Vector2;
+    for (const element of this._elements) {
+      nearest = element.getNearestFeaturePosition(
+        this,
+        position,
+        radius,
+        nearest,
+      );
     }
-    for (const polygon of this._polygons) {
-      for (let ii = 0; ii < polygon.indices.length; ii++) {
-        const fromIndex = polygon.indices[ii];
-        const toIndex = polygon.indices[(ii + 1) % polygon.indices.length];
-        const fromThickness = this._getVertexThickness(fromIndex, from);
-        const toThickness = this._getVertexThickness(toIndex, to);
-        const vertexThickness = getNearestPointOnSegment(
-          from,
-          to,
-          fromThickness,
-          toThickness,
-          position,
-          vertex,
-        );
-        const dist = distance(vertex, position) - vertexThickness;
-        if (dist < closestDistance) {
-          equals(vertex, closestPoint);
-          closestDistance = dist;
-        }
-      }
-    }
-    return closestDistance < radius ? closestPoint : null;
+    return nearest;
   }
 
   /**
@@ -259,86 +928,15 @@ export class CollisionGeometry {
     allResults?: PenetrationResult[],
   ) {
     vec2(0.0, 0.0, result);
-    let resultLength = 0.0;
-
-    const matrix = getTransformMatrix(transform);
-    for (const path of this._paths) {
-      const finalIndex = path.lastIndex - 1;
-      if (path.firstIndex === finalIndex) {
-        const vertexThickness = this._getVertexThickness(finalIndex, vertex);
-        other.getPointPenetration(
-          transformPointEquals(vertex, matrix),
-          vertexThickness + radius,
-          otherPenetration,
-        );
-        const penetrationLength = length(otherPenetration);
-        if (penetrationLength > resultLength) {
-          negative(otherPenetration, result);
-          resultLength = penetrationLength;
-        }
-        if (allResults && penetrationLength > 0.0) {
-          allResults.push({
-            penetration: negative(otherPenetration),
-            fromIndex: finalIndex,
-            toIndex: finalIndex,
-          });
-        }
-        continue;
-      }
-      const endIndex = path.loop ? path.lastIndex : finalIndex;
-      for (let fromIndex = path.firstIndex; fromIndex < endIndex; fromIndex++) {
-        const toIndex =
-          fromIndex === finalIndex ? path.firstIndex : fromIndex + 1;
-        const fromThickness = this._getVertexThickness(fromIndex, from);
-        const toThickness = this._getVertexThickness(toIndex, to);
-        other.getSegmentPenetration(
-          transformPointEquals(from, matrix),
-          transformPointEquals(to, matrix),
-          fromThickness + radius,
-          toThickness + radius,
-          otherPenetration,
-        );
-        const penetrationLength = length(otherPenetration);
-        if (penetrationLength > resultLength) {
-          negative(otherPenetration, result);
-          resultLength = penetrationLength;
-        }
-        if (allResults && penetrationLength > 0.0) {
-          allResults.push({
-            penetration: negative(otherPenetration),
-            fromIndex,
-            toIndex,
-          });
-        }
-      }
-    }
-    for (const polygon of this._polygons) {
-      const vertices: Vector2[] = [];
-      const vertexThicknesses: number[] = [];
-      for (const index of polygon.indices) {
-        const vertex = vec2();
-        vertexThicknesses.push(
-          this._getVertexThickness(index, vertex) + radius,
-        );
-        vertices.push(transformPointEquals(vertex, matrix));
-      }
-      const index = other.getPolygonPenetration(
-        vertices,
-        vertexThicknesses,
-        otherPenetration,
+    for (const element of this._elements) {
+      element.getPenetration(
+        this,
+        other,
+        transform,
+        radius,
+        result,
+        allResults,
       );
-      const penetrationLength = length(otherPenetration);
-      if (penetrationLength > resultLength) {
-        negative(otherPenetration, result);
-        resultLength = penetrationLength;
-      }
-      if (allResults && penetrationLength > 0.0) {
-        allResults.push({
-          penetration: negative(otherPenetration),
-          fromIndex: polygon.indices[index],
-          toIndex: polygon.indices[(index + 1) % polygon.indices.length],
-        });
-      }
     }
   }
 
@@ -370,89 +968,14 @@ export class CollisionGeometry {
     allResults?: PenetrationResult[],
   ) {
     vec2(0.0, 0.0, result);
-    let resultLength = 0.0;
-
-    for (const path of this._paths) {
-      const finalIndex = path.lastIndex - 1;
-      if (path.firstIndex === finalIndex) {
-        const pointThickness = this._getVertexThickness(finalIndex, point);
-        getPointPointPenetration(
-          point,
-          pointThickness,
-          vertex,
-          vertexThickness,
-          featurePenetration,
-        );
-        const penetrationLength = length(featurePenetration);
-        if (penetrationLength > resultLength) {
-          equals(featurePenetration, result);
-          resultLength = penetrationLength;
-        }
-        if (allResults && penetrationLength > 0.0) {
-          allResults.push({
-            penetration: equals(featurePenetration),
-            fromIndex: finalIndex,
-            toIndex: finalIndex,
-          });
-        }
-        continue;
-      }
-      const endIndex = path.loop ? path.lastIndex : finalIndex;
-      for (let fromIndex = path.firstIndex; fromIndex < endIndex; fromIndex++) {
-        const toIndex =
-          fromIndex === finalIndex ? path.firstIndex : fromIndex + 1;
-        const beginThickness = this._getVertexThickness(fromIndex, begin);
-        const finishThickness = this._getVertexThickness(toIndex, finish);
-        getSegmentPointPenetration(
-          begin,
-          finish,
-          beginThickness,
-          finishThickness,
-          vertex,
-          vertexThickness,
-          featurePenetration,
-        );
-        const penetrationLength = length(featurePenetration);
-        if (penetrationLength > resultLength) {
-          equals(featurePenetration, result);
-          resultLength = penetrationLength;
-        }
-        if (allResults && penetrationLength > 0.0) {
-          allResults.push({
-            penetration: equals(featurePenetration),
-            fromIndex,
-            toIndex,
-          });
-        }
-      }
-    }
-    for (const polygon of this._polygons) {
-      const vertices: Vector2[] = [];
-      const vertexThicknesses: number[] = [];
-      for (const index of polygon.indices) {
-        const vertex = vec2();
-        vertices.push(vertex);
-        vertexThicknesses.push(this._getVertexThickness(index, vertex));
-      }
-      const index = getPolygonPointPenetration(
-        vertices,
-        vertexThicknesses,
+    for (const element of this._elements) {
+      element.getPointPenetration(
+        this,
         vertex,
         vertexThickness,
-        featurePenetration,
+        result,
+        allResults,
       );
-      const penetrationLength = length(featurePenetration);
-      if (penetrationLength > resultLength) {
-        equals(featurePenetration, result);
-        resultLength = penetrationLength;
-      }
-      if (allResults && penetrationLength > 0.0) {
-        allResults.push({
-          penetration: equals(featurePenetration),
-          fromIndex: polygon.indices[index],
-          toIndex: polygon.indices[(index + 1) % polygon.indices.length],
-        });
-      }
     }
   }
 
@@ -498,74 +1021,15 @@ export class CollisionGeometry {
     result: Vector2,
   ) {
     vec2(0.0, 0.0, result);
-    let resultLength = 0.0;
-
-    for (const path of this._paths) {
-      const finalIndex = path.lastIndex - 1;
-      if (path.firstIndex === finalIndex) {
-        const pointThickness = this._getVertexThickness(finalIndex, point);
-        getSegmentPointPenetration(
-          start,
-          end,
-          startThickness,
-          endThickness,
-          point,
-          pointThickness,
-          featurePenetration,
-        );
-        const penetrationLength = length(featurePenetration);
-        if (penetrationLength > resultLength) {
-          negative(featurePenetration, result);
-          resultLength = penetrationLength;
-        }
-        continue;
-      }
-      const endIndex = path.loop ? path.lastIndex : finalIndex;
-      for (let fromIndex = path.firstIndex; fromIndex < endIndex; fromIndex++) {
-        const toIndex =
-          fromIndex === finalIndex ? path.firstIndex : fromIndex + 1;
-        const beginThickness = this._getVertexThickness(fromIndex, begin);
-        const finishThickness = this._getVertexThickness(toIndex, finish);
-        getSegmentSegmentPenetration(
-          begin,
-          finish,
-          beginThickness,
-          finishThickness,
-          start,
-          end,
-          startThickness,
-          endThickness,
-          featurePenetration,
-        );
-        const penetrationLength = length(featurePenetration);
-        if (penetrationLength > resultLength) {
-          equals(featurePenetration, result);
-          resultLength = penetrationLength;
-        }
-      }
-    }
-    for (const polygon of this._polygons) {
-      const vertices: Vector2[] = [];
-      const vertexThicknesses: number[] = [];
-      for (const index of polygon.indices) {
-        const vertex = vec2();
-        vertices.push(vertex);
-        vertexThicknesses.push(this._getVertexThickness(index, vertex));
-      }
-      getPolygonSegmentPenetration(
-        vertices,
-        vertexThicknesses,
+    for (const element of this._elements) {
+      element.getSegmentPenetration(
+        this,
         start,
         end,
         startThickness,
         endThickness,
-        featurePenetration,
+        result,
       );
-      const penetrationLength = length(featurePenetration);
-      if (penetrationLength > resultLength) {
-        equals(featurePenetration, result);
-        resultLength = penetrationLength;
-      }
     }
   }
 
@@ -595,72 +1059,15 @@ export class CollisionGeometry {
     result: Vector2,
   ): number {
     vec2(0.0, 0.0, result);
-    let resultLength = 0.0;
     let resultIndex = 0;
-
-    for (const path of this._paths) {
-      const finalIndex = path.lastIndex - 1;
-      if (path.firstIndex === finalIndex) {
-        const pointThickness = this._getVertexThickness(finalIndex, point);
-        const index = getPolygonPointPenetration(
-          points,
-          thicknesses,
-          point,
-          pointThickness,
-          featurePenetration,
-        );
-        const penetrationLength = length(featurePenetration);
-        if (penetrationLength > resultLength) {
-          negative(featurePenetration, result);
-          resultLength = penetrationLength;
-          resultIndex = index;
-        }
-        continue;
-      }
-      const endIndex = path.loop ? path.lastIndex : finalIndex;
-      for (let fromIndex = path.firstIndex; fromIndex < endIndex; fromIndex++) {
-        const toIndex =
-          fromIndex === finalIndex ? path.firstIndex : fromIndex + 1;
-        const beginThickness = this._getVertexThickness(fromIndex, begin);
-        const finishThickness = this._getVertexThickness(toIndex, finish);
-        const index = getPolygonSegmentPenetration(
-          points,
-          thicknesses,
-          begin,
-          finish,
-          beginThickness,
-          finishThickness,
-          featurePenetration,
-        );
-        const penetrationLength = length(featurePenetration);
-        if (penetrationLength > resultLength) {
-          negative(featurePenetration, result);
-          resultLength = penetrationLength;
-          resultIndex = index;
-        }
-      }
-    }
-    for (const polygon of this._polygons) {
-      const vertices: Vector2[] = [];
-      const vertexThicknesses: number[] = [];
-      for (const index of polygon.indices) {
-        const vertex = vec2();
-        vertices.push(vertex);
-        vertexThicknesses.push(this._getVertexThickness(index, vertex));
-      }
-      const index = getPolygonPolygonPenetration(
-        vertices,
-        vertexThicknesses,
+    for (const element of this._elements) {
+      resultIndex = element.getPolygonPenetration(
+        this,
         points,
         thicknesses,
-        featurePenetration,
+        result,
+        resultIndex,
       );
-      const penetrationLength = length(featurePenetration);
-      if (penetrationLength > resultLength) {
-        equals(featurePenetration, result);
-        resultLength = penetrationLength;
-        resultIndex = index;
-      }
     }
     return resultIndex;
   }
@@ -687,59 +1094,12 @@ export class CollisionGeometry {
         6.0;
       totalArea += 0.5 * (cp0 + cp1 + cp2 + cp3);
     };
-    for (const path of this._paths) {
-      const finalIndex = path.lastIndex - 1;
-      if (path.firstIndex === finalIndex) {
-        const vertexThickness = this._getVertexThickness(finalIndex, vertex);
-        const area = vertexThickness * vertexThickness * Math.PI;
-        plusEquals(centerOfMass, timesEquals(vertex, area));
-        totalArea += area;
-        continue;
-      }
-      const endIndex = path.loop ? path.lastIndex : finalIndex;
-      for (let fromIndex = path.firstIndex; fromIndex < endIndex; fromIndex++) {
-        const toIndex =
-          fromIndex === finalIndex ? path.firstIndex : fromIndex + 1;
-        const fromThickness = this._getVertexThickness(fromIndex, from);
-        const toThickness = this._getVertexThickness(toIndex, to);
-        orthonormalizeEquals(minus(to, from, vector));
-        times(vector, fromThickness, v1);
-        times(vector, toThickness, v2);
-        minus(from, v1, begin);
-        minus(to, v2, finish);
-        plusEquals(from, v1);
-        plusEquals(to, v2);
-        addQuad();
-      }
-    }
-    for (const polygon of this._polygons) {
-      // https://en.wikipedia.org/wiki/Centroid#Of_a_polygon
-      let area = 0.0;
-      vec2(0.0, 0.0, vertex);
-      for (let ii = 0; ii < polygon.indices.length; ii++) {
-        const fromIndex = polygon.indices[ii];
-        const toIndex = polygon.indices[(ii + 1) % polygon.indices.length];
-        const fromThickness = this._getVertexThickness(fromIndex, from);
-        const toThickness = this._getVertexThickness(toIndex, to);
-        const cp = cross(from, to);
-        area += cp;
-        vertex.x += (from.x + to.x) * cp;
-        vertex.y += (from.y + to.y) * cp;
-
-        // compute, add the extended side if outside edge
-        let adjacentIndex = this._adjacentIndices.get(fromIndex);
-        adjacentIndex === undefined && (adjacentIndex = fromIndex + 1);
-        if (toIndex !== adjacentIndex) {
-          continue;
-        }
-        orthonormalizeEquals(minus(to, from, vector));
-        plusEquals(times(vector, -fromThickness, begin), from);
-        plusEquals(times(vector, -toThickness, finish), to);
-        addQuad();
-      }
-      area *= 0.5;
-      plusEquals(centerOfMass, timesEquals(vertex, 1.0 / 6.0));
-      totalArea += area;
+    for (const element of this._elements) {
+      totalArea += element._computeAreaAndCenterOfMass(
+        this,
+        centerOfMass,
+        addQuad,
+      );
     }
     if (totalArea > 0.0) {
       timesEquals(centerOfMass, 1.0 / totalArea);
@@ -750,7 +1110,6 @@ export class CollisionGeometry {
 
   _computeMomentOfInertia() {
     let momentOfInertia = 0.0;
-    const centerOfMass = this.centerOfMass;
     const addQuad = () => {
       const dp0 = dot(from, from);
       const dp1 = dot(begin, begin);
@@ -763,59 +1122,8 @@ export class CollisionGeometry {
           cross(to, from) * (dp3 + dot(to, from) + dp0)) /
         12.0;
     };
-    for (const path of this._paths) {
-      const finalIndex = path.lastIndex - 1;
-      if (path.firstIndex === finalIndex) {
-        const vertexThickness = this._getVertexThickness(finalIndex, vertex);
-        const area = vertexThickness * vertexThickness * Math.PI;
-        // https://en.wikipedia.org/wiki/List_of_moments_of_inertia
-        const base = 0.5 * area * vertexThickness * vertexThickness;
-        momentOfInertia += base + area * squareDistance(vertex, centerOfMass);
-        continue;
-      }
-      const endIndex = path.loop ? path.lastIndex : finalIndex;
-      for (let fromIndex = path.firstIndex; fromIndex < endIndex; fromIndex++) {
-        const toIndex =
-          fromIndex === finalIndex ? path.firstIndex : fromIndex + 1;
-        const fromThickness = this._getVertexThickness(fromIndex, from);
-        const toThickness = this._getVertexThickness(toIndex, to);
-        minusEquals(from, centerOfMass);
-        minusEquals(to, centerOfMass);
-        orthonormalizeEquals(minus(to, from, vector));
-        times(vector, fromThickness, v1);
-        times(vector, toThickness, v2);
-        minus(from, v1, begin);
-        minus(to, v2, finish);
-        plusEquals(from, v1);
-        plusEquals(to, v2);
-        addQuad();
-      }
-    }
-    for (const polygon of this._polygons) {
-      let dividend = 0.0;
-      for (let ii = 0; ii < polygon.indices.length; ii++) {
-        const fromIndex = polygon.indices[ii];
-        const toIndex = polygon.indices[(ii + 1) % polygon.indices.length];
-        const fromThickness = this._getVertexThickness(fromIndex, from);
-        const toThickness = this._getVertexThickness(toIndex, to);
-        minusEquals(from, centerOfMass);
-        minusEquals(to, centerOfMass);
-
-        const cp = cross(from, to);
-        dividend += cp * (dot(from, from) + dot(from, to) + dot(to, to));
-
-        // compute, add the extended side if outside edge
-        let adjacentIndex = this._adjacentIndices.get(fromIndex);
-        adjacentIndex === undefined && (adjacentIndex = fromIndex + 1);
-        if (toIndex !== adjacentIndex) {
-          continue;
-        }
-        orthonormalizeEquals(minus(to, from, vector));
-        plusEquals(times(vector, -fromThickness, begin), from);
-        plusEquals(times(vector, -toThickness, finish), to);
-        addQuad();
-      }
-      momentOfInertia += dividend / 12.0;
+    for (const element of this._elements) {
+      momentOfInertia += element._computeMomentOfInertia(this, addQuad);
     }
     this._momentOfInertia = momentOfInertia;
   }

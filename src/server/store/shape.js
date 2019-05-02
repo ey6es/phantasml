@@ -37,8 +37,8 @@ import {
   addToBoundsEquals,
   boundsUnionEquals,
 } from './math';
-import type {CollisionPath, CollisionPolygon} from './collision';
-import {CollisionGeometry} from './collision';
+import type {CollisionElement} from './collision';
+import {CollisionPath, CollisionPolygon, CollisionGeometry} from './collision';
 
 type VertexAttributes = {[string]: number | number[]};
 
@@ -410,7 +410,7 @@ export class Path {
   populateCollisionBuffer(
     arrayBuffer: Float32Array,
     arrayIndex: number,
-    paths: CollisionPath[],
+    elements: ?(CollisionElement[]),
     attributeOffsets: {[string]: number},
     vertexSize: number,
     tessellation: number,
@@ -428,12 +428,15 @@ export class Path {
         bounds,
       );
     }
-    paths.push({
-      firstIndex,
-      lastIndex: arrayIndex / vertexSize,
-      loop: this.loop,
-      bounds,
-    });
+    elements &&
+      elements.push(
+        new CollisionPath(
+          bounds,
+          firstIndex,
+          arrayIndex / vertexSize,
+          this.loop,
+        ),
+      );
     return arrayIndex;
   }
 }
@@ -1531,18 +1534,17 @@ export class Shape {
   populateCollisionBuffer(
     arrayBuffer: Float32Array,
     arrayIndex: number,
-    polygons: CollisionPolygon[],
+    elements: CollisionElement[],
     adjacentIndices: Map<number, number>,
     attributeOffsets: {[string]: number},
     vertexSize: number,
     tessellation: number,
   ): number {
-    const paths: CollisionPath[] = [];
     const firstIndex = arrayIndex / vertexSize;
     arrayIndex = this.exterior.populateCollisionBuffer(
       arrayBuffer,
       arrayIndex,
-      paths,
+      null,
       attributeOffsets,
       vertexSize,
       tessellation,
@@ -1555,7 +1557,7 @@ export class Shape {
       arrayIndex = hole.populateCollisionBuffer(
         arrayBuffer,
         arrayIndex,
-        paths,
+        null,
         attributeOffsets,
         vertexSize,
         tessellation,
@@ -1679,7 +1681,7 @@ export class Shape {
           );
           ii--;
         }
-        polygons.push({indices, bounds});
+        elements.push(new CollisionPolygon(bounds, indices));
       }
     }
 
@@ -2183,24 +2185,23 @@ export class ShapeList {
     // now allocate the buffer and populate
     const arrayBuffer = new Float32Array(stats.vertices * vertexSize);
     let arrayIndex = 0;
-    const paths: CollisionPath[] = [];
+    const elements: CollisionElement[] = [];
     for (const path of this.paths) {
       arrayIndex = path.populateCollisionBuffer(
         arrayBuffer,
         arrayIndex,
-        paths,
+        elements,
         attributeOffsets,
         vertexSize,
         tessellation,
       );
     }
-    const polygons: CollisionPolygon[] = [];
     const adjacentIndices: Map<number, number> = new Map();
     for (const shape of this.shapes) {
       arrayIndex = shape.populateCollisionBuffer(
         arrayBuffer,
         arrayIndex,
-        polygons,
+        elements,
         adjacentIndices,
         attributeOffsets,
         vertexSize,
@@ -2210,8 +2211,7 @@ export class ShapeList {
     return new CollisionGeometry(
       arrayBuffer,
       stats.attributeSizes,
-      paths,
-      polygons,
+      elements,
       adjacentIndices,
     );
   }

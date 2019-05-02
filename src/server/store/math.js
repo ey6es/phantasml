@@ -377,7 +377,7 @@ export function vec2(x: number = 0, y: number = 0, result?: ?Vector2): Vector2 {
  * vector will be created).
  * @return a reference to the result vector, for chaining.
  */
-export function equals(vector: Vector2, result?: Vector2): Vector2 {
+export function equals(vector: Vector2, result?: ?Vector2): Vector2 {
   if (!result) {
     return {x: vector.x, y: vector.y};
   }
