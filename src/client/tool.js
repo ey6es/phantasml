@@ -140,6 +140,7 @@ import {
   getCollisionGeometry,
   ComponentGeometry,
 } from '../server/store/geometry';
+import {VertexThicknessArray} from '../server/store/collision';
 import {ShapeList, Shape, Path} from '../server/store/shape';
 import {getValue, mapsEqual} from '../server/store/util';
 
@@ -716,7 +717,9 @@ class ToolImpl extends React.Component<ToolProps, {}> {
       );
       if (
         collisionGeometry &&
-        collisionGeometry.intersectsPolygon(localVertices) &&
+        collisionGeometry.intersectsPolygon(
+          new VertexThicknessArray(localVertices),
+        ) &&
         this._allowHover(entity)
       ) {
         hoverStates.set(entity.id, true);

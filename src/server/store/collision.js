@@ -40,6 +40,95 @@ const finish = vec2();
 const vector = vec2();
 
 /**
+ * Interface for sources of vertex/thicknesses data.
+ */
+export interface VertexThicknesses {
+  /**
+   * Returns the number of vertices in the source.
+   *
+   * @return the vertex count.
+   */
+  getVertexCount(): number;
+
+  /**
+   * Retrieves the vertex and thickness at the specified index.
+   *
+   * @param index the index of the vertex/thickness to fetch.
+   * @param vertex the vector to hold the vertex.
+   * @return the thickness.
+   */
+  getVertexThickness(index: number, vertex: Vector2): number;
+}
+
+/**
+ * Wraps separate arrays of vertices and thicknesses.
+ *
+ * @param vertices the array of vertices.
+ * @param [thicknesses] optional array of thicknesses.
+ */
+export class VertexThicknessArray implements VertexThicknesses {
+  _vertices: Vector2[];
+  _thicknesses: ?(number[]);
+
+  constructor(vertices: Vector2[], thicknesses?: number[]) {
+    this._vertices = vertices;
+    this._thicknesses = thicknesses;
+  }
+
+  getVertexCount(): number {
+    return this._vertices.length;
+  }
+
+  getVertexThickness(index: number, vertex: Vector2): number {
+    equals(this._vertices[index], vertex);
+    return this._thicknesses ? this._thicknesses[index] : 0.0;
+  }
+}
+
+class IndexedVertexThicknesses implements VertexThicknesses {
+  _geometry: CollisionGeometry;
+  _indices: number[];
+
+  constructor(geometry: CollisionGeometry, indices: number[]) {
+    this._geometry = geometry;
+    this._indices = indices;
+  }
+
+  getVertexCount(): number {
+    return this._indices.length;
+  }
+
+  getVertexThickness(index: number, vertex: Vector2): number {
+    return this._geometry._getVertexThickness(this._indices[index], vertex);
+  }
+}
+
+class TransformedVertexThicknesses extends IndexedVertexThicknesses {
+  _matrix: number[];
+  _radius: number;
+
+  constructor(
+    geometry: CollisionGeometry,
+    indices: number[],
+    matrix: number[],
+    radius: number,
+  ) {
+    super(geometry, indices);
+    this._matrix = matrix;
+    this._radius = radius;
+  }
+
+  getVertexThickness(index: number, vertex: Vector2): number {
+    const thickness = this._geometry._getVertexThickness(
+      this._indices[index],
+      vertex,
+    );
+    transformPointEquals(vertex, this._matrix);
+    return thickness + this._radius;
+  }
+}
+
+/**
  * Base class for collision elements (paths, polygons).
  *
  * @param bounds the bounds of the element.
@@ -138,16 +227,14 @@ export class CollisionElement {
    * Finds the penetration of a polygon into the geometry.
    *
    * @param geometry the containing geometry.
-   * @param points the points of the polygon in CCW winding order.
-   * @param thicknesses the thicknesses associated with each point, if any.
+   * @param vertexThicknesses the vertices and thicknesses of the polygon.
    * @param result a vector to hold the result.
    * @param resultIndex the index of the current penetrated side.
    * @return the index of the penetrated side, if any.
    */
   getPolygonPenetration(
     geometry: CollisionGeometry,
-    points: Vector2[],
-    thicknesses: number[],
+    vertexThicknesses: VertexThicknesses,
     result: Vector2,
     resultIndex: number,
   ): number {
@@ -412,8 +499,7 @@ export class CollisionPath extends CollisionElement {
 
   getPolygonPenetration(
     geometry: CollisionGeometry,
-    points: Vector2[],
-    thicknesses: number[],
+    vertexThicknesses: VertexThicknesses,
     result: Vector2,
     resultIndex: number,
   ): number {
@@ -422,8 +508,7 @@ export class CollisionPath extends CollisionElement {
     if (this._firstIndex === finalIndex) {
       const pointThickness = geometry._getVertexThickness(finalIndex, point);
       const index = getPolygonPointPenetration(
-        points,
-        thicknesses,
+        vertexThicknesses,
         point,
         pointThickness,
         featurePenetration,
@@ -443,8 +528,7 @@ export class CollisionPath extends CollisionElement {
       const beginThickness = geometry._getVertexThickness(fromIndex, begin);
       const finishThickness = geometry._getVertexThickness(toIndex, finish);
       const index = getPolygonSegmentPenetration(
-        points,
-        thicknesses,
+        vertexThicknesses,
         begin,
         finish,
         beginThickness,
@@ -576,20 +660,14 @@ export class CollisionPolygon extends CollisionElement {
     result: Vector2,
     allResults?: PenetrationResult[],
   ) {
-    const matrix = getTransformMatrix(transform);
     let resultLength = length(result);
-    const vertices: Vector2[] = [];
-    const vertexThicknesses: number[] = [];
-    for (const index of this._indices) {
-      const vertex = vec2();
-      vertexThicknesses.push(
-        geometry._getVertexThickness(index, vertex) + radius,
-      );
-      vertices.push(transformPointEquals(vertex, matrix));
-    }
     const index = other.getPolygonPenetration(
-      vertices,
-      vertexThicknesses,
+      new TransformedVertexThicknesses(
+        geometry,
+        this._indices,
+        getTransformMatrix(transform),
+        radius,
+      ),
       otherPenetration,
     );
     const penetrationLength = length(otherPenetration);
@@ -614,16 +692,8 @@ export class CollisionPolygon extends CollisionElement {
     allResults?: PenetrationResult[],
   ) {
     let resultLength = length(result);
-    const vertices: Vector2[] = [];
-    const vertexThicknesses: number[] = [];
-    for (const index of this._indices) {
-      const vertex = vec2();
-      vertices.push(vertex);
-      vertexThicknesses.push(geometry._getVertexThickness(index, vertex));
-    }
     const index = getPolygonPointPenetration(
-      vertices,
-      vertexThicknesses,
+      new IndexedVertexThicknesses(geometry, this._indices),
       vertex,
       vertexThickness,
       featurePenetration,
@@ -651,16 +721,8 @@ export class CollisionPolygon extends CollisionElement {
     result: Vector2,
   ) {
     let resultLength = length(result);
-    const vertices: Vector2[] = [];
-    const vertexThicknesses: number[] = [];
-    for (const index of this._indices) {
-      const vertex = vec2();
-      vertices.push(vertex);
-      vertexThicknesses.push(geometry._getVertexThickness(index, vertex));
-    }
     getPolygonSegmentPenetration(
-      vertices,
-      vertexThicknesses,
+      new IndexedVertexThicknesses(geometry, this._indices),
       start,
       end,
       startThickness,
@@ -676,24 +738,14 @@ export class CollisionPolygon extends CollisionElement {
 
   getPolygonPenetration(
     geometry: CollisionGeometry,
-    points: Vector2[],
-    thicknesses: number[],
+    vertexThicknesses: VertexThicknesses,
     result: Vector2,
     resultIndex: number,
   ): number {
     let resultLength = length(result);
-    const vertices: Vector2[] = [];
-    const vertexThicknesses: number[] = [];
-    for (const index of this._indices) {
-      const vertex = vec2();
-      vertices.push(vertex);
-      vertexThicknesses.push(geometry._getVertexThickness(index, vertex));
-    }
     const index = getPolygonPolygonPenetration(
-      vertices,
+      new IndexedVertexThicknesses(geometry, this._indices),
       vertexThicknesses,
-      points,
-      thicknesses,
       featurePenetration,
     );
     const penetrationLength = length(featurePenetration);
@@ -1036,26 +1088,23 @@ export class CollisionGeometry {
   /**
    * Checks the geometry for intersection with a polygon.
    *
-   * @param points the points of the polygon in CCW winding order.
-   * @param [thicknesses=[]] the thicknesses associated with each point, if any.
+   * @param vertexThicknesses the vertices and thicknesses of the polygon.
    * @return whether or not the polygon intersects.
    */
-  intersectsPolygon(points: Vector2[], thicknesses: number[] = []): boolean {
-    this.getPolygonPenetration(points, thicknesses, penetration);
+  intersectsPolygon(vertexThicknesses: VertexThicknesses): boolean {
+    this.getPolygonPenetration(vertexThicknesses, penetration);
     return length(penetration) > 0.0;
   }
 
   /**
    * Finds the penetration of a polygon into the geometry.
    *
-   * @param points the points of the polygon in CCW winding order.
-   * @param thicknesses the thicknesses associated with each point, if any.
+   * @param vertexThicknesses the vertices and thicknesses of the polygon.
    * @param result a vector to hold the result.
    * @return the index of the penetrated side, if any.
    */
   getPolygonPenetration(
-    points: Vector2[],
-    thicknesses: number[],
+    vertexThicknesses: VertexThicknesses,
     result: Vector2,
   ): number {
     vec2(0.0, 0.0, result);
@@ -1063,8 +1112,7 @@ export class CollisionGeometry {
     for (const element of this._elements) {
       resultIndex = element.getPolygonPenetration(
         this,
-        points,
-        thicknesses,
+        vertexThicknesses,
         result,
         resultIndex,
       );
@@ -1337,30 +1385,32 @@ function getSegmentSegmentPenetration(
 }
 
 const pointPenetration = vec2();
+const polygonPoint0 = vec2();
+const polygonPoint1 = vec2();
 
 function getPolygonPointPenetration(
-  points: Vector2[],
-  thicknesses: number[],
+  vertexThicknesses: VertexThicknesses,
   vertex: Vector2,
   vertexThickness: number,
   result: Vector2,
 ): number {
-  if (points.length === 1) {
+  const count = vertexThicknesses.getVertexCount();
+  if (count === 1) {
     getPointPointPenetration(
-      points[0],
-      thicknesses[0] || 0.0,
+      polygonPoint0,
+      vertexThicknesses.getVertexThickness(0, polygonPoint0),
       vertex,
       vertexThickness,
       result,
     );
     return 0;
   }
-  if (points.length === 2) {
+  if (count === 2) {
     getSegmentPointPenetration(
-      points[0],
-      points[1],
-      thicknesses[0] || 0.0,
-      thicknesses[1] || 0.0,
+      polygonPoint0,
+      polygonPoint1,
+      vertexThicknesses.getVertexThickness(0, polygonPoint0),
+      vertexThicknesses.getVertexThickness(1, polygonPoint1),
       vertex,
       vertexThickness,
       result,
@@ -1370,13 +1420,13 @@ function getPolygonPointPenetration(
   vec2(0.0, 0.0, result);
   let resultLength = Infinity;
   let resultIndex = 0;
-  for (let ii = 0; ii < points.length; ii++) {
-    const toIndex = (ii + 1) % points.length;
+  for (let ii = 0; ii < count; ii++) {
+    const toIndex = (ii + 1) % count;
     const rightSide = getSidePointPenetration(
-      points[ii],
-      points[toIndex],
-      thicknesses[ii] || 0.0,
-      thicknesses[toIndex] || 0.0,
+      polygonPoint0,
+      polygonPoint1,
+      vertexThicknesses.getVertexThickness(ii, polygonPoint0),
+      vertexThicknesses.getVertexThickness(toIndex, polygonPoint1),
       vertex,
       vertexThickness,
       pointPenetration,
@@ -1396,35 +1446,37 @@ function getPolygonPointPenetration(
 }
 
 const segmentPenetration = vec2();
+const polygonSegment0 = vec2();
+const polygonSegment1 = vec2();
 
 function getPolygonSegmentPenetration(
-  points: Vector2[],
-  thicknesses: number[],
+  vertexThicknesses: VertexThicknesses,
   from: Vector2,
   to: Vector2,
   fromThickness: number,
   toThickness: number,
   result: Vector2,
 ): number {
-  if (points.length === 1) {
+  const count = vertexThicknesses.getVertexCount();
+  if (count === 1) {
     getSegmentPointPenetration(
       from,
       to,
       fromThickness,
       toThickness,
-      points[0],
-      thicknesses[0] || 0.0,
+      polygonSegment0,
+      vertexThicknesses.getVertexThickness(0, polygonSegment0),
       result,
     );
     negativeEquals(result);
     return 0;
   }
-  if (points.length === 2) {
+  if (count === 2) {
     getSegmentSegmentPenetration(
-      points[0],
-      points[1],
-      thicknesses[0] || 0.0,
-      thicknesses[1] || 0.0,
+      polygonSegment0,
+      polygonSegment1,
+      vertexThicknesses.getVertexThickness(0, polygonSegment0),
+      vertexThicknesses.getVertexThickness(1, polygonSegment1),
       from,
       to,
       fromThickness,
@@ -1436,13 +1488,13 @@ function getPolygonSegmentPenetration(
   vec2(0.0, 0.0, result);
   let resultLength = Infinity;
   let resultIndex = 0;
-  for (let ii = 0; ii < points.length; ii++) {
-    const toIndex = (ii + 1) % points.length;
+  for (let ii = 0; ii < count; ii++) {
+    const toIndex = (ii + 1) % count;
     const allRightSide = getSideSegmentPenetration(
-      points[ii],
-      points[toIndex],
-      thicknesses[ii] || 0.0,
-      thicknesses[toIndex] || 0.0,
+      polygonSegment0,
+      polygonSegment1,
+      vertexThicknesses.getVertexThickness(ii, polygonSegment0),
+      vertexThicknesses.getVertexThickness(toIndex, polygonSegment1),
       from,
       to,
       fromThickness,
@@ -1467,8 +1519,7 @@ function getPolygonSegmentPenetration(
       to,
       fromThickness,
       toThickness,
-      points,
-      thicknesses,
+      vertexThicknesses,
       segmentPenetration,
     );
     if (allRightSide) {
@@ -1489,8 +1540,7 @@ function getPolygonSegmentPenetration(
       from,
       toThickness,
       fromThickness,
-      points,
-      thicknesses,
+      vertexThicknesses,
       segmentPenetration,
     );
     if (allRightSide) {
@@ -1507,46 +1557,45 @@ function getPolygonSegmentPenetration(
 }
 
 const polygonPenetration = vec2();
+const polygonPolygon0 = vec2();
+const polygonPolygon1 = vec2();
 
 function getPolygonPolygonPenetration(
-  firstPoints: Vector2[],
-  firstThicknesses: number[],
-  secondPoints: Vector2[],
-  secondThicknesses: number[],
+  firstVertexThicknesses: VertexThicknesses,
+  secondVertexThicknesses: VertexThicknesses,
   result: Vector2,
 ): number {
-  if (secondPoints.length === 1) {
+  const secondCount = secondVertexThicknesses.getVertexCount();
+  if (secondCount === 1) {
     return getPolygonPointPenetration(
-      firstPoints,
-      firstThicknesses,
-      secondPoints[0],
-      secondThicknesses[0] || 0.0,
+      firstVertexThicknesses,
+      polygonPolygon0,
+      secondVertexThicknesses.getVertexThickness(0, polygonPolygon0),
       result,
     );
   }
-  if (secondPoints.length === 2) {
+  if (secondCount === 2) {
     return getPolygonSegmentPenetration(
-      firstPoints,
-      firstThicknesses,
-      secondPoints[0],
-      secondPoints[1],
-      secondThicknesses[0] || 0.0,
-      secondThicknesses[1] || 0.0,
+      firstVertexThicknesses,
+      polygonPolygon0,
+      polygonPolygon1,
+      secondVertexThicknesses.getVertexThickness(0, polygonPolygon0),
+      secondVertexThicknesses.getVertexThickness(1, polygonPolygon1),
       result,
     );
   }
   vec2(0.0, 0.0, result);
   let resultLength = Infinity;
   let resultIndex = 0;
-  for (let ii = 0; ii < firstPoints.length; ii++) {
-    const toIndex = (ii + 1) % firstPoints.length;
+  const firstCount = firstVertexThicknesses.getVertexCount();
+  for (let ii = 0; ii < firstCount; ii++) {
+    const toIndex = (ii + 1) % firstCount;
     const [allRightSide, index] = getSidePolygonPenetration(
-      firstPoints[ii],
-      firstPoints[toIndex],
-      firstThicknesses[ii] || 0.0,
-      firstThicknesses[toIndex] || 0.0,
-      secondPoints,
-      secondThicknesses,
+      polygonPolygon0,
+      polygonPolygon1,
+      firstVertexThicknesses.getVertexThickness(ii, polygonPolygon0),
+      firstVertexThicknesses.getVertexThickness(toIndex, polygonPolygon1),
+      secondVertexThicknesses,
       polygonPenetration,
     );
     if (allRightSide) {
@@ -1561,15 +1610,14 @@ function getPolygonPolygonPenetration(
     }
   }
 
-  for (let ii = 0; ii < secondPoints.length; ii++) {
-    const toIndex = (ii + 1) % secondPoints.length;
+  for (let ii = 0; ii < secondCount; ii++) {
+    const toIndex = (ii + 1) % secondCount;
     const [allRightSide, index] = getSidePolygonPenetration(
-      secondPoints[ii],
-      secondPoints[toIndex],
-      secondThicknesses[ii] || 0.0,
-      secondThicknesses[toIndex] || 0.0,
-      firstPoints,
-      firstThicknesses,
+      polygonPolygon0,
+      polygonPolygon1,
+      secondVertexThicknesses.getVertexThickness(ii, polygonPolygon0),
+      secondVertexThicknesses.getVertexThickness(toIndex, polygonPolygon1),
+      firstVertexThicknesses,
       polygonPenetration,
     );
     if (allRightSide) {
@@ -1623,27 +1671,29 @@ function getSideSegmentPenetration(
   return startRightSide && endRightSide;
 }
 
+const sidePolygonPoint = vec2();
+
 function getSidePolygonPenetration(
   from: Vector2,
   to: Vector2,
   fromThickness: number,
   toThickness: number,
-  points: Vector2[],
-  thicknesses: number[],
+  vertexThicknesses: VertexThicknesses,
   result: Vector2,
 ): [boolean, number] {
   vec2(0.0, 0.0, result);
   let resultLength = 0.0;
   let resultIndex = 0;
   let allRightSide = true;
-  for (let ii = 0; ii < points.length; ii++) {
+  const count = vertexThicknesses.getVertexCount();
+  for (let ii = 0; ii < count; ii++) {
     const rightSide = getSidePointPenetration(
       from,
       to,
       fromThickness,
       toThickness,
-      points[ii],
-      thicknesses[ii] || 0.0,
+      sidePolygonPoint,
+      vertexThicknesses.getVertexThickness(ii, sidePolygonPoint),
       sidePenetration,
     );
     const penetrationLength = length(sidePenetration);
