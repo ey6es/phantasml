@@ -26,6 +26,11 @@ import {
   cross,
   transformPointEquals,
   mix,
+  emptyBounds,
+  boundsIntersect,
+  expandBoundsEquals,
+  addToBoundsEquals,
+  transformBounds,
 } from './math';
 
 const penetration = vec2();
@@ -38,11 +43,19 @@ const point = vec2();
 const begin = vec2();
 const finish = vec2();
 const vector = vec2();
+const testBounds = emptyBounds();
 
 /**
  * Interface for sources of vertex/thicknesses data.
  */
 export interface VertexThicknesses {
+  /**
+   * Retrieves the bounds of the vertices.
+   *
+   * @param bounds the bounds object to populate.
+   */
+  getBounds(bounds: Bounds): void;
+
   /**
    * Returns the number of vertices in the source.
    *
@@ -75,6 +88,15 @@ export class VertexThicknessArray implements VertexThicknesses {
     this._thicknesses = thicknesses;
   }
 
+  getBounds(bounds: Bounds) {
+    emptyBounds(bounds);
+    for (const vertex of this._vertices) {
+      addToBoundsEquals(bounds, vertex.x, vertex.y);
+    }
+    this._thicknesses &&
+      expandBoundsEquals(bounds, Math.max(...this._thicknesses));
+  }
+
   getVertexCount(): number {
     return this._vertices.length;
   }
@@ -88,10 +110,17 @@ export class VertexThicknessArray implements VertexThicknesses {
 class IndexedVertexThicknesses implements VertexThicknesses {
   _geometry: CollisionGeometry;
   _indices: number[];
+  _bounds: Bounds;
 
-  constructor(geometry: CollisionGeometry, indices: number[]) {
+  constructor(geometry: CollisionGeometry, indices: number[], bounds: Bounds) {
     this._geometry = geometry;
     this._indices = indices;
+    this._bounds = bounds;
+  }
+
+  getBounds(bounds: Bounds) {
+    equals(this._bounds.min, bounds.min);
+    equals(this._bounds.max, bounds.max);
   }
 
   getVertexCount(): number {
@@ -104,18 +133,24 @@ class IndexedVertexThicknesses implements VertexThicknesses {
 }
 
 class TransformedVertexThicknesses extends IndexedVertexThicknesses {
-  _matrix: number[];
+  _transform: Transform;
   _radius: number;
 
   constructor(
     geometry: CollisionGeometry,
     indices: number[],
-    matrix: number[],
+    bounds: Bounds,
+    transform: Transform,
     radius: number,
   ) {
-    super(geometry, indices);
-    this._matrix = matrix;
+    super(geometry, indices, bounds);
+    this._transform = transform;
     this._radius = radius;
+  }
+
+  getBounds(bounds: Bounds) {
+    transformBounds(this._bounds, this._transform, bounds);
+    expandBoundsEquals(bounds, this._radius);
   }
 
   getVertexThickness(index: number, vertex: Vector2): number {
@@ -123,7 +158,7 @@ class TransformedVertexThicknesses extends IndexedVertexThicknesses {
       this._indices[index],
       vertex,
     );
-    transformPointEquals(vertex, this._matrix);
+    transformPointEquals(vertex, getTransformMatrix(this._transform));
     return thickness + this._radius;
   }
 }
@@ -135,6 +170,11 @@ class TransformedVertexThicknesses extends IndexedVertexThicknesses {
  */
 export class CollisionElement {
   _bounds: Bounds;
+
+  /** Returns the bounds of the element. */
+  get bounds(): Bounds {
+    return this._bounds;
+  }
 
   constructor(bounds: Bounds) {
     this._bounds = bounds;
@@ -665,7 +705,8 @@ export class CollisionPolygon extends CollisionElement {
       new TransformedVertexThicknesses(
         geometry,
         this._indices,
-        getTransformMatrix(transform),
+        this._bounds,
+        transform,
         radius,
       ),
       otherPenetration,
@@ -693,7 +734,7 @@ export class CollisionPolygon extends CollisionElement {
   ) {
     let resultLength = length(result);
     const index = getPolygonPointPenetration(
-      new IndexedVertexThicknesses(geometry, this._indices),
+      new IndexedVertexThicknesses(geometry, this._indices, this._bounds),
       vertex,
       vertexThickness,
       featurePenetration,
@@ -722,7 +763,7 @@ export class CollisionPolygon extends CollisionElement {
   ) {
     let resultLength = length(result);
     getPolygonSegmentPenetration(
-      new IndexedVertexThicknesses(geometry, this._indices),
+      new IndexedVertexThicknesses(geometry, this._indices, this._bounds),
       start,
       end,
       startThickness,
@@ -744,7 +785,7 @@ export class CollisionPolygon extends CollisionElement {
   ): number {
     let resultLength = length(result);
     const index = getPolygonPolygonPenetration(
-      new IndexedVertexThicknesses(geometry, this._indices),
+      new IndexedVertexThicknesses(geometry, this._indices, this._bounds),
       vertexThicknesses,
       featurePenetration,
     );
@@ -931,14 +972,19 @@ export class CollisionGeometry {
    * @return the position of the nearest feature, if any.
    */
   getNearestFeaturePosition(position: Vector2, radius: number): ?Vector2 {
+    equals(position, testBounds.min);
+    equals(position, testBounds.max);
+    expandBoundsEquals(testBounds, radius);
     let nearest: ?Vector2;
     for (const element of this._elements) {
-      nearest = element.getNearestFeaturePosition(
-        this,
-        position,
-        radius,
-        nearest,
-      );
+      if (boundsIntersect(testBounds, element.bounds)) {
+        nearest = element.getNearestFeaturePosition(
+          this,
+          position,
+          radius,
+          nearest,
+        );
+      }
     }
     return nearest;
   }
@@ -1019,15 +1065,20 @@ export class CollisionGeometry {
     result: Vector2,
     allResults?: PenetrationResult[],
   ) {
+    equals(vertex, testBounds.min);
+    equals(vertex, testBounds.max);
+    expandBoundsEquals(testBounds, vertexThickness);
     vec2(0.0, 0.0, result);
     for (const element of this._elements) {
-      element.getPointPenetration(
-        this,
-        vertex,
-        vertexThickness,
-        result,
-        allResults,
-      );
+      if (boundsIntersect(testBounds, element.bounds)) {
+        element.getPointPenetration(
+          this,
+          vertex,
+          vertexThickness,
+          result,
+          allResults,
+        );
+      }
     }
   }
 
@@ -1072,16 +1123,22 @@ export class CollisionGeometry {
     endThickness: number,
     result: Vector2,
   ) {
+    emptyBounds(testBounds);
+    addToBoundsEquals(testBounds, start.x, start.y);
+    addToBoundsEquals(testBounds, end.x, end.y);
+    expandBoundsEquals(testBounds, Math.max(startThickness, endThickness));
     vec2(0.0, 0.0, result);
     for (const element of this._elements) {
-      element.getSegmentPenetration(
-        this,
-        start,
-        end,
-        startThickness,
-        endThickness,
-        result,
-      );
+      if (boundsIntersect(testBounds, element.bounds)) {
+        element.getSegmentPenetration(
+          this,
+          start,
+          end,
+          startThickness,
+          endThickness,
+          result,
+        );
+      }
     }
   }
 
@@ -1107,15 +1164,18 @@ export class CollisionGeometry {
     vertexThicknesses: VertexThicknesses,
     result: Vector2,
   ): number {
+    vertexThicknesses.getBounds(testBounds);
     vec2(0.0, 0.0, result);
     let resultIndex = 0;
     for (const element of this._elements) {
-      resultIndex = element.getPolygonPenetration(
-        this,
-        vertexThicknesses,
-        result,
-        resultIndex,
-      );
+      if (boundsIntersect(testBounds, element.bounds)) {
+        resultIndex = element.getPolygonPenetration(
+          this,
+          vertexThicknesses,
+          result,
+          resultIndex,
+        );
+      }
     }
     return resultIndex;
   }
