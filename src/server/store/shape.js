@@ -581,7 +581,15 @@ class PathCommand {
     const vertexIndex = arrayIndex + attributeOffsets.vertex;
     arrayBuffer[vertexIndex] = position.x;
     arrayBuffer[vertexIndex + 1] = position.y;
-    addToBoundsEquals(bounds, position.x, position.y);
+    const thickness = Math.max(
+      (this.attributes && (this.attributes.thickness: any)) || 0.0,
+      (previous &&
+        previous.attributes &&
+        (previous.attributes.thickness: any)) ||
+        0.0,
+    );
+    addToBoundsEquals(bounds, position.x - thickness, position.y - thickness);
+    addToBoundsEquals(bounds, position.x + thickness, position.y + thickness);
     this._writeAttributes(
       arrayBuffer,
       arrayIndex,
@@ -1566,6 +1574,7 @@ export class Shape {
     }
     const finalIndex = arrayIndex / vertexSize - 1;
     const vertexOffset = attributeOffsets.vertex;
+    const thicknessOffset = attributeOffsets.thickness;
 
     // run the earcut algorithm to get indices
     const vertices: number[] = [];
@@ -1625,10 +1634,16 @@ export class Shape {
         const neighbors = triangle.neighbors;
         for (let ii = 0; ii < indices.length; ii++) {
           const start = indices[ii];
-          const startIndex = start * vertexSize + vertexOffset;
+          const startVertex = start * vertexSize;
+          const startIndex = startVertex + vertexOffset;
           const sx = arrayBuffer[startIndex];
           const sy = arrayBuffer[startIndex + 1];
-          addToBoundsEquals(bounds, sx, sy);
+          const thickness =
+            thicknessOffset === undefined
+              ? 0.0
+              : arrayBuffer[startVertex + thicknessOffset];
+          addToBoundsEquals(bounds, sx - thickness, sy - thickness);
+          addToBoundsEquals(bounds, sx + thickness, sy + thickness);
           const neighbor = neighbors[ii];
           if (!(neighbor && triangles.has(neighbor))) {
             continue;

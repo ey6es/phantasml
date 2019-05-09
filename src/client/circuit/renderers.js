@@ -330,7 +330,7 @@ ComponentRenderers.moduleRenderer = {
         {translation: position},
       );
       const bounds = expandBoundsEquals(
-        transformBounds(WireArrowBounds, transform),
+        transformBounds(WireArrowBounds, getTransformMatrix(transform)),
         MODULE_THICKNESS,
       );
       const inverseTransform = invertTransform(transform);

@@ -77,7 +77,7 @@ export const ComponentColliders: {[string]: ColliderData} = {
       const worldTransform = composeTransforms(parentTransform, newTransform);
       emptyBounds(bounds);
       const thickness = shapeList.addToBounds(bounds);
-      transformBoundsEquals(bounds, worldTransform);
+      transformBoundsEquals(bounds, getTransformMatrix(worldTransform));
       expandBoundsEquals(bounds, thickness);
       vec2(0.0, 0.0, separation);
       scene.applyToEntities(lineage[0].id, bounds, otherEntity => {

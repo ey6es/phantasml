@@ -1194,17 +1194,16 @@ export function boundsIntersect(first: Bounds, second: Bounds): boolean {
  * Applies a transform to a bounds object.
  *
  * @param bounds the bounds to transform.
- * @param transform the transform to apply.
+ * @param matrix the matrix to transform by.
  * @param [result] the bounds in which to store the result (otherwise, a new
  * bounds object will be created).
  * @return a reference to the result bounds.
  */
 export function transformBounds(
   bounds: Bounds,
-  transform: Transform,
+  matrix: number[],
   result?: Bounds,
 ): Bounds {
-  const matrix = getTransformMatrix(transform);
   let minX = matrix[6];
   let minY = matrix[7];
   let maxX = matrix[6];
@@ -1249,14 +1248,14 @@ export function transformBounds(
  * Applies a transform to a bounds object.
  *
  * @param bounds the bounds to transform.
- * @param transform the transform to apply.
+ * @param matrix the matrix to transform by.
  * @return a reference to the bounds.
  */
 export function transformBoundsEquals(
   bounds: Bounds,
-  transform: Transform,
+  matrix: number[],
 ): Bounds {
-  return transformBounds(bounds, transform, bounds);
+  return transformBounds(bounds, matrix, bounds);
 }
 
 /**

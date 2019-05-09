@@ -8,6 +8,7 @@
 import type {Vector2, Transform, Bounds} from './math';
 import {
   getTransformMatrix,
+  getTransformInverseMatrix,
   vec2,
   equals,
   negative,
@@ -31,6 +32,7 @@ import {
   expandBoundsEquals,
   addToBoundsEquals,
   transformBounds,
+  boundsUnionEquals,
 } from './math';
 
 const penetration = vec2();
@@ -44,6 +46,7 @@ const begin = vec2();
 const finish = vec2();
 const vector = vec2();
 const testBounds = emptyBounds();
+const geometryBounds = emptyBounds();
 
 /**
  * Interface for sources of vertex/thicknesses data.
@@ -133,23 +136,23 @@ class IndexedVertexThicknesses implements VertexThicknesses {
 }
 
 class TransformedVertexThicknesses extends IndexedVertexThicknesses {
-  _transform: Transform;
+  _matrix: number[];
   _radius: number;
 
   constructor(
     geometry: CollisionGeometry,
     indices: number[],
     bounds: Bounds,
-    transform: Transform,
+    matrix: number[],
     radius: number,
   ) {
     super(geometry, indices, bounds);
-    this._transform = transform;
+    this._matrix = matrix;
     this._radius = radius;
   }
 
   getBounds(bounds: Bounds) {
-    transformBounds(this._bounds, this._transform, bounds);
+    transformBounds(this._bounds, this._matrix, bounds);
     expandBoundsEquals(bounds, this._radius);
   }
 
@@ -158,7 +161,7 @@ class TransformedVertexThicknesses extends IndexedVertexThicknesses {
       this._indices[index],
       vertex,
     );
-    transformPointEquals(vertex, getTransformMatrix(this._transform));
+    transformPointEquals(vertex, this._matrix);
     return thickness + this._radius;
   }
 }
@@ -706,7 +709,7 @@ export class CollisionPolygon extends CollisionElement {
         geometry,
         this._indices,
         this._bounds,
-        transform,
+        getTransformMatrix(transform),
         radius,
       ),
       otherPenetration,
@@ -884,10 +887,16 @@ export class CollisionGeometry {
   _attributeOffsets: {[string]: number};
   _vertexSize: number;
   _elements: CollisionElement[];
+  _bounds: Bounds;
   _adjacentIndices: Map<number, number>;
   _area: ?number;
   _centerOfMass: ?Vector2;
   _momentOfInertia: ?number;
+
+  /** Returns the bounds of the geometry. */
+  get bounds(): Bounds {
+    return this._bounds;
+  }
 
   /** Retrieves the geometry's area, computing it if necessary. */
   get area(): number {
@@ -931,6 +940,10 @@ export class CollisionGeometry {
     }
     this._vertexSize = currentOffset;
     this._elements = elements;
+    this._bounds = emptyBounds();
+    for (const element of elements) {
+      boundsUnionEquals(this._bounds, element.bounds);
+    }
     this._adjacentIndices = adjacentIndices;
   }
 
@@ -1025,16 +1038,23 @@ export class CollisionGeometry {
     result: Vector2,
     allResults?: PenetrationResult[],
   ) {
+    transformBounds(
+      other.bounds,
+      getTransformInverseMatrix(transform),
+      geometryBounds,
+    );
     vec2(0.0, 0.0, result);
     for (const element of this._elements) {
-      element.getPenetration(
-        this,
-        other,
-        transform,
-        radius,
-        result,
-        allResults,
-      );
+      if (boundsIntersect(geometryBounds, element.bounds)) {
+        element.getPenetration(
+          this,
+          other,
+          transform,
+          radius,
+          result,
+          allResults,
+        );
+      }
     }
   }
 

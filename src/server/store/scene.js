@@ -17,6 +17,7 @@ import {
   vec2,
   equals,
   composeTransforms,
+  getTransformMatrix,
   emptyBounds,
   boundsValid,
   boundsContain,
@@ -844,7 +845,7 @@ function computeWorldBounds(idTree: IdTreeNode, lineage: Entity[]): Bounds {
       );
     }
   }
-  transformBoundsEquals(bounds, getWorldTransform(lineage));
+  transformBoundsEquals(bounds, getTransformMatrix(getWorldTransform(lineage)));
   return expandBoundsEquals(bounds, maxThickness);
 }
 
