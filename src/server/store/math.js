@@ -1408,6 +1408,16 @@ export function getBoundsVertices(
 }
 
 /**
+ * Gets the size of the bounds on their longest axis.
+ *
+ * @param bounds the bounds of interest.
+ * @return the bounds size.
+ */
+export function getBoundsSize(bounds: Bounds): number {
+  return Math.max(bounds.max.x - bounds.min.x, bounds.max.y - bounds.min.y);
+}
+
+/**
  * Computes and returns the mean of an array of vectors.
  *
  * @param vertices the vertices to average.

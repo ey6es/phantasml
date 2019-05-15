@@ -26,6 +26,7 @@ import {
   boundsUnionEquals,
   transformBoundsEquals,
   expandBoundsEquals,
+  getBoundsSize,
 } from './math';
 import {ComponentBounds} from './bounds';
 import type {ResourceType} from '../api';
@@ -699,10 +700,7 @@ class QuadtreeNode {
     if (!halfSize) {
       throw new Error('Cannot get depth on non-root.');
     }
-    const boundsSize = Math.max(
-      bounds.max.x - bounds.min.x,
-      bounds.max.y - bounds.min.y,
-    );
+    const boundsSize = getBoundsSize(bounds);
     if (boundsSize === 0) {
       return MAX_DEPTH;
     }

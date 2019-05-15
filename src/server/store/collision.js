@@ -29,10 +29,12 @@ import {
   mix,
   emptyBounds,
   boundsIntersect,
+  boundsContain,
   expandBoundsEquals,
   addToBoundsEquals,
   transformBounds,
   boundsUnionEquals,
+  getBoundsSize,
 } from './math';
 
 const penetration = vec2();
@@ -47,6 +49,7 @@ const finish = vec2();
 const vector = vec2();
 const testBounds = emptyBounds();
 const geometryBounds = emptyBounds();
+const nodeBounds = emptyBounds();
 
 /**
  * Interface for sources of vertex/thicknesses data.
@@ -172,6 +175,8 @@ class TransformedVertexThicknesses extends IndexedVertexThicknesses {
  * @param bounds the bounds of the element.
  */
 export class CollisionElement {
+  visit: ?number;
+
   _bounds: Bounds;
 
   /** Returns the bounds of the element. */
@@ -867,6 +872,132 @@ export class CollisionPolygon extends CollisionElement {
   }
 }
 
+/** The last visit identifier used for traversal. */
+let currentVisit = 0;
+
+const MAX_DEPTH = 16;
+
+class QuadtreeNode {
+  _elements: CollisionElement[] = [];
+  _children: (?QuadtreeNode)[] = [];
+
+  addElement(geometry: CollisionGeometry, element: CollisionElement) {
+    let depth = MAX_DEPTH;
+    const geometryBounds = geometry.bounds;
+    const elementSize = getBoundsSize(element.bounds);
+    if (elementSize > 0) {
+      const geometrySize = getBoundsSize(geometryBounds);
+      depth = Math.min(
+        Math.round(Math.log(geometrySize / elementSize) / Math.LN2),
+        MAX_DEPTH,
+      );
+    }
+    equals(geometryBounds.min, nodeBounds.min);
+    equals(geometryBounds.max, nodeBounds.max);
+    this._addElement(element, depth);
+  }
+
+  _addElement(element: CollisionElement, depth: number) {
+    if (depth === 0) {
+      this._elements.push(element);
+      return;
+    }
+    const minX = nodeBounds.min.x;
+    const minY = nodeBounds.min.y;
+    const maxX = nodeBounds.max.x;
+    const maxY = nodeBounds.max.y;
+    const halfX = (minX + maxX) * 0.5;
+    const halfY = (minY + maxY) * 0.5;
+    for (let ii = 0; ii < 4; ii++) {
+      if (ii & 1) {
+        nodeBounds.min.x = halfX;
+        nodeBounds.max.x = maxX;
+      } else {
+        nodeBounds.min.x = minX;
+        nodeBounds.max.x = halfX;
+      }
+      if (ii & 2) {
+        nodeBounds.min.y = halfY;
+        nodeBounds.max.y = maxY;
+      } else {
+        nodeBounds.min.y = minY;
+        nodeBounds.max.y = halfY;
+      }
+      if (boundsIntersect(nodeBounds, element.bounds)) {
+        let child = this._children[ii];
+        if (!child) {
+          this._children[ii] = child = new QuadtreeNode();
+        }
+        child._addElement(element, depth - 1);
+      }
+    }
+  }
+
+  applyToElements(
+    geometry: CollisionGeometry,
+    bounds: Bounds,
+    op: CollisionElement => void,
+  ) {
+    currentVisit++;
+    const geometryBounds = geometry.bounds;
+    equals(geometryBounds.min, nodeBounds.min);
+    equals(geometryBounds.max, nodeBounds.max);
+    this._applyToElements(bounds, op, false);
+  }
+
+  _applyToElements(
+    bounds: Bounds,
+    op: CollisionElement => void,
+    contained: boolean,
+  ) {
+    for (const element of this._elements) {
+      if (
+        element.visit !== currentVisit &&
+        boundsIntersect(bounds, element.bounds)
+      ) {
+        element.visit = currentVisit;
+        op(element);
+      }
+    }
+    if (contained) {
+      for (let ii = 0; ii < 4; ii++) {
+        const child = this._children[ii];
+        child && child._applyToElements(bounds, op, true);
+      }
+      return;
+    }
+    const minX = nodeBounds.min.x;
+    const minY = nodeBounds.min.y;
+    const maxX = nodeBounds.max.x;
+    const maxY = nodeBounds.max.y;
+    const halfX = (minX + maxX) * 0.5;
+    const halfY = (minY + maxY) * 0.5;
+    for (let ii = 0; ii < 4; ii++) {
+      const child = this._children[ii];
+      if (!child) {
+        continue;
+      }
+      if (ii & 1) {
+        nodeBounds.min.x = halfX;
+        nodeBounds.max.x = maxX;
+      } else {
+        nodeBounds.min.x = minX;
+        nodeBounds.max.x = halfX;
+      }
+      if (ii & 2) {
+        nodeBounds.min.y = halfY;
+        nodeBounds.max.y = maxY;
+      } else {
+        nodeBounds.min.y = minY;
+        nodeBounds.max.y = halfY;
+      }
+      if (boundsIntersect(bounds, nodeBounds)) {
+        child._applyToElements(bounds, op, boundsContain(bounds, nodeBounds));
+      }
+    }
+  }
+}
+
 /** Contains information on a single penetration. */
 export type PenetrationResult = {
   penetration: Vector2,
@@ -892,6 +1023,7 @@ export class CollisionGeometry {
   _area: ?number;
   _centerOfMass: ?Vector2;
   _momentOfInertia: ?number;
+  _quadtree: QuadtreeNode;
 
   /** Returns the bounds of the geometry. */
   get bounds(): Bounds {
@@ -939,10 +1071,13 @@ export class CollisionGeometry {
       currentOffset += attributeSizes[name];
     }
     this._vertexSize = currentOffset;
-    this._elements = elements;
     this._bounds = emptyBounds();
     for (const element of elements) {
       boundsUnionEquals(this._bounds, element.bounds);
+    }
+    this._quadtree = new QuadtreeNode();
+    for (const element of elements) {
+      this._quadtree.addElement(this, element);
     }
     this._adjacentIndices = adjacentIndices;
   }
@@ -989,16 +1124,14 @@ export class CollisionGeometry {
     equals(position, testBounds.max);
     expandBoundsEquals(testBounds, radius);
     let nearest: ?Vector2;
-    for (const element of this._elements) {
-      if (boundsIntersect(testBounds, element.bounds)) {
-        nearest = element.getNearestFeaturePosition(
-          this,
-          position,
-          radius,
-          nearest,
-        );
-      }
-    }
+    this._quadtree.applyToElements(this, testBounds, element => {
+      nearest = element.getNearestFeaturePosition(
+        this,
+        position,
+        radius,
+        nearest,
+      );
+    });
     return nearest;
   }
 
@@ -1044,18 +1177,16 @@ export class CollisionGeometry {
       geometryBounds,
     );
     vec2(0.0, 0.0, result);
-    for (const element of this._elements) {
-      if (boundsIntersect(geometryBounds, element.bounds)) {
-        element.getPenetration(
-          this,
-          other,
-          transform,
-          radius,
-          result,
-          allResults,
-        );
-      }
-    }
+    this._quadtree.applyToElements(this, geometryBounds, element => {
+      element.getPenetration(
+        this,
+        other,
+        transform,
+        radius,
+        result,
+        allResults,
+      );
+    });
   }
 
   /**
@@ -1089,17 +1220,15 @@ export class CollisionGeometry {
     equals(vertex, testBounds.max);
     expandBoundsEquals(testBounds, vertexThickness);
     vec2(0.0, 0.0, result);
-    for (const element of this._elements) {
-      if (boundsIntersect(testBounds, element.bounds)) {
-        element.getPointPenetration(
-          this,
-          vertex,
-          vertexThickness,
-          result,
-          allResults,
-        );
-      }
-    }
+    this._quadtree.applyToElements(this, testBounds, element => {
+      element.getPointPenetration(
+        this,
+        vertex,
+        vertexThickness,
+        result,
+        allResults,
+      );
+    });
   }
 
   /**
@@ -1148,18 +1277,16 @@ export class CollisionGeometry {
     addToBoundsEquals(testBounds, end.x, end.y);
     expandBoundsEquals(testBounds, Math.max(startThickness, endThickness));
     vec2(0.0, 0.0, result);
-    for (const element of this._elements) {
-      if (boundsIntersect(testBounds, element.bounds)) {
-        element.getSegmentPenetration(
-          this,
-          start,
-          end,
-          startThickness,
-          endThickness,
-          result,
-        );
-      }
-    }
+    this._quadtree.applyToElements(this, testBounds, element => {
+      element.getSegmentPenetration(
+        this,
+        start,
+        end,
+        startThickness,
+        endThickness,
+        result,
+      );
+    });
   }
 
   /**
@@ -1187,16 +1314,14 @@ export class CollisionGeometry {
     vertexThicknesses.getBounds(testBounds);
     vec2(0.0, 0.0, result);
     let resultIndex = 0;
-    for (const element of this._elements) {
-      if (boundsIntersect(testBounds, element.bounds)) {
-        resultIndex = element.getPolygonPenetration(
-          this,
-          vertexThicknesses,
-          result,
-          resultIndex,
-        );
-      }
-    }
+    this._quadtree.applyToElements(this, testBounds, element => {
+      resultIndex = element.getPolygonPenetration(
+        this,
+        vertexThicknesses,
+        result,
+        resultIndex,
+      );
+    });
     return resultIndex;
   }
 
@@ -1222,13 +1347,13 @@ export class CollisionGeometry {
         6.0;
       totalArea += 0.5 * (cp0 + cp1 + cp2 + cp3);
     };
-    for (const element of this._elements) {
+    this._quadtree.applyToElements(this, this._bounds, element => {
       totalArea += element._computeAreaAndCenterOfMass(
         this,
         centerOfMass,
         addQuad,
       );
-    }
+    });
     if (totalArea > 0.0) {
       timesEquals(centerOfMass, 1.0 / totalArea);
     }
@@ -1250,9 +1375,9 @@ export class CollisionGeometry {
           cross(to, from) * (dp3 + dot(to, from) + dp0)) /
         12.0;
     };
-    for (const element of this._elements) {
+    this._quadtree.applyToElements(this, this._bounds, element => {
       momentOfInertia += element._computeMomentOfInertia(this, addQuad);
-    }
+    });
     this._momentOfInertia = momentOfInertia;
   }
 
