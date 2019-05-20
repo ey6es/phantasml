@@ -77,6 +77,14 @@ export interface VertexThicknesses {
    * @return the thickness.
    */
   getVertexThickness(index: number, vertex: Vector2): number;
+
+  /**
+   * Checks whether the identified edge is external.
+   *
+   * @param index the index of the edge to check.
+   * @return whether or not the edge is external.
+   */
+  isExternalEdge(index: number): boolean;
 }
 
 /**
@@ -111,6 +119,10 @@ export class VertexThicknessArray implements VertexThicknesses {
     equals(this._vertices[index], vertex);
     return this._thicknesses ? this._thicknesses[index] : 0.0;
   }
+
+  isExternalEdge(index: number): boolean {
+    return true;
+  }
 }
 
 class IndexedVertexThicknesses implements VertexThicknesses {
@@ -135,6 +147,14 @@ class IndexedVertexThicknesses implements VertexThicknesses {
 
   getVertexThickness(index: number, vertex: Vector2): number {
     return this._geometry._getVertexThickness(this._indices[index], vertex);
+  }
+
+  isExternalEdge(index: number): boolean {
+    const fromIndex = this._indices[index];
+    const toIndex = this._indices[(index + 1) % this._indices.length];
+    let adjacentIndex = this._geometry._adjacentIndices.get(fromIndex);
+    adjacentIndex === undefined && (adjacentIndex = fromIndex + 1);
+    return toIndex === adjacentIndex;
   }
 }
 
