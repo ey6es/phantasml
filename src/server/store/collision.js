@@ -970,6 +970,10 @@ class QuadtreeNode {
     op: CollisionElement => void,
     contained: boolean,
   ) {
+    const minX = nodeBounds.min.x;
+    const minY = nodeBounds.min.y;
+    const maxX = nodeBounds.max.x;
+    const maxY = nodeBounds.max.y;
     for (const element of this._elements) {
       if (
         element.visit !== currentVisit &&
@@ -986,10 +990,6 @@ class QuadtreeNode {
       }
       return;
     }
-    const minX = nodeBounds.min.x;
-    const minY = nodeBounds.min.y;
-    const maxX = nodeBounds.max.x;
-    const maxY = nodeBounds.max.y;
     const halfX = (minX + maxX) * 0.5;
     const halfY = (minY + maxY) * 0.5;
     for (let ii = 0; ii < 4; ii++) {
@@ -1037,7 +1037,6 @@ export class CollisionGeometry {
   _arrayBuffer: Float32Array;
   _attributeOffsets: {[string]: number};
   _vertexSize: number;
-  _elements: CollisionElement[];
   _bounds: Bounds;
   _adjacentIndices: Map<number, number>;
   _area: ?number;
@@ -1196,6 +1195,7 @@ export class CollisionGeometry {
       getTransformInverseMatrix(transform),
       geometryBounds,
     );
+    expandBoundsEquals(geometryBounds, radius);
     vec2(0.0, 0.0, result);
     this._quadtree.applyToElements(this, geometryBounds, element => {
       element.getPenetration(
