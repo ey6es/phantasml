@@ -12,6 +12,8 @@ import {addToBoundsEquals} from './math';
 import {
   DEFAULT_THICKNESS,
   DEFAULT_LINE_LENGTH,
+  DEFAULT_START_THICKNESS,
+  DEFAULT_END_THICKNESS,
   DEFAULT_RECTANGLE_WIDTH,
   DEFAULT_RECTANGLE_HEIGHT,
   DEFAULT_ARC_RADIUS,
@@ -57,6 +59,20 @@ export const ComponentBounds: {[string]: BoundsData} = {
       addToBoundsEquals(bounds, -halfLength, 0.0);
       addToBoundsEquals(bounds, halfLength, 0.0);
       return thickness;
+    },
+  },
+  wedge: {
+    addToBounds: (idTree: IdTreeNode, entity: Entity, bounds: Bounds) => {
+      const data = entity.state.wedge;
+      const startThickness = getValue(
+        data.startThickness,
+        DEFAULT_START_THICKNESS,
+      );
+      const endThickness = getValue(data.endThickness, DEFAULT_END_THICKNESS);
+      const halfLength = getValue(data.length, DEFAULT_LINE_LENGTH) * 0.5;
+      addToBoundsEquals(bounds, -halfLength, 0.0);
+      addToBoundsEquals(bounds, halfLength, 0.0);
+      return Math.max(startThickness, endThickness);
     },
   },
   lineGroup: {

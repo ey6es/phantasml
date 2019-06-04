@@ -11,6 +11,8 @@ import type {ComponentData, CategoryData} from '../component';
 import {
   DEFAULT_THICKNESS,
   DEFAULT_LINE_LENGTH,
+  DEFAULT_START_THICKNESS,
+  DEFAULT_END_THICKNESS,
   DEFAULT_VERTICES,
   DEFAULT_LINE_GROUP_LOOP,
   DEFAULT_FILL,
@@ -126,6 +128,46 @@ export const GeometryComponents: {[string]: ComponentData} = {
     label: <FormattedMessage id="line.title" defaultMessage="Line" />,
     properties: {
       ...ThicknessProperty,
+      length: {
+        type: 'number',
+        label: <FormattedMessage id="line.length" defaultMessage="Length:" />,
+        defaultValue: DEFAULT_LINE_LENGTH,
+        step: 0.01,
+        wheelStep: 0.1,
+        precision: 2,
+        min: 0,
+      },
+    },
+    category: 'geometry',
+  },
+  wedge: {
+    label: <FormattedMessage id="wedge.title" defaultMessage="Wedge" />,
+    properties: {
+      startThickness: {
+        type: 'number',
+        label: (
+          <FormattedMessage
+            id="wedge.start_thickness"
+            defaultMessage="Start:"
+          />
+        ),
+        defaultValue: DEFAULT_START_THICKNESS,
+        step: 0.01,
+        wheelStep: 0.1,
+        precision: 2,
+        min: 0,
+      },
+      endThickness: {
+        type: 'number',
+        label: (
+          <FormattedMessage id="geometry.end_thickness" defaultMessage="End:" />
+        ),
+        defaultValue: DEFAULT_END_THICKNESS,
+        step: 0.01,
+        wheelStep: 0.1,
+        precision: 2,
+        min: 0,
+      },
       length: {
         type: 'number',
         label: <FormattedMessage id="line.length" defaultMessage="Length:" />,

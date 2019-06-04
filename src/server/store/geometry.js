@@ -63,6 +63,8 @@ type GeometryData = {
 
 export const DEFAULT_THICKNESS = 0.2;
 export const DEFAULT_LINE_LENGTH = 5;
+export const DEFAULT_START_THICKNESS = 0.1;
+export const DEFAULT_END_THICKNESS = 0.2;
 export const DEFAULT_VERTICES = [vec2(-2.5, -1.5), vec2(2.5, -1.5), vec2(0, 3)];
 export const DEFAULT_LINE_GROUP_LOOP = false;
 export const DEFAULT_FILL = false;
@@ -241,28 +243,47 @@ export const ComponentGeometry: {[string]: GeometryData} = {
       ];
     },
     createControlPointEdit: (entity, indexPositions, mirrored) => {
-      const data = entity.state.line;
+      return createLineWedgeControlPointEdit(
+        entity,
+        indexPositions,
+        mirrored,
+        'line',
+      );
+    },
+  },
+  wedge: {
+    createShapeList: (idTree, entity) => {
+      const data = entity.state.wedge;
+      const startThickness = getValue(
+        data.startThickness,
+        DEFAULT_START_THICKNESS,
+      );
+      const endThickness = getValue(data.endThickness, DEFAULT_END_THICKNESS);
+      const length = getValue(data.length, DEFAULT_LINE_LENGTH);
+      return new ShapeList()
+        .move(length * -0.5, 0)
+        .penDown(false, {thickness: startThickness})
+        .advance(length, {thickness: endThickness});
+    },
+    getControlPoints: data => {
+      const startThickness = getValue(
+        data.startThickness,
+        DEFAULT_START_THICKNESS,
+      );
+      const endThickness = getValue(data.endThickness, DEFAULT_END_THICKNESS);
       const halfLength = getValue(data.length, DEFAULT_LINE_LENGTH) * 0.5;
-      const worldTransform = entity.getLastCachedValue('worldTransform');
-      const worldMatrix = getTransformMatrix(worldTransform);
-      const start = transformPoint(vec2(-halfLength, 0.0), worldMatrix);
-      const end = transformPoint(vec2(halfLength, 0.0), worldMatrix);
-      const vertices = [start, end];
-      for (const [index, position] of indexPositions) {
-        equals(position, vertices[index]);
-      }
-      return {
-        transform: simplifyTransform(
-          composeTransforms(
-            entity.state.transform,
-            composeTransforms(invertTransform(worldTransform), {
-              translation: timesEquals(plus(start, end), 0.5),
-              rotation: Math.atan2(end.y - start.y, end.x - start.x),
-            }),
-          ),
-        ),
-        line: {length: distance(start, end)},
-      };
+      return [
+        {position: vec2(-halfLength, 0.0), thickness: startThickness},
+        {position: vec2(halfLength, 0.0), thickness: endThickness},
+      ];
+    },
+    createControlPointEdit: (entity, indexPositions, mirrored) => {
+      return createLineWedgeControlPointEdit(
+        entity,
+        indexPositions,
+        mirrored,
+        'wedge',
+      );
     },
   },
   lineGroup: {
@@ -823,6 +844,36 @@ export const ComponentGeometry: {[string]: GeometryData} = {
     },
   },
 };
+
+function createLineWedgeControlPointEdit(
+  entity: Entity,
+  indexPositions: [number, Vector2][],
+  mirrored: boolean,
+  key: string,
+): Object {
+  const data = entity.state[key];
+  const halfLength = getValue(data.length, DEFAULT_LINE_LENGTH) * 0.5;
+  const worldTransform = entity.getLastCachedValue('worldTransform');
+  const worldMatrix = getTransformMatrix(worldTransform);
+  const start = transformPoint(vec2(-halfLength, 0.0), worldMatrix);
+  const end = transformPoint(vec2(halfLength, 0.0), worldMatrix);
+  const vertices = [start, end];
+  for (const [index, position] of indexPositions) {
+    equals(position, vertices[index]);
+  }
+  return {
+    transform: simplifyTransform(
+      composeTransforms(
+        entity.state.transform,
+        composeTransforms(invertTransform(worldTransform), {
+          translation: timesEquals(plus(start, end), 0.5),
+          rotation: Math.atan2(end.y - start.y, end.x - start.x),
+        }),
+      ),
+    ),
+    [key]: {length: distance(start, end)},
+  };
+}
 
 function mirrorShapeList(list: string): string {
   const positionToString = (position: Vector2) => {
