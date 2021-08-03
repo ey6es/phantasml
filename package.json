@@ -70,7 +70,7 @@
     "pretty-quick": "^1.10.0",
     "react-intl": "^2.8.0",
     "reactstrap": "^6.5.0",
-    "tar": ">=4.4.2",
+    "tar": ">=4.4.15",
     "uuid": "^3.3.2"
   },
   "dependencies": {
