@@ -36,7 +36,7 @@
     "bootswatch": "^4.2.1",
     "braces": ">=2.3.1",
     "browserify-shim": "^3.8.14",
-    "cached-path-relative": ">=1.0.2",
+    "cached-path-relative": ">=1.1.0",
     "cryptiles": ">=4.1.2",
     "diff": ">=3.5.0",
     "earcut": "^2.1.5",
